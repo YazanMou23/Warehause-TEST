@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>LogisticsOS | Operational Planning</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&amp;family=JetBrains+Mono:wght@100..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-fixed-dim": "#dec29a",
+                        "primary": "#000000",
+                        "primary-fixed": "#dae2fd",
+                        "secondary-fixed-dim": "#adc6ff",
+                        "on-tertiary-container": "#98805d",
+                        "on-tertiary-fixed": "#271901",
+                        "inverse-primary": "#bec6e0",
+                        "secondary-container": "#2170e4",
+                        "on-error": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-container": "#fefcff",
+                        "on-surface-variant": "#45464d",
+                        "primary-container": "#131b2e",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-tint": "#565e74",
+                        "on-surface": "#0b1c30",
+                        "surface-bright": "#f8f9ff",
+                        "on-secondary-fixed": "#001a42",
+                        "error": "#ba1a1a",
+                        "surface": "#f8f9ff",
+                        "on-background": "#0b1c30",
+                        "outline-variant": "#c6c6cd",
+                        "on-secondary-fixed-variant": "#004395",
+                        "surface-container-low": "#eff4ff",
+                        "inverse-on-surface": "#eaf1ff",
+                        "on-primary-container": "#7c839b",
+                        "primary-fixed-dim": "#bec6e0",
+                        "surface-container-high": "#dce9ff",
+                        "on-primary-fixed-variant": "#3f465c",
+                        "on-tertiary-fixed-variant": "#574425",
+                        "background": "#f8f9ff",
+                        "outline": "#76777d",
+                        "error-container": "#ffdad6",
+                        "tertiary-fixed": "#fcdeb5",
+                        "surface-container": "#e5eeff",
+                        "surface-container-highest": "#d3e4fe",
+                        "on-primary": "#ffffff",
+                        "tertiary-container": "#271901",
+                        "tertiary": "#000000",
+                        "inverse-surface": "#213145",
+                        "secondary": "#0058be",
+                        "surface-dim": "#cbdbf5",
+                        "on-tertiary": "#ffffff",
+                        "surface-variant": "#d3e4fe",
+                        "secondary-fixed": "#d8e2ff",
+                        "on-primary-fixed": "#131b2e"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "unit": "4px",
+                        "container-margin": "24px",
+                        "gutter": "16px",
+                        "stack-lg": "32px",
+                        "stack-sm": "8px",
+                        "stack-md": "16px"
+                    },
+                    "fontFamily": {
+                        "body-sm": ["Geist"],
+                        "display": ["Geist"],
+                        "body-md": ["Geist"],
+                        "headline-md": ["Geist"],
+                        "label-md": ["Geist"],
+                        "headline-lg": ["Geist"],
+                        "body-lg": ["Geist"],
+                        "data-mono": ["JetBrains Mono"],
+                        "headline-lg-mobile": ["Geist"]
+                    },
+                    "fontSize": {
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "display": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "data-mono": ["14px", {"lineHeight": "20px", "fontWeight": "500"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        .drag-item:active {
+            cursor: grabbing;
+        }
+        .column-border {
+            border-right: 1px solid #e5e7eb;
+        }
+        .card-flat {
+            border: 1px solid #e2e8f0;
+            border-radius: 0.25rem;
+            background: #ffffff;
+            transition: all 0.15s ease;
+        }
+        .card-flat:hover {
+            border-color: #0058be;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md selection:bg-secondary-fixed selection:text-on-secondary-fixed">
+<div class="flex h-screen overflow-hidden">
+<!-- SideNavBar -->
+<aside class="bg-surface-container-low text-primary font-label-md text-label-md fixed left-0 top-0 h-full w-[260px] hidden lg:flex flex-col border-r border-outline-variant z-30">
+<div class="flex flex-col gap-unit h-full py-stack-md">
+<div class="px-6 mb-stack-lg">
+<h1 class="font-headline-lg text-headline-lg font-black text-secondary">Global Logistics</h1>
+<p class="text-on-surface-variant font-label-md">Operational Hub</p>
+</div>
+<nav class="flex-1 space-y-1 overflow-y-auto custom-scrollbar">
+<a class="text-on-surface-variant mx-2 px-4 py-2.5 hover:bg-surface-container-high rounded-lg flex items-center gap-3 transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">dashboard</span> Dashboard
+                </a>
+<a class="bg-secondary-container text-on-secondary-container font-bold rounded-lg mx-2 px-4 py-2.5 flex items-center gap-3" href="#">
+<span class="material-symbols-outlined text-[20px]">view_column</span> Planning
+                </a>
+<a class="text-on-surface-variant mx-2 px-4 py-2.5 hover:bg-surface-container-high rounded-lg flex items-center gap-3 transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">groups</span> Employees
+                </a>
+<a class="text-on-surface-variant mx-2 px-4 py-2.5 hover:bg-surface-container-high rounded-lg flex items-center gap-3 transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">warehouse</span> Warehouses
+                </a>
+<a class="text-on-surface-variant mx-2 px-4 py-2.5 hover:bg-surface-container-high rounded-lg flex items-center gap-3 transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">domain</span> Halls
+                </a>
+<a class="text-on-surface-variant mx-2 px-4 py-2.5 hover:bg-surface-container-high rounded-lg flex items-center gap-3 transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">inventory_2</span> Containers
+                </a>
+<a class="text-on-surface-variant mx-2 px-4 py-2.5 hover:bg-surface-container-high rounded-lg flex items-center gap-3 transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">event_available</span> Attendance
+                </a>
+<a class="text-on-surface-variant mx-2 px-4 py-2.5 hover:bg-surface-container-high rounded-lg flex items-center gap-3 transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">document_scanner</span> OCR Upload
+                </a>
+<a class="text-on-surface-variant mx-2 px-4 py-2.5 hover:bg-surface-container-high rounded-lg flex items-center gap-3 transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">settings</span> Settings
+                </a>
+</nav>
+<div class="px-4 mt-auto pt-4 border-t border-outline-variant">
+<a class="text-on-surface-variant px-4 py-2 flex items-center gap-3 hover:text-primary transition-colors text-label-md" href="#">
+<span class="material-symbols-outlined text-[20px]">logout</span> Log Out
+                </a>
+</div>
+</div>
+</aside>
+<!-- Main Workspace -->
+<main class="flex-1 lg:ml-[260px] flex flex-col bg-surface overflow-hidden">
+<!-- Top Header -->
+<header class="bg-white border-b border-outline-variant h-14 flex justify-between items-center px-container-margin z-50">
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-outline text-[20px]">view_column</span>
+<h2 class="font-bold text-body-md">Planning Board</h2>
+</div>
+<div class="w-px h-4 bg-outline-variant"></div>
+<div class="flex items-center bg-surface-container-low rounded px-2 py-1 border border-outline-variant">
+<span class="material-symbols-outlined text-[16px] text-outline mr-2">warehouse</span>
+<select class="bg-transparent border-none focus:ring-0 text-[12px] p-0 font-bold uppercase tracking-wider">
+<option>Central Hub - Frankfurt</option>
+</select>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 text-label-md font-bold text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">calendar_today</span>
+<span>Oct 24, 2024</span>
+</div>
+<button class="bg-primary text-on-primary px-4 py-1.5 rounded text-[12px] font-bold uppercase tracking-wider hover:opacity-90">
+                    Save Layout
+                </button>
+</div>
+</header>
+<!-- 3-Column Operational Layout -->
+<div class="flex flex-1 overflow-hidden">
+<!-- Left Column: Employees -->
+<section class="w-1/4 min-w-[300px] flex flex-col bg-surface-container-lowest border-r border-outline-variant">
+<div class="p-4 border-b border-outline-variant bg-white flex justify-between items-center">
+<div>
+<h3 class="font-bold text-sm flex items-center gap-2 uppercase tracking-tight">
+<span class="material-symbols-outlined text-[18px] text-secondary">groups</span>
+                            Employees
+                        </h3>
+<p class="text-[10px] text-outline">Available for assignment</p>
+</div>
+<span class="bg-secondary/10 text-secondary px-2 py-0.5 rounded text-[10px] font-bold">24 ONLINE</span>
+</div>
+<div class="p-3 border-b border-outline-variant bg-surface-container-low">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-2 top-1.5 text-[18px] text-outline">search</span>
+<input class="w-full pl-8 pr-3 py-1.5 bg-white border border-outline-variant rounded text-xs focus:ring-1 focus:ring-secondary focus:border-secondary" placeholder="Search employees..." type="text"/>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
+<!-- Employee Card -->
+<div class="drag-item card-flat p-3 flex items-center gap-3 cursor-grab hover:shadow-sm">
+<div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-[11px] font-bold text-blue-700">MK</div>
+<div class="flex-1 min-w-0">
+<p class="text-xs font-bold truncate">Marcus Kael</p>
+<p class="text-[10px] text-outline truncate">Forklift · Tier 3</p>
+</div>
+<span class="material-symbols-outlined text-outline text-[18px]">drag_indicator</span>
+</div>
+<!-- Employee Card -->
+<div class="drag-item card-flat p-3 flex items-center gap-3 cursor-grab hover:shadow-sm">
+<div class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-[11px] font-bold text-amber-700">SA</div>
+<div class="flex-1 min-w-0">
+<p class="text-xs font-bold truncate">Sarah Ahmed</p>
+<p class="text-[10px] text-outline truncate">Inspector · Hazmat</p>
+</div>
+<span class="material-symbols-outlined text-outline text-[18px]">drag_indicator</span>
+</div>
+<!-- Employee Card -->
+<div class="drag-item card-flat p-3 flex items-center gap-3 cursor-grab hover:shadow-sm">
+<div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-[11px] font-bold text-green-700">JD</div>
+<div class="flex-1 min-w-0">
+<p class="text-xs font-bold truncate">John Doe</p>
+<p class="text-[10px] text-outline truncate">Supervisor · Lvl 2</p>
+</div>
+<span class="material-symbols-outlined text-outline text-[18px]">drag_indicator</span>
+</div>
+<div class="drag-item card-flat p-3 flex items-center gap-3 cursor-grab hover:shadow-sm opacity-60">
+<div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-[11px] font-bold text-slate-500">RL</div>
+<div class="flex-1 min-w-0">
+<p class="text-xs font-bold truncate">Robert Lin</p>
+<p class="text-[10px] text-outline truncate">General Staff</p>
+</div>
+<span class="material-symbols-outlined text-outline text-[18px]">drag_indicator</span>
+</div>
+</div>
+</section>
+<!-- Middle Column: Halls -->
+<section class="flex-1 flex flex-col bg-surface-container-low overflow-hidden">
+<div class="p-4 border-b border-outline-variant bg-white flex justify-between items-center">
+<div>
+<h3 class="font-bold text-sm flex items-center gap-2 uppercase tracking-tight">
+<span class="material-symbols-outlined text-[18px] text-secondary">domain</span>
+                            Halls &amp; Assignees
+                        </h3>
+<p class="text-[10px] text-outline">Operational Areas</p>
+</div>
+<div class="flex gap-1">
+<button class="p-1 hover:bg-surface-container-high rounded transition-colors">
+<span class="material-symbols-outlined text-[20px]">filter_list</span>
+</button>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+<!-- Hall Item 1 -->
+<div class="bg-white border border-outline-variant rounded p-4 shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<div>
+<h4 class="font-bold text-sm">Zwilling A</h4>
+<p class="text-[10px] text-outline uppercase font-bold tracking-widest">Inbound / Sorting</p>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-[10px] font-bold text-green-600">85% CAPACITY</span>
+<button class="material-symbols-outlined text-outline text-[18px] hover:text-primary">more_vert</button>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<!-- Drop zone for employees -->
+<div class="bg-surface-container rounded border border-dashed border-outline-variant p-3 min-h-[100px]">
+<p class="text-[9px] font-bold text-outline uppercase mb-2">Staff (4)</p>
+<div class="flex flex-wrap gap-2">
+<div class="w-8 h-8 rounded border border-secondary/20 bg-secondary/5 flex items-center justify-center text-[10px] font-bold relative group">
+                                        MK
+                                        <button class="absolute -top-1 -right-1 bg-white border border-outline-variant rounded-full p-0.5 opacity-0 group-hover:opacity-100"><span class="material-symbols-outlined text-[10px] block">close</span></button>
+</div>
+<div class="w-8 h-8 rounded border border-outline-variant bg-white flex items-center justify-center text-[10px] font-bold">AS</div>
+<div class="w-8 h-8 rounded border border-outline-variant bg-white flex items-center justify-center text-[10px] font-bold">RL</div>
+<div class="w-8 h-8 rounded border border-outline-variant bg-white flex items-center justify-center text-[10px] font-bold">JD</div>
+<button class="w-8 h-8 rounded border border-dashed border-outline-variant flex items-center justify-center hover:bg-white transition-colors">
+<span class="material-symbols-outlined text-[16px] text-outline">add</span>
+</button>
+</div>
+</div>
+<!-- Drop zone for containers -->
+<div class="bg-surface-container rounded border border-dashed border-outline-variant p-3 min-h-[100px]">
+<p class="text-[9px] font-bold text-outline uppercase mb-2">Containers (2)</p>
+<div class="space-y-2">
+<div class="flex items-center gap-2 bg-white border border-outline-variant rounded p-1.5 px-2 text-[10px] font-mono">
+<span class="material-symbols-outlined text-[14px] text-blue-500">inventory_2</span>
+                                        CTN-9921
+                                    </div>
+<div class="flex items-center gap-2 bg-white border border-outline-variant rounded p-1.5 px-2 text-[10px] font-mono">
+<span class="material-symbols-outlined text-[14px] text-blue-500">inventory_2</span>
+                                        CTN-8840
+                                    </div>
+</div>
+</div>
+</div>
+</div>
+<!-- Hall Item 2 -->
+<div class="bg-white border border-outline-variant rounded p-4 shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<div>
+<h4 class="font-bold text-sm">Proheg Main</h4>
+<p class="text-[10px] text-outline uppercase font-bold tracking-widest">Storage &amp; Racking</p>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-[10px] font-bold text-amber-600">42% CAPACITY</span>
+<button class="material-symbols-outlined text-outline text-[18px] hover:text-primary">more_vert</button>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-surface-container rounded border border-dashed border-outline-variant p-3 min-h-[100px] flex flex-col items-center justify-center text-outline gap-1">
+<span class="material-symbols-outlined text-[20px]">person_add</span>
+<p class="text-[9px] font-bold">DROP STAFF</p>
+</div>
+<div class="bg-surface-container rounded border border-dashed border-outline-variant p-3 min-h-[100px] flex flex-col items-center justify-center text-outline gap-1">
+<span class="material-symbols-outlined text-[20px]">package_2</span>
+<p class="text-[9px] font-bold">DROP CONTAINERS</p>
+</div>
+</div>
+</div>
+<!-- Hall Item 3 -->
+<div class="bg-white border border-outline-variant rounded p-4 shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<div>
+<h4 class="font-bold text-sm">Schwalbe</h4>
+<p class="text-[10px] text-outline uppercase font-bold tracking-widest">High-Value / Cold</p>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-[10px] font-bold text-error">UNDERSTAFFED</span>
+<button class="material-symbols-outlined text-outline text-[18px] hover:text-primary">more_vert</button>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-error-container/5 rounded border border-dashed border-error/20 p-3 min-h-[100px]">
+<p class="text-[9px] font-bold text-error uppercase mb-2">Staff (1)</p>
+<div class="flex flex-wrap gap-2">
+<div class="w-8 h-8 rounded border border-outline-variant bg-white flex items-center justify-center text-[10px] font-bold">SA</div>
+<button class="w-8 h-8 rounded border border-dashed border-error flex items-center justify-center bg-white">
+<span class="material-symbols-outlined text-[16px] text-error">add</span>
+</button>
+</div>
+</div>
+<div class="bg-surface-container rounded border border-dashed border-outline-variant p-3 min-h-[100px]">
+<p class="text-[9px] font-bold text-outline uppercase mb-2">Containers (1)</p>
+<div class="flex items-center gap-2 bg-white border border-outline-variant rounded p-1.5 px-2 text-[10px] font-mono">
+<span class="material-symbols-outlined text-[14px] text-blue-500">inventory_2</span>
+                                    CTN-041X
+                                </div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Right Column: Containers -->
+<section class="w-1/4 min-w-[300px] flex flex-col bg-surface-container-lowest border-l border-outline-variant">
+<div class="p-4 border-b border-outline-variant bg-white flex justify-between items-center">
+<div>
+<h3 class="font-bold text-sm flex items-center gap-2 uppercase tracking-tight">
+<span class="material-symbols-outlined text-[18px] text-secondary">inventory_2</span>
+                            Containers
+                        </h3>
+<p class="text-[10px] text-outline">Arrivals needing assignment</p>
+</div>
+<span class="bg-error-container text-on-error-container px-2 py-0.5 rounded text-[10px] font-bold">12 UNSET</span>
+</div>
+<div class="p-3 border-b border-outline-variant bg-surface-container-low">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-2 top-1.5 text-[18px] text-outline">filter_alt</span>
+<input class="w-full pl-8 pr-3 py-1.5 bg-white border border-outline-variant rounded text-xs focus:ring-1 focus:ring-secondary focus:border-secondary" placeholder="Filter IDs..." type="text"/>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
+<!-- Container Card -->
+<div class="drag-item card-flat p-3 flex items-center gap-3 cursor-grab hover:shadow-sm">
+<div class="w-10 h-10 bg-surface-container rounded flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined">package_2</span>
+</div>
+<div class="flex-1 min-w-0">
+<p class="text-[11px] font-data-mono font-bold">CTN-1022-A</p>
+<p class="text-[10px] text-outline uppercase">Standard · 40ft</p>
+</div>
+<div class="text-right">
+<p class="text-[9px] font-bold text-secondary">08:45 AM</p>
+<p class="text-[9px] text-outline">DOCK 4</p>
+</div>
+</div>
+<!-- Container Card -->
+<div class="drag-item card-flat p-3 flex items-center gap-3 cursor-grab hover:shadow-sm border-l-4 border-l-error">
+<div class="w-10 h-10 bg-surface-container rounded flex items-center justify-center text-error">
+<span class="material-symbols-outlined">warning</span>
+</div>
+<div class="flex-1 min-w-0">
+<p class="text-[11px] font-data-mono font-bold">CTN-0412-X</p>
+<p class="text-[10px] text-outline uppercase font-bold text-error">Priority · Hazmat</p>
+</div>
+<div class="text-right">
+<p class="text-[9px] font-bold text-error">OVERDUE</p>
+</div>
+</div>
+<!-- Container Card -->
+<div class="drag-item card-flat p-3 flex items-center gap-3 cursor-grab hover:shadow-sm">
+<div class="w-10 h-10 bg-surface-container rounded flex items-center justify-center text-outline">
+<span class="material-symbols-outlined">inventory_2</span>
+</div>
+<div class="flex-1 min-w-0">
+<p class="text-[11px] font-data-mono font-bold">CTN-5521-B</p>
+<p class="text-[10px] text-outline uppercase">Fragile · Glass</p>
+</div>
+<div class="text-right">
+<p class="text-[9px] font-bold">11:00 AM</p>
+</div>
+</div>
+<div class="drag-item card-flat p-3 flex items-center gap-3 cursor-grab hover:shadow-sm">
+<div class="w-10 h-10 bg-surface-container rounded flex items-center justify-center text-outline">
+<span class="material-symbols-outlined">inventory_2</span>
+</div>
+<div class="flex-1 min-w-0">
+<p class="text-[11px] font-data-mono font-bold">CTN-3312-F</p>
+<p class="text-[10px] text-outline uppercase">Bulk · Grain</p>
+</div>
+</div>
+</div>
+<!-- Bottom Action -->
+<div class="p-4 border-t border-outline-variant bg-white">
+<button class="w-full bg-surface-container-high text-on-surface py-2 rounded text-[11px] font-bold uppercase tracking-wider hover:bg-outline-variant/20 transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[16px]">add_box</span>
+                        Register Entry
+                    </button>
+</div>
+</section>
+</div>
+</main>
+</div>
+<script>
+    // Drag visual feedback simulation
+    const draggables = document.querySelectorAll('.drag-item');
+    draggables.forEach(item => {
+        item.addEventListener('mousedown', () => {
+            item.style.opacity = '0.7';
+            item.style.borderColor = '#0058be';
+            item.style.transform = 'scale(0.99)';
+        });
+        item.addEventListener('mouseup', () => {
+            item.style.opacity = '1';
+            item.style.borderColor = '#e2e8f0';
+            item.style.transform = 'scale(1)';
+        });
+        item.addEventListener('mouseleave', () => {
+            item.style.opacity = '1';
+            item.style.borderColor = '#e2e8f0';
+            item.style.transform = 'scale(1)';
+        });
+    });
+</script>
+</body></html>

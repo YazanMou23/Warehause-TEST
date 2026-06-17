@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>LogisticsOS | Daily Planning System</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&amp;family=JetBrains+Mono:wght@100..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-fixed-dim": "#dec29a",
+                        "primary": "#000000",
+                        "primary-fixed": "#dae2fd",
+                        "secondary-fixed-dim": "#adc6ff",
+                        "on-tertiary-container": "#98805d",
+                        "on-tertiary-fixed": "#271901",
+                        "inverse-primary": "#bec6e0",
+                        "secondary-container": "#2170e4",
+                        "on-error": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-container": "#fefcff",
+                        "on-surface-variant": "#45464d",
+                        "primary-container": "#131b2e",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-tint": "#565e74",
+                        "on-surface": "#0b1c30",
+                        "surface-bright": "#f8f9ff",
+                        "on-secondary-fixed": "#001a42",
+                        "error": "#ba1a1a",
+                        "surface": "#f8f9ff",
+                        "on-background": "#0b1c30",
+                        "outline-variant": "#c6c6cd",
+                        "on-secondary-fixed-variant": "#004395",
+                        "surface-container-low": "#eff4ff",
+                        "inverse-on-surface": "#eaf1ff",
+                        "on-primary-container": "#7c839b",
+                        "primary-fixed-dim": "#bec6e0",
+                        "surface-container-high": "#dce9ff",
+                        "on-primary-fixed-variant": "#3f465c",
+                        "on-tertiary-fixed-variant": "#574425",
+                        "background": "#f8f9ff",
+                        "outline": "#76777d",
+                        "error-container": "#ffdad6",
+                        "tertiary-fixed": "#fcdeb5",
+                        "surface-container": "#e5eeff",
+                        "surface-container-highest": "#d3e4fe",
+                        "on-primary": "#ffffff",
+                        "tertiary-container": "#271901",
+                        "tertiary": "#000000",
+                        "inverse-surface": "#213145",
+                        "secondary": "#0058be",
+                        "surface-dim": "#cbdbf5",
+                        "on-tertiary": "#ffffff",
+                        "surface-variant": "#d3e4fe",
+                        "secondary-fixed": "#d8e2ff",
+                        "on-primary-fixed": "#131b2e"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "unit": "4px",
+                        "container-margin": "24px",
+                        "gutter": "16px",
+                        "stack-lg": "32px",
+                        "stack-sm": "8px",
+                        "stack-md": "16px"
+                    },
+                    "fontFamily": {
+                        "body-sm": ["Geist"],
+                        "display": ["Geist"],
+                        "body-md": ["Geist"],
+                        "headline-md": ["Geist"],
+                        "label-md": ["Geist"],
+                        "headline-lg": ["Geist"],
+                        "body-lg": ["Geist"],
+                        "data-mono": ["JetBrains Mono"],
+                        "headline-lg-mobile": ["Geist"]
+                    },
+                    "fontSize": {
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "display": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "data-mono": ["14px", {"lineHeight": "20px", "fontWeight": "500"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        .timeline-grid {
+            background-size: 100px 100%;
+            background-image: linear-gradient(to right, #e2e8f0 1px, transparent 1px);
+        }
+        .employee-card:active {
+            cursor: grabbing;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md selection:bg-secondary-fixed selection:text-on-secondary-fixed">
+<!-- App Shell Container -->
+<div class="flex h-screen overflow-hidden">
+<!-- SideNavBar Anchor -->
+<aside class="bg-surface-container-low dark:bg-primary-container text-primary dark:text-primary-fixed font-label-md text-label-md fixed left-0 top-0 h-full w-[280px] hidden lg:flex flex-col border-r border-outline-variant dark:border-outline z-30">
+<div class="flex flex-col gap-unit h-full py-stack-md">
+<div class="px-6 mb-stack-lg">
+<h1 class="font-headline-lg text-headline-lg font-black text-secondary dark:text-secondary-fixed">Global Logistics</h1>
+<p class="text-on-surface-variant font-label-md">Operational Hub</p>
+</div>
+<div class="flex-1 space-y-1 overflow-y-auto custom-scrollbar">
+<!-- Nav Tabs mapping from JSON -->
+<a class="text-on-surface-variant dark:text-outline-variant mx-2 px-4 py-3 hover:bg-surface-container-high dark:hover:bg-inverse-surface rounded-lg flex items-center gap-3 transition-all" href="#">
+<span class="material-symbols-outlined">dashboard</span> Dashboard
+                    </a>
+<a class="text-on-surface-variant dark:text-outline-variant mx-2 px-4 py-3 hover:bg-surface-container-high dark:hover:bg-inverse-surface rounded-lg flex items-center gap-3 transition-all" href="#">
+<span class="material-symbols-outlined">warehouse</span> Warehouses
+                    </a>
+<a class="text-on-surface-variant dark:text-outline-variant mx-2 px-4 py-3 hover:bg-surface-container-high dark:hover:bg-inverse-surface rounded-lg flex items-center gap-3 transition-all" href="#">
+<span class="material-symbols-outlined">domain</span> Halls
+                    </a>
+<a class="text-on-surface-variant dark:text-outline-variant mx-2 px-4 py-3 hover:bg-surface-container-high dark:hover:bg-inverse-surface rounded-lg flex items-center gap-3 transition-all" href="#">
+<span class="material-symbols-outlined">groups</span> Employees
+                    </a>
+<a class="bg-secondary-container dark:bg-secondary text-on-secondary-container dark:text-on-secondary font-bold rounded-lg mx-2 px-4 py-3 flex items-center gap-3" href="#">
+<span class="material-symbols-outlined">event_note</span> Planning
+                    </a>
+<a class="text-on-surface-variant dark:text-outline-variant mx-2 px-4 py-3 hover:bg-surface-container-high dark:hover:bg-inverse-surface rounded-lg flex items-center gap-3 transition-all" href="#">
+<span class="material-symbols-outlined">document_scanner</span> OCR Uploads
+                    </a>
+<a class="text-on-surface-variant dark:text-outline-variant mx-2 px-4 py-3 hover:bg-surface-container-high dark:hover:bg-inverse-surface rounded-lg flex items-center gap-3 transition-all" href="#">
+<span class="material-symbols-outlined">assessment</span> Reports
+                    </a>
+</div>
+<div class="px-4 mt-auto">
+<button class="w-full bg-secondary text-on-secondary font-label-md py-3 rounded-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.98] transition-all">
+<span class="material-symbols-outlined">add</span> New Shipment
+                    </button>
+<div class="mt-4 pt-4 border-t border-outline-variant flex flex-col gap-1">
+<a class="text-on-surface-variant px-4 py-2 flex items-center gap-3 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">help</span> Support
+                        </a>
+<a class="text-on-surface-variant px-4 py-2 flex items-center gap-3 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">logout</span> Log Out
+                        </a>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Workspace -->
+<main class="flex-1 lg:ml-[280px] flex flex-col bg-surface overflow-hidden">
+<!-- TopNavBar Anchor -->
+<header class="bg-surface dark:bg-surface-container-low text-primary dark:text-primary-fixed border-b border-outline-variant dark:border-outline docked full-width top-0 sticky z-50 h-16 flex justify-between items-center w-full px-container-margin">
+<div class="flex items-center gap-6">
+<div class="flex items-center bg-surface-container rounded-lg px-3 py-1.5 border border-outline-variant">
+<span class="material-symbols-outlined text-outline mr-2 text-[20px]">warehouse</span>
+<select class="bg-transparent border-none focus:ring-0 font-label-md p-0">
+<option>Central Hub - Frankfurt</option>
+<option>North Depot - Hamburg</option>
+<option>East Logistics - Berlin</option>
+</select>
+</div>
+<div class="flex items-center gap-2 font-label-md text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">calendar_today</span>
+<span class="font-bold text-primary">Today, Oct 24</span>
+<button class="material-symbols-outlined text-[18px] hover:text-primary">chevron_left</button>
+<button class="material-symbols-outlined text-[18px] hover:text-primary">chevron_right</button>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="flex items-center gap-2 px-4 py-2 rounded-lg bg-surface-container-high border border-outline-variant font-label-md hover:bg-outline-variant/10 transition-colors">
+<span class="material-symbols-outlined text-secondary">auto_awesome</span>
+                        Auto-Suggest Plan
+                    </button>
+<button class="bg-primary text-on-primary px-6 py-2 rounded-lg font-label-md font-bold hover:opacity-90 active:scale-95 transition-all">
+                        Publish Plan
+                    </button>
+<div class="w-px h-6 bg-outline-variant mx-2"></div>
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:bg-surface-container-high rounded-full p-2 transition-colors">notifications</span>
+<img alt="Warehouse Manager Profile" class="w-8 h-8 rounded-full border border-outline-variant bg-white" src="https://lh3.googleusercontent.com/aida-public/AB6AXuByP6ydjYe7VfO5P-z8XELi0DY2zIKsIxEJ-WQ63yDws96k1Q-NmGe7dsNrXceKIyd_QyJuGOVhkAHJZKXWrvmpNr6ipjPnRyYUr_xM6_ev-x58IgI8r35Rp1dOJM-AHFsYMbyjEaCYSdUVGV5ZUhUIo-LYgo5nXxcDnGdladKxIpzuwdjzn0-aPXrmWUU3Kuhs1sf_fyyk1dvRIjrTRhEXIC1dQZEUmnUNHR-GzCRoXdAijJ7TpfFAQPp65NbvZBSaVzpdldcGiA"/>
+</div>
+</div>
+</header>
+<!-- Planning Canvas -->
+<div class="flex flex-1 overflow-hidden">
+<!-- Left Sidebar: Assets -->
+<div class="w-80 border-r border-outline-variant bg-surface-container-lowest flex flex-col">
+<div class="p-4 border-b border-outline-variant bg-surface">
+<div class="flex items-center justify-between mb-4">
+<h2 class="font-headline-md text-[18px] font-bold">Unassigned</h2>
+<span class="bg-error-container text-on-error-container px-2 py-0.5 rounded text-[10px] font-bold">12 ACTION NEEDED</span>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 py-1.5 rounded-lg bg-secondary text-on-secondary text-label-md">Employees</button>
+<button class="flex-1 py-1.5 rounded-lg bg-surface-container-high text-on-surface-variant text-label-md">Containers</button>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto p-4 space-y-stack-md custom-scrollbar">
+<!-- Employee Cards -->
+<div class="employee-card group cursor-grab bg-white p-3 border border-outline-variant rounded-lg shadow-sm hover:border-secondary transition-all">
+<div class="flex items-center justify-between mb-2">
+<span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold">FORKLIFT OPS</span>
+<span class="material-symbols-outlined text-outline group-hover:text-secondary text-[18px]">drag_indicator</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500">MK</div>
+<div>
+<p class="font-bold text-sm">Marcus Kael</p>
+<p class="text-xs text-outline">Tier 3 Certified</p>
+</div>
+</div>
+</div>
+<div class="employee-card group cursor-grab bg-white p-3 border border-outline-variant rounded-lg shadow-sm hover:border-secondary transition-all">
+<div class="flex items-center justify-between mb-2">
+<span class="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-bold">INSPECTOR</span>
+<span class="material-symbols-outlined text-outline group-hover:text-secondary text-[18px]">drag_indicator</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500">SA</div>
+<div>
+<p class="font-bold text-sm">Sarah Ahmed</p>
+<p class="text-xs text-outline">Hazmat Handling</p>
+</div>
+</div>
+</div>
+<div class="bg-surface-container p-3 border-dashed border-2 border-outline-variant rounded-lg opacity-60">
+<div class="flex items-center gap-2 text-outline text-xs italic">
+<span class="material-symbols-outlined text-[16px]">inventory_2</span>
+                                Pending: CTN-9921 (Schwalbe)
+                            </div>
+</div>
+<div class="employee-card group cursor-grab bg-white p-3 border border-outline-variant rounded-lg shadow-sm hover:border-secondary transition-all">
+<div class="flex items-center justify-between mb-2">
+<span class="bg-green-100 text-green-700 px-2 py-0.5 rounded text-[10px] font-bold">SUPERVISOR</span>
+<span class="material-symbols-outlined text-outline group-hover:text-secondary text-[18px]">drag_indicator</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500">JD</div>
+<div>
+<p class="font-bold text-sm">John Doe</p>
+<p class="text-xs text-outline">Lvl 2 Manager</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Central Planning Grid -->
+<div class="flex-1 flex flex-col bg-white overflow-hidden relative">
+<!-- Filters & Tools -->
+<div class="h-12 border-b border-outline-variant flex items-center px-6 justify-between bg-surface-bright">
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 text-label-md text-on-surface-variant font-bold border-r border-outline-variant pr-4">
+<span class="material-symbols-outlined text-[18px]">filter_list</span>
+                                FILTER HALLS
+                            </div>
+<div class="flex gap-2">
+<span class="px-3 py-1 rounded-full bg-secondary text-on-secondary text-[10px] font-bold">ALL HALLS</span>
+<span class="px-3 py-1 rounded-full bg-white border border-outline-variant text-on-surface-variant text-[10px] font-bold cursor-pointer hover:bg-surface-container">ZWILLING</span>
+<span class="px-3 py-1 rounded-full bg-white border border-outline-variant text-on-surface-variant text-[10px] font-bold cursor-pointer hover:bg-surface-container">SCHWALBE</span>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<span class="text-[11px] text-outline uppercase font-bold">Zoom</span>
+<div class="flex bg-surface-container rounded border border-outline-variant">
+<button class="px-2 py-0.5 border-r border-outline-variant hover:bg-white text-[14px]">-</button>
+<span class="px-3 py-0.5 text-[11px] font-bold bg-white">100%</span>
+<button class="px-2 py-0.5 border-l border-outline-variant hover:bg-white text-[14px]">+</button>
+</div>
+</div>
+</div>
+<!-- Timeline Content -->
+<div class="flex-1 overflow-auto custom-scrollbar flex flex-col">
+<!-- Time Header -->
+<div class="flex sticky top-0 z-20 bg-white border-b border-outline-variant">
+<div class="w-48 flex-shrink-0 bg-surface-container-high border-r border-outline-variant p-3 flex items-center justify-center font-data-mono text-[11px] font-bold text-on-surface-variant">
+                                HALL LOCATIONS
+                            </div>
+<div class="flex flex-1 divide-x divide-outline-variant">
+<div class="w-[100px] flex-shrink-0 p-3 text-center font-data-mono text-[11px] font-bold">07:00</div>
+<div class="w-[100px] flex-shrink-0 p-3 text-center font-data-mono text-[11px] font-bold">08:00</div>
+<div class="w-[100px] flex-shrink-0 p-3 text-center font-data-mono text-[11px] font-bold">09:00</div>
+<div class="w-[100px] flex-shrink-0 p-3 text-center font-data-mono text-[11px] font-bold">10:00</div>
+<div class="w-[100px] flex-shrink-0 p-3 text-center font-data-mono text-[11px] font-bold">11:00</div>
+<div class="w-[100px] flex-shrink-0 p-3 text-center font-data-mono text-[11px] font-bold">12:00</div>
+<div class="w-[100px] flex-shrink-0 p-3 text-center font-data-mono text-[11px] font-bold">13:00</div>
+<div class="w-[100px] flex-shrink-0 p-3 text-center font-data-mono text-[11px] font-bold">14:00</div>
+<div class="w-[100px] flex-shrink-0 p-3 text-center font-data-mono text-[11px] font-bold">15:00</div>
+<div class="w-[100px] flex-shrink-0 p-3 text-center font-data-mono text-[11px] font-bold">16:00</div>
+<div class="w-[100px] flex-shrink-0 p-3 text-center font-data-mono text-[11px] font-bold">17:00</div>
+<div class="w-[100px] flex-shrink-0 p-3 text-center font-data-mono text-[11px] font-bold">18:00</div>
+</div>
+</div>
+<!-- Rows -->
+<div class="flex-1 relative">
+<!-- Hall Row: Zwilling -->
+<div class="flex min-h-[120px] border-b border-outline-variant group">
+<div class="w-48 flex-shrink-0 bg-surface-container-lowest border-r border-outline-variant p-4 flex flex-col justify-center">
+<h3 class="font-bold text-sm">Zwilling A</h3>
+<p class="text-[10px] text-outline">Inbound/Sorting</p>
+<div class="mt-2 flex gap-1">
+<span class="w-2 h-2 rounded-full bg-green-500"></span>
+<span class="text-[9px] text-outline">CAPACITY: 85%</span>
+</div>
+</div>
+<div class="flex-1 timeline-grid relative">
+<!-- Shift Blocks -->
+<div class="absolute top-4 left-[100px] w-[300px] h-20 bg-secondary-container/20 border border-secondary rounded-lg p-3 cursor-pointer hover:bg-secondary-container/30 transition-colors">
+<div class="flex items-center justify-between mb-2">
+<span class="text-[10px] font-bold text-secondary">SHIFT A - TEAM ALPHA</span>
+<span class="material-symbols-outlined text-[14px] text-secondary">group</span>
+</div>
+<div class="flex -space-x-2">
+<div class="w-6 h-6 rounded-full bg-blue-400 border border-white flex items-center justify-center text-[10px] text-white">MK</div>
+<div class="w-6 h-6 rounded-full bg-indigo-400 border border-white flex items-center justify-center text-[10px] text-white">AS</div>
+<div class="w-6 h-6 rounded-full bg-slate-300 border border-white flex items-center justify-center text-[10px] text-slate-600">+4</div>
+</div>
+</div>
+<!-- Drag Destination Overlay -->
+<div class="absolute inset-0 opacity-0 group-hover:opacity-10 pointer-events-none bg-secondary"></div>
+</div>
+</div>
+<!-- Hall Row: Proheg -->
+<div class="flex min-h-[120px] border-b border-outline-variant group">
+<div class="w-48 flex-shrink-0 bg-surface-container-lowest border-r border-outline-variant p-4 flex flex-col justify-center">
+<h3 class="font-bold text-sm">Proheg Main</h3>
+<p class="text-[10px] text-outline">Storage &amp; Racking</p>
+<div class="mt-2 flex gap-1">
+<span class="w-2 h-2 rounded-full bg-amber-500"></span>
+<span class="text-[9px] text-outline">CAPACITY: 42%</span>
+</div>
+</div>
+<div class="flex-1 timeline-grid relative">
+<div class="absolute top-4 left-[500px] w-[400px] h-20 bg-primary-container/5 border border-primary-container/20 rounded-lg p-3 border-dashed flex flex-col items-center justify-center text-outline">
+<span class="material-symbols-outlined text-[24px]">add_circle</span>
+<span class="text-[10px] mt-1 font-bold">DRAG EMPLOYEE HERE</span>
+</div>
+</div>
+</div>
+<!-- Hall Row: Schwalbe -->
+<div class="flex min-h-[120px] border-b border-outline-variant group">
+<div class="w-48 flex-shrink-0 bg-surface-container-lowest border-r border-outline-variant p-4 flex flex-col justify-center">
+<h3 class="font-bold text-sm">Schwalbe</h3>
+<p class="text-[10px] text-outline">High-Value / Cold</p>
+<div class="mt-2 flex gap-1">
+<span class="w-2 h-2 rounded-full bg-red-500"></span>
+<span class="text-[9px] text-outline">UNDERSTAFFED</span>
+</div>
+</div>
+<div class="flex-1 timeline-grid relative">
+<div class="absolute top-4 left-[250px] w-[200px] h-20 bg-error-container/10 border border-error rounded-lg p-3">
+<div class="flex items-center justify-between">
+<span class="text-[10px] font-bold text-error">CRITICAL TASK</span>
+<span class="material-symbols-outlined text-[14px] text-error">priority_high</span>
+</div>
+<p class="text-[11px] mt-1">Hazardous Load 04X</p>
+<div class="mt-2 w-full bg-error-container/20 h-1 rounded-full overflow-hidden">
+<div class="w-1/3 h-full bg-error"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Now Indicator Line -->
+<div class="absolute top-0 bottom-0 left-[345px] w-0.5 bg-secondary z-10">
+<div class="absolute top-0 left-1/2 -translate-x-1/2 bg-secondary text-on-secondary text-[10px] px-2 py-0.5 rounded font-data-mono">10:24</div>
+</div>
+</div>
+</div>
+<!-- Bulk Action Floating Bar (Contextual) -->
+<div class="absolute bottom-8 left-1/2 -translate-x-1/2 bg-primary-container text-white px-6 py-4 rounded-full shadow-2xl flex items-center gap-6 z-40 animate-bounce" id="bulk-bar">
+<div class="flex items-center gap-2">
+<span class="bg-secondary text-on-secondary w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold">2</span>
+<span class="text-xs font-bold uppercase tracking-wider">Unassigned Tasks selected</span>
+</div>
+<div class="h-6 w-px bg-on-primary-container"></div>
+<div class="flex gap-4">
+<button class="flex items-center gap-2 text-xs font-bold hover:text-secondary-fixed transition-colors">
+<span class="material-symbols-outlined text-[18px]">auto_fix</span>
+                                Suggest Hall
+                            </button>
+<button class="flex items-center gap-2 text-xs font-bold hover:text-secondary-fixed transition-colors">
+<span class="material-symbols-outlined text-[18px]">group_add</span>
+                                Bulk Assign
+                            </button>
+<button class="text-xs font-bold text-outline hover:text-error transition-colors">Dismiss</button>
+</div>
+</div>
+</div>
+<!-- Right Side Summary / KPI (Optional but adds density) -->
+<div class="w-64 border-l border-outline-variant bg-surface-container-low p-6 space-y-6 hidden xl:block">
+<div>
+<h4 class="text-xs font-bold text-outline mb-4 uppercase tracking-widest">Efficiency Metrics</h4>
+<div class="space-y-4">
+<div class="p-3 bg-white border border-outline-variant rounded-lg">
+<p class="text-[10px] text-outline font-bold">STAFFING LEVEL</p>
+<p class="text-xl font-bold">92%</p>
+<div class="mt-2 w-full h-1 bg-surface-container rounded-full">
+<div class="w-[92%] h-full bg-secondary"></div>
+</div>
+</div>
+<div class="p-3 bg-white border border-outline-variant rounded-lg">
+<p class="text-[10px] text-outline font-bold">THROUGHPUT EST.</p>
+<p class="text-xl font-bold">1.2k <span class="text-xs text-outline">u/h</span></p>
+</div>
+</div>
+</div>
+<div class="pt-6 border-t border-outline-variant">
+<h4 class="text-xs font-bold text-outline mb-4 uppercase tracking-widest">Real-time Weather</h4>
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-amber-500">sunny</span>
+<div>
+<p class="text-sm font-bold">14°C Clear</p>
+<p class="text-[10px] text-outline">Ideal for loading bay 4-9</p>
+</div>
+</div>
+</div>
+<div class="pt-6 border-t border-outline-variant">
+<div class="p-4 bg-secondary-container/10 border border-secondary/30 rounded-xl relative overflow-hidden group">
+<div class="relative z-10">
+<p class="text-[10px] font-bold text-secondary mb-1">AI INSIGHT</p>
+<p class="text-xs leading-relaxed">Consider moving 2 forklift ops from <span class="font-bold">Zwilling</span> to <span class="font-bold">Schwalbe</span> to clear current backlog.</p>
+<button class="mt-3 text-[10px] font-bold text-secondary flex items-center gap-1 hover:underline">
+                                    APPLY RECOMMENDATION
+                                    <span class="material-symbols-outlined text-[12px]">arrow_forward</span>
+</button>
+</div>
+<div class="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-[80px]">auto_awesome</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+<!-- Micro-interactions Script -->
+<script>
+        // Simple drag feedback simulation
+        const cards = document.querySelectorAll('.employee-card');
+        cards.forEach(card => {
+            card.addEventListener('mousedown', () => {
+                card.style.transform = 'scale(0.98) rotate(-1deg)';
+                card.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)';
+            });
+            card.addEventListener('mouseup', () => {
+                card.style.transform = 'scale(1) rotate(0deg)';
+                card.style.boxShadow = 'none';
+            });
+        });
+
+        // Toggle bulk bar
+        setTimeout(() => {
+            const bulkBar = document.getElementById('bulk-bar');
+            bulkBar.classList.remove('animate-bounce');
+        }, 3000);
+    </script>
+</body></html>

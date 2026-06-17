@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>LogisticsOS | Warehouse &amp; Hall Management</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&amp;family=JetBrains+Mono:wght@100..800&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(8px);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 2px;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-fixed-dim": "#dec29a",
+                        "primary": "#000000",
+                        "primary-fixed": "#dae2fd",
+                        "secondary-fixed-dim": "#adc6ff",
+                        "on-tertiary-container": "#98805d",
+                        "on-tertiary-fixed": "#271901",
+                        "inverse-primary": "#bec6e0",
+                        "secondary-container": "#2170e4",
+                        "on-error": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-container": "#fefcff",
+                        "on-surface-variant": "#45464d",
+                        "primary-container": "#131b2e",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-tint": "#565e74",
+                        "on-surface": "#0b1c30",
+                        "surface-bright": "#f8f9ff",
+                        "on-secondary-fixed": "#001a42",
+                        "error": "#ba1a1a",
+                        "surface": "#f8f9ff",
+                        "on-background": "#0b1c30",
+                        "outline-variant": "#c6c6cd",
+                        "on-secondary-fixed-variant": "#004395",
+                        "surface-container-low": "#eff4ff",
+                        "inverse-on-surface": "#eaf1ff",
+                        "on-primary-container": "#7c839b",
+                        "primary-fixed-dim": "#bec6e0",
+                        "surface-container-high": "#dce9ff",
+                        "on-primary-fixed-variant": "#3f465c",
+                        "on-tertiary-fixed-variant": "#574425",
+                        "background": "#f8f9ff",
+                        "outline": "#76777d",
+                        "error-container": "#ffdad6",
+                        "tertiary-fixed": "#fcdeb5",
+                        "surface-container": "#e5eeff",
+                        "surface-container-highest": "#d3e4fe",
+                        "on-primary": "#ffffff",
+                        "tertiary-container": "#271901",
+                        "tertiary": "#000000",
+                        "inverse-surface": "#213145",
+                        "secondary": "#0058be",
+                        "surface-dim": "#cbdbf5",
+                        "on-tertiary": "#ffffff",
+                        "surface-variant": "#d3e4fe",
+                        "secondary-fixed": "#d8e2ff",
+                        "on-primary-fixed": "#131b2e"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "unit": "4px",
+                        "container-margin": "24px",
+                        "gutter": "16px",
+                        "stack-lg": "32px",
+                        "stack-sm": "8px",
+                        "stack-md": "16px"
+                    },
+                    "fontFamily": {
+                        "body-sm": ["Geist"],
+                        "display": ["Geist"],
+                        "body-md": ["Geist"],
+                        "headline-md": ["Geist"],
+                        "label-md": ["Geist"],
+                        "headline-lg": ["Geist"],
+                        "body-lg": ["Geist"],
+                        "data-mono": ["JetBrains Mono"],
+                        "headline-lg-mobile": ["Geist"]
+                    },
+                    "fontSize": {
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "display": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "data-mono": ["14px", {"lineHeight": "20px", "fontWeight": "500"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background font-body-md selection:bg-secondary-fixed selection:text-on-secondary-fixed">
+<div class="flex min-h-screen">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-[280px] hidden lg:flex flex-col bg-surface-container-low border-r border-outline-variant py-stack-md z-40">
+<div class="px-container-margin mb-stack-lg">
+<div class="flex items-center gap-stack-sm mb-unit">
+<div class="w-8 h-8 bg-primary rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">warehouse</span>
+</div>
+<span class="font-headline-lg text-headline-lg font-black text-secondary tracking-tighter">Global Logistics</span>
+</div>
+<p class="font-label-md text-label-md text-on-surface-variant opacity-70 uppercase tracking-widest">Operational Hub</p>
+</div>
+<nav class="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-1">
+<!-- Determined Active Navigation: Warehouses -->
+<a class="text-on-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded-lg transition-all flex items-center gap-3" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="bg-secondary-container text-on-secondary-container font-bold rounded-lg mx-2 px-4 py-3 flex items-center gap-3" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">warehouse</span>
+<span class="font-label-md text-label-md">Warehouses</span>
+</a>
+<a class="text-on-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded-lg transition-all flex items-center gap-3" href="#">
+<span class="material-symbols-outlined">domain</span>
+<span class="font-label-md text-label-md">Halls</span>
+</a>
+<a class="text-on-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded-lg transition-all flex items-center gap-3" href="#">
+<span class="material-symbols-outlined">groups</span>
+<span class="font-label-md text-label-md">Employees</span>
+</a>
+<a class="text-on-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded-lg transition-all flex items-center gap-3" href="#">
+<span class="material-symbols-outlined">badge</span>
+<span class="font-label-md text-label-md">Team Leaders</span>
+</a>
+<a class="text-on-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded-lg transition-all flex items-center gap-3" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-label-md text-label-md">Containers</span>
+</a>
+<a class="text-on-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded-lg transition-all flex items-center gap-3" href="#">
+<span class="material-symbols-outlined">event_note</span>
+<span class="font-label-md text-label-md">Planning</span>
+</a>
+<a class="text-on-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded-lg transition-all flex items-center gap-3" href="#">
+<span class="material-symbols-outlined">document_scanner</span>
+<span class="font-label-md text-label-md">OCR Uploads</span>
+</a>
+<a class="text-on-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded-lg transition-all flex items-center gap-3" href="#">
+<span class="material-symbols-outlined">history_edu</span>
+<span class="font-label-md text-label-md">Attendance</span>
+</a>
+<a class="text-on-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded-lg transition-all flex items-center gap-3" href="#">
+<span class="material-symbols-outlined">assessment</span>
+<span class="font-label-md text-label-md">Reports</span>
+</a>
+<a class="text-on-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded-lg transition-all flex items-center gap-3" href="#">
+<span class="material-symbols-outlined">send</span>
+<span class="font-label-md text-label-md">Telegram</span>
+</a>
+<a class="text-on-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded-lg transition-all flex items-center gap-3" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+</nav>
+<div class="px-container-margin mt-stack-md pt-stack-md border-t border-outline-variant flex flex-col gap-2">
+<a class="text-on-surface-variant hover:text-primary transition-all flex items-center gap-3" href="#">
+<span class="material-symbols-outlined">help</span>
+<span class="font-label-md text-label-md">Support</span>
+</a>
+<a class="text-on-surface-variant hover:text-primary transition-all flex items-center gap-3" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="font-label-md text-label-md">Log Out</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 lg:ml-[280px]">
+<!-- TopNavBar -->
+<header class="bg-surface sticky top-0 z-50 border-b border-outline-variant flex justify-between items-center w-full px-container-margin h-16">
+<div class="flex items-center gap-stack-md">
+<h1 class="font-headline-md text-headline-md font-bold text-primary">LogisticsOS</h1>
+<div class="hidden md:flex gap-6 items-center ml-8">
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">Planning</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">OCR Uploads</a>
+<a class="font-body-md text-body-md text-secondary font-bold border-b-2 border-secondary pb-1" href="#">Reports</a>
+</div>
+</div>
+<div class="flex items-center gap-stack-md">
+<div class="relative hidden sm:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="bg-surface-container-low border border-outline-variant rounded-full pl-10 pr-4 py-2 text-sm focus:ring-1 focus:ring-secondary focus:border-secondary outline-none w-64" placeholder="Search facilities..." type="text"/>
+</div>
+<button class="w-10 h-10 flex items-center justify-center hover:bg-surface-container-high rounded-full transition-colors relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center hover:bg-surface-container-high rounded-full transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="h-8 w-[1px] bg-outline-variant mx-unit"></div>
+<img alt="Warehouse Manager Profile" class="w-10 h-10 rounded-full border border-outline-variant object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCnxODrhe_qAUJcwsV9h0_X0N33K6lij-FWWa50CvrevCTsm_MQDlfyXZnNOzlFqt1rnZKE6fq4YoVcKsnqK2q11S61219l34yCJTk9LFHCkbR8SGuHk6uSMbK7nBXwOCm6LbeN3wgzmzsOfU0uNvrD2Mx3daxH2ce5FQKIy8oxL42vD_WTvWTfzoFXRiTliAf_R88MfU1rnDqmAc7P9y6sjLfFVxsnZ7RKbMH90ei6s3u05NG7cX0dIF7kcwrSLUanVk5MU7-Aiw"/>
+</div>
+</header>
+<div class="p-container-margin space-y-stack-lg">
+<!-- Page Header & Stats Overview -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-stack-md">
+<div>
+<h2 class="font-headline-lg text-headline-lg font-black text-on-surface">Warehouse Infrastructure</h2>
+<p class="text-on-surface-variant font-body-md">Monitoring real-time performance across 4 primary hubs.</p>
+</div>
+<div class="flex gap-stack-md">
+<button class="bg-primary text-on-primary px-6 py-3 rounded-lg font-label-md uppercase tracking-widest flex items-center gap-2 hover:bg-neutral-800 transition-colors shadow-sm">
+<span class="material-symbols-outlined text-[20px]">add</span>
+                            New Shipment
+                        </button>
+</div>
+</div>
+<!-- Bento Grid Layout for Warehouses -->
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+<!-- Wesel Card -->
+<div class="group bg-white border border-outline-variant p-stack-md rounded-lg hover:shadow-xl hover:border-secondary transition-all duration-300 cursor-pointer flex flex-col" onclick="toggleDetails('Wesel')">
+<div class="flex justify-between items-start mb-stack-md">
+<div class="w-12 h-12 bg-surface-container-high rounded flex items-center justify-center group-hover:bg-secondary-container transition-colors">
+<span class="material-symbols-outlined text-secondary">factory</span>
+</div>
+<span class="px-2 py-1 bg-green-100 text-green-800 rounded font-label-md text-[10px] uppercase">Optimal</span>
+</div>
+<h3 class="font-headline-md text-headline-md mb-unit">Wesel</h3>
+<p class="text-on-surface-variant font-label-md mb-stack-md flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">location_on</span> Hub NRW-North
+                        </p>
+<div class="grid grid-cols-2 gap-4 mb-stack-md py-stack-md border-y border-outline-variant">
+<div>
+<p class="text-on-surface-variant font-label-md uppercase tracking-tighter opacity-70">Halls</p>
+<p class="font-data-mono text-xl">12</p>
+</div>
+<div>
+<p class="text-on-surface-variant font-label-md uppercase tracking-tighter opacity-70">Containers</p>
+<p class="font-data-mono text-xl">842</p>
+</div>
+<div>
+<p class="text-on-surface-variant font-label-md uppercase tracking-tighter opacity-70">Active</p>
+<p class="font-data-mono text-xl">156</p>
+</div>
+<div>
+<p class="text-on-surface-variant font-label-md uppercase tracking-tighter opacity-70">Utilization</p>
+<p class="font-data-mono text-xl text-secondary">92%</p>
+</div>
+</div>
+<div class="space-y-2 mt-auto">
+<div class="flex justify-between items-end mb-1">
+<span class="font-label-md text-on-surface-variant uppercase">Productivity</span>
+<span class="font-data-mono text-secondary">88.4%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-secondary rounded-full" style="width: 88.4%"></div>
+</div>
+<button class="w-full mt-stack-md py-2 text-secondary font-label-md uppercase tracking-widest border border-secondary rounded hover:bg-secondary hover:text-white transition-colors flex items-center justify-center gap-2">
+                                View Details
+                                <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Duisburg Card -->
+<div class="group bg-white border border-outline-variant p-stack-md rounded-lg hover:shadow-xl hover:border-secondary transition-all duration-300 cursor-pointer flex flex-col" onclick="toggleDetails('Duisburg')">
+<div class="flex justify-between items-start mb-stack-md">
+<div class="w-12 h-12 bg-surface-container-high rounded flex items-center justify-center group-hover:bg-secondary-container transition-colors">
+<span class="material-symbols-outlined text-secondary">dock</span>
+</div>
+<span class="px-2 py-1 bg-amber-100 text-amber-800 rounded font-label-md text-[10px] uppercase">Heavy Load</span>
+</div>
+<h3 class="font-headline-md text-headline-md mb-unit">Duisburg</h3>
+<p class="text-on-surface-variant font-label-md mb-stack-md flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">location_on</span> Port Terminal 4
+                        </p>
+<div class="grid grid-cols-2 gap-4 mb-stack-md py-stack-md border-y border-outline-variant">
+<div>
+<p class="text-on-surface-variant font-label-md uppercase tracking-tighter opacity-70">Halls</p>
+<p class="font-data-mono text-xl">18</p>
+</div>
+<div>
+<p class="text-on-surface-variant font-label-md uppercase tracking-tighter opacity-70">Containers</p>
+<p class="font-data-mono text-xl">1,204</p>
+</div>
+<div>
+<p class="text-on-surface-variant font-label-md uppercase tracking-tighter opacity-70">Active</p>
+<p class="font-data-mono text-xl">289</p>
+</div>
+<div>
+<p class="text-on-surface-variant font-label-md uppercase tracking-tighter opacity-70">Utilization</p>
+<p class="font-data-mono text-xl text-secondary">74%</p>
+</div>
+</div>
+<div class="space-y-2 mt-auto">
+<div class="flex justify-between items-end mb-1">
+<span class="font-label-md text-on-surface-variant uppercase">Productivity</span>
+<span class="font-data-mono text-secondary">71.2%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-secondary rounded-full" style="width: 71.2%"></div>
+</div>
+<button class="w-full mt-stack-md py-2 text-secondary font-label-md uppercase tracking-widest border border-secondary rounded hover:bg-secondary hover:text-white transition-colors flex items-center justify-center gap-2">
+                                View Details
+                                <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Gelsenkirchen Card -->
+<div class="group bg-white border border-outline-variant p-stack-md rounded-lg hover:shadow-xl hover:border-secondary transition-all duration-300 cursor-pointer flex flex-col" onclick="toggleDetails('Gelsenkirchen')">
+<div class="flex justify-between items-start mb-stack-md">
+<div class="w-12 h-12 bg-surface-container-high rounded flex items-center justify-center group-hover:bg-secondary-container transition-colors">
+<span class="material-symbols-outlined text-secondary">conveyor_belt</span>
+</div>
+<span class="px-2 py-1 bg-green-100 text-green-800 rounded font-label-md text-[10px] uppercase">Normal</span>
+</div>
+<h3 class="font-headline-md text-headline-md mb-unit">Gelsenkirchen</h3>
+<p class="text-on-surface-variant font-label-md mb-stack-md flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">location_on</span> Central Logistics Zone
+                        </p>
+<div class="grid grid-cols-2 gap-4 mb-stack-md py-stack-md border-y border-outline-variant">
+<div>
+<p class="text-on-surface-variant font-label-md uppercase tracking-tighter opacity-70">Halls</p>
+<p class="font-data-mono text-xl">8</p>
+</div>
+<div>
+<p class="text-on-surface-variant font-label-md uppercase tracking-tighter opacity-70">Containers</p>
+<p class="font-data-mono text-xl">412</p>
+</div>
+<div>
+<p class="text-on-surface-variant font-label-md uppercase tracking-tighter opacity-70">Active</p>
+<p class="font-data-mono text-xl">94</p>
+</div>
+<div>
+<p class="text-on-surface-variant font-label-md uppercase tracking-tighter opacity-70">Utilization</p>
+<p class="font-data-mono text-xl text-secondary">45%</p>
+</div>
+</div>
+<div class="space-y-2 mt-auto">
+<div class="flex justify-between items-end mb-1">
+<span class="font-label-md text-on-surface-variant uppercase">Productivity</span>
+<span class="font-data-mono text-secondary">94.8%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-secondary rounded-full" style="width: 94.8%"></div>
+</div>
+<button class="w-full mt-stack-md py-2 text-secondary font-label-md uppercase tracking-widest border border-secondary rounded hover:bg-secondary hover:text-white transition-colors flex items-center justify-center gap-2">
+                                View Details
+                                <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Hückelhoven Card -->
+<div class="group bg-white border border-outline-variant p-stack-md rounded-lg hover:shadow-xl hover:border-secondary transition-all duration-300 cursor-pointer flex flex-col" onclick="toggleDetails('Hückelhoven')">
+<div class="flex justify-between items-start mb-stack-md">
+<div class="w-12 h-12 bg-surface-container-high rounded flex items-center justify-center group-hover:bg-secondary-container transition-colors">
+<span class="material-symbols-outlined text-secondary">precision_manufacturing</span>
+</div>
+<span class="px-2 py-1 bg-red-100 text-red-800 rounded font-label-md text-[10px] uppercase">Understaffed</span>
+</div>
+<h3 class="font-headline-md text-headline-md mb-unit">Hückelhoven</h3>
+<p class="text-on-surface-variant font-label-md mb-stack-md flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">location_on</span> South-West Cluster
+                        </p>
+<div class="grid grid-cols-2 gap-4 mb-stack-md py-stack-md border-y border-outline-variant">
+<div>
+<p class="text-on-surface-variant font-label-md uppercase tracking-tighter opacity-70">Halls</p>
+<p class="font-data-mono text-xl">14</p>
+</div>
+<div>
+<p class="text-on-surface-variant font-label-md uppercase tracking-tighter opacity-70">Containers</p>
+<p class="font-data-mono text-xl">650</p>
+</div>
+<div>
+<p class="text-on-surface-variant font-label-md uppercase tracking-tighter opacity-70">Active</p>
+<p class="font-data-mono text-xl">72</p>
+</div>
+<div>
+<p class="text-on-surface-variant font-label-md uppercase tracking-tighter opacity-70">Utilization</p>
+<p class="font-data-mono text-xl text-secondary">58%</p>
+</div>
+</div>
+<div class="space-y-2 mt-auto">
+<div class="flex justify-between items-end mb-1">
+<span class="font-label-md text-on-surface-variant uppercase">Productivity</span>
+<span class="font-data-mono text-secondary">62.1%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-secondary rounded-full" style="width: 62.1%"></div>
+</div>
+<button class="w-full mt-stack-md py-2 text-secondary font-label-md uppercase tracking-widest border border-secondary rounded hover:bg-secondary hover:text-white transition-colors flex items-center justify-center gap-2">
+                                View Details
+                                <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Detailed View (Modal-like Section) -->
+<div class="hidden animate-in fade-in slide-in-from-bottom-4 duration-500" id="details-section">
+<div class="flex items-center justify-between mb-6">
+<div class="flex items-center gap-4">
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high text-on-surface transition-colors" onclick="hideDetails()">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<div>
+<h3 class="font-headline-lg text-headline-lg font-black text-on-surface" id="details-title">Wesel Hall Management</h3>
+<p class="text-on-surface-variant font-body-sm">Detailed Hall-by-Hall breakdown for current shift.</p>
+</div>
+</div>
+<div class="flex gap-2">
+<span class="inline-flex items-center gap-2 px-3 py-1 bg-surface-container-low border border-outline-variant rounded-full text-xs font-bold uppercase">
+<span class="w-2 h-2 rounded-full bg-green-500"></span> Active
+                            </span>
+<span class="inline-flex items-center gap-2 px-3 py-1 bg-surface-container-low border border-outline-variant rounded-full text-xs font-bold uppercase">
+<span class="w-2 h-2 rounded-full bg-amber-500"></span> Busy
+                            </span>
+<span class="inline-flex items-center gap-2 px-3 py-1 bg-surface-container-low border border-outline-variant rounded-full text-xs font-bold uppercase">
+<span class="w-2 h-2 rounded-full bg-outline"></span> Idle
+                            </span>
+</div>
+</div>
+<div class="bg-white border border-outline-variant rounded-lg overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low border-b border-outline-variant">
+<th class="p-4 font-label-md uppercase tracking-wider text-on-surface-variant">Hall ID</th>
+<th class="p-4 font-label-md uppercase tracking-wider text-on-surface-variant">Status</th>
+<th class="p-4 font-label-md uppercase tracking-wider text-on-surface-variant">Staff Count</th>
+<th class="p-4 font-label-md uppercase tracking-wider text-on-surface-variant">Current Shift Lead</th>
+<th class="p-4 font-label-md uppercase tracking-wider text-on-surface-variant text-right">Throughput</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant" id="hall-list">
+<!-- Dynamic content based on selection -->
+</tbody>
+</table>
+</div>
+</div>
+<!-- Atmospheric Bottom Element -->
+<div class="relative h-[400px] rounded-xl overflow-hidden mt-stack-lg group">
+
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex flex-col justify-end p-stack-lg">
+<div class="max-w-2xl">
+<span class="bg-secondary px-3 py-1 rounded font-label-md uppercase text-white mb-2 inline-block">Predictive Insight</span>
+<h4 class="text-white font-headline-lg font-bold mb-stack-sm">High Load Warning for Duisburg Hub</h4>
+<p class="text-white/70 font-body-md mb-stack-md">Historical data suggests a 22% increase in container volume for the Duisburg facility over the next 48 hours. Suggest rerouting urgent low-priority shipments to Hückelhoven.</p>
+<button class="bg-white text-primary px-6 py-2 rounded font-label-md uppercase tracking-widest hover:bg-secondary-fixed transition-colors">Adjust Logistics Plan</button>
+</div>
+</div>
+</div>
+</div>
+<footer class="p-container-margin border-t border-outline-variant mt-stack-lg flex flex-col md:flex-row justify-between items-center gap-stack-md">
+<p class="text-on-surface-variant font-label-md uppercase opacity-60">© 2024 LogisticsOS Industrial Systems</p>
+<div class="flex gap-stack-md">
+<a class="text-on-surface-variant hover:text-primary font-label-md uppercase transition-colors" href="#">Privacy Policy</a>
+<a class="text-on-surface-variant hover:text-primary font-label-md uppercase transition-colors" href="#">System Status: Optimal</a>
+</div>
+</footer>
+</main>
+</div>
+<script>
+        const hallData = {
+            'Wesel': [
+                { id: 'WES-01', status: 'Active', staff: 14, lead: 'Marcus Becker', throughput: '124 u/h' },
+                { id: 'WES-02', status: 'Busy', staff: 28, lead: 'Lena Meyer', throughput: '286 u/h' },
+                { id: 'WES-03', status: 'Active', staff: 12, lead: 'Sarah Klein', throughput: '98 u/h' },
+                { id: 'WES-04', status: 'Idle', staff: 2, lead: 'Hans Schmidt', throughput: '0 u/h' },
+                { id: 'WES-05', status: 'Active', staff: 22, lead: 'Julia Weber', throughput: '210 u/h' }
+            ],
+            'Duisburg': [
+                { id: 'DUI-01', status: 'Busy', staff: 45, lead: 'Oliver Kahn', throughput: '450 u/h' },
+                { id: 'DUI-02', status: 'Busy', staff: 42, lead: 'Sophie Fischer', throughput: '412 u/h' },
+                { id: 'DUI-03', status: 'Active', staff: 31, lead: 'Thomas Müller', throughput: '320 u/h' },
+                { id: 'DUI-04', status: 'Active', staff: 18, lead: 'Emma Schmidt', throughput: '150 u/h' }
+            ],
+            'Gelsenkirchen': [
+                { id: 'GEL-01', status: 'Active', staff: 24, lead: 'Robert Koch', throughput: '180 u/h' },
+                { id: 'GEL-02', status: 'Active', staff: 22, lead: 'Anna Frank', throughput: '165 u/h' },
+                { id: 'GEL-03', status: 'Idle', staff: 4, lead: 'Peter Pan', throughput: '0 u/h' }
+            ],
+            'Hückelhoven': [
+                { id: 'HUC-01', status: 'Busy', staff: 33, lead: 'Klaus Mann', throughput: '310 u/h' },
+                { id: 'HUC-02', status: 'Idle', staff: 2, lead: 'Lukas Podolski', throughput: '0 u/h' },
+                { id: 'HUC-03', status: 'Active', staff: 15, lead: 'Bastian S.', throughput: '120 u/h' }
+            ]
+        };
+
+        function toggleDetails(warehouse) {
+            const detailsSection = document.getElementById('details-section');
+            const title = document.getElementById('details-title');
+            const list = document.getElementById('hall-list');
+
+            title.textContent = `${warehouse} Hall Management`;
+            list.innerHTML = '';
+
+            hallData[warehouse].forEach(hall => {
+                const statusColor = hall.status === 'Active' ? 'bg-green-500' : hall.status === 'Busy' ? 'bg-amber-500' : 'bg-outline';
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-surface-container-high transition-colors';
+                row.innerHTML = `
+                    <td class="p-4 font-data-mono text-primary">${hall.id}</td>
+                    <td class="p-4">
+                        <span class="inline-flex items-center gap-2 font-label-md uppercase text-[10px]">
+                            <span class="w-2 h-2 rounded-full ${statusColor}"></span> ${hall.status}
+                        </span>
+                    </td>
+                    <td class="p-4 font-data-mono">${hall.staff}</td>
+                    <td class="p-4 font-body-md text-on-surface-variant">${hall.lead}</td>
+                    <td class="p-4 font-data-mono text-right text-secondary">${hall.throughput}</td>
+                `;
+                list.appendChild(row);
+            });
+
+            detailsSection.classList.remove('hidden');
+            window.scrollTo({
+                top: detailsSection.offsetTop - 100,
+                behavior: 'smooth'
+            });
+        }
+
+        function hideDetails() {
+            document.getElementById('details-section').classList.add('hidden');
+        }
+    </script>
+</body></html>

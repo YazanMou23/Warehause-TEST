@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>LogisticsOS Simplified Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&amp;family=JetBrains+Mono:wght@100..800&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .data-mono { font-family: 'JetBrains Mono', monospace; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-fixed-dim": "#dec29a",
+                        "primary": "#000000",
+                        "primary-fixed": "#dae2fd",
+                        "secondary-fixed-dim": "#adc6ff",
+                        "on-tertiary-container": "#98805d",
+                        "on-tertiary-fixed": "#271901",
+                        "inverse-primary": "#bec6e0",
+                        "secondary-container": "#2170e4",
+                        "on-error": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-container": "#fefcff",
+                        "on-surface-variant": "#45464d",
+                        "primary-container": "#131b2e",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-tint": "#565e74",
+                        "on-surface": "#0b1c30",
+                        "surface-bright": "#f8f9ff",
+                        "on-secondary-fixed": "#001a42",
+                        "error": "#ba1a1a",
+                        "surface": "#f8f9ff",
+                        "on-background": "#0b1c30",
+                        "outline-variant": "#c6c6cd",
+                        "on-secondary-fixed-variant": "#004395",
+                        "surface-container-low": "#eff4ff",
+                        "inverse-on-surface": "#eaf1ff",
+                        "on-primary-container": "#7c839b",
+                        "primary-fixed-dim": "#bec6e0",
+                        "surface-container-high": "#dce9ff",
+                        "on-primary-fixed-variant": "#3f465c",
+                        "on-tertiary-fixed-variant": "#574425",
+                        "background": "#f8f9ff",
+                        "outline": "#76777d",
+                        "error-container": "#ffdad6",
+                        "tertiary-fixed": "#fcdeb5",
+                        "surface-container": "#e5eeff",
+                        "surface-container-highest": "#d3e4fe",
+                        "on-primary": "#ffffff",
+                        "tertiary-container": "#271901",
+                        "tertiary": "#000000",
+                        "inverse-surface": "#213145",
+                        "secondary": "#0058be",
+                        "surface-dim": "#cbdbf5",
+                        "on-tertiary": "#ffffff",
+                        "surface-variant": "#d3e4fe",
+                        "secondary-fixed": "#d8e2ff",
+                        "on-primary-fixed": "#131b2e"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "unit": "4px",
+                        "container-margin": "24px",
+                        "gutter": "16px",
+                        "stack-lg": "32px",
+                        "stack-sm": "8px",
+                        "stack-md": "16px"
+                    },
+                    "fontFamily": {
+                        "body-sm": ["Geist"],
+                        "display": ["Geist"],
+                        "body-md": ["Geist"],
+                        "headline-md": ["Geist"],
+                        "label-md": ["Geist"],
+                        "headline-lg": ["Geist"],
+                        "body-lg": ["Geist"],
+                        "data-mono": ["JetBrains Mono"],
+                        "headline-lg-mobile": ["Geist"]
+                    },
+                    "fontSize": {
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "display": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "data-mono": ["14px", {"lineHeight": "20px", "fontWeight": "500"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background font-body-md overflow-hidden h-screen flex">
+<!-- SideNavBar -->
+<aside class="bg-surface-container-low dark:bg-primary-container text-primary dark:text-primary-fixed font-label-md text-label-md fixed left-0 top-0 h-full w-[280px] hidden lg:flex flex-col border-r border-outline-variant dark:border-outline z-50">
+<div class="px-container-margin py-stack-md flex items-center gap-stack-sm">
+<div class="w-10 h-10 bg-secondary flex items-center justify-center rounded-lg">
+<span class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">warehouse</span>
+</div>
+<div>
+<h1 class="font-headline-lg text-headline-lg font-black text-secondary dark:text-secondary-fixed leading-tight">Global Logistics</h1>
+<p class="text-on-surface-variant text-label-md">Operational Hub</p>
+</div>
+</div>
+<nav class="flex-1 overflow-y-auto mt-stack-md flex flex-col gap-1">
+<a class="bg-secondary-container dark:bg-secondary text-on-secondary-container dark:text-on-secondary font-bold rounded-lg mx-2 px-4 py-3 flex items-center gap-3" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span>Dashboard</span>
+</a>
+<a class="text-on-surface-variant dark:text-outline-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded-lg flex items-center gap-3 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="event_note">event_note</span>
+<span>Planning</span>
+</a>
+<a class="text-on-surface-variant dark:text-outline-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded-lg flex items-center gap-3 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="groups">groups</span>
+<span>Employees</span>
+</a>
+<a class="text-on-surface-variant dark:text-outline-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded-lg flex items-center gap-3 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="warehouse">warehouse</span>
+<span>Warehouses</span>
+</a>
+<a class="text-on-surface-variant dark:text-outline-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded-lg flex items-center gap-3 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="domain">domain</span>
+<span>Halls</span>
+</a>
+<a class="text-on-surface-variant dark:text-outline-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded-lg flex items-center gap-3 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+<span>Containers</span>
+</a>
+<a class="text-on-surface-variant dark:text-outline-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded-lg flex items-center gap-3 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="history_edu">history_edu</span>
+<span>Attendance</span>
+</a>
+<a class="text-on-surface-variant dark:text-outline-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded-lg flex items-center gap-3 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="document_scanner">document_scanner</span>
+<span>OCR Upload</span>
+</a>
+<a class="text-on-surface-variant dark:text-outline-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded-lg flex items-center gap-3 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span>Settings</span>
+</a>
+</nav>
+<div class="px-container-margin py-stack-md flex flex-col gap-1 border-t border-outline-variant">
+<a class="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-lg flex items-center gap-3" href="#">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+<span>Support</span>
+</a>
+<a class="text-on-surface-variant mx-2 px-4 py-2 hover:bg-error-container hover:text-error rounded-lg flex items-center gap-3" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span>Log Out</span>
+</a>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="lg:ml-[280px] w-full flex flex-col h-full bg-background">
+<!-- TopNavBar -->
+<header class="bg-surface dark:bg-surface-container-low text-primary dark:text-primary-fixed border-b border-outline-variant h-16 flex justify-between items-center w-full px-container-margin sticky top-0 z-50">
+<div class="flex items-center">
+<h2 class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed">LogisticsOS</h2>
+</div>
+<div class="flex items-center gap-stack-md">
+<div class="relative group hidden sm:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline" data-icon="search">search</span>
+<input class="pl-10 pr-4 py-1.5 bg-surface-container-low border border-outline-variant rounded-full text-body-sm w-64 focus:ring-1 focus:ring-secondary focus:border-transparent outline-none" placeholder="Search SKU, Hall..." type="text"/>
+</div>
+<button class="w-10 h-10 flex items-center justify-center hover:bg-surface-container-high rounded-full relative transition-colors">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
+</button>
+<div class="flex items-center gap-2 pl-4 border-l border-outline-variant">
+<div class="text-right hidden sm:block">
+<p class="font-label-md text-on-surface leading-none">M. Warehouse</p>
+<p class="text-[10px] text-outline uppercase tracking-wider mt-1">Manager</p>
+</div>
+<img alt="Manager Profile" class="w-8 h-8 rounded-full border border-outline-variant object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD8HWWRte0Hmg9xlG6BeqCXRW1bHHQxnky65qCBZtYHcx0Kp6Ds5UXqqau-cNMcxRJzD6RE-GjMk6gV5pkyvrI6QsKCljahp1wdI5gVJ-qeKqSzf3WnmIxrECwmyAAIiUAnni_HrNCqWI1PCnng90u4MjSLCeS0yXdVbqI8eLwZdVex25KCGJ_Z3xskYkBVf6OVpXsxGGcH0FgzMmhz0OPlJ7OLaqq1356nz2_73XLNUz5y1ICoqEqqKkcIWIEF95MqAtX6eiKvpg"/>
+</div>
+</div>
+</header>
+<!-- Scrollable Area -->
+<div class="flex-1 overflow-y-auto p-container-margin space-y-stack-lg">
+<!-- Page Title -->
+<div>
+<h3 class="font-headline-lg text-headline-lg font-bold text-on-surface">Operational Dashboard</h3>
+<p class="text-on-surface-variant font-body-sm">Status overview for current shifts across all locations.</p>
+</div>
+<!-- Key Metrics Grid -->
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-stack-md">
+<!-- Total Employees -->
+<div class="bg-surface-container-lowest border border-outline-variant p-stack-md rounded-lg">
+<div class="flex justify-between items-start mb-2">
+<span class="material-symbols-outlined text-outline" data-icon="groups">groups</span>
+<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant">+2.4%</span>
+</div>
+<p class="text-outline font-label-md uppercase tracking-widest text-[10px]">Total Employees</p>
+<h4 class="text-headline-md font-black mt-1 data-mono">450</h4>
+</div>
+<!-- Active Today -->
+<div class="bg-surface-container-lowest border border-outline-variant p-stack-md rounded-lg">
+<div class="flex justify-between items-start mb-2">
+<span class="material-symbols-outlined text-secondary" data-icon="person_play">person_play</span>
+<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-secondary-container text-white">Live</span>
+</div>
+<p class="text-outline font-label-md uppercase tracking-widest text-[10px]">Active Today</p>
+<h4 class="text-headline-md font-black mt-1 data-mono text-secondary">382</h4>
+</div>
+<!-- Containers Today -->
+<div class="bg-surface-container-lowest border border-outline-variant p-stack-md rounded-lg">
+<div class="flex justify-between items-start mb-2">
+<span class="material-symbols-outlined text-outline" data-icon="inventory_2">inventory_2</span>
+</div>
+<p class="text-outline font-label-md uppercase tracking-widest text-[10px]">Containers Today</p>
+<h4 class="text-headline-md font-black mt-1 data-mono">180</h4>
+</div>
+<!-- Active Halls -->
+<div class="bg-surface-container-lowest border border-outline-variant p-stack-md rounded-lg">
+<div class="flex justify-between items-start mb-2">
+<span class="material-symbols-outlined text-outline" data-icon="domain">domain</span>
+</div>
+<p class="text-outline font-label-md uppercase tracking-widest text-[10px]">Active Halls</p>
+<h4 class="text-headline-md font-black mt-1 data-mono">18</h4>
+</div>
+</div>
+<!-- Quick Actions Section -->
+<div class="space-y-stack-md">
+<h6 class="font-label-md text-outline uppercase tracking-widest text-[11px]">Quick Operations</h6>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-stack-md">
+<button class="flex items-center gap-4 p-stack-md bg-white border border-outline-variant rounded-lg hover:bg-surface-container-low transition-colors group">
+<div class="w-12 h-12 flex items-center justify-center bg-secondary-container rounded-lg text-white">
+<span class="material-symbols-outlined" data-icon="add_task">add_task</span>
+</div>
+<span class="font-bold text-on-surface">Create Plan</span>
+</button>
+<button class="flex items-center gap-4 p-stack-md bg-white border border-outline-variant rounded-lg hover:bg-surface-container-low transition-colors group">
+<div class="w-12 h-12 flex items-center justify-center bg-secondary-container rounded-lg text-white">
+<span class="material-symbols-outlined" data-icon="cloud_upload">cloud_upload</span>
+</div>
+<span class="font-bold text-on-surface">Upload OCR</span>
+</button>
+<button class="flex items-center gap-4 p-stack-md bg-white border border-outline-variant rounded-lg hover:bg-surface-container-low transition-colors group">
+<div class="w-12 h-12 flex items-center justify-center bg-secondary-container rounded-lg text-white">
+<span class="material-symbols-outlined" data-icon="dock">dock</span>
+</div>
+<span class="font-bold text-on-surface">Add Container</span>
+</button>
+<button class="flex items-center gap-4 p-stack-md bg-white border border-outline-variant rounded-lg hover:bg-surface-container-low transition-colors group">
+<div class="w-12 h-12 flex items-center justify-center bg-secondary-container rounded-lg text-white">
+<span class="material-symbols-outlined" data-icon="person_add">person_add</span>
+</div>
+<span class="font-bold text-on-surface">Add Employee</span>
+</button>
+</div>
+</div>
+<!-- Recent Log (Simplified Summary) -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden">
+<div class="p-stack-md border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
+<h5 class="font-bold text-body-lg">Recent System Events</h5>
+<button class="text-secondary text-label-md font-bold hover:underline">View All</button>
+</div>
+<div class="divide-y divide-outline-variant">
+<div class="px-stack-md py-3 flex justify-between items-center hover:bg-surface-bright transition-colors">
+<div class="flex flex-col">
+<span class="text-body-sm font-medium">OCR processed for Hall B</span>
+<span class="text-[10px] text-outline uppercase tracking-wider">Gate 4 Scanner • 14:22:15</span>
+</div>
+<span class="px-2 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-bold uppercase">Success</span>
+</div>
+<div class="px-stack-md py-3 flex justify-between items-center hover:bg-surface-bright transition-colors">
+<div class="flex flex-col">
+<span class="text-body-sm font-medium">High Temp Alert: Hall B</span>
+<span class="text-[10px] text-outline uppercase tracking-wider">Sensor HUB-02 • 13:42:12</span>
+</div>
+<span class="px-2 py-0.5 bg-error-container text-error rounded text-[10px] font-bold uppercase">Warning</span>
+</div>
+<div class="px-stack-md py-3 flex justify-between items-center hover:bg-surface-bright transition-colors">
+<div class="flex flex-col">
+<span class="text-body-sm font-medium">New Plan: Distribution E</span>
+<span class="text-[10px] text-outline uppercase tracking-wider">A. Manager • 13:30:00</span>
+</div>
+<span class="px-2 py-0.5 bg-surface-container-high text-outline rounded text-[10px] font-bold uppercase">Draft</span>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Contextual FAB (Mobile) -->
+<button class="fixed bottom-8 right-8 w-14 h-14 bg-secondary text-white rounded-full shadow-lg flex items-center justify-center lg:hidden z-50 active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[28px]" data-icon="add">add</span>
+</button>
+<script>
+        // Simple scale interactions for touch feedback
+        document.querySelectorAll('button, a').forEach(el => {
+            el.addEventListener('mousedown', () => { el.style.transform = 'scale(0.98)'; });
+            el.addEventListener('mouseup', () => { el.style.transform = ''; });
+            el.addEventListener('mouseleave', () => { el.style.transform = ''; });
+        });
+    </script>
+</body></html>

@@ -1,0 +1,29 @@
+# Dependencies
+node_modules
+/jspm_packages
+
+# Build outputs
+dist
+.next
+out
+build
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDEs and System files
+.DS_Store
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.system_generated/
+.gemini/

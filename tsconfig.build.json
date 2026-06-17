@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.json",
+  "exclude": ["node_modules", "test", "dist", "**/*spec.ts", "frontend", "daily_planning_system", "design_system", "ocr_and_containers", "operational_dashboard", "operational_planning_hub", "simplified_containers_and_ocr", "simplified_dashboard", "warehouse_management", "warehouse_operations_list"]
+}

@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>LogisticsOS | Warehouse Management</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&amp;family=JetBrains+Mono:wght@100..800&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 2px;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-fixed-dim": "#dec29a",
+                        "primary": "#000000",
+                        "primary-fixed": "#dae2fd",
+                        "secondary-fixed-dim": "#adc6ff",
+                        "on-tertiary-container": "#98805d",
+                        "on-tertiary-fixed": "#271901",
+                        "inverse-primary": "#bec6e0",
+                        "secondary-container": "#2170e4",
+                        "on-error": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-container": "#fefcff",
+                        "on-surface-variant": "#45464d",
+                        "primary-container": "#131b2e",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-tint": "#565e74",
+                        "on-surface": "#0b1c30",
+                        "surface-bright": "#f8f9ff",
+                        "on-secondary-fixed": "#001a42",
+                        "error": "#ba1a1a",
+                        "surface": "#f8f9ff",
+                        "on-background": "#0b1c30",
+                        "outline-variant": "#c6c6cd",
+                        "on-secondary-fixed-variant": "#004395",
+                        "surface-container-low": "#eff4ff",
+                        "inverse-on-surface": "#eaf1ff",
+                        "on-primary-container": "#7c839b",
+                        "primary-fixed-dim": "#bec6e0",
+                        "surface-container-high": "#dce9ff",
+                        "on-primary-fixed-variant": "#3f465c",
+                        "on-tertiary-fixed-variant": "#574425",
+                        "background": "#f8f9ff",
+                        "outline": "#76777d",
+                        "error-container": "#ffdad6",
+                        "tertiary-fixed": "#fcdeb5",
+                        "surface-container": "#e5eeff",
+                        "surface-container-highest": "#d3e4fe",
+                        "on-primary": "#ffffff",
+                        "tertiary-container": "#271901",
+                        "tertiary": "#000000",
+                        "inverse-surface": "#213145",
+                        "secondary": "#0058be",
+                        "surface-dim": "#cbdbf5",
+                        "on-tertiary": "#ffffff",
+                        "surface-variant": "#d3e4fe",
+                        "secondary-fixed": "#d8e2ff",
+                        "on-primary-fixed": "#131b2e"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "unit": "4px",
+                        "container-margin": "24px",
+                        "gutter": "16px",
+                        "stack-lg": "32px",
+                        "stack-sm": "8px",
+                        "stack-md": "16px"
+                    },
+                    "fontFamily": {
+                        "body-sm": ["Geist"],
+                        "display": ["Geist"],
+                        "body-md": ["Geist"],
+                        "headline-md": ["Geist"],
+                        "label-md": ["Geist"],
+                        "headline-lg": ["Geist"],
+                        "body-lg": ["Geist"],
+                        "data-mono": ["JetBrains Mono"],
+                        "headline-lg-mobile": ["Geist"]
+                    },
+                    "fontSize": {
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "display": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "data-mono": ["14px", {"lineHeight": "20px", "fontWeight": "500"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background font-body-md selection:bg-secondary-fixed selection:text-on-secondary-fixed">
+<div class="flex min-h-screen">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-[280px] hidden lg:flex flex-col bg-surface-container-low border-r border-outline-variant py-stack-md z-40">
+<div class="px-container-margin mb-stack-lg">
+<div class="flex items-center gap-stack-sm mb-unit">
+<div class="w-8 h-8 bg-primary rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">warehouse</span>
+</div>
+<span class="font-headline-lg text-headline-lg font-black text-secondary tracking-tighter">Global Logistics</span>
+</div>
+<p class="font-label-md text-label-md text-on-surface-variant opacity-70 uppercase tracking-widest">Operational Hub</p>
+</div>
+<nav class="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-1">
+<a class="text-on-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded transition-all flex items-center gap-3" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="text-on-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded transition-all flex items-center gap-3" href="#">
+<span class="material-symbols-outlined">event_note</span>
+<span class="font-label-md text-label-md">Planning</span>
+</a>
+<a class="text-on-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded transition-all flex items-center gap-3" href="#">
+<span class="material-symbols-outlined">groups</span>
+<span class="font-label-md text-label-md">Employees</span>
+</a>
+<a class="bg-secondary-container text-on-secondary-container font-bold rounded mx-2 px-4 py-3 flex items-center gap-3" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">warehouse</span>
+<span class="font-label-md text-label-md">Warehouses</span>
+</a>
+<a class="text-on-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded transition-all flex items-center gap-3" href="#">
+<span class="material-symbols-outlined">domain</span>
+<span class="font-label-md text-label-md">Halls</span>
+</a>
+<a class="text-on-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded transition-all flex items-center gap-3" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-label-md text-label-md">Containers</span>
+</a>
+<a class="text-on-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded transition-all flex items-center gap-3" href="#">
+<span class="material-symbols-outlined">history_edu</span>
+<span class="font-label-md text-label-md">Attendance</span>
+</a>
+<a class="text-on-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded transition-all flex items-center gap-3" href="#">
+<span class="material-symbols-outlined">document_scanner</span>
+<span class="font-label-md text-label-md">OCR Upload</span>
+</a>
+<a class="text-on-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-high rounded transition-all flex items-center gap-3" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+</nav>
+<div class="px-container-margin mt-stack-md pt-stack-md border-t border-outline-variant flex flex-col gap-2">
+<a class="text-on-surface-variant hover:text-primary transition-all flex items-center gap-3" href="#">
+<span class="material-symbols-outlined">help</span>
+<span class="font-label-md text-label-md">Support</span>
+</a>
+<a class="text-on-surface-variant hover:text-primary transition-all flex items-center gap-3" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="font-label-md text-label-md">Log Out</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 lg:ml-[280px]">
+<!-- TopNavBar -->
+<header class="bg-surface sticky top-0 z-50 border-b border-outline-variant flex justify-between items-center w-full px-container-margin h-16">
+<div class="flex items-center gap-stack-md">
+<h1 class="font-headline-md text-headline-md font-bold text-primary">LogisticsOS</h1>
+<div class="hidden md:flex gap-6 items-center ml-8">
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">Active Shifts</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">Maintenance</a>
+<a class="font-body-md text-body-md text-secondary font-bold border-b-2 border-secondary pb-1" href="#">Warehouses</a>
+</div>
+</div>
+<div class="flex items-center gap-stack-md">
+<div class="relative hidden sm:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="bg-surface-container-low border border-outline-variant rounded pl-10 pr-4 py-2 text-sm focus:ring-1 focus:ring-secondary focus:border-secondary outline-none w-64" placeholder="Search facilities..." type="text"/>
+</div>
+<button class="w-10 h-10 flex items-center justify-center hover:bg-surface-container-high rounded transition-colors relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
+</button>
+<div class="h-8 w-[1px] bg-outline-variant mx-unit"></div>
+<img alt="Warehouse Manager" class="w-10 h-10 rounded border border-outline-variant object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCnxODrhe_qAUJcwsV9h0_X0N33K6lij-FWWa50CvrevCTsm_MQDlfyXZnNOzlFqt1rnZKE6fq4YoVcKsnqK2q11S61219l34yCJTk9LFHCkbR8SGuHk6uSMbK7nBXwOCm6LbeN3wgzmzsOfU0uNvrD2Mx3daxH2ce5FQKIy8oxL42vD_WTvWTfzoFXRiTliAf_R88MfU1rnDqmAc7P9y6sjLfFVxsnZ7RKbMH90ei6s3u05NG7cX0dIF7kcwrSLUanVk5MU7-Aiw"/>
+</div>
+</header>
+<div class="p-container-margin space-y-stack-lg">
+<!-- Page Header -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-stack-md">
+<div>
+<h2 class="font-headline-lg text-headline-lg font-black text-on-surface">Warehouse Hubs</h2>
+<p class="text-on-surface-variant font-body-md">Operational status for primary logistics facilities.</p>
+</div>
+<div class="flex gap-stack-sm">
+<button class="bg-surface-container-high text-on-surface px-4 py-2 rounded font-label-md uppercase tracking-wider flex items-center gap-2 hover:bg-outline-variant transition-colors">
+<span class="material-symbols-outlined text-[18px]">filter_list</span>
+                        Filter
+                    </button>
+<button class="bg-primary text-on-primary px-6 py-2 rounded font-label-md uppercase tracking-wider flex items-center gap-2 hover:bg-neutral-800 transition-colors">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                        New Shipment
+                    </button>
+</div>
+</div>
+<!-- Simplified High-Density List View -->
+<div class="bg-white border border-outline-variant rounded overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low border-b border-outline-variant">
+<th class="p-4 font-label-md uppercase tracking-wider text-on-surface-variant">Hub Location</th>
+<th class="p-4 font-label-md uppercase tracking-wider text-on-surface-variant">Halls</th>
+<th class="p-4 font-label-md uppercase tracking-wider text-on-surface-variant">Containers</th>
+<th class="p-4 font-label-md uppercase tracking-wider text-on-surface-variant">Active Load</th>
+<th class="p-4 font-label-md uppercase tracking-wider text-on-surface-variant">Utilization</th>
+<th class="p-4 font-label-md uppercase tracking-wider text-on-surface-variant text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<!-- Wesel Row -->
+<tr class="hover:bg-surface-container-low transition-colors cursor-pointer group" onclick="toggleDetails('Wesel')">
+<td class="p-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 bg-surface-container-high rounded flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[20px]">factory</span>
+</div>
+<div>
+<div class="font-bold text-on-surface">Wesel</div>
+<div class="text-[10px] text-on-surface-variant uppercase tracking-tighter">Hub NRW-North</div>
+</div>
+</div>
+</td>
+<td class="p-4 font-data-mono">12</td>
+<td class="p-4 font-data-mono">842</td>
+<td class="p-4 font-data-mono">156</td>
+<td class="p-4">
+<div class="flex items-center gap-2">
+<div class="w-16 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-secondary" style="width: 92%"></div>
+</div>
+<span class="font-data-mono text-xs">92%</span>
+</div>
+</td>
+<td class="p-4 text-right">
+<button class="text-secondary hover:underline font-label-md uppercase text-[10px]">Open Hall View</button>
+</td>
+</tr>
+<!-- Duisburg Row -->
+<tr class="hover:bg-surface-container-low transition-colors cursor-pointer" onclick="toggleDetails('Duisburg')">
+<td class="p-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 bg-surface-container-high rounded flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[20px]">dock</span>
+</div>
+<div>
+<div class="font-bold text-on-surface">Duisburg</div>
+<div class="text-[10px] text-on-surface-variant uppercase tracking-tighter">Port Terminal 4</div>
+</div>
+</div>
+</td>
+<td class="p-4 font-data-mono">18</td>
+<td class="p-4 font-data-mono">1,204</td>
+<td class="p-4 font-data-mono">289</td>
+<td class="p-4">
+<div class="flex items-center gap-2">
+<div class="w-16 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-secondary" style="width: 74%"></div>
+</div>
+<span class="font-data-mono text-xs">74%</span>
+</div>
+</td>
+<td class="p-4 text-right">
+<button class="text-secondary hover:underline font-label-md uppercase text-[10px]">Open Hall View</button>
+</td>
+</tr>
+<!-- Gelsenkirchen Row -->
+<tr class="hover:bg-surface-container-low transition-colors cursor-pointer" onclick="toggleDetails('Gelsenkirchen')">
+<td class="p-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 bg-surface-container-high rounded flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[20px]">conveyor_belt</span>
+</div>
+<div>
+<div class="font-bold text-on-surface">Gelsenkirchen</div>
+<div class="text-[10px] text-on-surface-variant uppercase tracking-tighter">Central Logistics Zone</div>
+</div>
+</div>
+</td>
+<td class="p-4 font-data-mono">8</td>
+<td class="p-4 font-data-mono">412</td>
+<td class="p-4 font-data-mono">94</td>
+<td class="p-4">
+<div class="flex items-center gap-2">
+<div class="w-16 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-secondary" style="width: 45%"></div>
+</div>
+<span class="font-data-mono text-xs">45%</span>
+</div>
+</td>
+<td class="p-4 text-right">
+<button class="text-secondary hover:underline font-label-md uppercase text-[10px]">Open Hall View</button>
+</td>
+</tr>
+<!-- Hückelhoven Row -->
+<tr class="hover:bg-surface-container-low transition-colors cursor-pointer" onclick="toggleDetails('Hückelhoven')">
+<td class="p-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 bg-surface-container-high rounded flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[20px]">precision_manufacturing</span>
+</div>
+<div>
+<div class="font-bold text-on-surface">Hückelhoven</div>
+<div class="text-[10px] text-on-surface-variant uppercase tracking-tighter">South-West Cluster</div>
+</div>
+</div>
+</td>
+<td class="p-4 font-data-mono">14</td>
+<td class="p-4 font-data-mono">650</td>
+<td class="p-4 font-data-mono">72</td>
+<td class="p-4">
+<div class="flex items-center gap-2">
+<div class="w-16 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-secondary" style="width: 58%"></div>
+</div>
+<span class="font-data-mono text-xs">58%</span>
+</div>
+</td>
+<td class="p-4 text-right">
+<button class="text-secondary hover:underline font-label-md uppercase text-[10px]">Open Hall View</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Hall Detailed View (Context-aware) -->
+<div class="hidden animate-in fade-in slide-in-from-bottom-2 duration-300" id="details-section">
+<div class="flex items-center justify-between mb-4 border-b border-outline-variant pb-4">
+<div class="flex items-center gap-4">
+<button class="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-container-high text-on-surface transition-colors" onclick="hideDetails()">
+<span class="material-symbols-outlined">close</span>
+</button>
+<h3 class="font-headline-md text-headline-md font-bold text-on-surface" id="details-title">Wesel Hall Breakdown</h3>
+</div>
+<div class="flex gap-4">
+<div class="flex items-center gap-2 text-[10px] font-bold uppercase text-on-surface-variant">
+<span class="w-2 h-2 rounded-full bg-green-500"></span> Active
+                        </div>
+<div class="flex items-center gap-2 text-[10px] font-bold uppercase text-on-surface-variant">
+<span class="w-2 h-2 rounded-full bg-amber-500"></span> Busy
+                        </div>
+<div class="flex items-center gap-2 text-[10px] font-bold uppercase text-on-surface-variant">
+<span class="w-2 h-2 rounded-full bg-outline"></span> Idle
+                        </div>
+</div>
+</div>
+<div class="bg-white border border-outline-variant rounded overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low border-b border-outline-variant">
+<th class="p-3 font-label-md uppercase tracking-wider text-on-surface-variant text-[10px]">Hall ID</th>
+<th class="p-3 font-label-md uppercase tracking-wider text-on-surface-variant text-[10px]">Status</th>
+<th class="p-3 font-label-md uppercase tracking-wider text-on-surface-variant text-[10px]">Staff</th>
+<th class="p-3 font-label-md uppercase tracking-wider text-on-surface-variant text-[10px]">Lead</th>
+<th class="p-3 font-label-md uppercase tracking-wider text-on-surface-variant text-[10px] text-right">Throughput</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant" id="hall-list">
+<!-- Populated via script -->
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<footer class="p-container-margin border-t border-outline-variant mt-stack-lg flex flex-col md:flex-row justify-between items-center gap-stack-md">
+<p class="text-on-surface-variant font-label-md uppercase opacity-60">© 2024 LogisticsOS Industrial Systems</p>
+<div class="flex gap-stack-md">
+<a class="text-on-surface-variant hover:text-primary font-label-md uppercase transition-colors" href="#">Privacy Policy</a>
+<a class="text-on-surface-variant hover:text-primary font-label-md uppercase transition-colors" href="#">System Status: Optimal</a>
+</div>
+</footer>
+</main>
+</div>
+<script>
+    const hallData = {
+        'Wesel': [
+            { id: 'WES-01', status: 'Active', staff: 14, lead: 'Marcus Becker', throughput: '124 u/h' },
+            { id: 'WES-02', status: 'Busy', staff: 28, lead: 'Lena Meyer', throughput: '286 u/h' },
+            { id: 'WES-03', status: 'Active', staff: 12, lead: 'Sarah Klein', throughput: '98 u/h' },
+            { id: 'WES-04', status: 'Idle', staff: 2, lead: 'Hans Schmidt', throughput: '0 u/h' }
+        ],
+        'Duisburg': [
+            { id: 'DUI-01', status: 'Busy', staff: 45, lead: 'Oliver Kahn', throughput: '450 u/h' },
+            { id: 'DUI-02', status: 'Busy', staff: 42, lead: 'Sophie Fischer', throughput: '412 u/h' },
+            { id: 'DUI-03', status: 'Active', staff: 31, lead: 'Thomas Müller', throughput: '320 u/h' }
+        ],
+        'Gelsenkirchen': [
+            { id: 'GEL-01', status: 'Active', staff: 24, lead: 'Robert Koch', throughput: '180 u/h' },
+            { id: 'GEL-02', status: 'Idle', staff: 4, lead: 'Peter Pan', throughput: '0 u/h' }
+        ],
+        'Hückelhoven': [
+            { id: 'HUC-01', status: 'Busy', staff: 33, lead: 'Klaus Mann', throughput: '310 u/h' },
+            { id: 'HUC-02', status: 'Active', staff: 15, lead: 'Bastian S.', throughput: '120 u/h' }
+        ]
+    };
+
+    function toggleDetails(warehouse) {
+        const detailsSection = document.getElementById('details-section');
+        const title = document.getElementById('details-title');
+        const list = document.getElementById('hall-list');
+
+        title.textContent = `${warehouse} Hall Breakdown`;
+        list.innerHTML = '';
+
+        hallData[warehouse].forEach(hall => {
+            const statusColor = hall.status === 'Active' ? 'bg-green-500' : hall.status === 'Busy' ? 'bg-amber-500' : 'bg-outline';
+            const row = document.createElement('tr');
+            row.className = 'hover:bg-surface-container-high transition-colors';
+            row.innerHTML = `
+                <td class="p-3 font-data-mono text-primary text-sm">${hall.id}</td>
+                <td class="p-3">
+                    <span class="inline-flex items-center gap-2 font-label-md uppercase text-[9px]">
+                        <span class="w-1.5 h-1.5 rounded-full ${statusColor}"></span> ${hall.status}
+                    </span>
+                </td>
+                <td class="p-3 font-data-mono text-sm">${hall.staff}</td>
+                <td class="p-3 font-body-sm text-on-surface-variant">${hall.lead}</td>
+                <td class="p-3 font-data-mono text-right text-secondary text-sm">${hall.throughput}</td>
+            `;
+            list.appendChild(row);
+        });
+
+        detailsSection.classList.remove('hidden');
+        window.scrollTo({
+            top: detailsSection.offsetTop - 100,
+            behavior: 'smooth'
+        });
+    }
+
+    function hideDetails() {
+        document.getElementById('details-section').classList.add('hidden');
+    }
+</script>
+</body></html>
