@@ -76,14 +76,14 @@ export default function OcrPage() {
         const headers = { Authorization: `Bearer ${token}` };
 
         // Fetch warehouses
-        const whRes = await fetch("http://localhost:3000/warehouses", { headers });
+        const whRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/warehouses`, { headers });
         const whJson = whRes.ok ? await whRes.json() : null;
         const whData = whJson && Array.isArray(whJson.data) ? whJson.data : (Array.isArray(whJson) ? whJson : []);
         setWarehouses(whData);
         if (whData.length > 0) setSelectedWarehouseId(whData[0].id);
 
         // Fetch halls
-        const hallRes = await fetch("http://localhost:3000/halls", { headers });
+        const hallRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/halls`, { headers });
         const hallJson = hallRes.ok ? await hallRes.json() : null;
         const hallData = hallJson && Array.isArray(hallJson.data) ? hallJson.data : (Array.isArray(hallJson) ? hallJson : []);
         setHalls(hallData);
@@ -165,7 +165,7 @@ export default function OcrPage() {
       formData.append("file", file);
       formData.append("type", extractionType);
 
-      const res = await fetch("http://localhost:3000/ocr/upload", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/ocr/upload`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -249,7 +249,7 @@ export default function OcrPage() {
         })),
       };
 
-      const res = await fetch("http://localhost:3000/containers/bulk-import", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/containers/bulk-import`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

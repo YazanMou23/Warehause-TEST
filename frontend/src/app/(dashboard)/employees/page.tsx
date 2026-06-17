@@ -30,7 +30,7 @@ export default function EmployeesPage() {
     const loadEmployees = async () => {
       try {
         const headers = { Authorization: `Bearer ${token}` };
-        const res = await fetch("http://localhost:3000/employees", { headers });
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees`, { headers });
         const empJson = res.ok ? await res.json() : null;
         const empList = empJson && Array.isArray(empJson.data) ? empJson.data : (Array.isArray(empJson) ? empJson : []);
         setEmployees(empList);

@@ -113,27 +113,27 @@ export default function DashboardPage() {
         const headers = { Authorization: `Bearer ${token}` };
 
         // Fetch user count
-        const usersRes = await fetch("http://localhost:3000/employees", { headers });
+        const usersRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees`, { headers });
         const usersJson = usersRes.ok ? await usersRes.json() : null;
         const usersList = usersJson && Array.isArray(usersJson.data) ? usersJson.data : [];
 
         // Fetch containers
-        const containersRes = await fetch("http://localhost:3000/containers", { headers });
+        const containersRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/containers`, { headers });
         const containersJson = containersRes.ok ? await containersRes.json() : null;
         const containersList = containersJson && Array.isArray(containersJson.data) ? containersJson.data : [];
 
         // Fetch halls
-        const hallsRes = await fetch("http://localhost:3000/halls", { headers });
+        const hallsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/halls`, { headers });
         const hallsJson = hallsRes.ok ? await hallsRes.json() : null;
         const hallsList = hallsJson && Array.isArray(hallsJson.data) ? hallsJson.data : [];
 
         // Fetch daily attendance
-        const attendanceRes = await fetch("http://localhost:3000/attendance/daily", { headers });
+        const attendanceRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/attendance/daily`, { headers });
         const attendanceData = attendanceRes.ok ? await attendanceRes.json() : [];
 
         // Fetch today's plans
         const todayStr = new Date().toLocaleDateString('en-CA');
-        const plansRes = await fetch(`http://localhost:3000/planning/query?date=${todayStr}`, { headers });
+        const plansRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/query?date=${todayStr}`, { headers });
         const plansList = plansRes.ok ? await plansRes.json() : [];
 
         setMetrics({

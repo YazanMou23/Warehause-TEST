@@ -84,7 +84,7 @@ function PlanningPageContent() {
         const headers = { Authorization: `Bearer ${token}` };
 
         // Fetch warehouses
-        const whRes = await fetch("http://localhost:3000/warehouses", { headers });
+        const whRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/warehouses`, { headers });
         const whJson = whRes.ok ? await whRes.json() : null;
         const whData = whJson && Array.isArray(whJson.data) ? whJson.data : (Array.isArray(whJson) ? whJson : []);
         setWarehouses(whData);
@@ -96,7 +96,7 @@ function PlanningPageContent() {
         }
 
         // Fetch halls
-        const hallRes = await fetch("http://localhost:3000/halls", { headers });
+        const hallRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/halls`, { headers });
         const hallJson = hallRes.ok ? await hallRes.json() : null;
         const hallData = hallJson && Array.isArray(hallJson.data) ? hallJson.data : (Array.isArray(hallJson) ? hallJson : []);
         setHalls(hallData);
@@ -106,13 +106,13 @@ function PlanningPageContent() {
         }
 
         // Fetch employees
-        const empRes = await fetch("http://localhost:3000/employees", { headers });
+        const empRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees`, { headers });
         const empJson = empRes.ok ? await empRes.json() : null;
         const empData = empJson && Array.isArray(empJson.data) ? empJson.data : (Array.isArray(empJson) ? empJson : []);
         setEmployees(empData.filter((u: any) => u.role !== "ADMIN"));
 
         // Fetch containers
-        const containerRes = await fetch("http://localhost:3000/containers", { headers });
+        const containerRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/containers`, { headers });
         const containerJson = containerRes.ok ? await containerRes.json() : null;
         const containerData = containerJson && Array.isArray(containerJson.data) ? containerJson.data : (Array.isArray(containerJson) ? containerJson : []);
         setContainers(containerData);
@@ -187,7 +187,7 @@ function PlanningPageContent() {
 
       try {
         const res = await fetch(
-          `http://localhost:3000/planning/query?date=${date}&warehouseId=${selectedWarehouseId}`,
+          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/query?date=${date}&warehouseId=${selectedWarehouseId}`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
@@ -246,7 +246,7 @@ function PlanningPageContent() {
       let res;
       if (planId) {
         // Update existing plan
-        res = await fetch(`http://localhost:3000/planning/${planId}`, {
+        res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/${planId}`, {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
@@ -259,7 +259,7 @@ function PlanningPageContent() {
         });
       } else {
         // Create new plan
-        res = await fetch("http://localhost:3000/planning", {
+        res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

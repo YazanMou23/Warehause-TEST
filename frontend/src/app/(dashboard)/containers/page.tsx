@@ -111,7 +111,7 @@ export default function ContainersPage() {
     }
 
     try {
-      const res = await fetch(`http://localhost:3000/containers/${activeContainer.id}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/containers/${activeContainer.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -150,19 +150,19 @@ export default function ContainersPage() {
       const headers = { Authorization: `Bearer ${token}` };
 
       // Fetch containers
-      const containerRes = await fetch("http://localhost:3000/containers", { headers });
+      const containerRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/containers`, { headers });
       const containerJson = containerRes.ok ? await containerRes.json() : null;
       const containerList = containerJson && Array.isArray(containerJson.data) ? containerJson.data : (Array.isArray(containerJson) ? containerJson : []);
 
       // Fetch warehouses
-      const whRes = await fetch("http://localhost:3000/warehouses", { headers });
+      const whRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/warehouses`, { headers });
       const whJson = whRes.ok ? await whRes.json() : null;
       const whData = whJson && Array.isArray(whJson.data) ? whJson.data : (Array.isArray(whJson) ? whJson : []);
       setWarehouses(whData);
       if (whData.length > 0) setNewWarehouseId(whData[0].id);
 
       // Fetch halls
-      const hallRes = await fetch("http://localhost:3000/halls", { headers });
+      const hallRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/halls`, { headers });
       const hallJson = hallRes.ok ? await hallRes.json() : null;
       const hallData = hallJson && Array.isArray(hallJson.data) ? hallJson.data : (Array.isArray(hallJson) ? hallJson : []);
       setHalls(hallData);
@@ -271,7 +271,7 @@ export default function ContainersPage() {
         targetHallId = mockHallId;
       } else {
         try {
-          const res = await fetch("http://localhost:3000/halls", {
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/halls`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -330,7 +330,7 @@ export default function ContainersPage() {
     }
 
     try {
-      const res = await fetch("http://localhost:3000/containers", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/containers`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -374,7 +374,7 @@ export default function ContainersPage() {
     }
 
     try {
-      const res = await fetch(`http://localhost:3000/containers/${id}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/containers/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Settings, Bell, Shield, MessageSquare, AlertTriangle, CheckCircle, Info } from "lucide-react";
 
 export default function SettingsPage() {
-  const [apiEndpoint, setApiEndpoint] = useState("http://localhost:3000");
+  const [apiEndpoint, setApiEndpoint] = useState(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}`);
   const [broadcastMessage, setBroadcastMessage] = useState("LogiFlow system maintenance tonight at 22:00 CET.");
   
   const [isOffline, setIsOffline] = useState(false);
@@ -21,7 +21,7 @@ export default function SettingsPage() {
     }
 
     // Verify online status
-    fetch("http://localhost:3000/warehouses", {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/warehouses`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => setIsOffline(!res.ok))
@@ -46,7 +46,7 @@ export default function SettingsPage() {
     }
 
     try {
-      const res = await fetch("http://localhost:3000/telegram/broadcast", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/telegram/broadcast`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -91,7 +91,7 @@ export default function WarehousesPage() {
     const token = localStorage.getItem("accessToken");
     try {
       const headers = { Authorization: `Bearer ${token}` };
-      const res = await fetch("http://localhost:3000/warehouses", { headers });
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/warehouses`, { headers });
       const whJson = res.ok ? await res.json() : null;
       const whList = whJson && Array.isArray(whJson.data) ? whJson.data : (Array.isArray(whJson) ? whJson : []);
       
@@ -248,7 +248,7 @@ export default function WarehousesPage() {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       };
-      const res = await fetch("http://localhost:3000/warehouses", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/warehouses`, {
         method: "POST",
         headers,
         body: JSON.stringify({ name: newWhName }),
@@ -263,7 +263,7 @@ export default function WarehousesPage() {
 
       // If they provided an initial hall, let's create it!
       if (initialHallName.trim()) {
-        const hallRes = await fetch("http://localhost:3000/halls", {
+        const hallRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/halls`, {
           method: "POST",
           headers,
           body: JSON.stringify({
@@ -297,7 +297,7 @@ export default function WarehousesPage() {
     const token = localStorage.getItem("accessToken");
     try {
       const headers = { Authorization: `Bearer ${token}` };
-      const res = await fetch(`http://localhost:3000/warehouses/${confirmDeleteId}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/warehouses/${confirmDeleteId}`, {
         method: "DELETE",
         headers,
       });

@@ -80,20 +80,20 @@ export default function AttendancePage() {
       const headers = { Authorization: `Bearer ${token}` };
 
       // Fetch warehouses
-      const whRes = await fetch("http://localhost:3000/warehouses", { headers });
+      const whRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/warehouses`, { headers });
       const whJson = whRes.ok ? await whRes.json() : null;
       const whData = whJson && Array.isArray(whJson.data) ? whJson.data : (Array.isArray(whJson) ? whJson : []);
       setWarehouses(whData);
       if (whData.length > 0) setActionWarehouseId(whData[0].id);
 
       // Fetch halls
-      const hallRes = await fetch("http://localhost:3000/halls", { headers });
+      const hallRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/halls`, { headers });
       const hallJson = hallRes.ok ? await hallRes.json() : null;
       const hallData = hallJson && Array.isArray(hallJson.data) ? hallJson.data : (Array.isArray(hallJson) ? hallJson : []);
       setHalls(hallData);
 
       // Fetch employees
-      const empRes = await fetch("http://localhost:3000/employees", { headers });
+      const empRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees`, { headers });
       const empJson = empRes.ok ? await empRes.json() : null;
       const empData = empJson && Array.isArray(empJson.data) ? empJson.data : (Array.isArray(empJson) ? empJson : []);
       const nonAdmin = empData.filter((u: any) => u.role !== "ADMIN");
@@ -105,7 +105,7 @@ export default function AttendancePage() {
       // Fetch attendance
       const dateQuery = filterDate ? `?date=${filterDate}` : "";
       const whQuery = filterWarehouseId !== "ALL" ? `&warehouseId=${filterWarehouseId}` : "";
-      const attRes = await fetch(`http://localhost:3000/attendance/daily${dateQuery}${whQuery}`, {
+      const attRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/attendance/daily${dateQuery}${whQuery}`, {
         headers,
       });
       const attData = attRes.ok ? await attRes.json() : [];
@@ -236,7 +236,7 @@ export default function AttendancePage() {
     }
 
     try {
-      const res = await fetch("http://localhost:3000/attendance/clock-in", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/attendance/clock-in`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -291,7 +291,7 @@ export default function AttendancePage() {
     }
 
     try {
-      const res = await fetch("http://localhost:3000/attendance/clock-out", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/attendance/clock-out`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

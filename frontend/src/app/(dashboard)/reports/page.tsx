@@ -64,7 +64,7 @@ export default function ReportsPage() {
     const loadEmployees = async () => {
       try {
         const headers = { Authorization: `Bearer ${token}` };
-        const res = await fetch("http://localhost:3000/employees", { headers });
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees`, { headers });
         const dataJson = res.ok ? await res.json() : null;
         const empList = dataJson && Array.isArray(dataJson.data) ? dataJson.data : (Array.isArray(dataJson) ? dataJson : []);
         const nonAdmin = empList.filter((u: any) => u.role !== "ADMIN");
@@ -151,7 +151,7 @@ export default function ReportsPage() {
     try {
       const headers = { Authorization: `Bearer ${token}` };
       const res = await fetch(
-        `http://localhost:3000/attendance/monthly-report/${selectedEmployeeId}?year=${year}&month=${month}`,
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/attendance/monthly-report/${selectedEmployeeId}?year=${year}&month=${month}`,
         { headers }
       );
       const data = await res.json();

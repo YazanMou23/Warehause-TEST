@@ -91,7 +91,7 @@ function HallsPageContent() {
     const token = localStorage.getItem("accessToken");
     try {
       const headers = { Authorization: `Bearer ${token}` };
-      const res = await fetch("http://localhost:3000/warehouses?limit=100", { headers });
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/warehouses?limit=100`, { headers });
       const dataJson = res.ok ? await res.json() : null;
       const list = dataJson && Array.isArray(dataJson.data) ? dataJson.data : [];
       setWarehouses(list);
@@ -110,7 +110,7 @@ function HallsPageContent() {
     const token = localStorage.getItem("accessToken");
     try {
       const headers = { Authorization: `Bearer ${token}` };
-      let url = "http://localhost:3000/halls?limit=100";
+      let url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/halls?limit=100`;
       if (selectedWhId) {
         url += `&warehouseId=${selectedWhId}`;
       }
@@ -204,7 +204,7 @@ function HallsPageContent() {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       };
-      const res = await fetch("http://localhost:3000/halls", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/halls`, {
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -237,7 +237,7 @@ function HallsPageContent() {
     const token = localStorage.getItem("accessToken");
     try {
       const headers = { Authorization: `Bearer ${token}` };
-      const res = await fetch(`http://localhost:3000/halls/${confirmDeleteId}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/halls/${confirmDeleteId}`, {
         method: "DELETE",
         headers,
       });
