@@ -7,3 +7,7 @@
   
   # The build command to compile the Next.js app
   command = "npm run build"
+
+[[plugins]]
+  # Essential Next.js plugin for routing & serverless features
+  package = "@netlify/plugin-nextjs"
