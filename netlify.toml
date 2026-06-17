@@ -1,0 +1,9 @@
+[build]
+  # The directory where the frontend code resides
+  base = "frontend"
+  
+  # The directory that Netlify will publish (Next.js output)
+  publish = ".next"
+  
+  # The build command to compile the Next.js app
+  command = "npm run build"
