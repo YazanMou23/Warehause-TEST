@@ -14,7 +14,7 @@ export class PlanningController {
   constructor(private readonly planningService: PlanningService) {}
 
   @Post()
-  @Roles(Role.ADMIN, Role.TEAM_LEADER)
+  @Roles(Role.MANAGER, Role.ADMIN)
   create(@Body() createPlanDto: CreatePlanDto, @CurrentUser('id') actorId: string) {
     return this.planningService.create(createPlanDto, actorId);
   }
@@ -44,7 +44,7 @@ export class PlanningController {
   }
 
   @Delete('bulk')
-  @Roles(Role.ADMIN, Role.TEAM_LEADER)
+  @Roles(Role.MANAGER, Role.ADMIN)
   bulkRemove(@Body('ids') ids: string[], @CurrentUser('id') actorId: string) {
     return this.planningService.bulkDeactivate(ids, actorId);
   }
@@ -55,7 +55,7 @@ export class PlanningController {
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN, Role.TEAM_LEADER)
+  @Roles(Role.MANAGER, Role.ADMIN)
   update(
     @Param('id') id: string,
     @Body() updatePlanDto: UpdatePlanDto,
@@ -65,7 +65,7 @@ export class PlanningController {
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN, Role.TEAM_LEADER)
+  @Roles(Role.MANAGER, Role.ADMIN)
   remove(@Param('id') id: string, @CurrentUser('id') actorId: string) {
     return this.planningService.deactivate(id, actorId);
   }

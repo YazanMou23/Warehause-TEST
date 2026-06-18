@@ -33,23 +33,27 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post()
-  @Roles(Role.ADMIN)
-  create(@Body() createUserDto: CreateUserDto, @CurrentUser('id') actorId: string) {
-    return this.usersService.create(createUserDto, actorId);
+  @Roles(Role.MANAGER, Role.ADMIN)
+  create(@Body() createUserDto: CreateUserDto, @CurrentUser() currentUser: any) {
+    return this.usersService.create(createUserDto, currentUser.id, currentUser.role);
   }
 
   @Get()
-  @Roles(Role.ADMIN, Role.TEAM_LEADER)
-  findAll(@Query('page') page?: string, @Query('limit') limit?: string) {
+  @Roles(Role.MANAGER, Role.ADMIN)
+  findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @CurrentUser('role') actorRole?: Role,
+  ) {
     const p = page ? parseInt(page, 10) : 1;
     const l = limit ? parseInt(limit, 10) : 10;
-    return this.usersService.findAll(p, l);
+    return this.usersService.findAll(p, l, actorRole);
   }
 
   @Delete('bulk')
-  @Roles(Role.ADMIN)
-  bulkRemove(@Body('ids') ids: string[], @CurrentUser('id') actorId: string) {
-    return this.usersService.bulkDeactivate(ids, actorId);
+  @Roles(Role.MANAGER, Role.ADMIN)
+  bulkRemove(@Body('ids') ids: string[], @CurrentUser() currentUser: any) {
+    return this.usersService.bulkDeactivate(ids, currentUser.id, currentUser.role);
   }
 
   @Get(':id')
@@ -58,7 +62,7 @@ export class UsersController {
     if (currentUser.role === Role.EMPLOYEE && currentUser.id !== id) {
       throw new ForbiddenException('You can only view your own profile');
     }
-    return this.usersService.findOne(id);
+    return this.usersService.findOne(id, currentUser.role);
   }
 
   @Patch(':id')
@@ -71,20 +75,20 @@ export class UsersController {
     if (currentUser.role === Role.EMPLOYEE && currentUser.id !== id) {
       throw new ForbiddenException('You can only update your own profile');
     }
-    // Only Admin can change Roles, assignment, or active status
-    if (currentUser.role !== Role.ADMIN) {
+    // Only Admin or Manager can change Roles, assignment, or active status
+    if (currentUser.role !== Role.MANAGER && currentUser.role !== Role.ADMIN) {
       delete updateUserDto.role;
       delete updateUserDto.warehouseId;
       delete updateUserDto.hallId;
       delete updateUserDto.isActive;
     }
-    return this.usersService.update(id, updateUserDto, currentUser.id);
+    return this.usersService.update(id, updateUserDto, currentUser.id, currentUser.role);
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN)
-  remove(@Param('id') id: string, @CurrentUser('id') actorId: string) {
-    return this.usersService.deactivate(id, actorId);
+  @Roles(Role.MANAGER, Role.ADMIN)
+  remove(@Param('id') id: string, @CurrentUser() currentUser: any) {
+    return this.usersService.deactivate(id, currentUser.id, currentUser.role);
   }
 
   @Post(':id/photo')
@@ -129,5 +133,13 @@ export class UsersController {
     } catch (error) {
       return res.status(404).send('User or photo not found');
     }
+  }
+
+  @Get(':id/dashboard-summary')
+  async getDashboardSummary(@Param('id') id: string, @CurrentUser() currentUser: any) {
+    if (currentUser.role === Role.EMPLOYEE && currentUser.id !== id) {
+      throw new ForbiddenException('You can only view your own dashboard summary');
+    }
+    return this.usersService.getEmployeeDashboardSummary(id);
   }
 }

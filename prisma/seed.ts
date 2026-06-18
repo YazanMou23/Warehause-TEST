@@ -60,14 +60,42 @@ async function main() {
     }
   }
 
-  // 4. Create Users (Admin, Team Leaders, Employees)
+  // 4. Create Users (Manager, Admin, Employees)
+  const managerPasswordHash = await bcrypt.hash('managerpassword', 10);
   const adminPasswordHash = await bcrypt.hash('adminpassword', 10);
-  const leaderPasswordHash = await bcrypt.hash('leaderpassword', 10);
   const employeePasswordHash = await bcrypt.hash('employeepassword', 10);
+
+  // Manager Lars Leader
+  const manager1 = await prisma.user.create({
+    data: {
+      username: 'manager',
+      name: 'Lars Leader',
+      phone: '+491702222222',
+      passwordHash: managerPasswordHash,
+      role: Role.MANAGER,
+      warehouseId: warehouses[0].id, // Duisburg
+      isActive: true,
+    },
+  });
+
+  // Manager Lena Leader
+  const manager2 = await prisma.user.create({
+    data: {
+      username: 'manager2',
+      name: 'Lena Leader',
+      phone: '+491703333333',
+      passwordHash: managerPasswordHash,
+      role: Role.MANAGER,
+      warehouseId: warehouses[1].id, // Wesel
+      isActive: true,
+    },
+  });
+  console.log(`Created Managers: ${manager1.name}, ${manager2.name}`);
 
   // Admin
   const admin = await prisma.user.create({
     data: {
+      username: 'admin',
       name: 'Admin User',
       phone: '+491701111111',
       passwordHash: adminPasswordHash,
@@ -77,42 +105,20 @@ async function main() {
   });
   console.log(`Created Admin: ${admin.name}`);
 
-  // Team Leaders (2 leaders, each assigned to a warehouse)
-  const leader1 = await prisma.user.create({
-    data: {
-      name: 'Lars Leader',
-      phone: '+491702222222',
-      passwordHash: leaderPasswordHash,
-      role: Role.TEAM_LEADER,
-      warehouseId: warehouses[0].id, // Duisburg
-      isActive: true,
-    },
-  });
-  const leader2 = await prisma.user.create({
-    data: {
-      name: 'Lena Leader',
-      phone: '+491703333333',
-      passwordHash: leaderPasswordHash,
-      role: Role.TEAM_LEADER,
-      warehouseId: warehouses[1].id, // Wesel
-      isActive: true,
-    },
-  });
-  console.log(`Created Team Leaders: ${leader1.name}, ${leader2.name}`);
-
   // Employees (5 employees)
   const employees = [];
   const employeeData = [
-    { name: 'Emil Employee', phone: '+491704444444', whIndex: 0, hallIndex: 0, telegramId: '123456789' },
-    { name: 'Elsa Employee', phone: '+491705555555', whIndex: 0, hallIndex: 1, telegramId: '987654321' },
-    { name: 'Erik Employee', phone: '+491706666666', whIndex: 1, hallIndex: 2, telegramId: '555666777' },
-    { name: 'Eva Employee',  phone: '+491707777777', whIndex: 1, hallIndex: 3, telegramId: '111222333' },
-    { name: 'Egon Employee', phone: '+491708888888', whIndex: 2, hallIndex: 4, telegramId: null },
+    { username: 'employee1', name: 'Emil Employee', phone: '+491704444444', whIndex: 0, hallIndex: 0, telegramId: '123456789' },
+    { username: 'employee2', name: 'Elsa Employee', phone: '+491705555555', whIndex: 0, hallIndex: 1, telegramId: '987654321' },
+    { username: 'employee3', name: 'Erik Employee', phone: '+491706666666', whIndex: 1, hallIndex: 2, telegramId: '555666777' },
+    { username: 'employee4', name: 'Eva Employee',  phone: '+491707777777', whIndex: 1, hallIndex: 3, telegramId: '111222333' },
+    { username: 'employee5', name: 'Egon Employee', phone: '+491708888888', whIndex: 2, hallIndex: 4, telegramId: null },
   ];
 
   for (const emp of employeeData) {
     const createdEmp = await prisma.user.create({
       data: {
+        username: emp.username,
         name: emp.name,
         phone: emp.phone,
         passwordHash: employeePasswordHash,

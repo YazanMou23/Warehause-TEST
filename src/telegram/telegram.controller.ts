@@ -12,13 +12,13 @@ export class TelegramController {
   constructor(private readonly telegramService: TelegramService) {}
 
   @Post('broadcast')
-  @Roles(Role.ADMIN)
+  @Roles(Role.MANAGER, Role.ADMIN)
   async broadcast(@Body() broadcastDto: BroadcastDto) {
     return this.telegramService.broadcastMessage(broadcastDto.message);
   }
 
   @Post('emergency')
-  @Roles(Role.ADMIN, Role.TEAM_LEADER)
+  @Roles(Role.MANAGER, Role.ADMIN)
   async emergencyAlert(@Body() emergencyDto: EmergencyDto) {
     return this.telegramService.sendEmergencyMessage(
       emergencyDto.warehouseId,
@@ -27,7 +27,7 @@ export class TelegramController {
   }
 
   @Post('reminder')
-  @Roles(Role.ADMIN, Role.TEAM_LEADER)
+  @Roles(Role.MANAGER, Role.ADMIN)
   async reminder(@Body() reminderDto: ReminderDto) {
     const sent = await this.telegramService.sendAttendanceReminder(
       reminderDto.employeeId,

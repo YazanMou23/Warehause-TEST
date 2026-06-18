@@ -11,7 +11,7 @@ export class ActionLogController {
   constructor(private readonly actionLogService: ActionLogService) {}
 
   @Get()
-  @Roles(Role.ADMIN, Role.TEAM_LEADER)
+  @Roles(Role.MANAGER)
   findAll(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -26,7 +26,7 @@ export class ActionLogController {
   }
 
   @Get('stats')
-  @Roles(Role.ADMIN, Role.TEAM_LEADER)
+  @Roles(Role.MANAGER)
   getStats(
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,

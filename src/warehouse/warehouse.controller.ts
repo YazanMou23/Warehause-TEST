@@ -14,7 +14,7 @@ export class WarehouseController {
   constructor(private readonly warehouseService: WarehouseService) {}
 
   @Post()
-  @Roles(Role.ADMIN)
+  @Roles(Role.MANAGER, Role.ADMIN)
   create(@Body() createWarehouseDto: CreateWarehouseDto, @CurrentUser('id') actorId: string) {
     return this.warehouseService.create(createWarehouseDto, actorId);
   }
@@ -32,7 +32,7 @@ export class WarehouseController {
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN)
+  @Roles(Role.MANAGER, Role.ADMIN)
   update(
     @Param('id') id: string,
     @Body() updateWarehouseDto: UpdateWarehouseDto,
@@ -42,7 +42,7 @@ export class WarehouseController {
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN)
+  @Roles(Role.MANAGER, Role.ADMIN)
   remove(@Param('id') id: string, @CurrentUser('id') actorId: string) {
     return this.warehouseService.deactivate(id, actorId);
   }

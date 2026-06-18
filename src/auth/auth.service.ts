@@ -15,34 +15,43 @@ export class AuthService {
   async login(loginDto: LoginDto) {
     const user = await this.prisma.user.findFirst({
       where: {
-        phone: loginDto.phone,
+        username: loginDto.username,
         isActive: true,
         deletedAt: null,
       },
     });
 
     if (!user) {
-      throw new UnauthorizedException('Invalid phone number or password');
+      throw new UnauthorizedException('Invalid username or password');
     }
 
     const isPasswordValid = await bcrypt.compare(loginDto.password, user.passwordHash);
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid phone number or password');
+      throw new UnauthorizedException('Invalid username or password');
     }
 
     const payload: JwtPayload = {
       sub: user.id,
       name: user.name,
-      phone: user.phone,
+      username: user.username,
       role: user.role,
     };
+
+    // Log login action
+    await this.prisma.actionLog.create({
+      data: {
+        userId: user.id,
+        action: 'LOGIN',
+        details: `User ${user.name} (${user.username}) logged in`,
+      },
+    });
 
     return {
       accessToken: this.jwtService.sign(payload),
       user: {
         id: user.id,
         name: user.name,
-        phone: user.phone,
+        username: user.username,
         role: user.role,
         warehouseId: user.warehouseId,
         hallId: user.hallId,
@@ -62,12 +71,28 @@ export class AuthService {
     const payload: JwtPayload = {
       sub: user.id,
       name: user.name,
-      phone: user.phone,
+      username: user.username,
       role: user.role,
     };
 
     return {
       accessToken: this.jwtService.sign(payload),
     };
+  }
+
+  async logout(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (user) {
+      await this.prisma.actionLog.create({
+        data: {
+          userId: user.id,
+          action: 'LOGOUT',
+          details: `User ${user.name} (${user.username}) logged out`,
+        },
+      });
+    }
+    return { message: 'Logged out successfully' };
   }
 }

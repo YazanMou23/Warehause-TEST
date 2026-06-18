@@ -15,13 +15,13 @@ export class ContainerController {
   constructor(private readonly containerService: ContainerService) {}
 
   @Post()
-  @Roles(Role.ADMIN, Role.TEAM_LEADER)
+  @Roles(Role.MANAGER, Role.ADMIN)
   create(@Body() createContainerDto: CreateContainerDto, @CurrentUser('id') actorId: string) {
     return this.containerService.create(createContainerDto, actorId);
   }
 
   @Post('bulk-import')
-  @Roles(Role.ADMIN, Role.TEAM_LEADER)
+  @Roles(Role.MANAGER, Role.ADMIN)
   bulkImport(@Body() bulkImportDto: BulkImportContainersDto, @CurrentUser('id') actorId: string) {
     return this.containerService.bulkImport(bulkImportDto, actorId);
   }
@@ -45,7 +45,7 @@ export class ContainerController {
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN, Role.TEAM_LEADER)
+  @Roles(Role.MANAGER, Role.ADMIN)
   update(
     @Param('id') id: string,
     @Body() updateContainerDto: UpdateContainerDto,
@@ -55,7 +55,7 @@ export class ContainerController {
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN)
+  @Roles(Role.MANAGER, Role.ADMIN)
   remove(@Param('id') id: string, @CurrentUser('id') actorId: string) {
     return this.containerService.deactivate(id, actorId);
   }

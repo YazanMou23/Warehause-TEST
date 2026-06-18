@@ -7,8 +7,8 @@ generator client {
 }
 
 enum Role {
+  MANAGER
   ADMIN
-  TEAM_LEADER
   EMPLOYEE
 }
 
@@ -19,6 +19,7 @@ enum ContainerStatus {
 
 model User {
   id           String        @id @default(uuid())
+  username     String        @unique
   name         String
   phone        String        @unique
   email        String?       @unique

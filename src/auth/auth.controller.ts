@@ -22,4 +22,11 @@ export class AuthController {
   async refresh(@CurrentUser('id') userId: string) {
     return this.authService.refreshToken(userId);
   }
+
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async logout(@CurrentUser('id') userId: string) {
+    return this.authService.logout(userId);
+  }
 }

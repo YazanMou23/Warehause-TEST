@@ -102,56 +102,68 @@ export default function DashboardLayout({
     window.location.href = "/login";
   };
 
-  const SidebarContent = () => (
-    <div className="flex flex-col h-full bg-surface-container-low text-on-surface border-r border-outline-variant">
-      {/* Brand logo */}
-      <div className="px-container-margin py-stack-md flex items-center gap-stack-sm border-b border-outline-variant">
-        <div className="w-10 h-10 bg-secondary flex items-center justify-center rounded-lg text-white">
-          <Warehouse className="w-6 h-6" />
+  const SidebarContent = () => {
+    const allowedLinks = sidebarLinks.filter((link) => {
+      if (userRole === "EMPLOYEE") {
+        return ["Dashboard", "Profile", "Settings"].includes(link.name);
+      }
+      if (userRole === "ADMIN") {
+        return link.name !== "Reports";
+      }
+      return true; // MANAGER sees all
+    });
+
+    return (
+      <div className="flex flex-col h-full bg-surface-container-low text-on-surface border-r border-outline-variant">
+        {/* Brand logo */}
+        <div className="px-container-margin py-stack-md flex items-center gap-stack-sm border-b border-outline-variant">
+          <div className="w-10 h-10 bg-secondary flex items-center justify-center rounded-lg text-white">
+            <Warehouse className="w-6 h-6" />
+          </div>
+          <div>
+            <h1 className="font-headline-md font-black text-secondary tracking-tight leading-none">
+              LogiFlow
+            </h1>
+            <p className="text-on-surface-variant text-label-md">Operational Hub</p>
+          </div>
         </div>
-        <div>
-          <h1 className="font-headline-md font-black text-secondary tracking-tight leading-none">
-            LogiFlow
-          </h1>
-          <p className="text-on-surface-variant text-label-md">Operational Hub</p>
+
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto py-stack-md px-2 flex flex-col gap-1">
+          {allowedLinks.map((link) => {
+            const isActive = pathname === link.href;
+            const Icon = link.icon;
+            return (
+              <Link
+                key={link.name}
+                href={link.href}
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg text-label-md transition-all ${
+                  isActive
+                    ? "bg-secondary-container text-white font-bold"
+                    : "text-on-surface-variant hover:bg-surface-container-high"
+                }`}
+              >
+                <Icon className={`w-5 h-5 ${isActive ? "text-white" : "text-on-surface-variant"}`} />
+                <span>{link.name}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Footer / logout */}
+        <div className="p-stack-md flex flex-col gap-1 border-t border-outline-variant">
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-3 w-full px-4 py-2.5 text-on-surface-variant hover:bg-error-container hover:text-error rounded-lg text-label-md transition-all text-left"
+          >
+            <LogOut className="w-5 h-5" />
+            <span>Log Out</span>
+          </button>
         </div>
       </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-stack-md px-2 flex flex-col gap-1">
-        {sidebarLinks.map((link) => {
-          const isActive = pathname === link.href;
-          const Icon = link.icon;
-          return (
-            <Link
-              key={link.name}
-              href={link.href}
-              onClick={() => setMobileMenuOpen(false)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg text-label-md transition-all ${
-                isActive
-                  ? "bg-secondary-container text-white font-bold"
-                  : "text-on-surface-variant hover:bg-surface-container-high"
-              }`}
-            >
-              <Icon className={`w-5 h-5 ${isActive ? "text-white" : "text-on-surface-variant"}`} />
-              <span>{link.name}</span>
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* Footer / logout */}
-      <div className="p-stack-md flex flex-col gap-1 border-t border-outline-variant">
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-3 w-full px-4 py-2.5 text-on-surface-variant hover:bg-error-container hover:text-error rounded-lg text-label-md transition-all text-left"
-        >
-          <LogOut className="w-5 h-5" />
-          <span>Log Out</span>
-        </button>
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="flex h-screen overflow-hidden bg-background" suppressHydrationWarning>

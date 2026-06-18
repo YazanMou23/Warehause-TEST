@@ -13,7 +13,7 @@ export class OcrController {
   constructor(private readonly ocrService: OcrService) {}
 
   @Post('upload')
-  @Roles(Role.ADMIN, Role.TEAM_LEADER)
+  @Roles(Role.MANAGER, Role.ADMIN)
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(
     @UploadedFile() file: Express.Multer.File,

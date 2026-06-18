@@ -4,6 +4,10 @@ import { Role } from '@prisma/client';
 export class CreateUserDto {
   @IsNotEmpty()
   @IsString()
+  username: string;
+
+  @IsNotEmpty()
+  @IsString()
   name: string;
 
   @IsNotEmpty()

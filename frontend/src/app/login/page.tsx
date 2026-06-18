@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Warehouse, Key, Phone, AlertCircle, ShieldAlert } from "lucide-react";
+import { Warehouse, Key, User, AlertCircle, Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
-  const [phone, setPhone] = useState("+491701111111");
+  const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("adminpassword");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -30,7 +31,7 @@ export default function LoginPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ phone, password }),
+        body: JSON.stringify({ username, password }),
       });
 
       const data = await response.json();
@@ -47,6 +48,11 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleForgotPassword = (e: React.MouseEvent) => {
+    e.preventDefault();
+    alert("Please contact your Manager or Administrator to reset your password.");
   };
 
   return (
@@ -75,24 +81,24 @@ export default function LoginPage() {
             <thead>
               <tr className="border-b border-[#1e293b] text-[#64748b]">
                 <th className="pb-1 font-semibold">Role</th>
-                <th className="pb-1 font-semibold">Phone</th>
+                <th className="pb-1 font-semibold">Username</th>
                 <th className="pb-1 font-semibold">Password</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#1e293b]">
               <tr>
+                <td className="py-1 text-[#94a3b8]">Manager</td>
+                <td className="py-1 font-mono text-[#f472b6]">manager</td>
+                <td className="py-1 font-mono">managerpassword</td>
+              </tr>
+              <tr>
                 <td className="py-1 text-[#94a3b8]">Admin</td>
-                <td className="py-1 font-mono text-[#f472b6]">+491701111111</td>
+                <td className="py-1 font-mono text-[#f472b6]">admin</td>
                 <td className="py-1 font-mono">adminpassword</td>
               </tr>
               <tr>
-                <td className="py-1 text-[#94a3b8]">Leader</td>
-                <td className="py-1 font-mono text-[#f472b6]">+491702222222</td>
-                <td className="py-1 font-mono">leaderpassword</td>
-              </tr>
-              <tr>
                 <td className="py-1 text-[#94a3b8]">Worker</td>
-                <td className="py-1 font-mono text-[#f472b6]">+491704444444</td>
+                <td className="py-1 font-mono text-[#f472b6]">employee1</td>
                 <td className="py-1 font-mono">employeepassword</td>
               </tr>
             </tbody>
@@ -114,16 +120,16 @@ export default function LoginPage() {
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-1.5">
             <label className="block text-label-md font-bold text-[#cbd5e1] uppercase tracking-wider text-[11px]">
-              Phone Number
+              Username
             </label>
             <div className="relative">
-              <Phone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+              <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
               <input
                 type="text"
                 required
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+491701111111"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter username"
                 className="w-full bg-[#0f1117] border border-[#334155] focus:border-secondary rounded-lg pl-10 pr-4 py-2.5 text-body-sm text-white outline-none transition-colors"
               />
             </div>
@@ -136,14 +142,41 @@ export default function LoginPage() {
             <div className="relative">
               <Key className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-[#0f1117] border border-[#334155] focus:border-secondary rounded-lg pl-10 pr-4 py-2.5 text-body-sm text-white outline-none transition-colors"
+                className="w-full bg-[#0f1117] border border-[#334155] focus:border-secondary rounded-lg pl-10 pr-12 py-2.5 text-body-sm text-white outline-none transition-colors"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-[#cbd5e1] transition-colors focus:outline-none"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
+          </div>
+
+          <div className="flex items-center justify-between text-body-sm pt-2">
+            <label className="flex items-center gap-2 text-[#94a3b8] hover:text-[#cbd5e1] cursor-pointer selection:bg-transparent">
+              <input
+                type="checkbox"
+                checked={showPassword}
+                onChange={() => setShowPassword(!showPassword)}
+                className="w-4 h-4 rounded bg-[#0f1117] border border-[#334155] accent-secondary cursor-pointer"
+              />
+              <span>Show Password</span>
+            </label>
+
+            <a
+              href="#"
+              onClick={handleForgotPassword}
+              className="text-secondary hover:text-secondary/80 hover:underline font-semibold"
+            >
+              Forgot Password?
+            </a>
           </div>
 
           <button

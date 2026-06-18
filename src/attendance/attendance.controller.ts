@@ -32,7 +32,7 @@ export class AttendanceController {
   }
 
   @Get('daily')
-  @Roles(Role.ADMIN, Role.TEAM_LEADER)
+  @Roles(Role.MANAGER, Role.ADMIN)
   getDaily(
     @Query('date') date?: string,
     @Query('warehouseId') warehouseId?: string,

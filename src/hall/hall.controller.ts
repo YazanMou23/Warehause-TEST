@@ -14,7 +14,7 @@ export class HallController {
   constructor(private readonly hallService: HallService) {}
 
   @Post()
-  @Roles(Role.ADMIN)
+  @Roles(Role.MANAGER, Role.ADMIN)
   create(@Body() createHallDto: CreateHallDto, @CurrentUser('id') actorId: string) {
     return this.hallService.create(createHallDto, actorId);
   }
@@ -41,7 +41,7 @@ export class HallController {
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN)
+  @Roles(Role.MANAGER, Role.ADMIN)
   update(
     @Param('id') id: string,
     @Body() updateHallDto: UpdateHallDto,
@@ -51,7 +51,7 @@ export class HallController {
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN)
+  @Roles(Role.MANAGER, Role.ADMIN)
   remove(@Param('id') id: string, @CurrentUser('id') actorId: string) {
     return this.hallService.deactivate(id, actorId);
   }
