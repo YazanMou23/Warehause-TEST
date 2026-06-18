@@ -2,11 +2,15 @@ import { Injectable, ConflictException, NotFoundException } from '@nestjs/common
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { EmailService } from '../email/email.service';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emailService: EmailService,
+  ) {}
 
   async create(createUserDto: CreateUserDto, actorId?: string) {
     const existing = await this.prisma.user.findUnique({
@@ -15,6 +19,15 @@ export class UsersService {
 
     if (existing) {
       throw new ConflictException('A user with this phone number already exists');
+    }
+
+    if (createUserDto.email) {
+      const existingEmail = await this.prisma.user.findUnique({
+        where: { email: createUserDto.email },
+      });
+      if (existingEmail) {
+        throw new ConflictException('A user with this email address already exists');
+      }
     }
 
     if (createUserDto.telegramId) {
@@ -32,6 +45,7 @@ export class UsersService {
       data: {
         name: createUserDto.name,
         phone: createUserDto.phone,
+        email: createUserDto.email || null,
         passwordHash,
         role: createUserDto.role,
         warehouseId: createUserDto.warehouseId || null,
@@ -49,6 +63,11 @@ export class UsersService {
       },
     });
 
+    // Send welcome email asynchronously
+    if (user.email) {
+      this.emailService.sendWelcomeEmail(user.email, user.name).catch(() => {});
+    }
+
     return user;
   }
 
@@ -64,6 +83,8 @@ export class UsersService {
           id: true,
           name: true,
           phone: true,
+          email: true,
+          profilePhoto: true,
           role: true,
           warehouseId: true,
           hallId: true,
@@ -93,6 +114,8 @@ export class UsersService {
         id: true,
         name: true,
         phone: true,
+        email: true,
+        profilePhoto: true,
         role: true,
         warehouseId: true,
         hallId: true,
@@ -119,6 +142,15 @@ export class UsersService {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
 
+    if (updateUserDto.email && updateUserDto.email !== user.email) {
+      const existingEmail = await this.prisma.user.findUnique({
+        where: { email: updateUserDto.email },
+      });
+      if (existingEmail) {
+        throw new ConflictException('A user with this email address already exists');
+      }
+    }
+
     const data: any = { ...updateUserDto };
 
     if (updateUserDto.password) {
@@ -140,6 +172,19 @@ export class UsersService {
     });
 
     return updated;
+  }
+
+  async updatePhoto(id: string, profilePhoto: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id, deletedAt: null },
+    });
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+    return this.prisma.user.update({
+      where: { id },
+      data: { profilePhoto },
+    });
   }
 
   async deactivate(id: string, actorId?: string) {
@@ -169,4 +214,38 @@ export class UsersService {
 
     return { message: 'User deactivated successfully' };
   }
+
+  async bulkDeactivate(ids: string[], actorId?: string) {
+    const users = await this.prisma.user.findMany({
+      where: {
+        id: { in: ids },
+        deletedAt: null,
+      },
+    });
+
+    if (users.length === 0) {
+      throw new NotFoundException('No active users found for the provided IDs');
+    }
+
+    const result = await this.prisma.user.updateMany({
+      where: {
+        id: { in: ids },
+      },
+      data: {
+        isActive: false,
+        deletedAt: new Date(),
+      },
+    });
+
+    await this.prisma.actionLog.create({
+      data: {
+        userId: actorId || null,
+        action: 'BULK_DEACTIVATE_USER',
+        details: `Soft deleted / Deactivated ${result.count} users: ${users.map((u) => u.name).join(', ')}`,
+      },
+    });
+
+    return { message: `${result.count} users deactivated successfully` };
+  }
 }
+

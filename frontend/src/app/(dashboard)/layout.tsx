@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -19,6 +19,7 @@ import {
   Bell,
   Search,
   FileSpreadsheet,
+  User,
 } from "lucide-react";
 
 interface SidebarLink {
@@ -37,6 +38,7 @@ const sidebarLinks: SidebarLink[] = [
   { name: "Attendance", href: "/attendance", icon: Clock },
   { name: "OCR Upload", href: "/ocr", icon: Scan },
   { name: "Reports", href: "/reports", icon: FileSpreadsheet },
+  { name: "Profile", href: "/profile", icon: User },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
@@ -48,8 +50,54 @@ export default function DashboardLayout({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
 
+  const [userName, setUserName] = useState("M. Warehouse");
+  const [userRole, setUserRole] = useState("Manager");
+  const [userInitials, setUserInitials] = useState("MW");
+  const [userId, setUserId] = useState("");
+  const [photoTrigger, setPhotoTrigger] = useState(0);
+
+  useEffect(() => {
+    const token = localStorage.getItem("accessToken");
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split(".")[1]));
+        if (payload.name) {
+          setUserName(payload.name);
+          const initials = payload.name
+            .split(" ")
+            .map((n: string) => n[0])
+            .join("")
+            .slice(0, 2)
+            .toUpperCase();
+          setUserInitials(initials || "U");
+        }
+        if (payload.role) {
+          setUserRole(payload.role);
+        }
+        if (payload.sub) {
+          setUserId(payload.sub);
+        }
+      } catch (e) {
+        console.error("Failed to decode token", e);
+      }
+    }
+
+    // Listen to profile updates
+    const handleProfileUpdate = () => {
+      setPhotoTrigger(prev => prev + 1);
+      const updatedToken = localStorage.getItem("accessToken");
+      if (updatedToken) {
+        try {
+          const payload = JSON.parse(atob(updatedToken.split(".")[1]));
+          if (payload.name) setUserName(payload.name);
+        } catch (e) {}
+      }
+    };
+    window.addEventListener("profile-updated", handleProfileUpdate);
+    return () => window.removeEventListener("profile-updated", handleProfileUpdate);
+  }, []);
+
   const handleLogout = () => {
-    // Auth logic will clear token
     localStorage.removeItem("accessToken");
     window.location.href = "/login";
   };
@@ -146,15 +194,34 @@ export default function DashboardLayout({
             </button>
 
             {/* User Profile */}
-            <div className="flex items-center gap-2 pl-4 border-l border-outline-variant">
+            <Link
+              href="/profile"
+              className="flex items-center gap-2 pl-4 border-l border-outline-variant hover:opacity-80 transition-all"
+            >
               <div className="text-right hidden sm:block">
-                <p className="font-label-md text-on-surface leading-none">M. Warehouse</p>
-                <p className="text-[10px] text-outline uppercase tracking-wider mt-1">Manager</p>
+                <p className="font-label-md text-on-surface leading-none">{userName}</p>
+                <p className="text-[10px] text-outline uppercase tracking-wider mt-1">{userRole.replace("_", " ")}</p>
               </div>
-              <div className="w-8 h-8 rounded-full bg-secondary-container text-white flex items-center justify-center font-bold text-sm border border-outline-variant">
-                MW
+              <div className="w-8 h-8 rounded-full bg-secondary-container text-white flex items-center justify-center font-bold text-sm border border-outline-variant overflow-hidden relative">
+                {userId && (
+                  <img
+                    src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${userId}/photo?t=${photoTrigger}`}
+                    alt={userName}
+                    className="w-full h-full object-cover absolute inset-0 z-10"
+                    style={{ display: "none" }}
+                    onLoad={(e) => {
+                      e.currentTarget.style.display = "block";
+                    }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
+                )}
+                <span className="w-full h-full flex items-center justify-center bg-secondary-container text-white text-xs font-bold">
+                  {userInitials}
+                </span>
               </div>
-            </div>
+            </Link>
           </div>
         </header>
 
@@ -167,7 +234,7 @@ export default function DashboardLayout({
       {/* Mobile Drawer Backdrop */}
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-50 lg:hidden"
+          className="fixed inset-0 bg-black/50 z-50 lg:hidden animate-fadeIn"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}

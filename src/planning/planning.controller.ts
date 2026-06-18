@@ -19,6 +19,19 @@ export class PlanningController {
     return this.planningService.create(createPlanDto, actorId);
   }
 
+  @Get()
+  findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    const p = page ? parseInt(page, 10) : 1;
+    const l = limit ? parseInt(limit, 10) : 10;
+    return this.planningService.findAll(p, l, startDate, endDate, warehouseId);
+  }
+
   @Get('query')
   findByDateAndWarehouse(
     @Query('date') date: string,
@@ -28,6 +41,12 @@ export class PlanningController {
       throw new BadRequestException('Query parameter "date" is required');
     }
     return this.planningService.findByDateAndWarehouse(date, warehouseId);
+  }
+
+  @Delete('bulk')
+  @Roles(Role.ADMIN, Role.TEAM_LEADER)
+  bulkRemove(@Body('ids') ids: string[], @CurrentUser('id') actorId: string) {
+    return this.planningService.bulkDeactivate(ids, actorId);
   }
 
   @Get(':id')

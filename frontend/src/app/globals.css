@@ -59,3 +59,65 @@ body {
   color: var(--color-on-background);
   font-family: var(--font-sans);
 }
+
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  
+  /* Hide non-printable elements */
+  nav,
+  aside,
+  header,
+  button,
+  input,
+  select,
+  textarea,
+  .no-print,
+  .print\:hidden,
+  div[role="dialog"] {
+    display: none !important;
+  }
+  
+  /* Make sure print elements are visible and reset layout */
+  .print-only,
+  .print\:block {
+    display: block !important;
+  }
+  
+  main,
+  .print-container {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+  
+  /* Table formatting for print */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+  
+  th, td {
+    border: 1px solid #000000 !important;
+    padding: 6px 10px !important;
+    text-align: left !important;
+    color: #000000 !important;
+    background: transparent !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    color: #000000 !important;
+    page-break-after: avoid !important;
+  }
+  
+  /* Avoid printing page headers/footers default details if possible */
+  @page {
+    margin: 1.5cm;
+  }
+}

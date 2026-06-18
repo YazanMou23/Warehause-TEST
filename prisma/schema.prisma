@@ -21,6 +21,8 @@ model User {
   id           String        @id @default(uuid())
   name         String
   phone        String        @unique
+  email        String?       @unique
+  profilePhoto String?
   passwordHash String
   role         Role          @default(EMPLOYEE)
   warehouseId  String?

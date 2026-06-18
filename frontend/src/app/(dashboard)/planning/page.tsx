@@ -55,6 +55,7 @@ function PlanningPageContent() {
   // Selection states for planning
   const [assignedEmployeeIds, setAssignedEmployeeIds] = useState<string[]>([]);
   const [assignedContainerIds, setAssignedContainerIds] = useState<string[]>([]);
+  const [containerFree, setContainerFree] = useState(false);
 
   const [planId, setPlanId] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
@@ -158,7 +159,9 @@ function PlanningPageContent() {
       }
     };
 
-    loadMetadata();
+    if (token) {
+      loadMetadata();
+    }
   }, [router, searchParams]);
 
   // Set default hall when warehouse changes
@@ -184,6 +187,7 @@ function PlanningPageContent() {
       setPlanId(null);
       setAssignedEmployeeIds([]);
       setAssignedContainerIds([]);
+      setContainerFree(false);
 
       try {
         const res = await fetch(
@@ -195,12 +199,12 @@ function PlanningPageContent() {
 
         if (res.ok) {
           const plans = await res.json();
-          // Find if there is a plan for this specific hall
           const hallPlan = plans.find((p: any) => p.hallId === selectedHallId);
           if (hallPlan) {
             setPlanId(hallPlan.id);
             setAssignedEmployeeIds(hallPlan.assignedEmployees.map((e: any) => e.id));
             setAssignedContainerIds(hallPlan.assignedContainers.map((c: any) => c.id));
+            setContainerFree(hallPlan.assignedContainers.length === 0);
           }
         }
       } catch (err) {
@@ -220,6 +224,7 @@ function PlanningPageContent() {
   };
 
   const toggleContainer = (containerId: string) => {
+    if (containerFree) return;
     setAssignedContainerIds((prev) =>
       prev.includes(containerId) ? prev.filter((id) => id !== containerId) : [...prev, containerId]
     );
@@ -232,8 +237,9 @@ function PlanningPageContent() {
     setIsLoading(true);
     setMessage({ text: "", type: "" });
 
+    const containersToSend = containerFree ? [] : assignedContainerIds;
+
     if (isOffline) {
-      // Offline mock save
       setTimeout(() => {
         setPlanId("mock-plan-id");
         setMessage({ text: "Daily plan saved successfully in mock mode!", type: "success" });
@@ -254,7 +260,7 @@ function PlanningPageContent() {
           },
           body: JSON.stringify({
             assignedEmployeeIds,
-            assignedContainerIds,
+            assignedContainerIds: containersToSend,
           }),
         });
       } else {
@@ -270,7 +276,7 @@ function PlanningPageContent() {
             warehouseId: selectedWarehouseId,
             hallId: selectedHallId,
             assignedEmployeeIds,
-            assignedContainerIds,
+            assignedContainerIds: containersToSend,
           }),
         });
       }
@@ -281,7 +287,7 @@ function PlanningPageContent() {
       }
 
       setPlanId(data.id);
-      setMessage({ text: "Daily plan updated successfully! SMS alerts broadcasted.", type: "success" });
+      setMessage({ text: "Daily plan updated successfully! Notifications broadcasted.", type: "success" });
     } catch (err: any) {
       setMessage({ text: err.message || "Failed to save plan.", type: "error" });
     } finally {
@@ -292,7 +298,7 @@ function PlanningPageContent() {
   const filteredHalls = halls.filter((h) => h.warehouseId === selectedWarehouseId);
 
   return (
-    <div className="space-y-stack-lg animate-fadeIn">
+    <div className="space-y-stack-lg animate-fadeIn text-on-background">
       {/* Title */}
       <div>
         <h3 className="font-headline-lg font-bold text-on-surface">Daily Shift Planning</h3>
@@ -309,7 +315,7 @@ function PlanningPageContent() {
       )}
 
       {/* Configuration Bar */}
-      <div className="bg-white border border-outline-variant p-stack-md rounded-lg shadow-sm grid grid-cols-1 md:grid-cols-3 gap-stack-md">
+      <div className="bg-white border border-outline-variant p-stack-md rounded-lg shadow-sm grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-stack-md">
         
         {/* Date Selector */}
         <div className="space-y-1.5">
@@ -372,10 +378,31 @@ function PlanningPageContent() {
             </select>
           </div>
         </div>
+
+        {/* Shift Type (Container-free toggle) */}
+        <div className="space-y-1.5 flex flex-col justify-center">
+          <label className="text-label-md font-bold text-outline uppercase tracking-wider text-[10px]">
+            Shift Type
+          </label>
+          <label className="flex items-center gap-2.5 cursor-pointer p-2 border border-outline-variant rounded-lg text-body-sm hover:bg-surface-container-low transition-colors bg-white select-none">
+            <input
+              type="checkbox"
+              checked={containerFree}
+              onChange={(e) => {
+                setContainerFree(e.target.checked);
+                if (e.target.checked) {
+                  setAssignedContainerIds([]);
+                }
+              }}
+              className="w-4.5 h-4.5 rounded text-secondary focus:ring-secondary border-outline-variant cursor-pointer"
+            />
+            <span className="font-bold text-on-surface text-xs uppercase tracking-wider">Container-free Shift</span>
+          </label>
+        </div>
       </div>
 
       {/* Main Assignment UI */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-stack-md">
+      <div className={`grid grid-cols-1 gap-stack-md transition-all duration-300 ${containerFree ? "" : "xl:grid-cols-2"}`}>
         
         {/* Employees Assignment */}
         <div className="bg-surface-container-lowest border border-outline-variant rounded-lg flex flex-col h-[400px]">
@@ -424,56 +451,58 @@ function PlanningPageContent() {
           </div>
         </div>
 
-        {/* Containers Assignment */}
-        <div className="bg-surface-container-lowest border border-outline-variant rounded-lg flex flex-col h-[400px]">
-          <div className="p-stack-md border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
-            <h5 className="font-bold text-body-lg flex items-center gap-2">
-              <Package className="w-5 h-5 text-secondary" /> Container Inventory Allocation
-            </h5>
-            <span className="font-mono text-label-md bg-secondary-container text-white px-2 py-0.5 rounded font-bold">
-              {assignedContainerIds.length} Allocated
-            </span>
-          </div>
+        {/* Containers Assignment (hidden if containerFree is checked) */}
+        {!containerFree && (
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-lg flex flex-col h-[400px] animate-fadeIn">
+            <div className="p-stack-md border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
+              <h5 className="font-bold text-body-lg flex items-center gap-2">
+                <Package className="w-5 h-5 text-secondary" /> Container Inventory Allocation
+              </h5>
+              <span className="font-mono text-label-md bg-secondary-container text-white px-2 py-0.5 rounded font-bold">
+                {assignedContainerIds.length} Allocated
+              </span>
+            </div>
 
-          <div className="flex-1 overflow-y-auto divide-y divide-outline-variant p-2">
-            {containers.length === 0 ? (
-              <div className="text-center py-8 text-outline text-body-sm">
-                No container inventory found. Import container listings first.
-              </div>
-            ) : (
-              containers.map((c) => {
-                const isAssigned = assignedContainerIds.includes(c.id);
-                return (
-                  <div
-                    key={c.id}
-                    onClick={() => toggleContainer(c.id)}
-                    className={`p-3.5 flex justify-between items-center rounded-lg cursor-pointer transition-all hover:bg-surface-bright ${
-                      isAssigned ? "bg-secondary-container/10 border-l-4 border-secondary" : ""
-                    }`}
-                  >
-                    <div>
-                      <p className="font-bold text-body-sm font-mono text-on-surface">
-                        {c.containerNumber}
-                      </p>
-                      <p className="text-[11px] text-outline mt-0.5 flex items-center gap-1">
-                        <Info className="w-3 h-3" /> Double tap to select
-                      </p>
-                    </div>
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono ${
-                        c.status === "FULL"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-surface-container-high text-on-surface-variant"
+            <div className="flex-1 overflow-y-auto divide-y divide-outline-variant p-2">
+              {containers.length === 0 ? (
+                <div className="text-center py-8 text-outline text-body-sm">
+                  No container inventory found. Import container listings first.
+                </div>
+              ) : (
+                containers.map((c) => {
+                  const isAssigned = assignedContainerIds.includes(c.id);
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={() => toggleContainer(c.id)}
+                      className={`p-3.5 flex justify-between items-center rounded-lg cursor-pointer transition-all hover:bg-surface-bright ${
+                        isAssigned ? "bg-secondary-container/10 border-l-4 border-secondary" : ""
                       }`}
                     >
-                      {c.status}
-                    </span>
-                  </div>
-                );
-              })
-            )}
+                      <div>
+                        <p className="font-bold text-body-sm font-mono text-on-surface">
+                          {c.containerNumber}
+                        </p>
+                        <p className="text-[11px] text-outline mt-0.5 flex items-center gap-1">
+                          <Info className="w-3 h-3" /> Click to select
+                        </p>
+                      </div>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono ${
+                          c.status === "FULL"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-surface-container-high text-on-surface-variant"
+                        }`}
+                      >
+                        {c.status}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Save Button Bar */}
@@ -483,7 +512,10 @@ function PlanningPageContent() {
             {planId ? "Modifying existing daily plan record" : "No plan created yet for this slot"}
           </p>
           <p className="text-[12px] text-outline">
-            Confirming changes will automatically alert assigned team leaders via Telegram updates.
+            {containerFree 
+              ? "Staffing-only shift. No containers will be allocated to this hall for the selected date."
+              : "Confirming changes will automatically alert assigned team leaders via SMS updates."
+            }
           </p>
         </div>
 

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, ForbiddenException, UseInterceptors, UploadedFile, Res } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -7,6 +7,25 @@ import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname, join } from 'path';
+import { Response } from 'express';
+import { existsSync, mkdirSync } from 'fs';
+
+const storage = diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = './uploads/profile-photos';
+    if (!existsSync(uploadPath)) {
+      mkdirSync(uploadPath, { recursive: true });
+    }
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, `${req.params.id}-${uniqueSuffix}${extname(file.originalname)}`);
+  },
+});
 
 @Controller('employees')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -27,6 +46,12 @@ export class UsersController {
     return this.usersService.findAll(p, l);
   }
 
+  @Delete('bulk')
+  @Roles(Role.ADMIN)
+  bulkRemove(@Body('ids') ids: string[], @CurrentUser('id') actorId: string) {
+    return this.usersService.bulkDeactivate(ids, actorId);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string, @CurrentUser() currentUser: any) {
     // Employees can only fetch their own profile
@@ -37,18 +62,72 @@ export class UsersController {
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN)
   update(
     @Param('id') id: string,
     @Body() updateUserDto: UpdateUserDto,
-    @CurrentUser('id') actorId: string,
+    @CurrentUser() currentUser: any,
   ) {
-    return this.usersService.update(id, updateUserDto, actorId);
+    // Employees can only update their own profile
+    if (currentUser.role === Role.EMPLOYEE && currentUser.id !== id) {
+      throw new ForbiddenException('You can only update your own profile');
+    }
+    // Only Admin can change Roles, assignment, or active status
+    if (currentUser.role !== Role.ADMIN) {
+      delete updateUserDto.role;
+      delete updateUserDto.warehouseId;
+      delete updateUserDto.hallId;
+      delete updateUserDto.isActive;
+    }
+    return this.usersService.update(id, updateUserDto, currentUser.id);
   }
 
   @Delete(':id')
   @Roles(Role.ADMIN)
   remove(@Param('id') id: string, @CurrentUser('id') actorId: string) {
     return this.usersService.deactivate(id, actorId);
+  }
+
+  @Post(':id/photo')
+  @UseInterceptors(FileInterceptor('photo', {
+    storage,
+    fileFilter: (req, file, cb) => {
+      if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
+        return cb(new ForbiddenException('Only image files are allowed!'), false);
+      }
+      cb(null, true);
+    },
+    limits: { fileSize: 2 * 1024 * 1024 }
+  }))
+  async uploadPhoto(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() currentUser: any,
+  ) {
+    if (currentUser.role === Role.EMPLOYEE && currentUser.id !== id) {
+      throw new ForbiddenException('You can only upload your own profile photo');
+    }
+    if (!file) {
+      throw new ForbiddenException('No photo file uploaded');
+    }
+    const relativePath = `uploads/profile-photos/${file.filename}`;
+    await this.usersService.updatePhoto(id, relativePath);
+    return { photoUrl: `/employees/${id}/photo` };
+  }
+
+  @Get(':id/photo')
+  async getPhoto(@Param('id') id: string, @Res() res: any) {
+    try {
+      const user = await this.usersService.findOne(id);
+      if (!user || !user.profilePhoto) {
+        return res.status(404).send('No profile photo uploaded');
+      }
+      const filePath = join(process.cwd(), user.profilePhoto);
+      if (!existsSync(filePath)) {
+        return res.status(404).send('Photo file not found');
+      }
+      return res.sendFile(filePath);
+    } catch (error) {
+      return res.status(404).send('User or photo not found');
+    }
   }
 }

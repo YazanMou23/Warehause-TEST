@@ -266,4 +266,112 @@ export class PlanningService {
 
     return { message: 'Daily plan deactivated successfully' };
   }
+
+  async findAll(page = 1, limit = 10, startDateStr?: string, endDateStr?: string, warehouseId?: string) {
+    const skip = (page - 1) * limit;
+    const where: any = {
+      deletedAt: null,
+    };
+
+    if (warehouseId) {
+      where.warehouseId = warehouseId;
+    }
+
+    if (startDateStr || endDateStr) {
+      where.date = {};
+      if (startDateStr) {
+        where.date.gte = this.normalizeDate(startDateStr);
+      }
+      if (endDateStr) {
+        where.date.lte = this.normalizeDate(endDateStr);
+      }
+    }
+
+    const [total, plans] = await this.prisma.$transaction([
+      this.prisma.plan.count({ where }),
+      this.prisma.plan.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { date: 'desc' },
+        include: {
+          warehouse: { select: { name: true } },
+          hall: { select: { name: true } },
+          assignedEmployees: {
+            include: {
+              employee: {
+                select: {
+                  id: true,
+                  name: true,
+                  phone: true,
+                  email: true,
+                  profilePhoto: true,
+                  role: true,
+                  telegramId: true,
+                },
+              },
+            },
+          },
+          assignedContainers: {
+            include: {
+              container: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    const formattedPlans = plans.map((plan) => ({
+      id: plan.id,
+      date: plan.date,
+      warehouseId: plan.warehouseId,
+      warehouseName: plan.warehouse.name,
+      hallId: plan.hallId,
+      hallName: plan.hall.name,
+      assignedEmployees: plan.assignedEmployees.map((ae) => ae.employee),
+      assignedContainers: plan.assignedContainers.map((ac) => ac.container),
+    }));
+
+    return {
+      data: formattedPlans,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async bulkDeactivate(ids: string[], actorId?: string) {
+    const plans = await this.prisma.plan.findMany({
+      where: {
+        id: { in: ids },
+        deletedAt: null,
+      },
+    });
+
+    if (plans.length === 0) {
+      throw new NotFoundException('No active daily plans found for the provided IDs');
+    }
+
+    const result = await this.prisma.plan.updateMany({
+      where: {
+        id: { in: ids },
+      },
+      data: {
+        deletedAt: new Date(),
+      },
+    });
+
+    await this.prisma.actionLog.create({
+      data: {
+        userId: actorId || null,
+        action: 'BULK_DEACTIVATE_PLAN',
+        details: `Soft deleted / Deactivated ${result.count} daily plans`,
+      },
+    });
+
+    return { message: `${result.count} daily plans deactivated successfully` };
+  }
 }

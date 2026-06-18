@@ -11,6 +11,9 @@ import { PlanningModule } from './planning/planning.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { OcrModule } from './ocr/ocr.module';
 import { TelegramModule } from './telegram/telegram.module';
+import { EmailModule } from './email/email.module';
+import { MessagingModule } from './messaging/messaging.module';
+import { ActionLogModule } from './action-log/action-log.module';
 
 @Module({
   imports: [
@@ -27,6 +30,9 @@ import { TelegramModule } from './telegram/telegram.module';
     AttendanceModule,
     OcrModule,
     TelegramModule,
+    EmailModule,
+    MessagingModule,
+    ActionLogModule,
   ],
   controllers: [AppController],
   providers: [],
