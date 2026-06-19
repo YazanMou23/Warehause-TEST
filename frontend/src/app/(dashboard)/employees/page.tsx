@@ -609,7 +609,7 @@ export default function EmployeesPage() {
                         <span className="text-outline italic text-[11px]">— no email</span>
                       )}
                     </td>
-                    <td className="px-4 py-3.5 font-mono text-[12.5px]">
+                    <td suppressHydrationWarning className="px-4 py-3.5 font-mono text-[12.5px]">
                       {emp.employmentStart ? new Date(emp.employmentStart).toLocaleDateString(language === "de" ? "de-DE" : "en-CA") : "—"}
                     </td>
                     <td className="px-4 py-3.5 font-mono text-[12px]">
