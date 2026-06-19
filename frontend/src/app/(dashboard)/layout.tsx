@@ -21,6 +21,7 @@ import {
   FileSpreadsheet,
   User,
   Shield,
+  ChevronRight,
 } from "lucide-react";
 import { useTranslation } from "../i18n/LanguageContext";
 
@@ -28,28 +29,25 @@ interface SidebarLink {
   name: string;
   href: string;
   icon: React.ComponentType<any>;
+  section?: string;
 }
 
 const sidebarLinks: SidebarLink[] = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Planning", href: "/planning", icon: Calendar },
-  { name: "Employees", href: "/employees", icon: Users },
-  { name: "Admins", href: "/admins", icon: Shield },
-  { name: "Warehouses", href: "/warehouses", icon: Warehouse },
-  { name: "Halls", href: "/halls", icon: Grid },
-  { name: "Containers", href: "/containers", icon: Package },
-  { name: "Attendance", href: "/attendance", icon: Clock },
-  { name: "OCR Upload", href: "/ocr", icon: Scan },
-  { name: "Reports", href: "/reports", icon: FileSpreadsheet },
-  { name: "Profile", href: "/profile", icon: User },
-  { name: "Settings", href: "/settings", icon: Settings },
+  { name: "Dashboard", href: "/", icon: LayoutDashboard, section: "main" },
+  { name: "Planning", href: "/planning", icon: Calendar, section: "main" },
+  { name: "Employees", href: "/employees", icon: Users, section: "people" },
+  { name: "Admins", href: "/admins", icon: Shield, section: "people" },
+  { name: "Warehouses", href: "/warehouses", icon: Warehouse, section: "resources" },
+  { name: "Halls", href: "/halls", icon: Grid, section: "resources" },
+  { name: "Containers", href: "/containers", icon: Package, section: "resources" },
+  { name: "Attendance", href: "/attendance", icon: Clock, section: "ops" },
+  { name: "OCR Upload", href: "/ocr", icon: Scan, section: "ops" },
+  { name: "Reports", href: "/reports", icon: FileSpreadsheet, section: "ops" },
+  { name: "Profile", href: "/profile", icon: User, section: "system" },
+  { name: "Settings", href: "/settings", icon: Settings, section: "system" },
 ];
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
@@ -75,18 +73,13 @@ export default function DashboardLayout({
             .toUpperCase();
           setUserInitials(initials || "U");
         }
-        if (payload.role) {
-          setUserRole(payload.role);
-        }
-        if (payload.sub) {
-          setUserId(payload.sub);
-        }
+        if (payload.role) setUserRole(payload.role);
+        if (payload.sub) setUserId(payload.sub);
       } catch (e) {
         console.error("Failed to decode token", e);
       }
     }
 
-    // Listen to profile updates
     const handleProfileUpdate = () => {
       setPhotoTrigger(prev => prev + 1);
       const updatedToken = localStorage.getItem("accessToken");
@@ -107,9 +100,7 @@ export default function DashboardLayout({
       try {
         await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/auth/logout`, {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
+          headers: { Authorization: `Bearer ${token}` },
         });
       } catch (e) {}
     }
@@ -119,50 +110,46 @@ export default function DashboardLayout({
 
   const getTranslationKey = (name: string): any => {
     const map: Record<string, string> = {
-      "Dashboard": "dashboard",
-      "Planning": "planning",
-      "Employees": "employees",
-      "Admins": "admins",
-      "Warehouses": "warehouses",
-      "Halls": "halls",
-      "Containers": "containers",
-      "Attendance": "attendance",
+      Dashboard: "dashboard",
+      Planning: "planning",
+      Employees: "employees",
+      Admins: "admins",
+      Warehouses: "warehouses",
+      Halls: "halls",
+      Containers: "containers",
+      Attendance: "attendance",
       "OCR Upload": "ocrUpload",
-      "Reports": "reports",
-      "Profile": "profile",
-      "Settings": "settings"
+      Reports: "reports",
+      Profile: "profile",
+      Settings: "settings",
     };
     return map[name] || name;
   };
 
   const SidebarContent = () => {
     const allowedLinks = sidebarLinks.filter((link) => {
-      if (userRole === "EMPLOYEE") {
-        return ["Dashboard", "Profile", "Settings"].includes(link.name);
-      }
-      if (userRole === "ADMIN") {
-        return !["Reports", "Admins"].includes(link.name);
-      }
-      return true; // MANAGER sees all
+      if (userRole === "EMPLOYEE") return ["Dashboard", "Profile", "Settings"].includes(link.name);
+      if (userRole === "ADMIN") return !["Reports", "Admins"].includes(link.name);
+      return true;
     });
 
     return (
-      <div className="flex flex-col h-full bg-surface-container-low text-on-surface border-r border-outline-variant">
-        {/* Brand logo */}
-        <div className="px-container-margin py-stack-md flex items-center gap-stack-sm border-b border-outline-variant">
-          <div className="w-10 h-10 bg-secondary flex items-center justify-center rounded-lg text-white">
-            <Warehouse className="w-6 h-6" />
+      /* Dark navy sidebar — enterprise SaaS standard */
+      <div className="flex flex-col h-full bg-[#0f172a] text-white border-r border-[#1e293b]">
+        
+        {/* Brand */}
+        <div className="px-5 py-5 flex items-center gap-3 border-b border-[#1e293b]">
+          <div className="w-9 h-9 bg-[#2563eb] flex items-center justify-center rounded-lg shrink-0 shadow-lg">
+            <Warehouse className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="font-headline-md font-black text-secondary tracking-tight leading-none">
-              {t("appName")}
-            </h1>
-            <p className="text-on-surface-variant text-label-md">Operational Hub</p>
+            <h1 className="font-black text-white tracking-tight leading-none text-[15px]">LogiFlow</h1>
+            <p className="text-[#64748b] text-[11px] mt-0.5">Warehouse Management</p>
           </div>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-stack-md px-2 flex flex-col gap-1">
+        <nav className="flex-1 overflow-y-auto py-4 px-3 flex flex-col gap-0.5">
           {allowedLinks.map((link) => {
             const isActive = pathname === link.href;
             const Icon = link.icon;
@@ -171,26 +158,51 @@ export default function DashboardLayout({
                 key={link.name}
                 href={link.href}
                 onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2 text-body-sm font-medium rounded-lg transition-all ${
+                className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-all group ${
                   isActive
-                    ? "bg-secondary text-white font-bold"
-                    : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+                    ? "bg-[#2563eb] text-white shadow-sm"
+                    : "text-[#94a3b8] hover:bg-[#1e293b] hover:text-white"
                 }`}
               >
-                <Icon className={`w-5 h-5 ${isActive ? "text-white" : "text-outline"}`} />
-                <span>{t(getTranslationKey(link.name))}</span>
+                <Icon className={`w-4 h-4 shrink-0 ${isActive ? "text-white" : "text-[#64748b] group-hover:text-white"}`} />
+                <span className="flex-1">{t(getTranslationKey(link.name))}</span>
+                {isActive && <ChevronRight className="w-3.5 h-3.5 text-white/60" />}
               </Link>
             );
           })}
         </nav>
 
-        {/* Logout Section */}
-        <div className="p-stack-md border-t border-outline-variant">
+        {/* User + Logout */}
+        <div className="p-4 border-t border-[#1e293b] space-y-2">
+          <Link
+            href="/profile"
+            className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#1e293b] transition-colors"
+          >
+            <div className="w-7 h-7 rounded-full bg-[#2563eb] flex items-center justify-center font-bold text-xs text-white shrink-0 overflow-hidden relative">
+              {userId && (
+                <img
+                  src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${userId}/photo?t=${photoTrigger}`}
+                  alt={userName}
+                  className="w-full h-full object-cover absolute inset-0"
+                  style={{ display: "none" }}
+                  onLoad={(e) => { e.currentTarget.style.display = "block"; }}
+                  onError={(e) => { e.currentTarget.style.display = "none"; }}
+                />
+              )}
+              <span className="text-white text-xs font-bold">{userInitials}</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-white truncate">{userName}</p>
+              <p className="text-[10px] text-[#64748b] uppercase tracking-wider">
+                {userRole === "MANAGER" ? t("roleManager") : userRole === "ADMIN" ? t("roleAdmin") : t("roleEmployee")}
+              </p>
+            </div>
+          </Link>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3 py-2 text-body-sm font-medium text-error hover:bg-error-container/10 rounded-lg transition-colors cursor-pointer"
+            className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-[#64748b] hover:bg-red-950/30 hover:text-red-400 rounded-lg transition-colors cursor-pointer"
           >
-            <LogOut className="w-5 h-5" />
+            <LogOut className="w-4 h-4" />
             <span>{t("logout")}</span>
           </button>
         </div>
@@ -198,85 +210,74 @@ export default function DashboardLayout({
     );
   };
 
-  const displayRoleText = () => {
-    if (userRole === "MANAGER") return t("roleManager");
-    if (userRole === "ADMIN") return t("roleAdmin");
-    return t("roleEmployee");
-  };
-
   return (
-    <div className="flex h-screen bg-background text-on-background" suppressHydrationWarning>
-      {/* 1. Desktop Sidebar */}
-      <aside className="hidden lg:flex lg:w-[280px] lg:flex-col fixed inset-y-0 z-40 print:hidden">
+    <div className="flex h-screen bg-[#f8fafc] text-[#0f172a]" suppressHydrationWarning>
+      {/* Desktop Sidebar */}
+      <aside className="hidden lg:flex lg:w-[260px] lg:flex-col fixed inset-y-0 z-40 print:hidden">
         <SidebarContent />
       </aside>
 
-      {/* 2. Main content area */}
-      <div className="flex-1 flex flex-col lg:pl-[280px] min-h-screen">
-        
-        {/* Dashboard Header */}
-        <header className="h-16 flex items-center justify-between px-container-margin border-b border-outline-variant bg-surface-container-low print:hidden shrink-0">
-          
-          {/* Menu button for mobile */}
+      {/* Main content */}
+      <div className="flex-1 flex flex-col lg:pl-[260px] min-h-screen">
+
+        {/* Top Header */}
+        <header className="h-14 flex items-center justify-between px-6 border-b border-[#e2e8f0] bg-white print:hidden shrink-0 shadow-sm">
+          {/* Mobile menu button */}
           <button
             onClick={() => setMobileMenuOpen(true)}
-            className="lg:hidden p-2 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors"
+            className="lg:hidden p-2 text-[#64748b] hover:bg-[#f1f5f9] rounded-lg transition-colors"
           >
-            <Menu className="w-6 h-6" />
+            <Menu className="w-5 h-5" />
           </button>
 
-          {/* Search bar placeholder */}
-          <div className="relative hidden md:block w-72">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+          {/* Search */}
+          <div className="relative hidden md:block w-64">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
             <input
               type="text"
               placeholder="Search operations..."
               disabled
-              className="w-full bg-surface-dim border border-outline-variant rounded-full pl-9 pr-4 py-1.5 text-body-sm text-on-surface-variant outline-none opacity-60"
+              className="w-full bg-[#f8fafc] border border-[#e2e8f0] rounded-full pl-9 pr-4 py-1.5 text-sm text-[#64748b] outline-none opacity-70"
             />
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             {/* Notifications */}
-            <button className="w-10 h-10 flex items-center justify-center hover:bg-surface-container-high rounded-full relative transition-colors">
-              <Bell className="w-5 h-5 text-on-surface-variant" />
-              <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-error rounded-full border-2 border-surface"></span>
+            <button className="w-8 h-8 flex items-center justify-center hover:bg-[#f1f5f9] rounded-lg relative transition-colors">
+              <Bell className="w-4 h-4 text-[#64748b]" />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#dc2626] rounded-full border-2 border-white" />
             </button>
 
-            {/* User Profile */}
+            {/* Profile chip */}
             <Link
               href="/profile"
-              className="flex items-center gap-2 pl-4 border-l border-outline-variant hover:opacity-80 transition-all"
+              className="flex items-center gap-2.5 pl-3 border-l border-[#e2e8f0] hover:opacity-80 transition-opacity"
             >
               <div className="text-right hidden sm:block">
-                <p className="font-label-md text-on-surface leading-none">{userName}</p>
-                <p className="text-[10px] text-outline uppercase tracking-wider mt-1">{displayRoleText()}</p>
+                <p className="text-sm font-semibold text-[#0f172a] leading-none">{userName}</p>
+                <p className="text-[10px] text-[#64748b] uppercase tracking-wider mt-0.5">
+                  {userRole === "MANAGER" ? t("roleManager") : userRole === "ADMIN" ? t("roleAdmin") : t("roleEmployee")}
+                </p>
               </div>
-              <div className="w-8 h-8 rounded-full bg-secondary-container text-white flex items-center justify-center font-bold text-sm border border-outline-variant overflow-hidden relative">
+              <div className="w-8 h-8 rounded-full bg-[#2563eb] text-white flex items-center justify-center font-bold text-sm overflow-hidden relative">
                 {userId && (
                   <img
                     src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${userId}/photo?t=${photoTrigger}`}
                     alt={userName}
                     className="w-full h-full object-cover absolute inset-0 z-10"
                     style={{ display: "none" }}
-                    onLoad={(e) => {
-                      e.currentTarget.style.display = "block";
-                    }}
-                    onError={(e) => {
-                      e.currentTarget.style.display = "none";
-                    }}
+                    onLoad={(e) => { e.currentTarget.style.display = "block"; }}
+                    onError={(e) => { e.currentTarget.style.display = "none"; }}
                   />
                 )}
-                <span className="w-full h-full flex items-center justify-center bg-secondary-container text-white text-xs font-bold">
-                  {userInitials}
-                </span>
+                <span className="text-white text-xs font-bold">{userInitials}</span>
               </div>
             </Link>
           </div>
         </header>
 
-        {/* Scrollable Dashboard Area */}
-        <main className="flex-1 overflow-y-auto p-container-margin print:p-0">
+        {/* Page Content */}
+        <main className="flex-1 overflow-y-auto p-6 print:p-0">
           {children}
         </main>
       </div>
@@ -284,23 +285,23 @@ export default function DashboardLayout({
       {/* Mobile Drawer Backdrop */}
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-50 lg:hidden animate-fadeIn"
+          className="fixed inset-0 bg-black/40 z-50 lg:hidden animate-fadeIn"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
 
-      {/* Mobile Drawer Content */}
+      {/* Mobile Drawer */}
       <div
-        className={`fixed inset-y-0 left-0 w-[280px] z-50 lg:hidden transform transition-transform duration-300 ${
+        className={`fixed inset-y-0 left-0 w-[260px] z-50 lg:hidden transform transition-transform duration-300 ${
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <SidebarContent />
         <button
           onClick={() => setMobileMenuOpen(false)}
-          className="absolute top-4 right-4 p-2 text-on-surface-variant hover:bg-surface-container-high rounded-lg"
+          className="absolute top-4 right-4 p-1.5 text-[#64748b] hover:bg-[#1e293b] rounded-lg"
         >
-          <X className="w-6 h-6" />
+          <X className="w-5 h-5" />
         </button>
       </div>
     </div>

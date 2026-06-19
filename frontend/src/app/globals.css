@@ -1,46 +1,54 @@
 @import "tailwindcss";
 
 @theme {
-  /* ── Brand Colors ── */
-  --color-primary: #000000;
+  /* ═══════════════════════════════════════════════
+     LOGIFLOW — Enterprise Light Theme
+     Design language: Clean SaaS / Linear / Vercel
+  ═══════════════════════════════════════════════ */
+
+  /* ── Primary Brand (Navy Blue) ── */
+  --color-primary: #1e3a8a;
   --color-on-primary: #ffffff;
-  --color-primary-container: #131b2e;
-  --color-on-primary-container: #7c839b;
-  --color-secondary: #0058be;
+  --color-primary-container: #dbeafe;
+  --color-on-primary-container: #1e3a8a;
+
+  /* ── Action / CTA Blue ── */
+  --color-secondary: #2563eb;
   --color-on-secondary: #ffffff;
-  --color-secondary-container: #1a3a6e;
-  --color-on-secondary-container: #c5d8ff;
+  --color-secondary-container: #eff6ff;
+  --color-on-secondary-container: #1d4ed8;
 
-  /* ── Dark Background System ── */
-  --color-background: #0d1117;
-  --color-on-background: #e2e8f0;
-  --color-surface: #111827;
-  --color-on-surface: #e2e8f0;
+  /* ── Background & Surface System ── */
+  --color-background: #f8fafc;
+  --color-on-background: #0f172a;
+  --color-surface: #ffffff;
+  --color-on-surface: #0f172a;
 
-  --color-surface-dim: #0a0f1a;
-  --color-surface-bright: #1e293b;
-  --color-surface-container-lowest: #060a0f;
-  --color-surface-container-low: #0d1117;
-  --color-surface-container: #111827;
-  --color-surface-container-high: #1e293b;
-  --color-surface-container-highest: #263044;
+  --color-surface-dim: #f1f5f9;
+  --color-surface-bright: #ffffff;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f8fafc;
+  --color-surface-container: #f1f5f9;
+  --color-surface-container-high: #e2e8f0;
+  --color-surface-container-highest: #cbd5e1;
 
-  --color-on-surface-variant: #94a3b8;
-  --color-outline: #475569;
-  --color-outline-variant: #1e293b;
+  /* ── Text & Border ── */
+  --color-on-surface-variant: #64748b;
+  --color-outline: #94a3b8;
+  --color-outline-variant: #e2e8f0;
 
-  /* ── Semantic Colors ── */
-  --color-error: #ef4444;
+  /* ── Semantic ── */
+  --color-error: #dc2626;
   --color-on-error: #ffffff;
-  --color-error-container: #450a0a;
-  --color-on-error-container: #fca5a5;
+  --color-error-container: #fef2f2;
+  --color-on-error-container: #991b1b;
 
-  --color-tertiary: #c084fc;
+  --color-tertiary: #7c3aed;
   --color-on-tertiary: #ffffff;
-  --color-tertiary-container: #3b0764;
-  --color-on-tertiary-container: #e9d5ff;
+  --color-tertiary-container: #ede9fe;
+  --color-on-tertiary-container: #5b21b6;
 
-  /* ── Spacing & Layout ── */
+  /* ── Spacing & Radii ── */
   --radius-sm: 0.125rem;
   --radius-DEFAULT: 0.25rem;
   --radius-md: 0.375rem;
@@ -65,23 +73,14 @@ body {
   background: var(--color-background);
   color: var(--color-on-background);
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ── Scrollbar Styling ── */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #1e293b;
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #334155;
-}
+/* ── Custom Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
 /* ── Animations ── */
 @keyframes fadeIn {
@@ -89,7 +88,7 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.96); }
+  from { opacity: 0; transform: scale(0.97); }
   to   { opacity: 1; transform: scale(1); }
 }
 @keyframes shake {
@@ -104,15 +103,10 @@ body {
 
 /* ── Print ── */
 @media print {
-  body {
-    background: white !important;
-    color: black !important;
-  }
+  body { background: white !important; color: black !important; }
 
   nav, aside, header, button, input, select, textarea,
-  .no-print, .print\:hidden, div[role="dialog"] {
-    display: none !important;
-  }
+  .no-print, .print\:hidden, div[role="dialog"] { display: none !important; }
 
   .print-only, .print\:block { display: block !important; }
 
@@ -133,11 +127,7 @@ body {
   }
 
   tr { page-break-inside: avoid !important; }
-
-  h1, h2, h3, h4, h5, h6 {
-    color: #000000 !important;
-    page-break-after: avoid !important;
-  }
+  h1, h2, h3, h4, h5, h6 { color: #000000 !important; page-break-after: avoid !important; }
 
   @page { margin: 1.5cm; }
 }

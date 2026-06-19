@@ -521,7 +521,7 @@ export default function DashboardPage() {
                 ) : (
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <label className="block text-xs font-bold text-[#cbd5e1] uppercase tracking-wider">
+                      <label className="block text-xs font-bold text-[#374151] uppercase tracking-wider">
                         {t("selectWarehouse")}
                       </label>
                       <select
@@ -530,7 +530,7 @@ export default function DashboardPage() {
                           setClockInWarehouseId(e.target.value);
                           setClockInHallId(""); // Reset hall
                         }}
-                        className="w-full bg-[#0f1117] border border-[#334155] rounded-lg px-3 py-2.5 text-body-sm text-white focus:border-secondary outline-none transition-colors"
+                        className="w-full bg-white border border-[#e5e7eb] rounded-lg px-3 py-2.5 text-body-sm text-[#0f172a] focus:border-[#2563eb] outline-none transition-colors"
                       >
                         <option value="">{t("chooseWarehousePlaceholder")}</option>
                         {allWarehouses.map((wh) => (
@@ -540,14 +540,14 @@ export default function DashboardPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="block text-xs font-bold text-[#cbd5e1] uppercase tracking-wider">
+                      <label className="block text-xs font-bold text-[#374151] uppercase tracking-wider">
                         {t("selectHall")}
                       </label>
                       <select
                         value={clockInHallId}
                         onChange={(e) => setClockInHallId(e.target.value)}
                         disabled={!clockInWarehouseId}
-                        className="w-full bg-[#0f1117] border border-[#334155] disabled:opacity-50 rounded-lg px-3 py-2.5 text-body-sm text-white focus:border-secondary outline-none transition-colors"
+                        className="w-full bg-white border border-[#e5e7eb] disabled:opacity-50 rounded-lg px-3 py-2.5 text-body-sm text-[#0f172a] focus:border-[#2563eb] outline-none transition-colors"
                       >
                         <option value="">{t("chooseHallPlaceholder")}</option>
                         {allHalls
@@ -719,7 +719,7 @@ export default function DashboardPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="bg-surface-container-low border-b border-outline-variant text-[#cbd5e1]">
+                      <tr className="bg-surface-container-low border-b border-outline-variant text-on-surface-variant">
                         <th className="p-3.5 font-semibold">{t("date")}</th>
                         <th className="p-3.5 font-semibold">{t("warehouse")}</th>
                         <th className="p-3.5 font-semibold">{t("clockedIn")}</th>
@@ -727,7 +727,7 @@ export default function DashboardPage() {
                         <th className="p-3.5 font-semibold text-right">{t("totalHours")}</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-outline-variant text-[#94a3b8]">
+                    <tbody className="divide-y divide-outline-variant text-on-surface-variant">
                       {!employeeSummary?.workHistory || employeeSummary.workHistory.length === 0 ? (
                         <tr>
                           <td colSpan={5} className="p-4 text-center">{t("noAttendanceLogs")}</td>
@@ -1080,12 +1080,12 @@ export default function DashboardPage() {
                               .filter(log => ["LOGIN", "LOGOUT", "CLOCK_IN", "CLOCK_OUT"].includes(log.action))
                               .slice(0, 5)
                               .map(log => (
-                                <div key={log.id} className="text-xs p-2 bg-[#0f1117]/40 rounded border border-[#1e293b] flex flex-col gap-0.5">
+                                <div key={log.id} className="text-xs p-2.5 bg-[#f8fafc] rounded-lg border border-[#e2e8f0] flex flex-col gap-0.5">
                                   <div className="flex justify-between items-center">
-                                    <span className="font-semibold text-white">{log.user?.name || "System"}</span>
-                                    <span className="text-[9px] text-outline font-mono">{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    <span className="font-semibold text-[#0f172a]">{log.user?.name || "System"}</span>
+                                    <span className="text-[9px] text-[#94a3b8] font-mono">{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                   </div>
-                                  <span className="text-[#94a3b8]">{log.details}</span>
+                                  <span className="text-[#64748b]">{log.details}</span>
                                 </div>
                               ))
                           )}
@@ -1104,13 +1104,13 @@ export default function DashboardPage() {
                               .filter(log => !["LOGIN", "LOGOUT", "CLOCK_IN", "CLOCK_OUT"].includes(log.action))
                               .slice(0, 5)
                               .map(log => (
-                                <div key={log.id} className="text-xs p-2 bg-[#0f1117]/40 rounded border border-[#1e293b] flex flex-col gap-0.5">
+                                <div key={log.id} className="text-xs p-2.5 bg-[#f8fafc] rounded-lg border border-[#e2e8f0] flex flex-col gap-0.5">
                                   <div className="flex justify-between items-center">
-                                    <span className="font-semibold text-emerald-300">{log.user?.name || "System"}</span>
-                                    <span className="text-[9px] text-outline font-mono">{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    <span className="font-semibold text-[#0f172a]">{log.user?.name || "System"}</span>
+                                    <span className="text-[9px] text-[#94a3b8] font-mono">{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                   </div>
-                                  <span className="text-[#cbd5e1] font-mono text-[10px] mt-0.5 uppercase text-secondary bg-[#1e293b] w-fit px-1 rounded">{log.action}</span>
-                                  <span className="text-[#94a3b8] mt-1">{log.details}</span>
+                                  <span className="font-mono text-[10px] mt-0.5 uppercase text-[#2563eb] bg-[#eff6ff] w-fit px-1.5 py-0.5 rounded font-semibold">{log.action}</span>
+                                  <span className="text-[#64748b] mt-1">{log.details}</span>
                                 </div>
                               ))
                           )}
@@ -1155,21 +1155,21 @@ export default function DashboardPage() {
       {/* Detail View Modal */}
       {selectedPlanForView && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn print:hidden">
-          <div className="bg-[#1e293b] border border-[#334155] rounded-xl max-w-2xl w-full shadow-2xl overflow-hidden animate-scaleIn">
+          <div className="bg-white border border-[#e2e8f0] rounded-2xl max-w-2xl w-full shadow-xl overflow-hidden animate-scaleIn">
             
             {/* Modal Header */}
-            <div className="px-6 py-4 bg-[#0f1117] border-b border-[#334155] flex justify-between items-center">
+            <div className="px-6 py-4 bg-[#f8fafc] border-b border-[#e2e8f0] flex justify-between items-center">
               <div>
-                <h4 className="font-bold text-body-lg text-white">{t("shiftDetailsModalTitle")}</h4>
-                <p className="text-xs text-[#94a3b8] mt-0.5">
+                <h4 className="font-bold text-body-lg text-[#0f172a]">{t("shiftDetailsModalTitle")}</h4>
+                <p className="text-xs text-[#64748b] mt-0.5">
                   {t("shiftDetailsSubtitle")}
                 </p>
               </div>
               <button
                 onClick={() => setSelectedPlanForView(null)}
-                className="text-on-surface-variant hover:text-white p-1 hover:bg-[#334155] rounded-lg transition-colors"
+                className="text-[#64748b] hover:text-[#0f172a] p-1.5 hover:bg-[#f1f5f9] rounded-lg transition-colors"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -1177,17 +1177,17 @@ export default function DashboardPage() {
             <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
               
               {/* Warehouse Details */}
-              <div className="grid grid-cols-2 gap-4 bg-[#0f1117]/50 border border-[#334155] p-4 rounded-lg">
+              <div className="grid grid-cols-2 gap-4 bg-[#f8fafc] border border-[#e2e8f0] p-4 rounded-xl">
                 <div>
-                  <span className="text-[11px] text-[#94a3b8] uppercase tracking-wider block font-bold">{t("depotLocation")}</span>
-                  <span className="font-bold text-white text-body-md mt-1 block">{selectedPlanForView.warehouseName}</span>
+                  <span className="text-[11px] text-[#64748b] uppercase tracking-wider block font-bold">{t("depotLocation")}</span>
+                  <span className="font-bold text-[#0f172a] text-body-md mt-1 block">{selectedPlanForView.warehouseName}</span>
                 </div>
                 <div>
-                  <span className="text-[11px] text-[#94a3b8] uppercase tracking-wider block font-bold">{t("stagingHall")}</span>
-                  <span className="font-bold text-white text-body-md mt-1 block">{selectedPlanForView.hallName}</span>
+                  <span className="text-[11px] text-[#64748b] uppercase tracking-wider block font-bold">{t("stagingHall")}</span>
+                  <span className="font-bold text-[#0f172a] text-body-md mt-1 block">{selectedPlanForView.hallName}</span>
                 </div>
-                <div className="col-span-2 mt-2 pt-2 border-t border-[#334155]/60">
-                  <span className="text-[11px] text-[#94a3b8] uppercase tracking-wider block font-bold">{t("shiftDate")}</span>
+                <div className="col-span-2 mt-2 pt-2 border-t border-[#e2e8f0]">
+                  <span className="text-[11px] text-[#64748b] uppercase tracking-wider block font-bold">{t("shiftDate")}</span>
                   <span className="font-mono text-secondary text-body-md font-bold mt-1 block">
                     {new Date(selectedPlanForView.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                   </span>
@@ -1196,33 +1196,33 @@ export default function DashboardPage() {
 
               {/* Staff Roster */}
               <div className="space-y-2.5">
-                <h5 className="font-bold text-body-md text-white flex items-center gap-2">
-                  <Users className="w-4 h-4 text-secondary" /> {t("assignedStaff")} ({selectedPlanForView.assignedEmployees?.length || 0})
+                <h5 className="font-bold text-body-md text-[#0f172a] flex items-center gap-2">
+                  <Users className="w-4 h-4 text-[#2563eb]" /> {t("assignedStaff")} ({selectedPlanForView.assignedEmployees?.length || 0})
                 </h5>
-                <div className="bg-[#0f1117] border border-[#334155] rounded-lg overflow-hidden">
+                <div className="bg-white border border-[#e2e8f0] rounded-xl overflow-hidden">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="bg-[#1e293b]/50 border-b border-[#334155] text-[#94a3b8]">
+                      <tr className="bg-[#f8fafc] border-b border-[#e2e8f0] text-[#64748b]">
                         <th className="p-3 font-semibold">{t("nameColumn")}</th>
                         <th className="p-3 font-semibold">{t("roleColumn")}</th>
                         <th className="p-3 font-semibold">{t("phone")}</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#334155]">
+                    <tbody className="divide-y divide-[#f1f5f9]">
                       {!selectedPlanForView.assignedEmployees || selectedPlanForView.assignedEmployees.length === 0 ? (
                         <tr>
-                          <td colSpan={3} className="p-4 text-center text-[#64748b]">{t("noStaffAssigned")}</td>
+                          <td colSpan={3} className="p-4 text-center text-[#94a3b8]">{t("noStaffAssigned")}</td>
                         </tr>
                       ) : (
                         selectedPlanForView.assignedEmployees.map((emp, idx) => (
-                          <tr key={idx} className="hover:bg-[#1e293b]/20">
-                            <td className="p-3 font-medium text-white">{emp.name}</td>
+                          <tr key={idx} className="hover:bg-[#f8fafc]">
+                            <td className="p-3 font-medium text-[#0f172a]">{emp.name}</td>
                             <td className="p-3">
-                              <span className="px-2 py-0.5 bg-secondary-container text-white rounded text-[10px] font-semibold uppercase tracking-wider">
+                              <span className="px-2 py-0.5 bg-[#eff6ff] text-[#2563eb] rounded-full text-[10px] font-semibold uppercase tracking-wider">
                                 {emp.role}
                               </span>
                             </td>
-                            <td className="p-3 font-mono text-[#cbd5e1]">{emp.phone || "—"}</td>
+                            <td className="p-3 font-mono text-[#64748b]">{emp.phone || "—"}</td>
                           </tr>
                         ))
                       )}
@@ -1233,31 +1233,31 @@ export default function DashboardPage() {
 
               {/* Container Queue */}
               <div className="space-y-2.5">
-                <h5 className="font-bold text-body-md text-white flex items-center gap-2">
-                  <Package className="w-4 h-4 text-secondary" /> {t("routedContainers")} ({selectedPlanForView.assignedContainers?.length || 0})
+                <h5 className="font-bold text-body-md text-[#0f172a] flex items-center gap-2">
+                  <Package className="w-4 h-4 text-[#2563eb]" /> {t("routedContainers")} ({selectedPlanForView.assignedContainers?.length || 0})
                 </h5>
-                <div className="bg-[#0f1117] border border-[#334155] rounded-lg overflow-hidden">
+                <div className="bg-white border border-[#e2e8f0] rounded-xl overflow-hidden">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="bg-[#1e293b]/50 border-b border-[#334155] text-[#94a3b8]">
+                      <tr className="bg-[#f8fafc] border-b border-[#e2e8f0] text-[#64748b]">
                         <th className="p-3 font-semibold">{t("containerNumber")}</th>
                         <th className="p-3 font-semibold">Status</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#334155]">
+                    <tbody className="divide-y divide-[#f1f5f9]">
                       {!selectedPlanForView.assignedContainers || selectedPlanForView.assignedContainers.length === 0 ? (
                         <tr>
-                          <td colSpan={2} className="p-4 text-center text-[#64748b]">{t("noContainersRouted")}</td>
+                          <td colSpan={2} className="p-4 text-center text-[#94a3b8]">{t("noContainersRouted")}</td>
                         </tr>
                       ) : (
                         selectedPlanForView.assignedContainers.map((c, idx) => (
-                          <tr key={idx} className="hover:bg-[#1e293b]/20">
-                            <td className="p-3 font-mono text-white font-medium">{c.containerNumber}</td>
+                          <tr key={idx} className="hover:bg-[#f8fafc]">
+                            <td className="p-3 font-mono text-[#0f172a] font-medium">{c.containerNumber}</td>
                             <td className="p-3">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${
                                 c.status === "FULL" 
-                                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/30" 
-                                  : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                                  ? "bg-amber-50 text-amber-700 border border-amber-200" 
+                                  : "bg-emerald-50 text-emerald-700 border border-emerald-200"
                               }`}>
                                 {c.status}
                               </span>
@@ -1272,10 +1272,10 @@ export default function DashboardPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 bg-[#0f1117] border-t border-[#334155] flex justify-between items-center">
+            <div className="px-6 py-4 bg-[#f8fafc] border-t border-[#e2e8f0] flex justify-between items-center">
               <button
                 onClick={() => setSelectedPlanForView(null)}
-                className="px-4 py-2 border border-[#334155] hover:bg-[#1e293b] text-[#cbd5e1] hover:text-white rounded-lg text-sm transition-colors"
+                className="px-4 py-2 border border-[#e2e8f0] hover:bg-[#f1f5f9] text-[#64748b] hover:text-[#0f172a] rounded-lg text-sm transition-colors"
               >
                 {t("close")}
               </button>
