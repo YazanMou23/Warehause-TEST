@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { UpdatePlanDto } from './dto/update-plan.dto';
@@ -6,6 +6,8 @@ import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class PlanningService {
+  private readonly logger = new Logger(PlanningService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
@@ -98,34 +100,52 @@ export class PlanningService {
 
     // Send email notifications asynchronously
     if (fullPlan.assignedEmployees && fullPlan.assignedEmployees.length > 0) {
+      const employeesWithEmail = fullPlan.assignedEmployees.filter((e: any) => e.email);
+      this.logger.log(
+        `Plan created: ${fullPlan.assignedEmployees.length} employee(s) assigned, ` +
+        `${employeesWithEmail.length} with email address(es). Sending notifications...`
+      );
+
       for (const employee of fullPlan.assignedEmployees) {
         if (employee.email) {
+          this.logger.log(`Sending plan notification to ${employee.name} <${employee.email}>`);
           const emailDetails = {
             employeeName: employee.name,
-            date: new Date(fullPlan.date).toLocaleDateString('de-DE'),
+            date: new Date(fullPlan.date).toLocaleDateString('de-DE', {
+              weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+            }),
             warehouseName: fullPlan.warehouseName,
             hallName: fullPlan.hallName,
             title: fullPlan.title || 'Schichtplan Zuweisung',
-            description: fullPlan.description || 'Sie haben eine neue Zuweisung.',
-            containers: fullPlan.assignedContainers.map(c => c.containerNumber),
+            description: fullPlan.description || 'Sie wurden einer neuen Schicht zugewiesen.',
+            containers: fullPlan.assignedContainers.map((c: any) => c.containerNumber),
           };
           this.emailService.sendPlanNotification(employee.email, emailDetails)
             .then((sent) => {
+              if (sent) {
+                this.logger.log(`✓ Email sent to ${employee.name} (${employee.email})`);
+              } else {
+                this.logger.warn(`✗ Email failed for ${employee.name} (${employee.email})`);
+              }
               this.prisma.actionLog.create({
                 data: {
                   userId: actorId || null,
                   action: sent ? 'EMAIL_NOTIFICATION' : 'EMAIL_NOTIFICATION_FAILED',
-                  details: sent 
-                    ? `Plan creation notification email sent successfully to ${employee.name} (${employee.email})`
-                    : `Failed to send plan notification email to ${employee.name} (${employee.email})`,
+                  details: sent
+                    ? `Plan notification email sent to ${employee.name} (${employee.email})`
+                    : `Failed to send plan notification to ${employee.name} (${employee.email})`,
                 },
               }).catch(() => {});
             })
             .catch((err) => {
-              console.error(`Email sending error: ${err.message}`);
+              this.logger.error(`Email error for ${employee.email}: ${err.message}`);
             });
+        } else {
+          this.logger.debug(`Skipping ${employee.name} — no email address on record.`);
         }
       }
+    } else {
+      this.logger.log('Plan created with no assigned employees — no emails to send.');
     }
 
     return fullPlan;

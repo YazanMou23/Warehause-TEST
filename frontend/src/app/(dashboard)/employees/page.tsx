@@ -430,7 +430,7 @@ export default function EmployeesPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-surface-container-low border-b border-outline-variant text-[#cbd5e1] font-semibold">
+              <tr className="bg-surface-container-low border-b border-outline-variant text-[#64748b] font-semibold text-xs uppercase tracking-wider">
                 {canManage && (
                   <th className="p-3 text-center w-12">
                     <button
@@ -454,6 +454,7 @@ export default function EmployeesPage() {
                 <th className="px-4 py-3">{t("nameColumn")}</th>
                 <th className="px-4 py-3">{t("usernameLabel")}</th>
                 <th className="px-4 py-3">{t("phone")}</th>
+                <th className="px-4 py-3">{t("email")}</th>
                 <th className="px-4 py-3">{t("employmentStart")}</th>
                 <th className="px-4 py-3">{t("telegramId")}</th>
                 <th className="px-4 py-3">{t("actionsColumn")}</th>
@@ -463,7 +464,7 @@ export default function EmployeesPage() {
             <tbody className="divide-y divide-outline-variant text-body-sm text-on-surface">
               {filteredEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={canManage ? 8 : 6} className="p-8 text-center text-outline italic">
+                  <td colSpan={canManage ? 9 : 7} className="p-8 text-center text-outline italic">
                     {t("noStaffFound")}
                   </td>
                 </tr>
@@ -511,7 +512,6 @@ export default function EmployeesPage() {
                         </div>
                         <div>
                           <span className="font-semibold text-on-surface block leading-tight">{emp.name}</span>
-                          {emp.email && <span className="text-[10px] text-outline">{emp.email}</span>}
                         </div>
                       </div>
                     </td>
@@ -520,6 +520,22 @@ export default function EmployeesPage() {
                     </td>
                     <td className="px-4 py-3.5 font-mono text-[12.5px] text-outline">
                       {emp.phone}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      {emp.email ? (
+                        <a
+                          href={`mailto:${emp.email}`}
+                          className="text-[12px] text-[#2563eb] hover:underline font-mono flex items-center gap-1 group"
+                          title={emp.email}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 shrink-0 text-[#94a3b8] group-hover:text-[#2563eb]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                          <span className="max-w-[160px] truncate">{emp.email}</span>
+                        </a>
+                      ) : (
+                        <span className="text-outline italic text-[11px]">— no email</span>
+                      )}
                     </td>
                     <td className="px-4 py-3.5 font-mono text-[12.5px]">
                       {emp.employmentStart ? new Date(emp.employmentStart).toLocaleDateString(language === "de" ? "de-DE" : "en-CA") : "—"}

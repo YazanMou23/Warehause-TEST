@@ -7,16 +7,37 @@ import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { EmailService } from '../email/email.service';
 
 @Controller('planning')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class PlanningController {
-  constructor(private readonly planningService: PlanningService) {}
+  constructor(
+    private readonly planningService: PlanningService,
+    private readonly emailService: EmailService,
+  ) {}
 
   @Post()
   @Roles(Role.MANAGER, Role.ADMIN)
   create(@Body() createPlanDto: CreatePlanDto, @CurrentUser('id') actorId: string) {
     return this.planningService.create(createPlanDto, actorId);
+  }
+
+  /** Test SMTP connection and send a test email — Manager only */
+  @Post('test-email')
+  @Roles(Role.MANAGER)
+  async testEmail(@Body('to') to: string) {
+    if (!to) throw new BadRequestException('Required: { "to": "someone@example.com" }');
+    const sent = await this.emailService.sendEmail(
+      to,
+      'LogiFlow — SMTP Test',
+      `<div style="font-family:sans-serif;padding:24px;">
+        <h2 style="color:#2563eb;">✓ SMTP Connection Successful</h2>
+        <p>This is a test email from your LogiFlow server.</p>
+        <p style="color:#64748b;font-size:12px;">Sent at: ${new Date().toISOString()}</p>
+      </div>`,
+    );
+    return { success: sent, message: sent ? 'Test email sent successfully.' : 'Email failed — check SMTP config in .env' };
   }
 
   @Get()

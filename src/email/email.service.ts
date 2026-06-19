@@ -16,16 +16,21 @@ export class EmailService {
     this.transporter = nodemailer.createTransport({
       host,
       port,
-      secure: port === 465 || host.includes('hostinger'),
+      secure: port === 465,
       auth: {
         user,
         pass,
+      },
+      tls: {
+        rejectUnauthorized: false,
       },
     });
   }
 
   async sendEmail(to: string, subject: string, html: string): Promise<boolean> {
-    const from = this.configService.get<string>('SMTP_FROM') || 'LogiFlow <info@yazan-tech.com>';
+    const user = this.configService.get<string>('SMTP_USER') || 'info@yazan-tech.com';
+    const fromName = this.configService.get<string>('SMTP_FROM_NAME') || 'LogiFlow';
+    const from = `"${fromName}" <${user}>`;
     try {
       await this.transporter.sendMail({
         from,
