@@ -51,8 +51,8 @@ export default function ReportsPage() {
   // Timesheet state
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
-  const [month, setMonth] = useState(new Date().getMonth() + 1);
-  const [year, setYear] = useState(new Date().getFullYear());
+  const [month, setMonth] = useState(1);
+  const [year, setYear] = useState(2026);
   const [report, setReport] = useState<ReportData | null>(null);
   const [fetchingReport, setFetchingReport] = useState(false);
 
@@ -108,6 +108,8 @@ export default function ReportsPage() {
   };
 
   useEffect(() => {
+    setMonth(new Date().getMonth() + 1);
+    setYear(new Date().getFullYear());
     loadEmployees();
   }, [router]);
 

@@ -16,6 +16,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "LogiFlow Warehouse Management",
   description: "Enterprise operations and logistics control hub",
+  other: {
+    google: "notranslate",
+  },
 };
 
 export default function RootLayout({
@@ -26,10 +29,11 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      translate="no"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col" suppressHydrationWarning>
+      <body className="min-h-full flex flex-col notranslate" suppressHydrationWarning>
         <LanguageProvider>
           {children}
         </LanguageProvider>
