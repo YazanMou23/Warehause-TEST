@@ -35,6 +35,11 @@ export default function LoginPage() {
   const [forgotLoading, setForgotLoading] = useState(false);
 
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
@@ -113,10 +118,10 @@ export default function LoginPage() {
 
           <div className="space-y-6">
             <h2 className="text-4xl font-black text-white leading-tight tracking-tight">
-              {language === "de" ? "Lagerverwaltung\nder Zukunft." : "Warehouse\nManagement\nReimagined."}
+              {(!mounted || language === "de") ? "Lagerverwaltung\nder Zukunft." : "Warehouse\nManagement\nReimagined."}
             </h2>
             <p className="text-[#64748b] text-base leading-relaxed max-w-sm">
-              {language === "de"
+              {(!mounted || language === "de")
                 ? "Verwalten Sie Schichtpläne, Container und Teams von einem einzigen, leistungsstarken Dashboard aus."
                 : "Manage shift plans, containers, and teams from a single, powerful dashboard."}
             </p>
@@ -126,9 +131,9 @@ export default function LoginPage() {
         {/* Feature pills */}
         <div className="relative z-10 space-y-3">
           {[
-            { icon: "⚡", text: language === "de" ? "Echtzeit-Planung" : "Real-time Planning" },
-            { icon: "👥", text: language === "de" ? "Team-Management" : "Team Management" },
-            { icon: "📊", text: language === "de" ? "Berichte & Analytics" : "Reports & Analytics" },
+            { icon: "⚡", text: (!mounted || language === "de") ? "Echtzeit-Planung" : "Real-time Planning" },
+            { icon: "👥", text: (!mounted || language === "de") ? "Team-Management" : "Team Management" },
+            { icon: "📊", text: (!mounted || language === "de") ? "Berichte & Analytics" : "Reports & Analytics" },
           ].map((f) => (
             <div key={f.text} className="flex items-center gap-3 text-sm text-[#94a3b8]">
               <span className="text-base">{f.icon}</span>
@@ -166,7 +171,7 @@ export default function LoginPage() {
 
             <div className="mb-8">
               <h1 className="text-2xl font-black text-[#0f172a] tracking-tight">
-                {language === "de" ? "Willkommen zurück" : "Welcome back"}
+                {(!mounted || language === "de") ? "Willkommen zurück" : "Welcome back"}
               </h1>
               <p className="text-[#64748b] text-sm mt-1">{t("loginSubtitle")}</p>
             </div>
@@ -268,10 +273,10 @@ export default function LoginPage() {
                 <Mail className="w-5 h-5 text-[#2563eb]" />
               </div>
               <h1 className="text-2xl font-black text-[#0f172a] tracking-tight">
-                {language === "de" ? "Passwort zurücksetzen" : "Reset Password"}
+                {(!mounted || language === "de") ? "Passwort zurücksetzen" : "Reset Password"}
               </h1>
               <p className="text-[#64748b] text-sm mt-1">
-                {language === "de"
+                {(!mounted || language === "de")
                   ? "Wir senden einen sicheren Link an Ihre E-Mail."
                   : "We'll send a secure reset link to your email."}
               </p>

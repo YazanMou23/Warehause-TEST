@@ -57,8 +57,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [userInitials, setUserInitials] = useState("MW");
   const [userId, setUserId] = useState("");
   const [photoTrigger, setPhotoTrigger] = useState(0);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const token = localStorage.getItem("accessToken");
     if (token) {
       try {
@@ -179,7 +181,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#1e293b] transition-colors"
           >
             <div className="w-7 h-7 rounded-full bg-[#2563eb] flex items-center justify-center font-bold text-xs text-white shrink-0 overflow-hidden relative">
-              {userId && (
+              {mounted && userId && (
                 <img
                   src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${userId}/photo?t=${photoTrigger}`}
                   alt={userName}
@@ -260,7 +262,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </p>
               </div>
               <div className="w-8 h-8 rounded-full bg-[#2563eb] text-white flex items-center justify-center font-bold text-sm overflow-hidden relative">
-                {userId && (
+                {mounted && userId && (
                   <img
                     src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${userId}/photo?t=${photoTrigger}`}
                     alt={userName}
