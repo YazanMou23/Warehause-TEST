@@ -194,8 +194,10 @@ export class UsersController {
       currentUser.name || 'LogiFlow Admin',
     );
 
-    if (!sent) {
-      throw new BadRequestException('Failed to send email. Please check SMTP configuration.');
+    if (sent !== true) {
+      throw new BadRequestException(
+        `Failed to send email: ${sent}`
+      );
     }
 
     return {

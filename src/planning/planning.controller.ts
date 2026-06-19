@@ -37,7 +37,10 @@ export class PlanningController {
         <p style="color:#64748b;font-size:12px;">Sent at: ${new Date().toISOString()}</p>
       </div>`,
     );
-    return { success: sent, message: sent ? 'Test email sent successfully.' : 'Email failed — check SMTP config in .env' };
+    return { 
+      success: sent === true, 
+      message: sent === true ? 'Test email sent successfully.' : `Email failed: ${sent}` 
+    };
   }
 
   @Get()

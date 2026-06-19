@@ -4,50 +4,63 @@ import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class EmailService {
-  private transporter: nodemailer.Transporter;
   private readonly logger = new Logger(EmailService.name);
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(private readonly configService: ConfigService) {}
+
+  /** Build a fresh transporter every time to avoid stale connection pool issues */
+  private createTransporter(): nodemailer.Transporter {
     const host = this.configService.get<string>('SMTP_HOST') || 'smtp.hostinger.com';
     const port = Number(this.configService.get('SMTP_PORT')) || 465;
     const user = this.configService.get<string>('SMTP_USER') || 'info@yazan-tech.com';
-    const pass = this.configService.get<string>('SMTP_PASS') || 'password';
+    const pass = this.configService.get<string>('SMTP_PASS') || '';
 
-    this.transporter = nodemailer.createTransport({
+    return nodemailer.createTransport({
       host,
       port,
       secure: port === 465,
-      auth: {
-        user,
-        pass,
-      },
-      tls: {
-        rejectUnauthorized: false,
-      },
+      auth: { user, pass },
+      tls: { rejectUnauthorized: false },
+      connectionTimeout: 15000,
+      greetingTimeout: 10000,
+      socketTimeout: 20000,
     });
   }
 
-  async sendEmail(to: string, subject: string, html: string): Promise<boolean> {
+
+  async sendEmail(to: string, subject: string, html: string): Promise<string | true> {
     // EMAIL_FROM takes priority (spec), falls back to SMTP_USER
     const fromAddress = this.configService.get<string>('EMAIL_FROM')
       || this.configService.get<string>('SMTP_USER')
       || 'info@yazan-tech.com';
     const fromName = this.configService.get<string>('SMTP_FROM_NAME') || 'LogiFlow';
     const from = `"${fromName}" <${fromAddress}>`;
+
+    const transporter = this.createTransporter();
     try {
-      await this.transporter.sendMail({
-        from,
-        to,
-        subject,
-        html,
-      });
-      this.logger.log(`Email sent successfully to ${to}`);
+      const info = await transporter.sendMail({ from, to, subject, html });
+      this.logger.log(`✓ Email sent to ${to} [messageId: ${info.messageId}]`);
       return true;
-    } catch (error) {
-      this.logger.error(`Failed to send email to ${to}: ${error.message}`);
-      return false;
+    } catch (error: any) {
+      const msg = error?.message || 'Unknown SMTP error';
+      const code = error?.code || '';
+      const response = error?.response || '';
+      this.logger.error(
+        `✗ Failed to send email to ${to} | code=${code} | ${msg} | smtp_response=${response}`,
+        error?.stack,
+      );
+      // Return the real error message so the controller can surface it
+      return msg;
+    } finally {
+      transporter.close();
     }
   }
+
+  /** Convenience wrapper — returns boolean for backwards compat */
+  private async sendEmailBool(to: string, subject: string, html: string): Promise<boolean> {
+    return (await this.sendEmail(to, subject, html)) === true;
+  }
+
 
   async sendPlanNotification(email: string, planDetails: any): Promise<boolean> {
     const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001';
@@ -100,7 +113,7 @@ export class EmailService {
         <p style="font-size: 11px; color: #94a3b8; text-align: center; margin: 0;">Dies ist eine automatisierte Systemnachricht von LogiFlow. Bitte antworten Sie nicht direkt auf diese E-Mail.</p>
       </div>
     `;
-    return this.sendEmail(email, subject, html);
+    return this.sendEmailBool(email, subject, html);
   }
 
   async sendCustomEmail(
@@ -108,7 +121,7 @@ export class EmailService {
     subject: string,
     message: string,
     senderName = 'LogiFlow',
-  ): Promise<boolean> {
+  ): Promise<string | true> {
     const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001';
     const html = `
       <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: auto; background-color: #0d1117; color: #e2e8f0; border-radius: 12px; overflow: hidden; border: 1px solid #1e293b;">
@@ -138,6 +151,7 @@ export class EmailService {
         </div>
       </div>
     `;
+    // Return raw result (string = error message, true = success) for controller to inspect
     return this.sendEmail(to, subject, html);
   }
 
@@ -154,7 +168,7 @@ export class EmailService {
         <p style="font-size: 12px; color: #888; text-align: center;">Dies ist eine automatisierte Nachricht von LogiFlow.</p>
       </div>
     `;
-    return this.sendEmail(email, subject, html);
+    return this.sendEmailBool(email, subject, html);
   }
 
   async sendPasswordResetEmail(email: string, name: string, resetUrl: string): Promise<boolean> {
@@ -217,6 +231,6 @@ export class EmailService {
         </div>
       </div>
     `;
-    return this.sendEmail(email, subject, html);
+    return this.sendEmailBool(email, subject, html);
   }
 }
