@@ -28,9 +28,12 @@ export class EmailService {
   }
 
   async sendEmail(to: string, subject: string, html: string): Promise<boolean> {
-    const user = this.configService.get<string>('SMTP_USER') || 'info@yazan-tech.com';
+    // EMAIL_FROM takes priority (spec), falls back to SMTP_USER
+    const fromAddress = this.configService.get<string>('EMAIL_FROM')
+      || this.configService.get<string>('SMTP_USER')
+      || 'info@yazan-tech.com';
     const fromName = this.configService.get<string>('SMTP_FROM_NAME') || 'LogiFlow';
-    const from = `"${fromName}" <${user}>`;
+    const from = `"${fromName}" <${fromAddress}>`;
     try {
       await this.transporter.sendMail({
         from,
@@ -47,6 +50,7 @@ export class EmailService {
   }
 
   async sendPlanNotification(email: string, planDetails: any): Promise<boolean> {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001';
     const subject = `Schichtplan Zuweisung: ${planDetails.title} - ${planDetails.date}`;
     const html = `
       <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; color: #1e293b;">
@@ -87,7 +91,7 @@ export class EmailService {
         </table>
         
         <p style="margin-top: 25px; text-align: center;">
-          <a href="http://localhost:3001" style="background-color: #3b82f6; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; box-shadow: 0 4px 6px -1px rgba(59, 131, 246, 0.2);">
+          <a href="${frontendUrl}" style="background-color: #3b82f6; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; box-shadow: 0 4px 6px -1px rgba(59, 131, 246, 0.2);">
             Zum Dashboard einloggen
           </a>
         </p>

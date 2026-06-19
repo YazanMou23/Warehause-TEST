@@ -15,6 +15,25 @@ export class OcrService {
       throw new BadRequestException('No file provided');
     }
 
+    // Validate file type — Vision API supports images only
+    const isImage = file.mimetype.startsWith('image/');
+    const isPdf = file.mimetype === 'application/pdf';
+
+    if (!isImage && !isPdf) {
+      throw new BadRequestException(
+        `Unsupported file type: ${file.mimetype}. Please upload a JPG, PNG, or PDF file.`,
+      );
+    }
+
+    if (isPdf) {
+      // PDFs can't be sent directly to Vision API — use sandbox fallback with clear warning
+      this.logger.warn(`PDF upload received: ${file.originalname}. PDFs are not natively supported by Vision API. Returning sandbox result.`);
+      return {
+        ...this.getSandboxFallback(file.originalname, type),
+        warning: 'PDF files cannot be processed directly by the Vision API. Please convert your PDF to an image (JPG or PNG) for best OCR accuracy. Showing sandbox demo data.',
+      };
+    }
+
     if (!apiKey) {
       this.logger.warn('OPENAI_API_KEY is not configured. Running OCR service in sandbox/fallback mode.');
       return this.getSandboxFallback(file.originalname, type);

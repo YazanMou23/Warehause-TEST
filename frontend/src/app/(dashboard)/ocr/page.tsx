@@ -394,7 +394,7 @@ export default function OcrPage() {
               <div className="border-2 border-dashed border-outline-variant rounded-xl p-8 text-center bg-surface-container-low hover:bg-surface-container-low/50 transition-colors relative cursor-pointer">
                 <input
                   type="file"
-                  accept="image/*"
+                   accept="image/*,application/pdf"
                   onChange={handleFileChange}
                   className="absolute inset-0 opacity-0 cursor-pointer"
                 />
@@ -442,7 +442,7 @@ export default function OcrPage() {
         <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3.5 rounded-lg flex items-start gap-2.5 text-body-sm">
           <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
           <div>
-            <p className="font-bold font-mono">OCR Warning Warning</p>
+            <p className="font-bold font-mono">OCR Warning</p>
             <p className="text-[13px]">{ocrWarning}</p>
           </div>
         </div>
