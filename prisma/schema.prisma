@@ -40,6 +40,7 @@ model User {
   attendance   Attendance[]
   plans        PlanEmployee[]
   actionLogs   ActionLog[]
+  passwordResetTokens PasswordResetToken[]
 
   @@index([warehouseId])
   @@index([hallId])
@@ -163,4 +164,17 @@ model ActionLog {
   timestamp DateTime @default(now())
 
   @@index([timestamp])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([userId])
 }

@@ -61,9 +61,14 @@ async function main() {
   }
 
   // 4. Create Users (Manager, Admin, Employees)
-  const managerPasswordHash = await bcrypt.hash('managerpassword', 10);
-  const adminPasswordHash = await bcrypt.hash('adminpassword', 10);
-  const employeePasswordHash = await bcrypt.hash('employeepassword', 10);
+  // Passwords are read from environment variables for security
+  const managerPassword = process.env.SEED_MANAGER_PASSWORD || 'managerpassword';
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD || 'adminpassword';
+  const employeePassword = process.env.SEED_EMPLOYEE_PASSWORD || 'employeepassword';
+
+  const managerPasswordHash = await bcrypt.hash(managerPassword, 10);
+  const adminPasswordHash = await bcrypt.hash(adminPassword, 10);
+  const employeePasswordHash = await bcrypt.hash(employeePassword, 10);
 
   // Manager Lars Leader
   const manager1 = await prisma.user.create({

@@ -109,4 +109,67 @@ export class EmailService {
     `;
     return this.sendEmail(email, subject, html);
   }
+
+  async sendPasswordResetEmail(email: string, name: string, resetUrl: string): Promise<boolean> {
+    const subject = 'LogiFlow — Passwort zurücksetzen / Password Reset';
+    const html = `
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 560px; margin: auto; background-color: #0d1117; color: #e2e8f0; border-radius: 12px; overflow: hidden; border: 1px solid #1e293b;">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #0058be 0%, #003a8c 100%); padding: 32px 36px; text-align: center;">
+          <div style="display: inline-block; background: rgba(255,255,255,0.15); border-radius: 10px; padding: 12px 16px; margin-bottom: 16px;">
+            <span style="font-size: 24px; font-weight: 900; color: #ffffff; letter-spacing: -0.5px;">LogiFlow</span>
+          </div>
+          <h1 style="margin: 0; font-size: 20px; font-weight: 700; color: #ffffff;">Passwort zurücksetzen</h1>
+          <p style="margin: 6px 0 0 0; font-size: 13px; color: rgba(255,255,255,0.7);">Password Reset Request</p>
+        </div>
+
+        <!-- Body -->
+        <div style="padding: 32px 36px;">
+          <p style="font-size: 15px; margin: 0 0 12px 0;">Hallo <strong style="color: #93c5fd;">${name}</strong>,</p>
+          <p style="font-size: 14px; color: #94a3b8; line-height: 1.6; margin: 0 0 24px 0;">
+            Wir haben eine Anfrage zum Zurücksetzen Ihres Passworts für Ihr LogiFlow-Konto erhalten.<br/>
+            Klicken Sie auf die Schaltfläche unten, um ein neues Passwort festzulegen.
+          </p>
+          <p style="font-size: 13px; color: #64748b; margin: 0 0 24px 0; font-style: italic;">
+            We received a request to reset the password for your LogiFlow account. Click the button below to set a new password.
+          </p>
+          
+          <!-- CTA Button -->
+          <div style="text-align: center; margin: 28px 0;">
+            <a href="${resetUrl}" style="display: inline-block; background: #0058be; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 15px; padding: 14px 36px; border-radius: 8px; letter-spacing: 0.3px; box-shadow: 0 4px 12px rgba(0,88,190,0.4);">
+              Passwort zurücksetzen →
+            </a>
+          </div>
+
+          <!-- Divider -->
+          <div style="border-top: 1px solid #1e293b; margin: 28px 0;"></div>
+
+          <!-- Info -->
+          <div style="background: #111827; border: 1px solid #1e293b; border-radius: 8px; padding: 16px 20px;">
+            <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px;">Sicherheitshinweis / Security Notice</p>
+            <ul style="margin: 0; padding: 0 0 0 18px; font-size: 12px; color: #64748b; line-height: 1.8;">
+              <li>Dieser Link ist <strong style="color: #94a3b8;">1 Stunde gültig</strong> / This link expires in <strong style="color: #94a3b8;">1 hour</strong></li>
+              <li>Der Link kann nur einmal verwendet werden / Link can only be used once</li>
+              <li>Falls Sie kein Reset angefragt haben, ignorieren Sie diese E-Mail</li>
+              <li>If you didn't request this, please ignore this email</li>
+            </ul>
+          </div>
+
+          <!-- Fallback link -->
+          <p style="font-size: 11px; color: #475569; margin: 20px 0 0 0; word-break: break-all;">
+            Falls der Button nicht funktioniert / If the button doesn't work:<br/>
+            <a href="${resetUrl}" style="color: #0058be;">${resetUrl}</a>
+          </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #060a0f; padding: 16px 36px; text-align: center; border-top: 1px solid #1e293b;">
+          <p style="margin: 0; font-size: 11px; color: #334155;">LogiFlow Warehouse Management System — Automatisierte Systemnachricht</p>
+          <p style="margin: 4px 0 0 0; font-size: 11px; color: #334155;">Bitte antworten Sie nicht auf diese E-Mail.</p>
+        </div>
+      </div>
+    `;
+    return this.sendEmail(email, subject, html);
+  }
 }

@@ -205,7 +205,7 @@ export default function DashboardLayout({
   };
 
   return (
-    <div className="flex h-screen bg-[#0f1117] text-white" suppressHydrationWarning>
+    <div className="flex h-screen bg-background text-on-background" suppressHydrationWarning>
       {/* 1. Desktop Sidebar */}
       <aside className="hidden lg:flex lg:w-[280px] lg:flex-col fixed inset-y-0 z-40 print:hidden">
         <SidebarContent />
@@ -232,7 +232,7 @@ export default function DashboardLayout({
               type="text"
               placeholder="Search operations..."
               disabled
-              className="w-full bg-[#0f1117] border border-[#334155] rounded-full pl-9 pr-4 py-1.5 text-body-sm text-on-surface-variant outline-none opacity-60"
+              className="w-full bg-surface-dim border border-outline-variant rounded-full pl-9 pr-4 py-1.5 text-body-sm text-on-surface-variant outline-none opacity-60"
             />
           </div>
 

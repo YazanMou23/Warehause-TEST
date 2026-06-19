@@ -1,4 +1,13 @@
-import { Controller, Post, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Query,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { Public } from '../common/decorators/public.decorator';
@@ -28,5 +37,43 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async logout(@CurrentUser('id') userId: string) {
     return this.authService.logout(userId);
+  }
+
+  /**
+   * POST /auth/forgot-password
+   * Body: { email: string }
+   * Public — no auth required. Always returns generic message.
+   */
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  async forgotPassword(@Body('email') email: string) {
+    return this.authService.forgotPassword(email);
+  }
+
+  /**
+   * GET /auth/validate-reset-token?token=...
+   * Public — frontend checks if a token is still valid before showing the form.
+   */
+  @Public()
+  @Get('validate-reset-token')
+  @HttpCode(HttpStatus.OK)
+  async validateResetToken(@Query('token') token: string) {
+    return this.authService.validateResetToken(token);
+  }
+
+  /**
+   * POST /auth/reset-password
+   * Body: { token: string, newPassword: string }
+   * Public — consumes the token and saves the new password.
+   */
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(
+    @Body('token') token: string,
+    @Body('newPassword') newPassword: string,
+  ) {
+    return this.authService.resetPassword(token, newPassword);
   }
 }

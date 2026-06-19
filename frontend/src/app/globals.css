@@ -1,48 +1,53 @@
 @import "tailwindcss";
 
 @theme {
+  /* ── Brand Colors ── */
   --color-primary: #000000;
   --color-on-primary: #ffffff;
   --color-primary-container: #131b2e;
   --color-on-primary-container: #7c839b;
   --color-secondary: #0058be;
   --color-on-secondary: #ffffff;
-  --color-secondary-container: #2170e4;
-  --color-on-secondary-container: #fefcff;
-  --color-background: #f8f9ff;
-  --color-on-background: #0b1c30;
-  --color-surface: #f8f9ff;
-  --color-on-surface: #0b1c30;
-  
-  --color-surface-dim: #cbdbf5;
-  --color-surface-bright: #f8f9ff;
-  --color-surface-container-lowest: #ffffff;
-  --color-surface-container-low: #eff4ff;
-  --color-surface-container: #e5eeff;
-  --color-surface-container-high: #dce9ff;
-  --color-surface-container-highest: #d3e4fe;
-  
-  --color-on-surface-variant: #45464d;
-  --color-outline: #76777d;
-  --color-outline-variant: #c6c6cd;
-  
-  --color-error: #ba1a1a;
-  --color-on-error: #ffffff;
-  --color-error-container: #ffdad6;
-  --color-on-error-container: #93000a;
+  --color-secondary-container: #1a3a6e;
+  --color-on-secondary-container: #c5d8ff;
 
-  --color-tertiary: #000000;
+  /* ── Dark Background System ── */
+  --color-background: #0d1117;
+  --color-on-background: #e2e8f0;
+  --color-surface: #111827;
+  --color-on-surface: #e2e8f0;
+
+  --color-surface-dim: #0a0f1a;
+  --color-surface-bright: #1e293b;
+  --color-surface-container-lowest: #060a0f;
+  --color-surface-container-low: #0d1117;
+  --color-surface-container: #111827;
+  --color-surface-container-high: #1e293b;
+  --color-surface-container-highest: #263044;
+
+  --color-on-surface-variant: #94a3b8;
+  --color-outline: #475569;
+  --color-outline-variant: #1e293b;
+
+  /* ── Semantic Colors ── */
+  --color-error: #ef4444;
+  --color-on-error: #ffffff;
+  --color-error-container: #450a0a;
+  --color-on-error-container: #fca5a5;
+
+  --color-tertiary: #c084fc;
   --color-on-tertiary: #ffffff;
-  --color-tertiary-container: #271901;
-  --color-on-tertiary-container: #98805d;
-  
+  --color-tertiary-container: #3b0764;
+  --color-on-tertiary-container: #e9d5ff;
+
+  /* ── Spacing & Layout ── */
   --radius-sm: 0.125rem;
   --radius-DEFAULT: 0.25rem;
   --radius-md: 0.375rem;
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
   --radius-full: 9999px;
-  
+
   --spacing-unit: 4px;
   --spacing-container-margin: 24px;
   --spacing-gutter: 16px;
@@ -50,55 +55,75 @@
   --spacing-stack-md: 16px;
   --spacing-stack-lg: 32px;
 
+  /* ── Typography ── */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
+/* ── Base ── */
 body {
   background: var(--color-background);
   color: var(--color-on-background);
   font-family: var(--font-sans);
 }
 
+/* ── Scrollbar Styling ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+/* ── Animations ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25%       { transform: translateX(-4px); }
+  75%       { transform: translateX(4px); }
+}
+
+.animate-fadeIn  { animation: fadeIn  0.25s ease-out; }
+.animate-scaleIn { animation: scaleIn 0.2s ease-out; }
+.animate-shake   { animation: shake   0.3s ease-out; }
+
+/* ── Print ── */
 @media print {
   body {
     background: white !important;
     color: black !important;
   }
-  
-  /* Hide non-printable elements */
-  nav,
-  aside,
-  header,
-  button,
-  input,
-  select,
-  textarea,
-  .no-print,
-  .print\:hidden,
-  div[role="dialog"] {
+
+  nav, aside, header, button, input, select, textarea,
+  .no-print, .print\:hidden, div[role="dialog"] {
     display: none !important;
   }
-  
-  /* Make sure print elements are visible and reset layout */
-  .print-only,
-  .print\:block {
-    display: block !important;
-  }
-  
-  main,
-  .print-container {
+
+  .print-only, .print\:block { display: block !important; }
+
+  main, .print-container {
     margin: 0 !important;
     padding: 0 !important;
     width: 100% !important;
   }
-  
-  /* Table formatting for print */
-  table {
-    border-collapse: collapse !important;
-    width: 100% !important;
-  }
-  
+
+  table { border-collapse: collapse !important; width: 100% !important; }
+
   th, td {
     border: 1px solid #000000 !important;
     padding: 6px 10px !important;
@@ -107,17 +132,12 @@ body {
     background: transparent !important;
   }
 
-  tr {
-    page-break-inside: avoid !important;
-  }
+  tr { page-break-inside: avoid !important; }
 
   h1, h2, h3, h4, h5, h6 {
     color: #000000 !important;
     page-break-after: avoid !important;
   }
-  
-  /* Avoid printing page headers/footers default details if possible */
-  @page {
-    margin: 1.5cm;
-  }
+
+  @page { margin: 1.5cm; }
 }
