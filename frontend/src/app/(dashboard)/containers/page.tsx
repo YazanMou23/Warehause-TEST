@@ -514,8 +514,7 @@ export default function ContainersPage() {
                       <span className="text-[12px] text-outline">{c.hallName}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-3.5 font-mono text-[12px] text-outline">
-                    {new Date(c.arrivalDate).toLocaleDateString()}
+                  <td suppressHydrationWarning className="px-4 py-3.5 font-mono text-[12px] text-outline"> {new Date(c.arrivalDate).toLocaleDateString()}
                   </td>
                   <td className="px-container-margin py-3.5 text-right space-x-1.5">
                     <button

@@ -505,7 +505,7 @@ export default function ReportsPage() {
                             <div className="font-medium text-on-surface">{record.warehouseName}</div>
                             <div className="text-[12px] text-outline print:text-[10px]">{record.hallName}</div>
                           </td>
-                          <td className="px-4 py-3.5 font-mono text-on-surface">
+                          <td suppressHydrationWarning className="px-4 py-3.5 font-mono text-on-surface">
                             {new Date(record.clockIn).toLocaleTimeString([], {
                               hour: "2-digit",
                               minute: "2-digit",
@@ -536,7 +536,7 @@ export default function ReportsPage() {
               {/* Printable Signature Line */}
               <div className="hidden print:flex justify-between items-end mt-16 pt-8 border-t border-dashed border-neutral-300">
                 <div>
-                  <p className="text-[11px] text-neutral-400 font-mono">Report generated on: {new Date().toLocaleDateString()}</p>
+                  <p suppressHydrationWarning className="text-[11px] text-neutral-400 font-mono">Report generated on: {new Date().toLocaleDateString()}</p>
                 </div>
                 <div className="text-center w-64 border-t border-neutral-400 pt-2">
                   <span className="text-xs font-semibold text-neutral-600">Supervisor Signature / Date</span>
@@ -677,7 +677,7 @@ export default function ReportsPage() {
                     ) : (
                       logs.map((log) => (
                         <tr key={log.id} className="hover:bg-surface-bright transition-colors">
-                          <td className="px-container-margin py-3.5 font-mono text-[12px] text-outline">
+                          <td suppressHydrationWarning className="px-container-margin py-3.5 font-mono text-[12px] text-outline">
                             {new Date(log.timestamp).toLocaleString()}
                           </td>
                           <td className="px-4 py-3.5 font-semibold text-on-surface">

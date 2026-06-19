@@ -489,8 +489,7 @@ export default function AttendancePage() {
                       <span className="text-[12px] text-outline">{record.hallName}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-3.5 font-mono text-[12px] text-on-surface">
-                    {new Date(record.clockIn).toLocaleTimeString([], {
+                  <td suppressHydrationWarning className="px-4 py-3.5 font-mono text-[12px] text-on-surface"> {new Date(record.clockIn).toLocaleTimeString([], {
                       hour: "2-digit",
                       minute: "2-digit",
                       second: "2-digit",

@@ -648,8 +648,7 @@ export default function DashboardPage() {
                             {p.warehouseName} — {p.hallName}
                           </span>
                           <div className="flex flex-wrap gap-3 mt-1 text-[11px] text-outline">
-                            <span className="flex items-center gap-1 font-mono text-secondary-container bg-secondary-container/10 px-1 py-0.5 rounded font-bold">
-                              {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
+                            <span suppressHydrationWarning className="flex items-center gap-1 font-mono text-secondary-container bg-secondary-container/10 px-1 py-0.5 rounded font-bold"> {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
                             </span>
                             <span className="flex items-center gap-1">
                               <Users className="w-3.5 h-3.5" />
@@ -693,7 +692,7 @@ export default function DashboardPage() {
                             {p.warehouseName} — {p.hallName}
                           </span>
                           <div className="flex flex-wrap gap-3 mt-1 text-[11px] text-outline">
-                            <span className="font-mono">{new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}</span>
+                            <span suppressHydrationWarning className="font-mono"> {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}</span>
                             <span>{p.assignedContainers?.length || 0} {language === "de" ? "Container bearbeitet" : "Containers processed"}</span>
                           </div>
                         </div>
@@ -735,9 +734,9 @@ export default function DashboardPage() {
                       ) : (
                         employeeSummary.workHistory.map((r: any) => (
                           <tr key={r.id} className="hover:bg-surface-bright transition-colors">
-                            <td className="p-3.5 font-mono text-on-surface">{new Date(r.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}</td>
+                            <td suppressHydrationWarning className="p-3.5 font-mono text-on-surface"> {new Date(r.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}</td>
                             <td className="p-3.5">{r.warehouseName} — {r.hallName}</td>
-                            <td className="p-3.5 font-mono">{new Date(r.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                            <td suppressHydrationWarning className="p-3.5 font-mono"> {new Date(r.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                             <td className="p-3.5 font-mono">{r.clockOut ? new Date(r.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "—"}</td>
                             <td className="p-3.5 font-mono text-right text-white font-bold">{r.totalHours ? `${r.totalHours}h` : t("activeShiftLabel")}</td>
                           </tr>
@@ -1013,8 +1012,7 @@ export default function DashboardPage() {
                                 {p.warehouseName} — {p.hallName}
                               </span>
                               <div className="flex flex-wrap gap-3 mt-1 text-[12px] text-outline">
-                                <span className="font-mono text-secondary-container bg-secondary-container/10 px-1.5 py-0.5 rounded font-bold">
-                                  {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
+                                <span suppressHydrationWarning className="font-mono text-secondary-container bg-secondary-container/10 px-1.5 py-0.5 rounded font-bold"> {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
                                 </span>
                                 <span className="flex items-center gap-1">
                                   <Users className="w-3.5 h-3.5" />
@@ -1083,7 +1081,7 @@ export default function DashboardPage() {
                                 <div key={log.id} className="text-xs p-2.5 bg-[#f8fafc] rounded-lg border border-[#e2e8f0] flex flex-col gap-0.5">
                                   <div className="flex justify-between items-center">
                                     <span className="font-semibold text-[#0f172a]">{log.user?.name || "System"}</span>
-                                    <span className="text-[9px] text-[#94a3b8] font-mono">{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    <span suppressHydrationWarning className="text-[9px] text-[#94a3b8] font-mono"> {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                   </div>
                                   <span className="text-[#64748b]">{log.details}</span>
                                 </div>
@@ -1107,7 +1105,7 @@ export default function DashboardPage() {
                                 <div key={log.id} className="text-xs p-2.5 bg-[#f8fafc] rounded-lg border border-[#e2e8f0] flex flex-col gap-0.5">
                                   <div className="flex justify-between items-center">
                                     <span className="font-semibold text-[#0f172a]">{log.user?.name || "System"}</span>
-                                    <span className="text-[9px] text-[#94a3b8] font-mono">{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    <span suppressHydrationWarning className="text-[9px] text-[#94a3b8] font-mono"> {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                   </div>
                                   <span className="font-mono text-[10px] mt-0.5 uppercase text-[#2563eb] bg-[#eff6ff] w-fit px-1.5 py-0.5 rounded font-semibold">{log.action}</span>
                                   <span className="text-[#64748b] mt-1">{log.details}</span>
@@ -1188,8 +1186,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="col-span-2 mt-2 pt-2 border-t border-[#e2e8f0]">
                   <span className="text-[11px] text-[#64748b] uppercase tracking-wider block font-bold">{t("shiftDate")}</span>
-                  <span className="font-mono text-secondary text-body-md font-bold mt-1 block">
-                    {new Date(selectedPlanForView.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                  <span suppressHydrationWarning className="font-mono text-secondary text-body-md font-bold mt-1 block"> {new Date(selectedPlanForView.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                   </span>
                 </div>
               </div>
