@@ -37,4 +37,8 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   telegramId?: string;
+
+  @IsOptional()
+  @IsString()
+  employmentStart?: string;
 }

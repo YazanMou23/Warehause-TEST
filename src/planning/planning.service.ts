@@ -2,10 +2,14 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException }
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { UpdatePlanDto } from './dto/update-plan.dto';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class PlanningService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emailService: EmailService,
+  ) {}
 
   private normalizeDate(dateStr: string): Date {
     const d = new Date(dateStr);
@@ -54,6 +58,8 @@ export class PlanningService {
           date: normalizedDate,
           warehouseId: createPlanDto.warehouseId,
           hallId: createPlanDto.hallId,
+          title: createPlanDto.title || null,
+          description: createPlanDto.description || null,
         },
       });
 
@@ -88,7 +94,41 @@ export class PlanningService {
       },
     });
 
-    return this.findOne(plan.id);
+    const fullPlan = await this.findOne(plan.id);
+
+    // Send email notifications asynchronously
+    if (fullPlan.assignedEmployees && fullPlan.assignedEmployees.length > 0) {
+      for (const employee of fullPlan.assignedEmployees) {
+        if (employee.email) {
+          const emailDetails = {
+            employeeName: employee.name,
+            date: new Date(fullPlan.date).toLocaleDateString('de-DE'),
+            warehouseName: fullPlan.warehouseName,
+            hallName: fullPlan.hallName,
+            title: fullPlan.title || 'Schichtplan Zuweisung',
+            description: fullPlan.description || 'Sie haben eine neue Zuweisung.',
+            containers: fullPlan.assignedContainers.map(c => c.containerNumber),
+          };
+          this.emailService.sendPlanNotification(employee.email, emailDetails)
+            .then((sent) => {
+              this.prisma.actionLog.create({
+                data: {
+                  userId: actorId || null,
+                  action: sent ? 'EMAIL_NOTIFICATION' : 'EMAIL_NOTIFICATION_FAILED',
+                  details: sent 
+                    ? `Plan creation notification email sent successfully to ${employee.name} (${employee.email})`
+                    : `Failed to send plan notification email to ${employee.name} (${employee.email})`,
+                },
+              }).catch(() => {});
+            })
+            .catch((err) => {
+              console.error(`Email sending error: ${err.message}`);
+            });
+        }
+      }
+    }
+
+    return fullPlan;
   }
 
   async update(id: string, updatePlanDto: UpdatePlanDto, actorId?: string) {
@@ -101,6 +141,18 @@ export class PlanningService {
     }
 
     await this.prisma.$transaction(async (tx) => {
+      // Update plan properties
+      const updateData: any = {};
+      if (updatePlanDto.title !== undefined) updateData.title = updatePlanDto.title;
+      if (updatePlanDto.description !== undefined) updateData.description = updatePlanDto.description;
+      
+      if (Object.keys(updateData).length > 0) {
+        await tx.plan.update({
+          where: { id },
+          data: updateData,
+        });
+      }
+
       // Update employee assignments
       if (updatePlanDto.assignedEmployeeIds !== undefined) {
         // Clear old ones
@@ -162,6 +214,7 @@ export class PlanningService {
                 id: true,
                 name: true,
                 phone: true,
+                email: true,
                 role: true,
                 telegramId: true,
               },
@@ -183,6 +236,8 @@ export class PlanningService {
     // Format output to be clean
     return {
       id: plan.id,
+      title: plan.title,
+      description: plan.description,
       date: plan.date,
       warehouseId: plan.warehouseId,
       warehouseName: plan.warehouse.name,
@@ -216,6 +271,7 @@ export class PlanningService {
                 id: true,
                 name: true,
                 phone: true,
+                email: true,
                 role: true,
                 telegramId: true,
               },
@@ -232,6 +288,8 @@ export class PlanningService {
 
     return plans.map((plan) => ({
       id: plan.id,
+      title: plan.title,
+      description: plan.description,
       date: plan.date,
       warehouseId: plan.warehouseId,
       warehouseName: plan.warehouse.name,
@@ -323,6 +381,8 @@ export class PlanningService {
 
     const formattedPlans = plans.map((plan) => ({
       id: plan.id,
+      title: plan.title,
+      description: plan.description,
       date: plan.date,
       warehouseId: plan.warehouseId,
       warehouseName: plan.warehouse.name,

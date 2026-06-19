@@ -43,11 +43,12 @@ export class UsersController {
   findAll(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('role') role?: Role,
     @CurrentUser('role') actorRole?: Role,
   ) {
     const p = page ? parseInt(page, 10) : 1;
     const l = limit ? parseInt(limit, 10) : 10;
-    return this.usersService.findAll(p, l, actorRole);
+    return this.usersService.findAll(p, l, actorRole, role);
   }
 
   @Delete('bulk')
@@ -75,12 +76,23 @@ export class UsersController {
     if (currentUser.role === Role.EMPLOYEE && currentUser.id !== id) {
       throw new ForbiddenException('You can only update your own profile');
     }
-    // Only Admin or Manager can change Roles, assignment, or active status
-    if (currentUser.role !== Role.MANAGER && currentUser.role !== Role.ADMIN) {
+    // Strict limits for standard employees
+    if (currentUser.role === Role.EMPLOYEE) {
+      delete updateUserDto.username;
+      delete updateUserDto.password;
+      delete updateUserDto.phone;
       delete updateUserDto.role;
       delete updateUserDto.warehouseId;
       delete updateUserDto.hallId;
       delete updateUserDto.isActive;
+      delete updateUserDto.employmentStart;
+    } else if (currentUser.role !== Role.MANAGER && currentUser.role !== Role.ADMIN) {
+      // General safety fallback
+      delete updateUserDto.role;
+      delete updateUserDto.warehouseId;
+      delete updateUserDto.hallId;
+      delete updateUserDto.isActive;
+      delete updateUserDto.employmentStart;
     }
     return this.usersService.update(id, updateUserDto, currentUser.id, currentUser.role);
   }

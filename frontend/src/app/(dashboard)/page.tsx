@@ -36,6 +36,7 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
+import { useTranslation } from "../i18n/LanguageContext";
 
 interface Metrics {
   employeesCount: number;
@@ -56,6 +57,7 @@ interface PlanItem {
 }
 
 export default function DashboardPage() {
+  const { t, language } = useTranslation();
   const [metrics, setMetrics] = useState<Metrics>({
     employeesCount: 0,
     activeTodayCount: 0,
@@ -467,20 +469,20 @@ export default function DashboardPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h3 className="font-headline-lg font-bold text-on-surface">
-                Mitarbeiter Dashboard
+                {t("employeeDashboard")}
               </h3>
               <p className="text-on-surface-variant font-body-sm">
-                Willkommen zurück, <span className="font-semibold text-primary">{employeeInfo?.name || "Mitarbeiter"}</span>. Verwalte deine Schichten und Arbeitszeiten.
+                {t("welcomeBack")}, <span className="font-semibold text-primary">{employeeInfo?.name || "Mitarbeiter"}</span>. {t("manageShiftsDesc")}
               </p>
             </div>
             <div className="flex items-center gap-2">
               {employeeSummary?.activeShift ? (
                 <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3.5 py-1.5 rounded-lg flex items-center gap-2 text-label-md shadow-sm animate-pulse">
-                  <span className="w-2 h-2 bg-emerald-400 rounded-full"></span> Eingestempelt
+                  <span className="w-2 h-2 bg-emerald-400 rounded-full"></span> {t("clockedIn")}
                 </span>
               ) : (
                 <span className="bg-error-container/20 text-error border border-error/20 px-3.5 py-1.5 rounded-lg flex items-center gap-2 text-label-md shadow-sm">
-                  <span className="w-2 h-2 bg-error rounded-full"></span> Ausgestempelt
+                  <span className="w-2 h-2 bg-error rounded-full"></span> {t("clockedOut")}
                 </span>
               )}
             </div>
@@ -494,18 +496,18 @@ export default function DashboardPage() {
               {/* Clock In / Clock Out Card */}
               <div className="bg-surface-container-lowest border border-outline-variant p-stack-md rounded-xl shadow-sm space-y-4">
                 <h4 className="font-bold text-body-lg text-on-surface flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-secondary" /> Zeiterfassung
+                  <Clock className="w-5 h-5 text-secondary" /> {t("timeTracking")}
                 </h4>
                 
                 {employeeSummary?.activeShift ? (
                   <div className="space-y-4">
                     <div className="bg-surface-container-low border border-outline-variant rounded-lg p-4 space-y-2">
-                      <p className="text-xs text-outline uppercase tracking-wider font-bold">Aktuelle Schicht</p>
+                      <p className="text-xs text-outline uppercase tracking-wider font-bold">{t("currentShift")}</p>
                       <p className="font-bold text-on-surface">{employeeSummary.activeShift.warehouseName}</p>
                       <p className="text-body-sm text-on-surface-variant">{employeeSummary.activeShift.hallName}</p>
                       <p className="text-body-sm text-outline flex items-center gap-1.5 mt-2">
                         <LogIn className="w-4 h-4 text-emerald-400" />
-                        Seit {new Date(employeeSummary.activeShift.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} Uhr
+                        {language === "de" ? "Seit" : "Since"} {new Date(employeeSummary.activeShift.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {language === "de" ? "Uhr" : ""}
                       </p>
                     </div>
                     <button
@@ -513,14 +515,14 @@ export default function DashboardPage() {
                       disabled={clockLoading}
                       className="w-full bg-error hover:bg-red-700 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
-                      {clockLoading ? "Wird verarbeitet..." : "Schicht Beenden (Ausstempeln)"}
+                      {clockLoading ? (language === "de" ? "Wird verarbeitet..." : "Processing...") : t("clockOutButton")}
                     </button>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <label className="block text-xs font-bold text-[#cbd5e1] uppercase tracking-wider">
-                        Lager auswählen
+                        {t("selectWarehouse")}
                       </label>
                       <select
                         value={clockInWarehouseId}
@@ -530,7 +532,7 @@ export default function DashboardPage() {
                         }}
                         className="w-full bg-[#0f1117] border border-[#334155] rounded-lg px-3 py-2.5 text-body-sm text-white focus:border-secondary outline-none transition-colors"
                       >
-                        <option value="">Lager wählen...</option>
+                        <option value="">{t("chooseWarehousePlaceholder")}</option>
                         {allWarehouses.map((wh) => (
                           <option key={wh.id} value={wh.id}>{wh.name}</option>
                         ))}
@@ -539,7 +541,7 @@ export default function DashboardPage() {
 
                     <div className="space-y-2">
                       <label className="block text-xs font-bold text-[#cbd5e1] uppercase tracking-wider">
-                        Halle auswählen
+                        {t("selectHall")}
                       </label>
                       <select
                         value={clockInHallId}
@@ -547,7 +549,7 @@ export default function DashboardPage() {
                         disabled={!clockInWarehouseId}
                         className="w-full bg-[#0f1117] border border-[#334155] disabled:opacity-50 rounded-lg px-3 py-2.5 text-body-sm text-white focus:border-secondary outline-none transition-colors"
                       >
-                        <option value="">Halle wählen...</option>
+                        <option value="">{t("chooseHallPlaceholder")}</option>
                         {allHalls
                           .filter((h) => h.warehouseId === clockInWarehouseId)
                           .map((hall) => (
@@ -561,7 +563,7 @@ export default function DashboardPage() {
                       disabled={clockLoading || !clockInWarehouseId || !clockInHallId}
                       className="w-full bg-secondary hover:bg-secondary/90 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
-                      {clockLoading ? "Wird verarbeitet..." : "Schicht Starten (Einstempeln)"}
+                      {clockLoading ? (language === "de" ? "Wird verarbeitet..." : "Processing...") : t("clockInButton")}
                     </button>
                   </div>
                 )}
@@ -570,19 +572,19 @@ export default function DashboardPage() {
               {/* Hours Summary Statistics */}
               <div className="bg-surface-container-lowest border border-outline-variant p-stack-md rounded-xl shadow-sm space-y-4">
                 <h4 className="font-bold text-body-lg text-on-surface flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-secondary" /> Arbeitsstunden
+                  <TrendingUp className="w-5 h-5 text-secondary" /> {t("workHours")}
                 </h4>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div className="bg-surface-container-low border border-outline-variant rounded-lg p-2.5">
-                    <p className="text-[10px] text-outline uppercase tracking-wider font-bold">Heute</p>
+                    <p className="text-[10px] text-outline uppercase tracking-wider font-bold">{t("today")}</p>
                     <p className="text-headline-sm font-black text-on-surface mt-1">{employeeSummary?.hoursSummary?.today || 0}h</p>
                   </div>
                   <div className="bg-surface-container-low border border-outline-variant rounded-lg p-2.5">
-                    <p className="text-[10px] text-outline uppercase tracking-wider font-bold">Woche</p>
+                    <p className="text-[10px] text-outline uppercase tracking-wider font-bold">{t("thisWeek")}</p>
                     <p className="text-headline-sm font-black text-secondary mt-1">{employeeSummary?.hoursSummary?.week || 0}h</p>
                   </div>
                   <div className="bg-surface-container-low border border-outline-variant rounded-lg p-2.5">
-                    <p className="text-[10px] text-outline uppercase tracking-wider font-bold">Monat</p>
+                    <p className="text-[10px] text-outline uppercase tracking-wider font-bold">{t("thisMonth")}</p>
                     <p className="text-headline-sm font-black text-on-surface mt-1">{employeeSummary?.hoursSummary?.month || 0}h</p>
                   </div>
                 </div>
@@ -591,24 +593,32 @@ export default function DashboardPage() {
               {/* Personal Profile Details Card */}
               <div className="bg-surface-container-lowest border border-outline-variant p-stack-md rounded-xl shadow-sm space-y-4">
                 <h4 className="font-bold text-body-lg text-on-surface flex items-center gap-2">
-                  <User className="w-5 h-5 text-secondary" /> Profil Details
+                  <User className="w-5 h-5 text-secondary" /> {t("profileDetails")}
                 </h4>
                 <div className="divide-y divide-outline-variant text-body-sm text-on-surface-variant">
                   <div className="py-2.5 flex justify-between">
-                    <span className="text-outline">Benutzername</span>
+                    <span className="text-outline">{t("usernameLabel")}</span>
                     <span className="font-semibold text-on-surface font-mono">{employeeInfo?.username}</span>
                   </div>
                   <div className="py-2.5 flex justify-between">
-                    <span className="text-outline">Telefon</span>
+                    <span className="text-outline">{t("employmentStart")}</span>
+                    <span className="font-semibold text-on-surface">
+                      {employeeSummary?.employmentStart 
+                        ? new Date(employeeSummary.employmentStart).toLocaleDateString(language === "de" ? "de-DE" : "en-CA") 
+                        : "—"}
+                    </span>
+                  </div>
+                  <div className="py-2.5 flex justify-between">
+                    <span className="text-outline">{t("phone")}</span>
                     <span className="font-semibold text-on-surface">{employeeInfo?.phone}</span>
                   </div>
                   <div className="py-2.5 flex justify-between">
-                    <span className="text-outline">E-Mail</span>
-                    <span className="font-semibold text-on-surface">{employeeInfo?.email || "N/A"}</span>
+                    <span className="text-outline">{t("email")}</span>
+                    <span className="font-semibold text-on-surface">{employeeInfo?.email || "—"}</span>
                   </div>
                   <div className="py-2.5 flex justify-between">
-                    <span className="text-outline">Telegram ID</span>
-                    <span className="font-semibold text-on-surface">{employeeInfo?.telegramId || "N/A"}</span>
+                    <span className="text-outline">{t("telegramId")}</span>
+                    <span className="font-semibold text-on-surface">{employeeInfo?.telegramId || "—"}</span>
                   </div>
                 </div>
               </div>
@@ -622,13 +632,13 @@ export default function DashboardPage() {
               <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden">
                 <div className="p-stack-md border-b border-outline-variant bg-surface-container-low">
                   <h5 className="font-bold text-body-lg text-on-surface flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-secondary" /> Aktive Schichtpläne (Heute)
+                    <Calendar className="w-5 h-5 text-secondary" /> {t("activeShiftPlansToday")}
                   </h5>
                 </div>
                 <div className="divide-y divide-outline-variant">
                   {!employeeSummary?.plansToday || employeeSummary.plansToday.length === 0 ? (
                     <div className="p-stack-lg text-center text-outline">
-                      <p className="text-body-sm">Keine Schichten für heute geplant.</p>
+                      <p className="text-body-sm">{t("noShiftsToday")}</p>
                     </div>
                   ) : (
                     employeeSummary.plansToday.map((p: any) => (
@@ -639,15 +649,15 @@ export default function DashboardPage() {
                           </span>
                           <div className="flex flex-wrap gap-3 mt-1 text-[11px] text-outline">
                             <span className="flex items-center gap-1 font-mono text-secondary-container bg-secondary-container/10 px-1 py-0.5 rounded font-bold">
-                              {new Date(p.date).toLocaleDateString('de-DE')}
+                              {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
                             </span>
                             <span className="flex items-center gap-1">
                               <Users className="w-3.5 h-3.5" />
-                              {p.assignedEmployees?.length || 0} Mitarbeiter
+                              {p.assignedEmployees?.length || 0} {language === "de" ? "Mitarbeiter" : "Staff Assigned"}
                             </span>
                             <span className="flex items-center gap-1">
                               <Package className="w-3.5 h-3.5" />
-                              {p.assignedContainers?.length || 0} Container
+                              {p.assignedContainers?.length || 0} {language === "de" ? "Container" : "Containers"}
                             </span>
                           </div>
                         </div>
@@ -655,7 +665,7 @@ export default function DashboardPage() {
                           onClick={() => setSelectedPlanForView(p)}
                           className="px-3.5 py-1.5 bg-secondary text-white hover:bg-secondary-container rounded-lg text-xs font-bold uppercase tracking-wider text-center transition-colors shadow-sm self-start sm:self-center"
                         >
-                          Details anzeigen
+                          {t("viewDetails")}
                         </button>
                       </div>
                     ))
@@ -667,13 +677,13 @@ export default function DashboardPage() {
               <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden">
                 <div className="p-stack-md border-b border-outline-variant bg-surface-container-low">
                   <h5 className="font-bold text-body-lg text-on-surface flex items-center gap-2">
-                    <History className="w-5 h-5 text-secondary" /> Plan-Verlauf (Vergangene Schichten)
+                    <History className="w-5 h-5 text-secondary" /> {t("shiftHistory")}
                   </h5>
                 </div>
                 <div className="divide-y divide-outline-variant">
                   {!employeeSummary?.plansHistory || employeeSummary.plansHistory.length === 0 ? (
                     <div className="p-stack-lg text-center text-outline">
-                      <p className="text-body-sm">Keine vergangenen Schichten aufgezeichnet.</p>
+                      <p className="text-body-sm">{t("noPastShifts")}</p>
                     </div>
                   ) : (
                     employeeSummary.plansHistory.slice(0, 5).map((p: any) => (
@@ -683,15 +693,15 @@ export default function DashboardPage() {
                             {p.warehouseName} — {p.hallName}
                           </span>
                           <div className="flex flex-wrap gap-3 mt-1 text-[11px] text-outline">
-                            <span className="font-mono">{new Date(p.date).toLocaleDateString('de-DE')}</span>
-                            <span>{p.assignedContainers?.length || 0} Container bearbeitet</span>
+                            <span className="font-mono">{new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}</span>
+                            <span>{p.assignedContainers?.length || 0} {language === "de" ? "Container bearbeitet" : "Containers processed"}</span>
                           </div>
                         </div>
                         <button
                           onClick={() => setSelectedPlanForView(p)}
                           className="px-3 py-1.5 border border-outline-variant hover:border-secondary hover:text-secondary rounded-lg text-xs font-bold uppercase tracking-wider text-center transition-colors self-start sm:self-center"
                         >
-                          Details
+                          {t("details")}
                         </button>
                       </div>
                     ))
@@ -703,33 +713,33 @@ export default function DashboardPage() {
               <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden">
                 <div className="p-stack-md border-b border-outline-variant bg-surface-container-low">
                   <h5 className="font-bold text-body-lg text-on-surface flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-secondary" /> Stundenzettel & Arbeitsnachweis
+                    <FileText className="w-5 h-5 text-secondary" /> {t("timesheetsTitle")}
                   </h5>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-surface-container-low border-b border-outline-variant text-[#cbd5e1]">
-                        <th className="p-3.5 font-semibold">Datum</th>
-                        <th className="p-3.5 font-semibold">Lager</th>
-                        <th className="p-3.5 font-semibold">Eingestempelt</th>
-                        <th className="p-3.5 font-semibold">Ausgestempelt</th>
-                        <th className="p-3.5 font-semibold text-right">Gesamtstunden</th>
+                        <th className="p-3.5 font-semibold">{t("date")}</th>
+                        <th className="p-3.5 font-semibold">{t("warehouse")}</th>
+                        <th className="p-3.5 font-semibold">{t("clockedIn")}</th>
+                        <th className="p-3.5 font-semibold">{t("clockedOut")}</th>
+                        <th className="p-3.5 font-semibold text-right">{t("totalHours")}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-outline-variant text-[#94a3b8]">
                       {!employeeSummary?.workHistory || employeeSummary.workHistory.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="p-4 text-center">Kein Arbeitsnachweis vorhanden.</td>
+                          <td colSpan={5} className="p-4 text-center">{t("noAttendanceLogs")}</td>
                         </tr>
                       ) : (
                         employeeSummary.workHistory.map((r: any) => (
                           <tr key={r.id} className="hover:bg-surface-bright transition-colors">
-                            <td className="p-3.5 font-mono text-on-surface">{new Date(r.date).toLocaleDateString('de-DE')}</td>
+                            <td className="p-3.5 font-mono text-on-surface">{new Date(r.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}</td>
                             <td className="p-3.5">{r.warehouseName} — {r.hallName}</td>
                             <td className="p-3.5 font-mono">{new Date(r.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                             <td className="p-3.5 font-mono">{r.clockOut ? new Date(r.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "—"}</td>
-                            <td className="p-3.5 font-mono text-right text-white font-bold">{r.totalHours ? `${r.totalHours}h` : "Schicht aktiv"}</td>
+                            <td className="p-3.5 font-mono text-right text-white font-bold">{r.totalHours ? `${r.totalHours}h` : t("activeShiftLabel")}</td>
                           </tr>
                         ))
                       )}
@@ -748,17 +758,17 @@ export default function DashboardPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h3 className="font-headline-lg font-bold text-on-surface">
-                {userRole === "MANAGER" ? "Manager Dashboard" : "Operational Dashboard"}
+                {userRole === "MANAGER" ? t("roleManager") + " Dashboard" : t("operationalDashboard")}
               </h3>
               <p className="text-on-surface-variant font-body-sm">
-                Status overview for current shifts across all locations.
+                {t("statusOverview")}
               </p>
             </div>
 
             {isOffline && (
               <div className="bg-tertiary-container text-on-tertiary-container border border-on-tertiary-container/20 px-3.5 py-1.5 rounded-lg flex items-center gap-2 text-label-md max-w-fit shadow-sm">
                 <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
-                <span>Sandbox Mode — Running with offline mock databases</span>
+                <span>{t("sandboxMode")}</span>
               </div>
             )}
           </div>
@@ -775,7 +785,7 @@ export default function DashboardPage() {
                 </span>
               </div>
               <p className="text-outline font-label-md uppercase tracking-wider text-[10px] font-semibold">
-                Total Employees
+                {t("totalEmployees")}
               </p>
               <h4 className="text-headline-md font-black mt-1 font-mono text-on-surface">
                 {metrics.employeesCount}
@@ -787,11 +797,11 @@ export default function DashboardPage() {
               <div className="flex justify-between items-start mb-2">
                 <Activity className="w-6 h-6 text-secondary" />
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-secondary-container text-white flex items-center gap-1 animate-pulse">
-                  <span className="w-1.5 h-1.5 bg-white rounded-full"></span> Live
+                  <span className="w-1.5 h-1.5 bg-white rounded-full"></span> {t("live")}
                 </span>
               </div>
               <p className="text-outline font-label-md uppercase tracking-wider text-[10px] font-semibold">
-                Active Today
+                {t("activeToday")}
               </p>
               <h4 className="text-headline-md font-black mt-1 font-mono text-secondary">
                 {metrics.activeTodayCount}
@@ -804,7 +814,7 @@ export default function DashboardPage() {
                 <Package className="w-6 h-6 text-outline" />
               </div>
               <p className="text-outline font-label-md uppercase tracking-wider text-[10px] font-semibold">
-                Total Containers
+                {t("totalContainers")}
               </p>
               <h4 className="text-headline-md font-black mt-1 font-mono text-on-surface">
                 {metrics.containersCount}
@@ -817,7 +827,7 @@ export default function DashboardPage() {
                 <Grid className="w-6 h-6 text-outline" />
               </div>
               <p className="text-outline font-label-md uppercase tracking-wider text-[10px] font-semibold">
-                Active Halls
+                {t("activeHalls")}
               </p>
               <h4 className="text-headline-md font-black mt-1 font-mono text-on-surface">
                 {metrics.hallsCount}
@@ -828,7 +838,7 @@ export default function DashboardPage() {
           {/* Quick Operations Section */}
           <div className="space-y-stack-md">
             <h6 className="font-label-md text-outline uppercase tracking-wider text-[11px] font-semibold">
-              Quick Operations
+              {t("quickOperations")}
             </h6>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-stack-md">
               <Link
@@ -839,8 +849,8 @@ export default function DashboardPage() {
                   <PlusCircle className="w-6 h-6" />
                 </div>
                 <div>
-                  <span className="font-bold text-on-surface block text-body-md">Create Plan</span>
-                  <span className="text-[12px] text-outline">Assign shifts and slots</span>
+                  <span className="font-bold text-on-surface block text-body-md">{t("createNewPlan")}</span>
+                  <span className="text-[12px] text-outline">{t("createPlanDesc")}</span>
                 </div>
               </Link>
 
@@ -852,8 +862,8 @@ export default function DashboardPage() {
                   <UploadCloud className="w-6 h-6" />
                 </div>
                 <div>
-                  <span className="font-bold text-on-surface block text-body-md">Upload OCR</span>
-                  <span className="text-[12px] text-outline">Extract shipping papers</span>
+                  <span className="font-bold text-on-surface block text-body-md">{t("ocrUpload")}</span>
+                  <span className="text-[12px] text-outline">{t("ocrDesc")}</span>
                 </div>
               </Link>
 
@@ -865,8 +875,8 @@ export default function DashboardPage() {
                   <Package className="w-6 h-6" />
                 </div>
                 <div>
-                  <span className="font-bold text-on-surface block text-body-md">Containers</span>
-                  <span className="text-[12px] text-outline">List shipping status</span>
+                  <span className="font-bold text-on-surface block text-body-md">{t("containers")}</span>
+                  <span className="text-[12px] text-outline">{t("containersDesc")}</span>
                 </div>
               </Link>
 
@@ -878,8 +888,8 @@ export default function DashboardPage() {
                   <Users className="w-6 h-6" />
                 </div>
                 <div>
-                  <span className="font-bold text-on-surface block text-body-md">Staff Directory</span>
-                  <span className="text-[12px] text-outline">Active employee list</span>
+                  <span className="font-bold text-on-surface block text-body-md">{t("employees")}</span>
+                  <span className="text-[12px] text-outline">{t("staffDesc")}</span>
                 </div>
               </Link>
             </div>
@@ -894,7 +904,7 @@ export default function DashboardPage() {
                 <div className="p-stack-md border-b border-outline-variant flex flex-col sm:flex-row justify-between sm:items-center bg-surface-container-low gap-3">
                   <h5 className="font-bold text-body-lg text-on-surface flex items-center gap-2">
                     <Calendar className="w-5 h-5 text-secondary" />
-                    Shift Plans {showAllPlans ? "(All)" : `(${selectedDate})`}
+                    {t("shiftPlans")} {showAllPlans ? `(${t("showingAll")})` : `(${selectedDate})`}
                   </h5>
                   
                   <div className="flex flex-wrap items-center gap-2">
@@ -915,14 +925,14 @@ export default function DashboardPage() {
                           : "bg-white text-secondary border-outline-variant hover:bg-surface-container-low"
                       }`}
                     >
-                      {showAllPlans ? "Showing All" : "Show All Plans"}
+                      {showAllPlans ? t("showingAll") : t("showAllPlans")}
                     </button>
 
                     <Link
                       href="/planning"
                       className="bg-secondary text-white px-3 py-1 rounded text-xs font-bold hover:bg-secondary-container transition-all flex items-center gap-1"
                     >
-                      Create New <PlusCircle className="w-3.5 h-3.5" />
+                      {t("createNewPlan")} <PlusCircle className="w-3.5 h-3.5" />
                     </Link>
                   </div>
                 </div>
@@ -931,20 +941,20 @@ export default function DashboardPage() {
                 {selectedPlanIds.length > 0 && (
                   <div className="bg-error-container/20 border-b border-error-container px-stack-md py-2.5 flex justify-between items-center text-xs animate-fadeIn">
                     <span className="text-error font-medium flex items-center gap-1">
-                      <Trash2 className="w-4 h-4" /> {selectedPlanIds.length} plans selected
+                      <Trash2 className="w-4 h-4" /> {selectedPlanIds.length} {language === "de" ? "Pläne ausgewählt" : "plans selected"}
                     </span>
                     <div className="flex gap-2">
                       <button
                         onClick={() => setSelectedPlanIds([])}
                         className="text-on-surface hover:underline font-bold px-2 py-1"
                       >
-                        Clear
+                        {t("clear")}
                       </button>
                       <button
                         onClick={handleBulkDeletePlans}
                         className="bg-error text-white px-3 py-1 rounded font-bold hover:bg-red-700 transition-colors shadow-sm"
                       >
-                        Delete Selected
+                        {t("bulkDeleteSelected")}
                       </button>
                     </div>
                   </div>
@@ -959,7 +969,7 @@ export default function DashboardPage() {
                     {plans.length === 0 ? (
                       <div className="p-stack-lg text-center text-outline">
                         <AlertTriangle className="w-10 h-10 mx-auto mb-2 opacity-50 text-amber-500" />
-                        <p className="text-body-sm font-medium">No plans configured.</p>
+                        <p className="text-body-sm font-medium">{t("noPlansConfigured")}</p>
                       </div>
                     ) : (
                       plans.map((p) => (
@@ -1004,15 +1014,15 @@ export default function DashboardPage() {
                               </span>
                               <div className="flex flex-wrap gap-3 mt-1 text-[12px] text-outline">
                                 <span className="font-mono text-secondary-container bg-secondary-container/10 px-1.5 py-0.5 rounded font-bold">
-                                  {new Date(p.date).toLocaleDateString('en-CA')}
+                                  {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
                                 </span>
                                 <span className="flex items-center gap-1">
                                   <Users className="w-3.5 h-3.5" />
-                                  {p.assignedEmployees?.length || 0} Staff Assigned
+                                  {p.assignedEmployees?.length || 0} {language === "de" ? "Mitarbeiter zugeteilt" : "Staff Assigned"}
                                 </span>
                                 <span className="flex items-center gap-1">
                                   <Package className="w-3.5 h-3.5" />
-                                  {p.assignedContainers?.length || 0} Containers Routed
+                                  {p.assignedContainers?.length || 0} {language === "de" ? "Container geleitet" : "Containers Routed"}
                                 </span>
                               </div>
                             </div>
@@ -1025,14 +1035,14 @@ export default function DashboardPage() {
                               }}
                               className="px-3.5 py-1.5 bg-secondary text-white hover:bg-secondary-container rounded-lg text-xs font-bold uppercase tracking-wider text-center transition-colors shadow-sm"
                             >
-                              View Details
+                              {t("viewDetails")}
                             </button>
                             <Link
                               href={`/planning?date=${p.date.split("T")[0]}&warehouseId=${p.warehouseId}&hallId=${p.hallId}`}
                               onClick={(e) => e.stopPropagation()}
                               className="px-3.5 py-1.5 border border-outline-variant hover:border-secondary hover:text-secondary rounded-lg text-xs font-bold uppercase tracking-wider text-center transition-colors"
                             >
-                              Manage Plan
+                              {t("managePlan")}
                             </Link>
                           </div>
                         </div>
@@ -1050,21 +1060,21 @@ export default function DashboardPage() {
                   <div>
                     <div className="p-stack-md border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
                       <h5 className="font-bold text-body-lg text-on-surface flex items-center gap-2">
-                        <Shield className="w-5 h-5 text-secondary" /> Audit & Activity Logs
+                        <Shield className="w-5 h-5 text-secondary" /> {t("auditActivityLogs")}
                       </h5>
                       <Link href="/reports" className="text-secondary text-label-md font-bold hover:underline flex items-center gap-1">
-                        Reports <ArrowRight className="w-3.5 h-3.5" />
+                        {t("reports")} <ArrowRight className="w-3.5 h-3.5" />
                       </Link>
                     </div>
                     
                     <div className="p-4 space-y-4 max-h-[500px] overflow-y-auto divide-y divide-outline-variant">
                       <div>
                         <p className="text-xs text-outline uppercase tracking-wider font-bold mb-2.5 flex items-center gap-1.5 text-secondary">
-                          <Users className="w-3.5 h-3.5" /> Employee Activity
+                          <Users className="w-3.5 h-3.5" /> {t("employeeActivity")}
                         </p>
                         <div className="space-y-2">
                           {recentActivityLogs.filter(log => ["LOGIN", "LOGOUT", "CLOCK_IN", "CLOCK_OUT"].includes(log.action)).length === 0 ? (
-                            <p className="text-xs text-outline italic">No recent employee activities.</p>
+                            <p className="text-xs text-outline italic">{t("noRecentActivity")}</p>
                           ) : (
                             recentActivityLogs
                               .filter(log => ["LOGIN", "LOGOUT", "CLOCK_IN", "CLOCK_OUT"].includes(log.action))
@@ -1084,11 +1094,11 @@ export default function DashboardPage() {
 
                       <div className="pt-4">
                         <p className="text-xs text-outline uppercase tracking-wider font-bold mb-2.5 flex items-center gap-1.5 text-emerald-400">
-                          <Shield className="w-3.5 h-3.5" /> Admin Activity
+                          <Shield className="w-3.5 h-3.5" /> {t("adminActivity")}
                         </p>
                         <div className="space-y-2">
                           {recentActivityLogs.filter(log => !["LOGIN", "LOGOUT", "CLOCK_IN", "CLOCK_OUT"].includes(log.action)).length === 0 ? (
-                            <p className="text-xs text-outline italic">No recent admin activities.</p>
+                            <p className="text-xs text-outline italic">{t("noRecentActivity")}</p>
                           ) : (
                             recentActivityLogs
                               .filter(log => !["LOGIN", "LOGOUT", "CLOCK_IN", "CLOCK_OUT"].includes(log.action))
@@ -1114,21 +1124,21 @@ export default function DashboardPage() {
                 <div className="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden shadow-sm flex flex-col justify-between">
                   <div>
                     <div className="p-stack-md border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
-                      <h5 className="font-bold text-body-lg text-on-surface">Recent System Events</h5>
+                      <h5 className="font-bold text-body-lg text-on-surface">{language === "de" ? "Aktuelle Systemereignisse" : "Recent System Events"}</h5>
                       <span className="text-[10px] bg-secondary-container px-2 py-0.5 rounded font-bold text-white uppercase tracking-wider">Operational</span>
                     </div>
                     <div className="divide-y divide-outline-variant">
                       <div className="px-stack-md py-3.5 flex justify-between items-center hover:bg-surface-bright transition-colors">
                         <div className="flex flex-col">
-                          <span className="text-body-sm font-medium text-on-surface">Plan processed for Duisburg</span>
-                          <span className="text-[10px] text-outline uppercase tracking-wider font-mono mt-0.5">System • Just Now</span>
+                          <span className="text-body-sm font-medium text-on-surface">{language === "de" ? "Plan für Duisburg verarbeitet" : "Plan processed for Duisburg"}</span>
+                          <span className="text-[10px] text-outline uppercase tracking-wider font-mono mt-0.5">System • {language === "de" ? "Gerade eben" : "Just Now"}</span>
                         </div>
-                        <span className="px-2 py-0.5 bg-emerald-900/30 text-emerald-400 rounded text-[10px] font-bold uppercase tracking-wider font-mono">Success</span>
+                        <span className="px-2 py-0.5 bg-emerald-900/30 text-emerald-400 rounded text-[10px] font-bold uppercase tracking-wider font-mono">{t("success")}</span>
                       </div>
                       <div className="px-stack-md py-3.5 flex justify-between items-center hover:bg-surface-bright transition-colors">
                         <div className="flex flex-col">
-                          <span className="text-body-sm font-medium text-on-surface">New Employee Added</span>
-                          <span className="text-[10px] text-outline uppercase tracking-wider font-mono mt-0.5">Admin • 1h ago</span>
+                          <span className="text-body-sm font-medium text-on-surface">{language === "de" ? "Neuer Mitarbeiter hinzugefügt" : "New Employee Added"}</span>
+                          <span className="text-[10px] text-outline uppercase tracking-wider font-mono mt-0.5">Admin • {language === "de" ? "vor 1 Std." : "1h ago"}</span>
                         </div>
                         <span className="px-2 py-0.5 bg-blue-900/30 text-blue-400 rounded text-[10px] font-bold uppercase tracking-wider font-mono">Audit</span>
                       </div>
@@ -1150,9 +1160,9 @@ export default function DashboardPage() {
             {/* Modal Header */}
             <div className="px-6 py-4 bg-[#0f1117] border-b border-[#334155] flex justify-between items-center">
               <div>
-                <h4 className="font-bold text-body-lg text-white">Daily Shift Details</h4>
+                <h4 className="font-bold text-body-lg text-white">{t("shiftDetailsModalTitle")}</h4>
                 <p className="text-xs text-[#94a3b8] mt-0.5">
-                  Location Assignment & Container Routing
+                  {t("shiftDetailsSubtitle")}
                 </p>
               </div>
               <button
@@ -1169,17 +1179,17 @@ export default function DashboardPage() {
               {/* Warehouse Details */}
               <div className="grid grid-cols-2 gap-4 bg-[#0f1117]/50 border border-[#334155] p-4 rounded-lg">
                 <div>
-                  <span className="text-[11px] text-[#94a3b8] uppercase tracking-wider block font-bold">Depot Location</span>
+                  <span className="text-[11px] text-[#94a3b8] uppercase tracking-wider block font-bold">{t("depotLocation")}</span>
                   <span className="font-bold text-white text-body-md mt-1 block">{selectedPlanForView.warehouseName}</span>
                 </div>
                 <div>
-                  <span className="text-[11px] text-[#94a3b8] uppercase tracking-wider block font-bold">Staging Hall</span>
+                  <span className="text-[11px] text-[#94a3b8] uppercase tracking-wider block font-bold">{t("stagingHall")}</span>
                   <span className="font-bold text-white text-body-md mt-1 block">{selectedPlanForView.hallName}</span>
                 </div>
                 <div className="col-span-2 mt-2 pt-2 border-t border-[#334155]/60">
-                  <span className="text-[11px] text-[#94a3b8] uppercase tracking-wider block font-bold">Shift Date</span>
+                  <span className="text-[11px] text-[#94a3b8] uppercase tracking-wider block font-bold">{t("shiftDate")}</span>
                   <span className="font-mono text-secondary text-body-md font-bold mt-1 block">
-                    {new Date(selectedPlanForView.date).toLocaleDateString('en-CA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                    {new Date(selectedPlanForView.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                   </span>
                 </div>
               </div>
@@ -1187,21 +1197,21 @@ export default function DashboardPage() {
               {/* Staff Roster */}
               <div className="space-y-2.5">
                 <h5 className="font-bold text-body-md text-white flex items-center gap-2">
-                  <Users className="w-4 h-4 text-secondary" /> Assigned Staff ({selectedPlanForView.assignedEmployees?.length || 0})
+                  <Users className="w-4 h-4 text-secondary" /> {t("assignedStaff")} ({selectedPlanForView.assignedEmployees?.length || 0})
                 </h5>
                 <div className="bg-[#0f1117] border border-[#334155] rounded-lg overflow-hidden">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-[#1e293b]/50 border-b border-[#334155] text-[#94a3b8]">
-                        <th className="p-3 font-semibold">Name</th>
-                        <th className="p-3 font-semibold">Role</th>
-                        <th className="p-3 font-semibold">Phone</th>
+                        <th className="p-3 font-semibold">{t("nameColumn")}</th>
+                        <th className="p-3 font-semibold">{t("roleColumn")}</th>
+                        <th className="p-3 font-semibold">{t("phone")}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#334155]">
                       {!selectedPlanForView.assignedEmployees || selectedPlanForView.assignedEmployees.length === 0 ? (
                         <tr>
-                          <td colSpan={3} className="p-4 text-center text-[#64748b]">No staff assigned to this shift plan.</td>
+                          <td colSpan={3} className="p-4 text-center text-[#64748b]">{t("noStaffAssigned")}</td>
                         </tr>
                       ) : (
                         selectedPlanForView.assignedEmployees.map((emp, idx) => (
@@ -1212,7 +1222,7 @@ export default function DashboardPage() {
                                 {emp.role}
                               </span>
                             </td>
-                            <td className="p-3 font-mono text-[#cbd5e1]">{emp.phone || "N/A"}</td>
+                            <td className="p-3 font-mono text-[#cbd5e1]">{emp.phone || "—"}</td>
                           </tr>
                         ))
                       )}
@@ -1224,20 +1234,20 @@ export default function DashboardPage() {
               {/* Container Queue */}
               <div className="space-y-2.5">
                 <h5 className="font-bold text-body-md text-white flex items-center gap-2">
-                  <Package className="w-4 h-4 text-secondary" /> Routed Containers ({selectedPlanForView.assignedContainers?.length || 0})
+                  <Package className="w-4 h-4 text-secondary" /> {t("routedContainers")} ({selectedPlanForView.assignedContainers?.length || 0})
                 </h5>
                 <div className="bg-[#0f1117] border border-[#334155] rounded-lg overflow-hidden">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-[#1e293b]/50 border-b border-[#334155] text-[#94a3b8]">
-                        <th className="p-3 font-semibold">Container Number</th>
+                        <th className="p-3 font-semibold">{t("containerNumber")}</th>
                         <th className="p-3 font-semibold">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#334155]">
                       {!selectedPlanForView.assignedContainers || selectedPlanForView.assignedContainers.length === 0 ? (
                         <tr>
-                          <td colSpan={2} className="p-4 text-center text-[#64748b]">No containers routed in this shift.</td>
+                          <td colSpan={2} className="p-4 text-center text-[#64748b]">{t("noContainersRouted")}</td>
                         </tr>
                       ) : (
                         selectedPlanForView.assignedContainers.map((c, idx) => (
@@ -1267,20 +1277,20 @@ export default function DashboardPage() {
                 onClick={() => setSelectedPlanForView(null)}
                 className="px-4 py-2 border border-[#334155] hover:bg-[#1e293b] text-[#cbd5e1] hover:text-white rounded-lg text-sm transition-colors"
               >
-                Close
+                {t("close")}
               </button>
               <div className="flex gap-2">
                 <button
                   onClick={() => handleExportCSV(selectedPlanForView)}
                   className="px-4 py-2 bg-secondary/20 border border-secondary/30 hover:bg-secondary/35 text-secondary hover:text-white rounded-lg text-sm font-semibold flex items-center gap-1.5 transition-colors"
                 >
-                  <Download className="w-4 h-4" /> Export CSV
+                  <Download className="w-4 h-4" /> {t("exportCsv")}
                 </button>
                 <button
                   onClick={() => window.print()}
                   className="px-4 py-2 bg-secondary hover:bg-secondary-container text-white rounded-lg text-sm font-semibold flex items-center gap-1.5 transition-colors"
                 >
-                  <Printer className="w-4 h-4" /> Print Plan
+                  <Printer className="w-4 h-4" /> {t("printPlan")}
                 </button>
               </div>
             </div>
@@ -1293,7 +1303,7 @@ export default function DashboardPage() {
         <div className="hidden print:block print:p-8 bg-white text-black min-h-screen">
           <h1 className="text-2xl font-bold border-b pb-2 mb-4">LogiFlow Shift Operations Plan</h1>
           <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-            <div><strong>Date:</strong> {new Date(selectedPlanForView.date).toLocaleDateString('en-CA')}</div>
+            <div><strong>Date:</strong> {new Date(selectedPlanForView.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}</div>
             <div><strong>Depot Location:</strong> {selectedPlanForView.warehouseName}</div>
             <div><strong>Staging Area:</strong> {selectedPlanForView.hallName}</div>
           </div>
@@ -1312,7 +1322,7 @@ export default function DashboardPage() {
                 <tr key={idx} className="border-b border-black">
                   <td className="py-2 font-medium">{emp.name}</td>
                   <td className="py-2">{emp.role}</td>
-                  <td className="py-2">{emp.phone || "N/A"}</td>
+                  <td className="py-2">{emp.phone || "—"}</td>
                 </tr>
               ))}
             </tbody>

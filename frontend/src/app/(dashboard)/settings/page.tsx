@@ -2,9 +2,11 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Settings, Bell, Shield, MessageSquare, AlertTriangle, CheckCircle, Info } from "lucide-react";
+import { Settings, Bell, Shield, MessageSquare, AlertTriangle, CheckCircle, Info, Globe } from "lucide-react";
+import { useTranslation } from "../../i18n/LanguageContext";
 
 export default function SettingsPage() {
+  const { t, language, changeLanguage } = useTranslation();
   const [apiEndpoint, setApiEndpoint] = useState(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}`);
   const [broadcastMessage, setBroadcastMessage] = useState("LogiFlow system maintenance tonight at 22:00 CET.");
   
@@ -70,31 +72,53 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="space-y-stack-lg animate-fadeIn max-w-4xl">
+    <div className="space-y-stack-lg animate-fadeIn max-w-4xl text-on-background">
       <div>
-        <h3 className="font-headline-lg font-bold text-on-surface">System Control Settings</h3>
+        <h3 className="font-headline-lg font-bold text-on-surface">{t("systemControlSettings")}</h3>
         <p className="text-on-surface-variant font-body-sm">
-          Manage system configurations, API connections, and issue Telegram notifications.
+          {t("settingsSubtitle")}
         </p>
       </div>
 
       {isOffline && (
         <div className="bg-tertiary-container text-on-tertiary-container border border-on-tertiary-container/20 px-3.5 py-2 rounded-lg flex items-center gap-2 text-label-md">
           <AlertTriangle className="w-5 h-5 shrink-0 text-amber-500" />
-          <span>Offline mock active. Notification triggers will run on simulated targets.</span>
+          <span>{t("sandboxMode")}</span>
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-stack-md">
+        
+        {/* Language Selection Card */}
+        <div className="bg-white border border-outline-variant p-stack-md rounded-lg shadow-sm space-y-4">
+          <h5 className="font-bold text-body-lg flex items-center gap-2 text-on-surface">
+            <Globe className="w-5 h-5 text-secondary" /> {t("languageSelection")}
+          </h5>
+          
+          <div className="space-y-2">
+            <label className="block text-[11px] font-bold text-outline uppercase tracking-wider">
+              {t("languageSelectLabel")}
+            </label>
+            <select
+              value={language}
+              onChange={(e) => changeLanguage(e.target.value as any)}
+              className="w-full bg-surface-container-low border border-outline-variant rounded-lg px-3 py-2.5 text-body-sm outline-none focus:ring-1 focus:ring-secondary focus:border-transparent font-medium"
+            >
+              <option value="de">{t("german")}</option>
+              <option value="en">{t("english")}</option>
+            </select>
+          </div>
+        </div>
+
         {/* API Settings */}
         <div className="bg-white border border-outline-variant p-stack-md rounded-lg shadow-sm space-y-4">
-          <h5 className="font-bold text-body-lg flex items-center gap-2">
-            <Shield className="w-5 h-5 text-secondary" /> Connection Configuration
+          <h5 className="font-bold text-body-lg flex items-center gap-2 text-on-surface">
+            <Shield className="w-5 h-5 text-secondary" /> {t("connectionConfig")}
           </h5>
           
           <div className="space-y-1.5">
             <label className="block text-[11px] font-bold text-outline uppercase tracking-wider">
-              Backend Endpoint URL
+              {t("backendEndpoint")}
             </label>
             <input
               type="text"
@@ -106,20 +130,20 @@ export default function SettingsPage() {
 
           <div className="text-[12px] text-outline flex items-start gap-1.5 bg-surface-container-low p-2.5 rounded border border-outline-variant">
             <Info className="w-4 h-4 shrink-0 text-secondary mt-0.5" />
-            <span>This defaults to your local NestJS workspace API. Toggling does not require rebuilds.</span>
+            <span>{t("connectionTip")}</span>
           </div>
         </div>
 
         {/* Telegram broadcast panel */}
-        <div className="bg-white border border-outline-variant p-stack-md rounded-lg shadow-sm space-y-4">
-          <h5 className="font-bold text-body-lg flex items-center gap-2">
-            <Bell className="w-5 h-5 text-secondary" /> Telegram Emergency Alert
+        <div className="bg-white border border-outline-variant p-stack-md rounded-lg shadow-sm space-y-4 md:col-span-2">
+          <h5 className="font-bold text-body-lg flex items-center gap-2 text-on-surface">
+            <Bell className="w-5 h-5 text-secondary" /> {t("emergencyAlert")}
           </h5>
 
           <form onSubmit={handleBroadcast} className="space-y-3">
             <div className="space-y-1.5">
               <label className="block text-[11px] font-bold text-outline uppercase tracking-wider">
-                Broadcast Alert Message
+                {t("broadcastMessageLabel")}
               </label>
               <textarea
                 value={broadcastMessage}
@@ -132,9 +156,9 @@ export default function SettingsPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="bg-secondary hover:bg-secondary/90 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 cursor-pointer text-body-sm"
+              className="bg-secondary hover:bg-secondary/90 disabled:opacity-50 text-white font-bold px-4 py-2.5 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 cursor-pointer text-body-sm"
             >
-              <MessageSquare className="w-4 h-4" /> Trigger Emergency Alert
+              <MessageSquare className="w-4 h-4" /> {t("triggerAlert")}
             </button>
           </form>
         </div>
@@ -155,7 +179,7 @@ export default function SettingsPage() {
             <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-error" />
           )}
           <div>
-            <p className="font-bold">{toast.type === "success" ? "Alert Sent" : "Request Failed"}</p>
+            <p className="font-bold">{toast.type === "success" ? t("success") : t("errorOccurred")}</p>
             <p className="text-[13px] opacity-90">{toast.text}</p>
           </div>
         </div>

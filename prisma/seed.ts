@@ -116,6 +116,10 @@ async function main() {
   ];
 
   for (const emp of employeeData) {
+    // Generate different start dates
+    const startOffsetDays = emp.username === 'employee1' ? 120 : 60;
+    const employmentStart = new Date(Date.now() - startOffsetDays * 24 * 3600 * 1000);
+
     const createdEmp = await prisma.user.create({
       data: {
         username: emp.username,
@@ -127,6 +131,7 @@ async function main() {
         hallId: halls[emp.hallIndex].id,
         telegramId: emp.telegramId,
         isActive: true,
+        employmentStart,
       },
     });
     employees.push(createdEmp);
@@ -143,6 +148,7 @@ async function main() {
     'COSU9284710',
   ];
 
+  const createdContainers = [];
   for (let i = 0; i < containerNumbers.length; i++) {
     const container = await prisma.container.create({
       data: {
@@ -153,8 +159,40 @@ async function main() {
         arrivalDate: new Date(Date.now() - i * 24 * 60 * 60 * 1000), // arravial dates spaced out
       },
     });
+    createdContainers.push(container);
     console.log(`Created container ${container.containerNumber} in warehouse ${container.warehouseId}`);
   }
+
+  // 6. Create Sample Shift Plans (with title & description)
+  const planDate = new Date();
+  planDate.setUTCHours(0, 0, 0, 0);
+
+  const plan = await prisma.plan.create({
+    data: {
+      title: 'Morning Unloading & Sorting Shift',
+      description: 'Unload standard cargo containers, inspect quality seals, and route them to designated sectors in Hall A.',
+      date: planDate,
+      warehouseId: warehouses[0].id, // Duisburg
+      hallId: halls[0].id, // Hall A
+    },
+  });
+
+  // Assign employee1 to this plan
+  await prisma.planEmployee.create({
+    data: {
+      planId: plan.id,
+      employeeId: employees[0].id,
+    },
+  });
+
+  // Assign a container to this plan
+  await prisma.planContainer.create({
+    data: {
+      planId: plan.id,
+      containerId: createdContainers[0].id,
+    },
+  });
+  console.log('Created sample shift plan.');
 
   console.log('Seeding database completed successfully!');
 }

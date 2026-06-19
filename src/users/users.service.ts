@@ -65,6 +65,7 @@ export class UsersService {
         warehouseId: createUserDto.warehouseId || null,
         hallId: createUserDto.hallId || null,
         telegramId: createUserDto.telegramId || null,
+        employmentStart: createUserDto.employmentStart ? new Date(createUserDto.employmentStart) : new Date(),
       },
     });
 
@@ -85,13 +86,20 @@ export class UsersService {
     return user;
   }
 
-  async findAll(page = 1, limit = 10, actorRole?: Role) {
+  async findAll(page = 1, limit = 10, actorRole?: Role, targetRole?: Role) {
     const skip = (page - 1) * limit;
     
     // Admin cannot see Manager accounts
     const where: any = { deletedAt: null };
     if (actorRole === Role.ADMIN) {
       where.role = { not: Role.MANAGER };
+    }
+
+    if (targetRole) {
+      if (actorRole === Role.ADMIN && targetRole === Role.MANAGER) {
+        throw new ForbiddenException('Admins cannot view Manager accounts');
+      }
+      where.role = targetRole;
     }
 
     const [total, data] = await this.prisma.$transaction([
@@ -112,6 +120,7 @@ export class UsersService {
           hallId: true,
           isActive: true,
           telegramId: true,
+          employmentStart: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -144,6 +153,7 @@ export class UsersService {
         hallId: true,
         isActive: true,
         telegramId: true,
+        employmentStart: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -505,6 +515,7 @@ export class UsersService {
     }));
 
     return {
+      employmentStart: user.employmentStart,
       activeShift: activeShift ? {
         id: activeShift.id,
         clockIn: activeShift.clockIn,

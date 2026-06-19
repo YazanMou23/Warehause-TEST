@@ -20,7 +20,9 @@ import {
   Search,
   FileSpreadsheet,
   User,
+  Shield,
 } from "lucide-react";
+import { useTranslation } from "../i18n/LanguageContext";
 
 interface SidebarLink {
   name: string;
@@ -32,6 +34,7 @@ const sidebarLinks: SidebarLink[] = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Planning", href: "/planning", icon: Calendar },
   { name: "Employees", href: "/employees", icon: Users },
+  { name: "Admins", href: "/admins", icon: Shield },
   { name: "Warehouses", href: "/warehouses", icon: Warehouse },
   { name: "Halls", href: "/halls", icon: Grid },
   { name: "Containers", href: "/containers", icon: Package },
@@ -47,11 +50,12 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
 
   const [userName, setUserName] = useState("M. Warehouse");
-  const [userRole, setUserRole] = useState("Manager");
+  const [userRole, setUserRole] = useState("MANAGER");
   const [userInitials, setUserInitials] = useState("MW");
   const [userId, setUserId] = useState("");
   const [photoTrigger, setPhotoTrigger] = useState(0);
@@ -97,9 +101,38 @@ export default function DashboardLayout({
     return () => window.removeEventListener("profile-updated", handleProfileUpdate);
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const token = localStorage.getItem("accessToken");
+    if (token) {
+      try {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/auth/logout`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+      } catch (e) {}
+    }
     localStorage.removeItem("accessToken");
     window.location.href = "/login";
+  };
+
+  const getTranslationKey = (name: string): any => {
+    const map: Record<string, string> = {
+      "Dashboard": "dashboard",
+      "Planning": "planning",
+      "Employees": "employees",
+      "Admins": "admins",
+      "Warehouses": "warehouses",
+      "Halls": "halls",
+      "Containers": "containers",
+      "Attendance": "attendance",
+      "OCR Upload": "ocrUpload",
+      "Reports": "reports",
+      "Profile": "profile",
+      "Settings": "settings"
+    };
+    return map[name] || name;
   };
 
   const SidebarContent = () => {
@@ -108,7 +141,7 @@ export default function DashboardLayout({
         return ["Dashboard", "Profile", "Settings"].includes(link.name);
       }
       if (userRole === "ADMIN") {
-        return link.name !== "Reports";
+        return !["Reports", "Admins"].includes(link.name);
       }
       return true; // MANAGER sees all
     });
@@ -122,7 +155,7 @@ export default function DashboardLayout({
           </div>
           <div>
             <h1 className="font-headline-md font-black text-secondary tracking-tight leading-none">
-              LogiFlow
+              {t("appName")}
             </h1>
             <p className="text-on-surface-variant text-label-md">Operational Hub</p>
           </div>
@@ -138,67 +171,72 @@ export default function DashboardLayout({
                 key={link.name}
                 href={link.href}
                 onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg text-label-md transition-all ${
+                className={`flex items-center gap-3 px-3 py-2 text-body-sm font-medium rounded-lg transition-all ${
                   isActive
-                    ? "bg-secondary-container text-white font-bold"
-                    : "text-on-surface-variant hover:bg-surface-container-high"
+                    ? "bg-secondary text-white font-bold"
+                    : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
                 }`}
               >
-                <Icon className={`w-5 h-5 ${isActive ? "text-white" : "text-on-surface-variant"}`} />
-                <span>{link.name}</span>
+                <Icon className={`w-5 h-5 ${isActive ? "text-white" : "text-outline"}`} />
+                <span>{t(getTranslationKey(link.name))}</span>
               </Link>
             );
           })}
         </nav>
 
-        {/* Footer / logout */}
-        <div className="p-stack-md flex flex-col gap-1 border-t border-outline-variant">
+        {/* Logout Section */}
+        <div className="p-stack-md border-t border-outline-variant">
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-4 py-2.5 text-on-surface-variant hover:bg-error-container hover:text-error rounded-lg text-label-md transition-all text-left"
+            className="w-full flex items-center gap-3 px-3 py-2 text-body-sm font-medium text-error hover:bg-error-container/10 rounded-lg transition-colors cursor-pointer"
           >
             <LogOut className="w-5 h-5" />
-            <span>Log Out</span>
+            <span>{t("logout")}</span>
           </button>
         </div>
       </div>
     );
   };
 
+  const displayRoleText = () => {
+    if (userRole === "MANAGER") return t("roleManager");
+    if (userRole === "ADMIN") return t("roleAdmin");
+    return t("roleEmployee");
+  };
+
   return (
-    <div className="flex h-screen overflow-hidden bg-background" suppressHydrationWarning>
-      {/* Desktop Sidebar */}
+    <div className="flex h-screen bg-[#0f1117] text-white" suppressHydrationWarning>
+      {/* 1. Desktop Sidebar */}
       <aside className="hidden lg:flex lg:w-[280px] lg:flex-col fixed inset-y-0 z-40 print:hidden">
         <SidebarContent />
       </aside>
 
-      {/* Main Container */}
-      <div className="flex flex-col flex-1 lg:pl-[280px] print:pl-0">
-        {/* Top Header */}
-        <header className="h-16 bg-surface border-b border-outline-variant flex justify-between items-center px-container-margin sticky top-0 z-30 print:hidden">
-          <div className="flex items-center gap-stack-sm">
-            <button
-              onClick={() => setMobileMenuOpen(true)}
-              className="p-2 -ml-2 text-on-surface-variant hover:bg-surface-container-high rounded-lg lg:hidden"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
-            <h2 className="font-headline-md font-bold text-primary lg:hidden">
-              LogiFlow
-            </h2>
+      {/* 2. Main content area */}
+      <div className="flex-1 flex flex-col lg:pl-[280px] min-h-screen">
+        
+        {/* Dashboard Header */}
+        <header className="h-16 flex items-center justify-between px-container-margin border-b border-outline-variant bg-surface-container-low print:hidden shrink-0">
+          
+          {/* Menu button for mobile */}
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            className="lg:hidden p-2 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+
+          {/* Search bar placeholder */}
+          <div className="relative hidden md:block w-72">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+            <input
+              type="text"
+              placeholder="Search operations..."
+              disabled
+              className="w-full bg-[#0f1117] border border-[#334155] rounded-full pl-9 pr-4 py-1.5 text-body-sm text-on-surface-variant outline-none opacity-60"
+            />
           </div>
 
-          <div className="flex items-center gap-stack-md">
-            {/* Search */}
-            <div className="relative hidden sm:block">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
-              <input
-                type="text"
-                placeholder="Search SKU, Hall..."
-                className="pl-9 pr-4 py-1.5 bg-surface-container-low border border-outline-variant rounded-full text-body-sm w-64 focus:ring-1 focus:ring-secondary focus:border-transparent outline-none"
-              />
-            </div>
-
+          <div className="flex items-center gap-4">
             {/* Notifications */}
             <button className="w-10 h-10 flex items-center justify-center hover:bg-surface-container-high rounded-full relative transition-colors">
               <Bell className="w-5 h-5 text-on-surface-variant" />
@@ -212,7 +250,7 @@ export default function DashboardLayout({
             >
               <div className="text-right hidden sm:block">
                 <p className="font-label-md text-on-surface leading-none">{userName}</p>
-                <p className="text-[10px] text-outline uppercase tracking-wider mt-1">{userRole.replace("_", " ")}</p>
+                <p className="text-[10px] text-outline uppercase tracking-wider mt-1">{displayRoleText()}</p>
               </div>
               <div className="w-8 h-8 rounded-full bg-secondary-container text-white flex items-center justify-center font-bold text-sm border border-outline-variant overflow-hidden relative">
                 {userId && (
