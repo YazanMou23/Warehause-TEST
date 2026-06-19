@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, ForbiddenException, UseInterceptors, UploadedFile, Res } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, ForbiddenException, BadRequestException, UseInterceptors, UploadedFile, Res } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -12,6 +12,7 @@ import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { Response } from 'express';
 import { existsSync, mkdirSync } from 'fs';
+import { EmailService } from '../email/email.service';
 
 const storage = diskStorage({
   destination: (req, file, cb) => {
@@ -30,7 +31,10 @@ const storage = diskStorage({
 @Controller('employees')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly emailService: EmailService,
+  ) {}
 
   @Post()
   @Roles(Role.MANAGER, Role.ADMIN)
@@ -153,5 +157,51 @@ export class UsersController {
       throw new ForbiddenException('You can only view your own dashboard summary');
     }
     return this.usersService.getEmployeeDashboardSummary(id);
+  }
+
+  @Post(':id/send-email')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  async sendEmailToEmployee(
+    @Param('id') id: string,
+    @Body() body: { subject: string; message: string },
+    @CurrentUser() currentUser: any,
+  ) {
+    if (!body.subject || !body.subject.trim()) {
+      throw new BadRequestException('Email subject is required');
+    }
+    if (!body.message || !body.message.trim()) {
+      throw new BadRequestException('Email message is required');
+    }
+
+    const employee = await this.usersService.findOne(id, currentUser.role);
+
+    if (!employee.email) {
+      throw new BadRequestException(
+        `Employee "${employee.name}" does not have an email address on file. Please update their profile first.`,
+      );
+    }
+
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(employee.email)) {
+      throw new BadRequestException(`Invalid email address for employee: ${employee.email}`);
+    }
+
+    const sent = await this.emailService.sendCustomEmail(
+      employee.email,
+      body.subject.trim(),
+      body.message.trim(),
+      currentUser.name || 'LogiFlow Admin',
+    );
+
+    if (!sent) {
+      throw new BadRequestException('Failed to send email. Please check SMTP configuration.');
+    }
+
+    return {
+      success: true,
+      message: `Email sent successfully to ${employee.name} (${employee.email})`,
+      recipient: employee.email,
+    };
   }
 }

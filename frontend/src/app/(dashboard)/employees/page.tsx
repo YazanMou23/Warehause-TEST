@@ -68,6 +68,15 @@ export default function EmployeesPage() {
   // Bulk Selection
   const [selectedEmpIds, setSelectedEmpIds] = useState<string[]>([]);
 
+  // Email Modal State
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [emailTargetEmp, setEmailTargetEmp] = useState<Employee | null>(null);
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailMessage, setEmailMessage] = useState("");
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const [emailSuccess, setEmailSuccess] = useState("");
+
   const router = useRouter();
 
   const loadEmployees = async () => {
@@ -81,7 +90,7 @@ export default function EmployeesPage() {
     try {
       const headers = { Authorization: `Bearer ${token}` };
       // Request ONLY employees from backend
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees?role=EMPLOYEE`, { headers });
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees?role=EMPLOYEE&limit=1000`, { headers });
       const empJson = res.ok ? await res.json() : null;
       const empList = empJson && Array.isArray(empJson.data) ? empJson.data : (Array.isArray(empJson) ? empJson : []);
       setEmployees(empList);
@@ -365,6 +374,69 @@ export default function EmployeesPage() {
     return `sms:${phone}`;
   };
 
+  const openEmailModal = (emp: Employee) => {
+    setEmailTargetEmp(emp);
+    setEmailSubject("");
+    setEmailMessage("");
+    setEmailError("");
+    setEmailSuccess("");
+    setEmailModalOpen(true);
+  };
+
+  const handleSendEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailTargetEmp) return;
+
+    if (!emailSubject.trim()) {
+      setEmailError("Please enter an email subject.");
+      return;
+    }
+    if (!emailMessage.trim()) {
+      setEmailError("Please enter an email message.");
+      return;
+    }
+
+    setEmailLoading(true);
+    setEmailError("");
+    setEmailSuccess("");
+
+    const token = localStorage.getItem("accessToken");
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${emailTargetEmp.id}/send-email`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            subject: emailSubject.trim(),
+            message: emailMessage.trim(),
+          }),
+        }
+      );
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setEmailSuccess(data.message || `Email sent to ${emailTargetEmp.email}`);
+        setEmailSubject("");
+        setEmailMessage("");
+      } else {
+        setEmailError(
+          Array.isArray(data.message)
+            ? data.message.join(", ")
+            : data.message || "Failed to send email."
+        );
+      }
+    } catch (err: any) {
+      setEmailError(err.message || "Network error occurred.");
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
   const filteredEmployees = employees.filter((emp) =>
     emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     emp.phone.includes(searchTerm) ||
@@ -565,6 +637,15 @@ export default function EmployeesPage() {
                         >
                           SMS
                         </a>
+                        {canManage && emp.email && (
+                          <button
+                            onClick={() => openEmailModal(emp)}
+                            title={`Send email to ${emp.email}`}
+                            className="px-2.5 py-1 bg-violet-500/10 text-violet-400 hover:bg-violet-500 hover:text-white rounded border border-violet-500/20 text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer"
+                          >
+                            <Mail className="w-3 h-3" /> Email
+                          </button>
+                        )}
                       </div>
                     </td>
                     {canManage && (
@@ -909,6 +990,113 @@ export default function EmployeesPage() {
                   className="px-4 py-2 bg-secondary text-white font-bold rounded-lg text-sm hover:bg-secondary/90 disabled:opacity-50 cursor-pointer"
                 >
                   {formLoading ? "Saving..." : t("saveSettings")}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Email Compose Modal */}
+      {emailModalOpen && emailTargetEmp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[#1e293b] border border-[#334155] rounded-xl max-w-lg w-full shadow-2xl overflow-hidden animate-scaleIn">
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-[#0f1117] border-b border-[#334155] flex justify-between items-center">
+              <div>
+                <h4 className="font-bold text-body-lg text-white flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-violet-400" />
+                  Send Email
+                </h4>
+                <p className="text-xs text-on-surface-variant mt-0.5">
+                  To: <span className="text-violet-300 font-mono">{emailTargetEmp.email}</span>
+                  {" — "}{emailTargetEmp.name}
+                </p>
+              </div>
+              <button
+                onClick={() => setEmailModalOpen(false)}
+                className="text-on-surface-variant hover:text-white p-1 hover:bg-[#334155] rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSendEmail} className="p-6 space-y-4">
+              {/* Error */}
+              {emailError && (
+                <div className="p-3 bg-red-900/30 border border-red-500/30 text-red-300 rounded-lg flex items-start gap-2 text-xs">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{emailError}</span>
+                </div>
+              )}
+
+              {/* Success */}
+              {emailSuccess && (
+                <div className="p-3 bg-green-900/30 border border-green-500/30 text-green-300 rounded-lg flex items-start gap-2 text-xs">
+                  <Send className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{emailSuccess}</span>
+                </div>
+              )}
+
+              {/* Subject */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">
+                  Subject <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  placeholder="e.g. Shift Schedule Update"
+                  maxLength={200}
+                  className="w-full px-3.5 py-2 border border-[#334155] focus:border-violet-500 rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                />
+              </div>
+
+              {/* Message */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">
+                  Message <span className="text-red-400">*</span>
+                </label>
+                <textarea
+                  required
+                  value={emailMessage}
+                  onChange={(e) => setEmailMessage(e.target.value)}
+                  placeholder="Type your message here..."
+                  rows={6}
+                  maxLength={5000}
+                  className="w-full px-3.5 py-2 border border-[#334155] focus:border-violet-500 rounded-lg text-body-sm outline-none bg-[#0f1117] text-white resize-y"
+                />
+                <p className="text-[10px] text-on-surface-variant text-right">{emailMessage.length}/5000</p>
+              </div>
+
+              {/* Footer Actions */}
+              <div className="px-6 py-4 bg-[#0f1117] border-t border-[#334155] flex justify-end gap-3 -mx-6 -mb-6">
+                <button
+                  type="button"
+                  onClick={() => setEmailModalOpen(false)}
+                  disabled={emailLoading}
+                  className="px-4 py-2 border border-[#334155] text-white rounded-lg text-sm hover:bg-[#1e293b] cursor-pointer disabled:opacity-50"
+                >
+                  Close
+                </button>
+                <button
+                  type="submit"
+                  disabled={emailLoading}
+                  className="px-4 py-2 bg-violet-600 text-white font-bold rounded-lg text-sm hover:bg-violet-500 disabled:opacity-50 cursor-pointer flex items-center gap-2"
+                >
+                  {emailLoading ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      Send Email
+                    </>
+                  )}
                 </button>
               </div>
             </form>

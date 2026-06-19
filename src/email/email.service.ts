@@ -99,6 +99,44 @@ export class EmailService {
     return this.sendEmail(email, subject, html);
   }
 
+  async sendCustomEmail(
+    to: string,
+    subject: string,
+    message: string,
+    senderName = 'LogiFlow',
+  ): Promise<boolean> {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001';
+    const html = `
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: auto; background-color: #0d1117; color: #e2e8f0; border-radius: 12px; overflow: hidden; border: 1px solid #1e293b;">
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #0058be 0%, #003a8c 100%); padding: 28px 36px; text-align: center;">
+          <div style="display: inline-block; background: rgba(255,255,255,0.15); border-radius: 10px; padding: 10px 16px; margin-bottom: 12px;">
+            <span style="font-size: 22px; font-weight: 900; color: #ffffff; letter-spacing: -0.5px;">LogiFlow</span>
+          </div>
+          <h1 style="margin: 0; font-size: 18px; font-weight: 700; color: #ffffff;">${subject}</h1>
+        </div>
+
+        <!-- Body -->
+        <div style="padding: 32px 36px;">
+          <div style="background: #111827; border: 1px solid #1e293b; border-radius: 8px; padding: 20px 24px; line-height: 1.7; font-size: 14px; color: #e2e8f0; white-space: pre-wrap;">${message.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+
+          <p style="margin-top: 28px; text-align: center;">
+            <a href="${frontendUrl}" style="display: inline-block; background: #0058be; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 14px; padding: 12px 30px; border-radius: 8px; letter-spacing: 0.3px;">
+              Zum Dashboard →
+            </a>
+          </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #060a0f; padding: 14px 36px; text-align: center; border-top: 1px solid #1e293b;">
+          <p style="margin: 0; font-size: 11px; color: #334155;">LogiFlow Warehouse Management System — Nachricht von ${senderName}</p>
+          <p style="margin: 4px 0 0 0; font-size: 11px; color: #334155;">Bitte antworten Sie nicht direkt auf diese E-Mail.</p>
+        </div>
+      </div>
+    `;
+    return this.sendEmail(to, subject, html);
+  }
+
   async sendWelcomeEmail(email: string, name: string): Promise<boolean> {
     const subject = 'Willkommen bei LogiFlow';
     const html = `
