@@ -602,7 +602,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="py-2.5 flex justify-between">
                     <span className="text-outline">{t("employmentStart")}</span>
-                    <span className="font-semibold text-on-surface">
+                    <span suppressHydrationWarning className="font-semibold text-on-surface">
                       {employeeSummary?.employmentStart 
                         ? new Date(employeeSummary.employmentStart).toLocaleDateString(language === "de" ? "de-DE" : "en-CA") 
                         : "—"}
@@ -1300,7 +1300,7 @@ export default function DashboardPage() {
         <div className="hidden print:block print:p-8 bg-white text-black min-h-screen">
           <h1 className="text-2xl font-bold border-b pb-2 mb-4">LogiFlow Shift Operations Plan</h1>
           <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-            <div><strong>Date:</strong> {new Date(selectedPlanForView.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}</div>
+            <div suppressHydrationWarning><strong>Date:</strong> {new Date(selectedPlanForView.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}</div>
             <div><strong>Depot Location:</strong> {selectedPlanForView.warehouseName}</div>
             <div><strong>Staging Area:</strong> {selectedPlanForView.hallName}</div>
           </div>

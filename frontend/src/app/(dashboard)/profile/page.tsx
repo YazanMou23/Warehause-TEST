@@ -419,7 +419,10 @@ export default function ProfilePage() {
             <div className="flex items-center gap-2.5">
               <Calendar className="w-4 h-4 text-outline" />
               <span>
-                <strong>{t("employmentStart")}:</strong> {profile.createdAt ? new Date(profile.createdAt).toLocaleDateString(language === "de" ? "de-DE" : "en-CA") : "—"}
+                <strong>{t("employmentStart")}:</strong>{" "}
+                  <span suppressHydrationWarning>
+                    {profile.createdAt ? new Date(profile.createdAt).toLocaleDateString(language === "de" ? "de-DE" : "en-CA") : "—"}
+                  </span>
               </span>
             </div>
           </div>

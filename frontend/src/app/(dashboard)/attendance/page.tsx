@@ -495,7 +495,7 @@ export default function AttendancePage() {
                       second: "2-digit",
                     })}
                   </td>
-                  <td className="px-4 py-3.5 font-mono text-[12px]">
+                  <td suppressHydrationWarning className="px-4 py-3.5 font-mono text-[12px]">
                     {record.clockOut ? (
                       new Date(record.clockOut).toLocaleTimeString([], {
                         hour: "2-digit",

@@ -18,6 +18,7 @@ import {
   ArrowLeft,
   ArrowRight,
 } from "lucide-react";
+import { useTimeFormat, useDateTimeFormat } from "../../i18n/useDateFormat";
 
 interface Employee {
   id: string;
@@ -511,7 +512,7 @@ export default function ReportsPage() {
                               minute: "2-digit",
                             })}
                           </td>
-                          <td className="px-4 py-3.5 font-mono">
+                          <td suppressHydrationWarning className="px-4 py-3.5 font-mono">
                             {record.clockOut ? (
                               new Date(record.clockOut).toLocaleTimeString([], {
                                 hour: "2-digit",
@@ -678,7 +679,7 @@ export default function ReportsPage() {
                       logs.map((log) => (
                         <tr key={log.id} className="hover:bg-surface-bright transition-colors">
                           <td suppressHydrationWarning className="px-container-margin py-3.5 font-mono text-[12px] text-outline">
-                            {new Date(log.timestamp).toLocaleString()}
+                            {new Date(log.timestamp).toLocaleString('en-CA')}
                           </td>
                           <td className="px-4 py-3.5 font-semibold text-on-surface">
                             {log.user?.name || "System Automated"}
