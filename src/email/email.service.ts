@@ -24,7 +24,8 @@ export class EmailService {
       connectionTimeout: 15000,
       greetingTimeout: 10000,
       socketTimeout: 20000,
-    });
+      family: 4, // Force IPv4 to prevent ENETUNREACH issues on environments without IPv6 routing
+    } as any);
   }
 
 
