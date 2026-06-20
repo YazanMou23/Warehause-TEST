@@ -8,30 +8,28 @@ export class EmailService {
 
   constructor(private readonly configService: ConfigService) {}
 
-  /** Returns a fresh Resend client using the API key from config */
-  private getClient(): Resend {
-    const apiKey = this.configService.get<string>('RESEND_API_KEY');
-    if (!apiKey) {
-      this.logger.warn('RESEND_API_KEY is not set — emails will fail');
-    }
-    return new Resend(apiKey);
-  }
 
   /** Core send method — returns true on success, error message string on failure */
   async sendEmail(to: string, subject: string, html: string): Promise<string | true> {
+    const apiKey = this.configService.get<string>('RESEND_API_KEY');
+    if (!apiKey || apiKey === 're_your_api_key_here') {
+      const msg = 'Email service not configured: RESEND_API_KEY is missing in environment variables';
+      this.logger.error(msg);
+      return msg;
+    }
+
     const fromAddress =
       this.configService.get<string>('EMAIL_FROM') ||
-      this.configService.get<string>('SMTP_USER') ||
       'info@yazan-tech.com';
     const fromName = this.configService.get<string>('SMTP_FROM_NAME') || 'LogiFlow';
     const from = `${fromName} <${fromAddress}>`;
 
-    const resend = this.getClient();
     try {
+      const resend = new Resend(apiKey);
       const { data, error } = await resend.emails.send({ from, to, subject, html });
       if (error) {
         this.logger.error(`✗ Resend API error to ${to} | ${JSON.stringify(error)}`);
-        return error.message ?? JSON.stringify(error);
+        return (error as any).message ?? JSON.stringify(error);
       }
       this.logger.log(`✓ Email sent to ${to} [id: ${data?.id}]`);
       return true;
