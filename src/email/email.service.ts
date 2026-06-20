@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
 @Injectable()
 export class EmailService {
@@ -8,52 +8,37 @@ export class EmailService {
 
   constructor(private readonly configService: ConfigService) {}
 
-  /** Build a fresh transporter every time to avoid stale connection pool issues */
-  private createTransporter(): nodemailer.Transporter {
-    const host = this.configService.get<string>('SMTP_HOST') || 'smtp.hostinger.com';
-    const port = Number(this.configService.get('SMTP_PORT')) || 465;
-    const user = this.configService.get<string>('SMTP_USER') || 'info@yazan-tech.com';
-    const pass = this.configService.get<string>('SMTP_PASS') || '';
-
-    return nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
-      auth: { user, pass },
-      tls: { rejectUnauthorized: false },
-      connectionTimeout: 15000,
-      greetingTimeout: 10000,
-      socketTimeout: 20000,
-      family: 4, // Force IPv4 to prevent ENETUNREACH issues on environments without IPv6 routing
-    } as any);
+  /** Returns a fresh Resend client using the API key from config */
+  private getClient(): Resend {
+    const apiKey = this.configService.get<string>('RESEND_API_KEY');
+    if (!apiKey) {
+      this.logger.warn('RESEND_API_KEY is not set — emails will fail');
+    }
+    return new Resend(apiKey);
   }
 
-
+  /** Core send method — returns true on success, error message string on failure */
   async sendEmail(to: string, subject: string, html: string): Promise<string | true> {
-    // EMAIL_FROM takes priority (spec), falls back to SMTP_USER
-    const fromAddress = this.configService.get<string>('EMAIL_FROM')
-      || this.configService.get<string>('SMTP_USER')
-      || 'info@yazan-tech.com';
+    const fromAddress =
+      this.configService.get<string>('EMAIL_FROM') ||
+      this.configService.get<string>('SMTP_USER') ||
+      'info@yazan-tech.com';
     const fromName = this.configService.get<string>('SMTP_FROM_NAME') || 'LogiFlow';
-    const from = `"${fromName}" <${fromAddress}>`;
+    const from = `${fromName} <${fromAddress}>`;
 
-    const transporter = this.createTransporter();
+    const resend = this.getClient();
     try {
-      const info = await transporter.sendMail({ from, to, subject, html });
-      this.logger.log(`✓ Email sent to ${to} [messageId: ${info.messageId}]`);
+      const { data, error } = await resend.emails.send({ from, to, subject, html });
+      if (error) {
+        this.logger.error(`✗ Resend API error to ${to} | ${JSON.stringify(error)}`);
+        return error.message ?? JSON.stringify(error);
+      }
+      this.logger.log(`✓ Email sent to ${to} [id: ${data?.id}]`);
       return true;
-    } catch (error: any) {
-      const msg = error?.message || 'Unknown SMTP error';
-      const code = error?.code || '';
-      const response = error?.response || '';
-      this.logger.error(
-        `✗ Failed to send email to ${to} | code=${code} | ${msg} | smtp_response=${response}`,
-        error?.stack,
-      );
-      // Return the real error message so the controller can surface it
+    } catch (err: any) {
+      const msg = err?.message || 'Unknown email error';
+      this.logger.error(`✗ Failed to send email to ${to} | ${msg}`, err?.stack);
       return msg;
-    } finally {
-      transporter.close();
     }
   }
 
@@ -62,9 +47,9 @@ export class EmailService {
     return (await this.sendEmail(to, subject, html)) === true;
   }
 
-
   async sendPlanNotification(email: string, planDetails: any): Promise<boolean> {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001';
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001';
     const subject = `Schichtplan Zuweisung: ${planDetails.title} - ${planDetails.date}`;
     const html = `
       <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; color: #1e293b;">
@@ -123,7 +108,8 @@ export class EmailService {
     message: string,
     senderName = 'LogiFlow',
   ): Promise<string | true> {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001';
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001';
     const html = `
       <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: auto; background-color: #0d1117; color: #e2e8f0; border-radius: 12px; overflow: hidden; border: 1px solid #1e293b;">
         <!-- Header -->
@@ -152,7 +138,6 @@ export class EmailService {
         </div>
       </div>
     `;
-    // Return raw result (string = error message, true = success) for controller to inspect
     return this.sendEmail(to, subject, html);
   }
 
