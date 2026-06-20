@@ -72,6 +72,7 @@ export default function ReportsPage() {
   const [isOffline, setIsOffline] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState({ text: "", type: "" });
+  const [generatedOn, setGeneratedOn] = useState("");
   const router = useRouter();
 
   // Load initial employees list
@@ -109,8 +110,10 @@ export default function ReportsPage() {
   };
 
   useEffect(() => {
-    setMonth(new Date().getMonth() + 1);
-    setYear(new Date().getFullYear());
+    const now = new Date();
+    setMonth(now.getMonth() + 1);
+    setYear(now.getFullYear());
+    setGeneratedOn(now.toLocaleDateString());
     loadEmployees();
   }, [router]);
 
@@ -537,7 +540,7 @@ export default function ReportsPage() {
               {/* Printable Signature Line */}
               <div className="hidden print:flex justify-between items-end mt-16 pt-8 border-t border-dashed border-neutral-300">
                 <div>
-                  <p suppressHydrationWarning className="text-[11px] text-neutral-400 font-mono">Report generated on: {new Date().toLocaleDateString()}</p>
+                  <p className="text-[11px] text-neutral-400 font-mono">Report generated on: {generatedOn}</p>
                 </div>
                 <div className="text-center w-64 border-t border-neutral-400 pt-2">
                   <span className="text-xs font-semibold text-neutral-600">Supervisor Signature / Date</span>
