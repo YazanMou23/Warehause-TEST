@@ -916,7 +916,7 @@ export default function DashboardPage() {
                 href="/planning"
                 className="flex items-center gap-4 p-stack-md bg-white border border-outline-variant rounded-lg hover:-translate-y-1 hover:shadow-md hover:border-secondary/40 transition-all duration-200 group text-left cursor-pointer"
               >
-                <div className="w-12 h-12 flex items-center justify-center bg-secondary-container rounded-lg text-white group-hover:scale-105 transition-transform shrink-0">
+                <div className="w-12 h-12 flex items-center justify-center bg-secondary-container rounded-lg text-secondary group-hover:scale-105 transition-transform shrink-0">
                   <PlusCircle className="w-6 h-6" />
                 </div>
                 <div>
@@ -929,7 +929,7 @@ export default function DashboardPage() {
                 href="/ocr"
                 className="flex items-center gap-4 p-stack-md bg-white border border-outline-variant rounded-lg hover:-translate-y-1 hover:shadow-md hover:border-secondary/40 transition-all duration-200 group text-left cursor-pointer"
               >
-                <div className="w-12 h-12 flex items-center justify-center bg-secondary-container rounded-lg text-white group-hover:scale-105 transition-transform shrink-0">
+                <div className="w-12 h-12 flex items-center justify-center bg-secondary-container rounded-lg text-secondary group-hover:scale-105 transition-transform shrink-0">
                   <UploadCloud className="w-6 h-6" />
                 </div>
                 <div>
@@ -942,7 +942,7 @@ export default function DashboardPage() {
                 href="/containers"
                 className="flex items-center gap-4 p-stack-md bg-white border border-outline-variant rounded-lg hover:-translate-y-1 hover:shadow-md hover:border-secondary/40 transition-all duration-200 group text-left cursor-pointer"
               >
-                <div className="w-12 h-12 flex items-center justify-center bg-secondary-container rounded-lg text-white group-hover:scale-105 transition-transform shrink-0">
+                <div className="w-12 h-12 flex items-center justify-center bg-secondary-container rounded-lg text-secondary group-hover:scale-105 transition-transform shrink-0">
                   <Package className="w-6 h-6" />
                 </div>
                 <div>
@@ -955,7 +955,7 @@ export default function DashboardPage() {
                 href="/employees"
                 className="flex items-center gap-4 p-stack-md bg-white border border-outline-variant rounded-lg hover:-translate-y-1 hover:shadow-md hover:border-secondary/40 transition-all duration-200 group text-left cursor-pointer"
               >
-                <div className="w-12 h-12 flex items-center justify-center bg-secondary-container rounded-lg text-white group-hover:scale-105 transition-transform shrink-0">
+                <div className="w-12 h-12 flex items-center justify-center bg-secondary-container rounded-lg text-secondary group-hover:scale-105 transition-transform shrink-0">
                   <Users className="w-6 h-6" />
                 </div>
                 <div>

@@ -81,6 +81,25 @@ export default function ActiveEmployeeCalendar({ logs, loading, isOffline }: Act
     }));
   }, [logs]);
 
+  // Find currently active employees (clockOut is null)
+  const activeStaffList = useMemo(() => {
+    return logs
+      .filter((log) => !log.clockOut)
+      .map((log) => {
+        const empName = log.employee?.name || log.employeeName || "Mitarbeiter";
+        const wName = log.warehouse?.name || log.warehouseName || "Lager";
+        const hName = log.hall?.name || log.hallName || "Halle";
+        return {
+          id: log.id,
+          employeeId: log.employeeId,
+          name: empName,
+          location: `${wName} — ${hName}`,
+          clockIn: log.clockIn,
+        };
+      });
+  }, [logs]);
+
+
   // Format date helper
   const formatTime = (isoString: string) => {
     try {
@@ -145,6 +164,41 @@ export default function ActiveEmployeeCalendar({ logs, loading, isOffline }: Act
           </span>
         </div>
       </div>
+
+      {/* Active staff list banner */}
+      {!loading && activeStaffList.length > 0 && (
+        <div className="px-6 py-3 bg-emerald-50/40 border-b border-outline-variant flex flex-wrap items-center gap-3 animate-fadeIn">
+          <span className="text-xs font-bold text-emerald-800 flex items-center gap-1.5 shrink-0">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            Jetzt aktiv im Dienst ({activeStaffList.length}):
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {activeStaffList.map((staff) => {
+              const { bg: colorClass, accent } = getHashColor(staff.name);
+              return (
+                <div
+                  key={staff.id}
+                  className="bg-white border border-emerald-100 text-slate-800 text-xs px-3 py-1 rounded-full font-medium shadow-sm flex items-center gap-2 hover:border-emerald-300 transition-colors"
+                >
+                  <div
+                    style={{ backgroundColor: `${accent}15`, color: accent }}
+                    className="w-4 h-4 rounded-full flex items-center justify-center font-bold text-[8px] border border-current"
+                  >
+                    {getInitials(staff.name)}
+                  </div>
+                  <span className="font-bold text-slate-900">{staff.name}</span>
+                  <span className="text-[10px] text-slate-500 font-normal">
+                    ({staff.location})
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-16 gap-2">
@@ -245,9 +299,9 @@ export default function ActiveEmployeeCalendar({ logs, loading, isOffline }: Act
                             <div
                               style={{
                                 left: `${leftPercent}%`,
-                                width: `${Math.max(12, widthPercent)}%`,
+                                width: `${Math.max(20, widthPercent)}%`,
                               }}
-                              className={`absolute top-2 h-10 rounded-xl border-l-4 p-2 flex items-center justify-between shadow-sm transition-all duration-300 ${colorClass}`}
+                              className={`absolute top-2 h-10 min-w-[150px] rounded-xl border-l-4 p-2 flex items-center justify-between shadow-sm transition-all duration-300 ${colorClass}`}
                             >
                               <div className="flex items-center gap-2 min-w-0">
                                 {/* Avatar initials */}
