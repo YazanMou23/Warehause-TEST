@@ -338,16 +338,6 @@ export class TimesheetService {
         `Endzeit (${entry.endTime}) muss nach Startzeit (${entry.startTime}) liegen`,
       );
     }
-
-    const netMinutes = endMinutes - startMinutes - entry.breakMinutes;
-    const calculatedHours = netMinutes / 60;
-    const diff = Math.abs(calculatedHours - entry.totalHours);
-
-    if (diff > 0.2) {
-      throw new BadRequestException(
-        `Stundenberechnung inkonsistent: ${entry.startTime}–${entry.endTime} minus ${entry.breakMinutes} Min Pause ergibt ${calculatedHours.toFixed(2)} h, nicht ${entry.totalHours} h`,
-      );
-    }
   }
 
   private deriveWeekStart(ocrResult: { entries: Array<{ date: string }> }): Date {

@@ -591,11 +591,15 @@ function ReviewView({
                 className="px-2 py-1 bg-white/8 border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-blue-400/60 w-full text-center"
               />
 
-              <div className="flex items-center">
-                <span className="text-xs font-mono text-slate-300">
-                  {entry.totalHours ? `${entry.totalHours.toFixed(2)} h` : '—'}
-                </span>
-              </div>
+              <input
+                type="number"
+                step="0.05"
+                min={0}
+                value={entry.totalHours || ''}
+                placeholder="0"
+                onChange={(e) => updateEntry(idx, 'totalHours', parseFloat(e.target.value) || 0)}
+                className="px-2 py-1 bg-white/8 border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-blue-400/60 w-full text-center font-mono"
+              />
 
               <input
                 type="text"
