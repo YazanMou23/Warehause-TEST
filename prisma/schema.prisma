@@ -17,6 +17,11 @@ enum ContainerStatus {
   EMPTY
 }
 
+enum TimesheetStatus {
+  PENDING_REVIEW
+  CONFIRMED
+}
+
 model User {
   id           String        @id @default(uuid())
   username     String        @unique
@@ -38,6 +43,7 @@ model User {
   deletedAt    DateTime?
   
   attendance   Attendance[]
+  timesheets   Timesheet[]
   plans        PlanEmployee[]
   actionLogs   ActionLog[]
   passwordResetTokens PasswordResetToken[]
@@ -177,4 +183,42 @@ model PasswordResetToken {
 
   @@index([token])
   @@index([userId])
+}
+
+// ─── Stundenzettel (Weekly Timesheet) ────────────────────────────────────────
+
+model Timesheet {
+  id             String          @id @default(uuid())
+  employeeId     String?
+  employee       User?           @relation(fields: [employeeId], references: [id])
+  employeeName   String          // Raw OCR-erkannter Name (Audit-Trail)
+  weekStartDate  DateTime        // Montag der betreffenden Woche (UTC midnight)
+  status         TimesheetStatus @default(PENDING_REVIEW)
+  createdById    String?         // Manager/Admin der den Scan erstellt hat
+  ocrConfidence  String?         // 'exact' | 'fuzzy' | 'none'
+  ocrRawResponse Json?           // Komplette GPT-Rohantwort für Debugging
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  entries        TimesheetEntry[]
+
+  @@index([employeeId])
+  @@index([weekStartDate])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model TimesheetEntry {
+  id           String    @id @default(uuid())
+  timesheetId  String
+  timesheet    Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
+  weekday      String    // "Montag", "Dienstag", etc.
+  date         DateTime
+  startTime    String    // "08:00" — HH:MM 24h Format
+  endTime      String    // "16:30"
+  breakMinutes Int       @default(0)
+  totalHours   Float     // Gesamt ohne Pause
+  location     String?   // Lagername / Arbeitsort
+
+  @@index([timesheetId])
 }

@@ -22,6 +22,7 @@ import {
   User,
   Shield,
   ChevronRight,
+  FileCheck,
 } from "lucide-react";
 import { useTranslation } from "../i18n/LanguageContext";
 
@@ -42,6 +43,7 @@ const sidebarLinks: SidebarLink[] = [
   { name: "Containers", href: "/containers", icon: Package, section: "resources" },
   { name: "Attendance", href: "/attendance", icon: Clock, section: "ops" },
   { name: "OCR Upload", href: "/ocr", icon: Scan, section: "ops" },
+  { name: "Stundenzettel", href: "/timesheets", icon: FileCheck, section: "ops" },
   { name: "Reports", href: "/reports", icon: FileSpreadsheet, section: "ops" },
   { name: "Profile", href: "/profile", icon: User, section: "system" },
   { name: "Settings", href: "/settings", icon: Settings, section: "system" },
@@ -121,6 +123,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       Containers: "containers",
       Attendance: "attendance",
       "OCR Upload": "ocrUpload",
+      Stundenzettel: "stundenzettel",
       Reports: "reports",
       Profile: "profile",
       Settings: "settings",

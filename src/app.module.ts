@@ -14,6 +14,7 @@ import { TelegramModule } from './telegram/telegram.module';
 import { EmailModule } from './email/email.module';
 import { MessagingModule } from './messaging/messaging.module';
 import { ActionLogModule } from './action-log/action-log.module';
+import { TimesheetModule } from './timesheet/timesheet.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { ActionLogModule } from './action-log/action-log.module';
     EmailModule,
     MessagingModule,
     ActionLogModule,
+    TimesheetModule,
   ],
   controllers: [AppController],
   providers: [],
