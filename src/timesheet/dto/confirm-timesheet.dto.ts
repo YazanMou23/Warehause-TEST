@@ -68,6 +68,10 @@ export class ConfirmTimesheetDto {
   @IsString()
   employeeName?: string;
 
+  @IsOptional()
+  @IsDateString()
+  weekStartDate?: string;
+
   /**
    * If set, a new Employee user will be created and linked to this timesheet.
    * Either employeeId or createNewEmployee must be provided.

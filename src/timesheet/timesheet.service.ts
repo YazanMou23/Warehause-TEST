@@ -166,7 +166,7 @@ export class TimesheetService {
     }
 
     // ── Check duplicate confirmed timesheet for same employee + week ─────────
-    const weekStart = timesheet.weekStartDate;
+    const weekStart = dto.weekStartDate ? new Date(dto.weekStartDate) : timesheet.weekStartDate;
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 7);
 
@@ -195,6 +195,7 @@ export class TimesheetService {
         data: {
           employeeId,
           employeeName: dto.employeeName || timesheet.employeeName,
+          weekStartDate: weekStart,
           status: TimesheetStatus.CONFIRMED,
           entries: {
             create: validEntries.map((e) => ({

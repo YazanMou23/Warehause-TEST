@@ -94,7 +94,8 @@ function getGermanWeekday(dateStr: string): string {
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return '';
   const weekdaysDe = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
-  return weekdaysDe[d.getDay()];
+  const day = dateStr.includes('-') && !dateStr.includes('T') ? d.getUTCDay() : d.getDay();
+  return weekdaysDe[day];
 }
 
 function calculateHours(startTime: string, endTime: string, breakMinutes: number): number {
@@ -326,6 +327,7 @@ function ReviewView({
     });
   });
   const [employeeName, setEmployeeName] = useState(scanResult.employeeName);
+  const [weekStartDate, setWeekStartDate] = useState(scanResult.weekStartDate);
   const [employeeId, setEmployeeId] = useState<string>(scanResult.employeeId ?? '');
   const [createNew, setCreateNew] = useState(!scanResult.employeeMatch.found);
   const [newEmployee, setNewEmployee] = useState({
@@ -365,6 +367,7 @@ function ReviewView({
   const handleConfirm = () => {
     const payload: any = {
       employeeName,
+      weekStartDate,
       entries: entries
         .filter((e) => e.startTime && e.endTime)
         .map((e) => ({
@@ -520,11 +523,19 @@ function ReviewView({
       {/* Stundenzettel-Tabelle */}
       <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
         <div className="flex items-center justify-between p-5 border-b border-white/10">
-          <h3 className="text-white font-semibold flex items-center gap-2">
-            <Calendar size={16} className="text-blue-400" />
-            Arbeitszeiten — {getWeekRange(scanResult.weekStartDate)}
-            <span className="text-xs text-slate-400 font-normal">({getKw(scanResult.weekStartDate)})</span>
-          </h3>
+          <div className="flex flex-wrap items-center gap-3">
+            <h3 className="text-white font-semibold flex items-center gap-2">
+              <Calendar size={16} className="text-blue-400" />
+              Arbeitszeiten (Wochenstart):
+            </h3>
+            <input
+              type="date"
+              value={weekStartDate ? weekStartDate.split('T')[0] : ''}
+              onChange={(e) => setWeekStartDate(e.target.value)}
+              className="px-2.5 py-1 bg-white/8 border border-white/15 rounded-xl text-xs text-white focus:outline-none focus:border-blue-400/60 font-mono"
+            />
+            <span className="text-xs text-slate-400 font-normal font-mono">({getKw(weekStartDate)})</span>
+          </div>
           <div className="text-sm font-mono text-blue-300 bg-blue-500/15 px-3 py-1 rounded-lg border border-blue-400/20">
             Gesamt: {totalHours.toFixed(2)} h
           </div>
