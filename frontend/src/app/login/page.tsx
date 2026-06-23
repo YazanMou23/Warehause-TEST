@@ -104,13 +104,13 @@ export default function LoginPage() {
       <div className="hidden lg:flex lg:w-1/2 bg-[#0f172a] flex-col justify-between p-12 relative overflow-hidden">
         {/* Background decoration */}
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute -top-32 -left-32 w-[500px] h-[500px] bg-[#2563eb]/10 rounded-full blur-[100px]" />
+          <div className="absolute -top-32 -left-32 w-[500px] h-[500px] bg-[#1d4ed8]/10 rounded-full blur-[100px]" />
           <div className="absolute -bottom-32 -right-32 w-[400px] h-[400px] bg-[#1e3a8a]/20 rounded-full blur-[80px]" />
         </div>
 
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-16">
-            <div className="w-10 h-10 bg-[#2563eb] rounded-xl flex items-center justify-center shadow-lg">
+            <div className="w-10 h-10 bg-[#1d4ed8] rounded-xl flex items-center justify-center shadow-lg">
               <Warehouse className="w-6 h-6 text-white" />
             </div>
             <span className="text-white font-black text-xl tracking-tight">LogiFlow</span>
@@ -163,7 +163,7 @@ export default function LoginPage() {
           <div className="w-full max-w-sm animate-fadeIn">
             {/* Mobile brand header */}
             <div className="lg:hidden flex items-center gap-2 mb-8 justify-center">
-              <div className="w-8 h-8 bg-[#2563eb] rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-[#1d4ed8] rounded-lg flex items-center justify-center">
                 <Warehouse className="w-5 h-5 text-white" />
               </div>
               <span className="font-black text-[#0f172a] text-lg">LogiFlow</span>
@@ -197,7 +197,7 @@ export default function LoginPage() {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder={t("usernamePlaceholder")}
-                    className="w-full bg-white border border-[#e5e7eb] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-[#0f172a] outline-none transition-all placeholder:text-[#9ca3af]"
+                    className="w-full bg-white border border-[#e5e7eb] focus:border-[#1d4ed8] focus:ring-2 focus:ring-[#1d4ed8]/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-[#0f172a] outline-none transition-all placeholder:text-[#9ca3af]"
                   />
                 </div>
               </div>
@@ -215,7 +215,7 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-white border border-[#e5e7eb] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/10 rounded-xl pl-10 pr-11 py-2.5 text-sm text-[#0f172a] outline-none transition-all"
+                    className="w-full bg-white border border-[#e5e7eb] focus:border-[#1d4ed8] focus:ring-2 focus:ring-[#1d4ed8]/10 rounded-xl pl-10 pr-11 py-2.5 text-sm text-[#0f172a] outline-none transition-all"
                   />
                   <button
                     type="button"
@@ -233,14 +233,14 @@ export default function LoginPage() {
                     type="checkbox"
                     checked={showPassword}
                     onChange={() => setShowPassword(!showPassword)}
-                    className="w-3.5 h-3.5 rounded border-[#d1d5db] accent-[#2563eb] cursor-pointer"
+                    className="w-3.5 h-3.5 rounded border-[#d1d5db] accent-[#1d4ed8] cursor-pointer"
                   />
                   {t("showPassword")}
                 </label>
                 <button
                   type="button"
                   onClick={() => { setView("forgot"); setForgotError(""); setResetEmail(""); }}
-                  className="text-xs font-semibold text-[#2563eb] hover:text-[#1d4ed8] hover:underline transition-colors"
+                  className="text-xs font-semibold text-[#1d4ed8] hover:text-[#1d4ed8] hover:underline transition-colors"
                 >
                   {t("forgotPassword")}
                 </button>
@@ -249,7 +249,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loginLoading}
-                className="w-full bg-[#2563eb] hover:bg-[#1d4ed8] disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-blue-200 hover:shadow-blue-300 transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
+                className="w-full bg-[#1d4ed8] hover:bg-[#1d4ed8] disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-blue-200 hover:shadow-blue-300 transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
               >
                 {loginLoading ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /> {t("loggingIn")}</>
@@ -270,7 +270,7 @@ export default function LoginPage() {
           <div className="w-full max-w-sm animate-fadeIn">
             <div className="mb-8">
               <div className="w-10 h-10 bg-[#eff6ff] rounded-xl flex items-center justify-center mb-4">
-                <Mail className="w-5 h-5 text-[#2563eb]" />
+                <Mail className="w-5 h-5 text-[#1d4ed8]" />
               </div>
               <h1 className="text-2xl font-black text-[#0f172a] tracking-tight">
                 {(!mounted || language === "de") ? "Passwort zurücksetzen" : "Reset Password"}
@@ -303,7 +303,7 @@ export default function LoginPage() {
                     value={resetEmail}
                     onChange={(e) => setResetEmail(e.target.value)}
                     placeholder={language === "de" ? "ihre@email.de" : "your@email.com"}
-                    className="w-full bg-white border border-[#e5e7eb] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-[#0f172a] outline-none transition-all placeholder:text-[#9ca3af]"
+                    className="w-full bg-white border border-[#e5e7eb] focus:border-[#1d4ed8] focus:ring-2 focus:ring-[#1d4ed8]/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-[#0f172a] outline-none transition-all placeholder:text-[#9ca3af]"
                   />
                 </div>
                 <p className="text-[11px] text-[#94a3b8]">
@@ -316,7 +316,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={forgotLoading}
-                className="w-full bg-[#2563eb] hover:bg-[#1d4ed8] disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-blue-200 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full bg-[#1d4ed8] hover:bg-[#1d4ed8] disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-blue-200 transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 {forgotLoading ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /> {language === "de" ? "Senden..." : "Sending..."}</>
@@ -365,7 +365,7 @@ export default function LoginPage() {
               </p>
               <button
                 onClick={() => { setView("login"); setUsername(""); setPassword(""); }}
-                className="w-full flex items-center justify-center gap-1.5 text-sm font-semibold text-[#2563eb] hover:text-[#1d4ed8] hover:underline transition-colors cursor-pointer"
+                className="w-full flex items-center justify-center gap-1.5 text-sm font-semibold text-[#1d4ed8] hover:text-[#1d4ed8] hover:underline transition-colors cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 {language === "de" ? "Zurück zum Login" : "Back to Login"}

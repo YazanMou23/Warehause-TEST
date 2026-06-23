@@ -83,7 +83,7 @@ function ResetPasswordForm() {
   if (status === "loading") {
     return (
       <div className="flex flex-col items-center gap-3">
-        <Loader2 className="w-7 h-7 animate-spin text-[#2563eb]" />
+        <Loader2 className="w-7 h-7 animate-spin text-[#1d4ed8]" />
         <p className="text-[#64748b] text-sm">
           {language === "de" ? "Link wird überprüft..." : "Validating link..."}
         </p>
@@ -134,7 +134,7 @@ function ResetPasswordForm() {
           </p>
           <button
             onClick={() => router.push("/login")}
-            className="w-full bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-blue-200 transition-all flex items-center justify-center gap-2"
+            className="w-full bg-[#1d4ed8] hover:bg-[#1d4ed8] text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-blue-200 transition-all flex items-center justify-center gap-2"
           >
             {language === "de" ? "Zum Login" : "Go to Login"} <ArrowRight className="w-4 h-4" />
           </button>
@@ -147,7 +147,7 @@ function ResetPasswordForm() {
     <div className="w-full max-w-sm animate-fadeIn">
       <div className="mb-8">
         <div className="w-10 h-10 bg-[#eff6ff] rounded-xl flex items-center justify-center mb-4">
-          <Lock className="w-5 h-5 text-[#2563eb]" />
+          <Lock className="w-5 h-5 text-[#1d4ed8]" />
         </div>
         <h1 className="text-2xl font-black text-[#0f172a] tracking-tight">
           {language === "de" ? "Neues Passwort" : "New Password"}
@@ -180,7 +180,7 @@ function ResetPasswordForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-white border border-[#e5e7eb] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/10 rounded-xl pl-10 pr-11 py-2.5 text-sm text-[#0f172a] outline-none transition-all"
+                className="w-full bg-white border border-[#e5e7eb] focus:border-[#1d4ed8] focus:ring-2 focus:ring-[#1d4ed8]/10 rounded-xl pl-10 pr-11 py-2.5 text-sm text-[#0f172a] outline-none transition-all"
               />
               <button
                 type="button"
@@ -204,7 +204,7 @@ function ResetPasswordForm() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-white border border-[#e5e7eb] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-[#0f172a] outline-none transition-all"
+                className="w-full bg-white border border-[#e5e7eb] focus:border-[#1d4ed8] focus:ring-2 focus:ring-[#1d4ed8]/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-[#0f172a] outline-none transition-all"
               />
             </div>
           </div>
@@ -212,7 +212,7 @@ function ResetPasswordForm() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-[#2563eb] hover:bg-[#1d4ed8] disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-blue-200 transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
+            className="w-full bg-[#1d4ed8] hover:bg-[#1d4ed8] disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-blue-200 transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
           >
             {isSubmitting ? (
               <><Loader2 className="w-4 h-4 animate-spin" /> {language === "de" ? "Speichern..." : "Saving..."}</>
@@ -246,7 +246,7 @@ export default function ResetPasswordPage() {
 
       {/* Brand */}
       <div className="flex items-center gap-2 mb-8">
-        <div className="w-8 h-8 bg-[#2563eb] rounded-lg flex items-center justify-center">
+        <div className="w-8 h-8 bg-[#1d4ed8] rounded-lg flex items-center justify-center">
           <Warehouse className="w-5 h-5 text-white" />
         </div>
         <span className="font-black text-[#0f172a] text-lg">LogiFlow</span>
@@ -255,7 +255,7 @@ export default function ResetPasswordPage() {
       <Suspense
         fallback={
           <div className="flex flex-col items-center gap-3">
-            <Loader2 className="w-7 h-7 animate-spin text-[#2563eb]" />
+            <Loader2 className="w-7 h-7 animate-spin text-[#1d4ed8]" />
           </div>
         }
       >

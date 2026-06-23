@@ -426,18 +426,18 @@ export default function AttendancePage() {
   }, [employees, filterEmployeeId]);
 
   return (
-    <div className="space-y-stack-lg animate-fadeIn text-slate-100">
+    <div className="space-y-stack-lg animate-fadeIn text-slate-800">
       {/* Title */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h3 className="font-headline-lg font-bold text-white">Zeiterfassung Register</h3>
-          <p className="text-slate-400 font-body-sm">
+          <h3 className="font-headline-lg font-bold text-slate-900">Zeiterfassung Register</h3>
+          <p className="text-slate-500 font-body-sm">
             Zeigt alle Arbeitszeiten (gescannte Stundenzettel und manuelle Buchungen) in einer einheitlichen Tabelle.
           </p>
         </div>
         <button
           onClick={() => window.print()}
-          className="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-4 py-2.5 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 cursor-pointer text-xs print:hidden"
+          className="bg-secondary hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 cursor-pointer text-xs print:hidden"
         >
           <Printer className="w-4 h-4" /> Drucken
         </button>
@@ -445,7 +445,7 @@ export default function AttendancePage() {
 
       {/* timeframe Toggle capsule */}
       <div className="flex justify-center sm:justify-start print:hidden">
-        <div className="flex bg-white/5 border border-white/10 rounded-2xl p-1 w-full max-w-sm sm:w-auto">
+        <div className="flex bg-white border border-outline-variant rounded-2xl p-1 w-full max-w-sm sm:w-auto">
           {(["daily", "weekly", "monthly"] as const).map((mode) => (
             <button
               key={mode}
@@ -456,8 +456,8 @@ export default function AttendancePage() {
               }}
               className={`flex-1 sm:flex-initial text-center py-2 px-6 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer ${
                 timeframe === mode
-                  ? "bg-blue-600 text-white shadow-md scale-[1.02]"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-secondary text-white shadow-md scale-[1.02]"
+                  : "text-slate-500 hover:text-slate-800"
               }`}
             >
               {mode === "daily" ? "Täglich" : mode === "weekly" ? "Wöchentlich" : "Monatlich"}
@@ -467,21 +467,21 @@ export default function AttendancePage() {
       </div>
 
       {/* Filters card */}
-      <div className="bg-white/5 border border-white/10 p-5 rounded-2xl shadow-sm space-y-4 print:hidden">
-        <h5 className="font-semibold text-white flex items-center gap-2 text-sm">
-          <Filter className="w-4 h-4 text-blue-400" /> Filteroptionen
+      <div className="bg-white border border-outline-variant p-5 rounded-2xl shadow-sm space-y-4 print:hidden">
+        <h5 className="font-semibold text-slate-800 flex items-center gap-2 text-sm">
+          <Filter className="w-4 h-4 text-secondary" /> Filteroptionen
         </h5>
 
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end">
           {/* Dynamic Picker based on timeframe */}
           {timeframe === "daily" && (
             <div className="space-y-1">
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Datum</label>
+              <label className="block text-[11px] font-bold text-gray-800 uppercase tracking-wider">Datum</label>
               <input
                 type="date"
                 value={filterDate}
                 onChange={(e) => setFilterDate(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500/40 font-mono"
+                className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-secondary font-mono"
               />
             </div>
           )}
@@ -489,28 +489,28 @@ export default function AttendancePage() {
           {timeframe === "weekly" && (
             <>
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Kalenderwoche (KW)</label>
+                <label className="block text-[11px] font-bold text-gray-800 uppercase tracking-wider">Kalenderwoche (KW)</label>
                 <select
                   value={filterWeek}
                   onChange={(e) => setFilterWeek(Number(e.target.value))}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500/40 outline-none"
+                  className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-secondary outline-none"
                 >
                   {Array.from({ length: 53 }).map((_, i) => (
-                    <option key={i + 1} value={i + 1} className="bg-slate-900 text-white">
+                    <option key={i + 1} value={i + 1} className="bg-white text-slate-800">
                       KW {i + 1}
                     </option>
                   ))}
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Jahr</label>
+                <label className="block text-[11px] font-bold text-gray-800 uppercase tracking-wider">Jahr</label>
                 <select
                   value={filterYear}
                   onChange={(e) => setFilterYear(Number(e.target.value))}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500/40 outline-none"
+                  className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-secondary outline-none"
                 >
-                  <option value={2026} className="bg-slate-900 text-white">2026</option>
-                  <option value={2025} className="bg-slate-900 text-white">2025</option>
+                  <option value={2026} className="bg-white text-slate-800">2026</option>
+                  <option value={2025} className="bg-white text-slate-800">2025</option>
                 </select>
               </div>
             </>
@@ -519,28 +519,28 @@ export default function AttendancePage() {
           {timeframe === "monthly" && (
             <>
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Monat</label>
+                <label className="block text-[11px] font-bold text-gray-800 uppercase tracking-wider">Monat</label>
                 <select
                   value={filterMonth}
                   onChange={(e) => setFilterMonth(Number(e.target.value))}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500/40 outline-none"
+                  className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-secondary outline-none"
                 >
                   {Array.from({ length: 12 }).map((_, i) => (
-                    <option key={i + 1} value={i + 1} className="bg-slate-900 text-white">
+                    <option key={i + 1} value={i + 1} className="bg-white text-slate-800">
                       {new Date(2000, i, 1).toLocaleDateString("de-DE", { month: "long" })}
                     </option>
                   ))}
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Jahr</label>
+                <label className="block text-[11px] font-bold text-gray-800 uppercase tracking-wider">Jahr</label>
                 <select
                   value={filterYear}
                   onChange={(e) => setFilterYear(Number(e.target.value))}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500/40 outline-none"
+                  className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-secondary outline-none"
                 >
-                  <option value={2026} className="bg-slate-900 text-white">2026</option>
-                  <option value={2025} className="bg-slate-900 text-white">2025</option>
+                  <option value={2026} className="bg-white text-slate-800">2026</option>
+                  <option value={2025} className="bg-white text-slate-800">2025</option>
                 </select>
               </div>
             </>
@@ -548,18 +548,18 @@ export default function AttendancePage() {
 
           {/* Employee selector */}
           <div className="space-y-1">
-            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Mitarbeiter</label>
+            <label className="block text-[11px] font-bold text-gray-800 uppercase tracking-wider">Mitarbeiter</label>
             <select
               value={filterEmployeeId}
               onChange={(e) => {
                 setFilterEmployeeId(e.target.value);
                 setSelectedCell(null);
               }}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500/40 outline-none"
+              className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-secondary outline-none"
             >
-              <option value="ALL" className="bg-slate-900 text-white">Alle Mitarbeiter</option>
+              <option value="ALL" className="bg-white text-slate-800">Alle Mitarbeiter</option>
               {employees.map((emp) => (
-                <option key={emp.id} value={emp.id} className="bg-slate-900 text-white">
+                <option key={emp.id} value={emp.id} className="bg-white text-slate-800">
                   {emp.name}
                 </option>
               ))}
@@ -570,23 +570,23 @@ export default function AttendancePage() {
           <button
             onClick={fetchLogs}
             disabled={loading}
-            className="bg-white/10 hover:bg-white/15 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-xl border border-white/10 transition-all flex items-center justify-center gap-1.5 cursor-pointer text-xs"
+            className="bg-white hover:bg-slate-50 disabled:opacity-50 text-gray-800 font-semibold py-2 px-4 rounded-xl border border-outline-variant transition-all flex items-center justify-center gap-1.5 cursor-pointer text-xs shadow-sm"
           >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin text-blue-400" /> : <Search className="w-4 h-4 text-blue-400" />}
+            {loading ? <Loader2 className="w-4 h-4 animate-spin text-secondary" /> : <Search className="w-4 h-4 text-secondary" />}
             Aktualisieren
           </button>
         </div>
       </div>
 
       {/* Main Table Container */}
-      <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden shadow-sm">
+      <div className="bg-white border border-outline-variant rounded-2xl overflow-hidden shadow-sm">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-24">
-            <Loader2 className="w-10 h-10 animate-spin text-blue-500 mb-3" />
-            <p className="text-slate-400 text-sm">Lade Zeiterfassungsdaten...</p>
+            <Loader2 className="w-10 h-10 animate-spin text-secondary mb-3" />
+            <p className="text-slate-500 text-sm">Lade Zeiterfassungsdaten...</p>
           </div>
         ) : logs.length === 0 && timeframe === "daily" ? (
-          <div className="text-center py-20 text-slate-400 font-medium">
+          <div className="text-center py-20 text-slate-500 font-medium">
             Keine Zeiterfassungs-Einträge für dieses Datum vorhanden.
           </div>
         ) : (
@@ -595,7 +595,7 @@ export default function AttendancePage() {
             {timeframe === "daily" && (
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-white/5 border-b border-white/10 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  <tr className="bg-slate-50 border-b border-outline-variant text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                     <th className="px-6 py-3.5">Mitarbeiter</th>
                     <th className="px-4 py-3.5">Datum</th>
                     <th className="px-4 py-3.5">Von - Bis</th>
@@ -606,22 +606,22 @@ export default function AttendancePage() {
                     <th className="px-6 py-3.5 text-right print:hidden">Aktionen</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5 text-sm text-slate-300">
+                <tbody className="divide-y divide-outline-variant text-sm text-slate-700">
                   {logs.map((record) => {
                     const isSelected = selectedCell?.employeeId === record.employeeId && selectedCell?.date === record.date;
                     return (
-                      <tr
+                       <tr
                         key={record.id}
                         onClick={() => handleCellSelect(record.employeeId, record.date)}
                         className={`transition-colors cursor-pointer ${
                           isSelected
-                            ? "bg-blue-600/10 text-white outline outline-2 outline-blue-500/50"
-                            : "hover:bg-white/3"
+                            ? "bg-blue-50 text-slate-950 outline outline-2 outline-secondary"
+                            : "hover:bg-slate-50"
                         }`}
                       >
-                        <td className="px-6 py-4 font-semibold text-white">
+                        <td className="px-6 py-4 font-semibold text-slate-900">
                           <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-300 flex items-center justify-center font-bold text-[10px]">
+                            <div className="w-6 h-6 rounded-full bg-blue-50 text-secondary flex items-center justify-center font-bold text-[10px]">
                               {record.employeeName.split(" ").map((n) => n[0]).join("")}
                             </div>
                             {record.employeeName}
@@ -631,17 +631,17 @@ export default function AttendancePage() {
                         <td className="px-4 py-4 font-mono text-xs">
                           {formatTimeToHHMM(record.clockIn)} – {record.clockOut ? formatTimeToHHMM(record.clockOut) : "Aktiv"}
                         </td>
-                        <td className="px-4 py-4 font-mono text-xs text-slate-400">{record.breakMinutes} Min</td>
-                        <td className="px-4 py-4 font-mono font-bold text-blue-400">
+                        <td className="px-4 py-4 font-mono text-xs text-slate-500">{record.breakMinutes} Min</td>
+                        <td className="px-4 py-4 font-mono font-bold text-secondary">
                           {record.totalHours !== null ? `${record.totalHours.toFixed(2)} h` : "—"}
                         </td>
-                        <td className="px-4 py-4 font-sans text-xs text-slate-400">{record.warehouseName} ({record.hallName})</td>
+                        <td className="px-4 py-4 font-sans text-xs text-slate-500">{record.warehouseName} ({record.hallName})</td>
                         <td className="px-4 py-4 text-xs font-mono">
                           <span
                             className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                               record.source === "SCAN"
-                                ? "bg-purple-500/10 text-purple-400 border-purple-500/20"
-                                : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                ? "bg-purple-50 text-purple-700 border-purple-200"
+                                : "bg-emerald-50 text-emerald-700 border-emerald-200"
                             }`}
                           >
                             {record.source === "SCAN" ? "SCAN" : "MANUELL"}
@@ -653,7 +653,7 @@ export default function AttendancePage() {
                               <button
                                 onClick={() => downloadTsFile(record.timesheetId!, "pdf")}
                                 disabled={downloadingTs?.id === record.timesheetId}
-                                className="p-1 text-slate-400 hover:text-red-400 transition-colors"
+                                className="p-1 text-slate-400 hover:text-red-600 transition-colors"
                                 title="Original PDF laden"
                               >
                                 <FileText size={14} />
@@ -661,7 +661,7 @@ export default function AttendancePage() {
                               <button
                                 onClick={() => downloadTsFile(record.timesheetId!, "xlsx")}
                                 disabled={downloadingTs?.id === record.timesheetId}
-                                className="p-1 text-slate-400 hover:text-emerald-400 transition-colors"
+                                className="p-1 text-slate-400 hover:text-emerald-600 transition-colors"
                                 title="Original Excel laden"
                               >
                                 <FileSpreadsheet size={14} />
@@ -681,22 +681,22 @@ export default function AttendancePage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse min-w-[800px]">
                   <thead>
-                    <tr className="bg-white/5 border-b border-white/10 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    <tr className="bg-slate-50 border-b border-outline-variant text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                       <th className="px-6 py-3.5">Mitarbeiter</th>
                       {daysOfWeekList.map((dayStr) => (
                         <th key={dayStr} className="px-4 py-3.5 text-center font-mono text-[11px] leading-tight">
-                          <span className="block font-bold text-white">{getGermanWeekdayLabel(dayStr)}</span>
-                          <span className="text-[10px] text-slate-400 font-normal">{formatDateLabel(dayStr)}</span>
+                          <span className="block font-bold text-slate-800">{getGermanWeekdayLabel(dayStr)}</span>
+                          <span className="text-[10px] text-slate-500 font-normal">{formatDateLabel(dayStr)}</span>
                         </th>
                       ))}
                       <th className="px-4 py-3.5 text-center">Gesamt</th>
                       <th className="px-6 py-3.5 text-right print:hidden">Aktionen</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/5 text-sm text-slate-300">
+                  <tbody className="divide-y divide-outline-variant text-sm text-slate-700">
                     {displayEmployees.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="text-center py-10 text-slate-400">
+                        <td colSpan={10} className="text-center py-10 text-slate-500">
                           Keine Mitarbeiter im System vorhanden.
                         </td>
                       </tr>
@@ -706,10 +706,10 @@ export default function AttendancePage() {
                         let linkedTsId: string | null = null;
 
                         return (
-                          <tr key={emp.id} className="hover:bg-white/2 transition-colors">
-                            <td className="px-6 py-4 font-semibold text-white">
+                          <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="px-6 py-4 font-semibold text-slate-800">
                               <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-300 flex items-center justify-center font-bold text-[10px]">
+                                <div className="w-6 h-6 rounded-full bg-blue-50 text-secondary flex items-center justify-center font-bold text-[10px]">
                                   {emp.name.split(" ").map((n) => n[0]).join("")}
                                 </div>
                                 <div>
@@ -734,8 +734,8 @@ export default function AttendancePage() {
                                   onClick={() => handleCellSelect(emp.id, dayStr)}
                                   className={`px-2 py-4 text-center font-mono text-xs cursor-pointer select-none transition-all ${
                                     isSelected
-                                      ? "bg-blue-600/20 text-white font-bold ring-2 ring-blue-500 rounded-lg shadow-inner"
-                                      : "hover:bg-white/5"
+                                      ? "bg-blue-50 text-slate-900 font-bold ring-2 ring-secondary rounded-lg shadow-inner"
+                                      : "hover:bg-slate-50"
                                   }`}
                                 >
                                   {cellRecord ? (
@@ -746,13 +746,13 @@ export default function AttendancePage() {
                                       </span>
                                     </div>
                                   ) : (
-                                    <span className="text-slate-600 font-normal">—</span>
+                                    <span className="text-slate-400 font-normal">—</span>
                                   )}
                                 </td>
                               );
                             })}
 
-                            <td className="px-4 py-4 text-center font-mono font-bold text-blue-400">
+                            <td className="px-4 py-4 text-center font-mono font-bold text-secondary">
                               {weeklySum > 0 ? `${weeklySum.toFixed(1)} h` : "—"}
                             </td>
 
@@ -762,7 +762,7 @@ export default function AttendancePage() {
                                   <button
                                     onClick={() => downloadTsFile(linkedTsId!, "pdf")}
                                     disabled={downloadingTs?.id === linkedTsId}
-                                    className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-colors"
+                                    className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition-colors cursor-pointer"
                                     title="Stundenzettel PDF"
                                   >
                                     <FileText size={14} />
@@ -770,14 +770,14 @@ export default function AttendancePage() {
                                   <button
                                     onClick={() => downloadTsFile(linkedTsId!, "xlsx")}
                                     disabled={downloadingTs?.id === linkedTsId}
-                                    className="p-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition-colors"
+                                    className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-600 transition-colors cursor-pointer"
                                     title="Stundenzettel Excel"
                                   >
                                     <FileSpreadsheet size={14} />
                                   </button>
                                 </div>
                               ) : (
-                                <span className="text-[10px] text-slate-500 font-mono">Manuelle Einträge</span>
+                                <span className="text-[10px] text-slate-400 font-mono">Manuell</span>
                               )}
                             </td>
                           </tr>
@@ -791,7 +791,7 @@ export default function AttendancePage() {
 
             {/* C) MONTHLY VIEW WITH COLLAPSIBLE WEEKS */}
             {timeframe === "monthly" && (
-              <div className="divide-y divide-white/10">
+              <div className="divide-y divide-outline-variant">
                 {weeksOfMonthList.map((weekNo) => {
                   const isExpanded = expandedWeek === weekNo;
 
@@ -815,19 +815,19 @@ export default function AttendancePage() {
                   const weekHoursSum = weekLogs.reduce((s, l) => s + (l.totalHours || 0), 0);
 
                   return (
-                    <div key={weekNo} className="hover:bg-white/1 transition-colors">
+                    <div key={weekNo} className="hover:bg-slate-50/20 transition-colors">
                       {/* Week header row */}
                       <div
                         onClick={() => setExpandedWeek(isExpanded ? null : weekNo)}
                         className="flex items-center justify-between p-5 cursor-pointer select-none"
                       >
                         <div className="flex items-center gap-3">
-                          <div className={`p-1.5 rounded-lg transition-transform ${isExpanded ? "bg-blue-600 text-white" : "bg-white/10 text-slate-300"}`}>
+                          <div className={`p-1.5 rounded-lg transition-transform ${isExpanded ? "bg-secondary text-white" : "bg-slate-100 text-slate-700"}`}>
                             {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                           </div>
                           <div>
-                            <span className="font-bold text-white text-sm">Kalenderwoche {weekNo}</span>
-                            <span className="text-xs text-slate-400 font-mono ml-3">
+                            <span className="font-bold text-slate-800 text-sm">Kalenderwoche {weekNo}</span>
+                            <span className="text-xs text-slate-500 font-mono ml-3">
                               ({formatDateLabel(weekStartStr)} – {formatDateLabel(weekEndStr)})
                             </span>
                           </div>
@@ -836,14 +836,14 @@ export default function AttendancePage() {
                         <div className="flex items-center gap-5">
                           <div className="text-right">
                             <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider leading-none mb-1">Stunden in Woche</span>
-                            <span className="font-mono font-bold text-blue-400 text-sm">{weekHoursSum.toFixed(1)} h</span>
+                            <span className="font-mono font-bold text-secondary text-sm">{weekHoursSum.toFixed(1)} h</span>
                           </div>
                         </div>
                       </div>
 
                       {/* Expandable weekly matrix inside month */}
                       {isExpanded && (
-                        <div className="bg-slate-900/60 border-t border-white/5 p-4 animate-fadeIn overflow-x-auto">
+                        <div className="bg-slate-50 border-t border-outline-variant p-4 animate-fadeIn overflow-x-auto">
                           <WeeklyMatrixTable
                             week={weekNo}
                             year={filterYear}
@@ -867,37 +867,37 @@ export default function AttendancePage() {
 
       {/* Row + Date Edit Panel Card */}
       {selectedCell && (
-        <div className="bg-slate-900 border border-blue-500/30 p-6 rounded-2xl shadow-xl space-y-4 animate-slideUp print:hidden">
-          <div className="flex items-center justify-between border-b border-white/10 pb-3">
-            <h5 className="font-bold text-white flex items-center gap-2 text-sm">
-              <Clock className="w-5 h-5 text-blue-400" />
+        <div className="bg-white border border-secondary/30 p-6 rounded-2xl shadow-xl space-y-4 animate-slideUp print:hidden">
+          <div className="flex items-center justify-between border-b border-outline-variant pb-3">
+            <h5 className="font-bold text-slate-800 flex items-center gap-2 text-sm">
+              <Clock className="w-5 h-5 text-secondary" />
               Zeiterfassung bearbeiten
             </h5>
             <button
               onClick={() => setSelectedCell(null)}
-              className="text-slate-400 hover:text-white p-1 hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+              className="text-slate-500 hover:text-slate-800 p-1 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
             >
               <X size={18} />
             </button>
           </div>
 
-          <div className="text-xs text-slate-400 font-semibold font-mono space-y-1">
+          <div className="text-xs text-slate-500 font-semibold font-mono space-y-1">
             <p>
               Mitarbeiter:{" "}
-              <strong className="text-white">
+              <strong className="text-slate-900">
                 {employees.find((e) => e.id === selectedCell.employeeId)?.name || "Lade..."}
               </strong>
             </p>
             <p>
-              Datum: <strong className="text-white">{formatDateLabel(selectedCell.date)} ({getGermanWeekdayLabel(selectedCell.date)})</strong>
+              Datum: <strong className="text-slate-900">{formatDateLabel(selectedCell.date)} ({getGermanWeekdayLabel(selectedCell.date)})</strong>
             </p>
             <p>
               Status:{" "}
               <span
                 className={`font-bold ${
                   getLogForCell(selectedCell.employeeId, selectedCell.date)
-                    ? "text-emerald-400"
-                    : "text-amber-500"
+                    ? "text-emerald-600"
+                    : "text-amber-600"
                 }`}
               >
                 {getLogForCell(selectedCell.employeeId, selectedCell.date)
@@ -910,57 +910,57 @@ export default function AttendancePage() {
           {/* Form */}
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
             <div className="space-y-1">
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Startzeit</label>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Startzeit</label>
               <input
                 type="time"
                 value={editStartTime}
                 onChange={(e) => setEditStartTime(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/40"
+                className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-secondary"
               />
             </div>
 
             <div className="space-y-1">
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Endzeit</label>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Endzeit</label>
               <input
                 type="time"
                 value={editEndTime}
                 onChange={(e) => setEditEndTime(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/40"
+                className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-secondary"
               />
             </div>
 
             <div className="space-y-1">
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Pause (Min.)</label>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Pause (Min.)</label>
               <input
                 type="number"
                 min={0}
                 value={editBreakMinutes}
                 onChange={(e) => setEditBreakMinutes(Number(e.target.value) || 0)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/40"
+                className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-secondary"
               />
             </div>
 
             <div className="space-y-1">
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Netto Stunden</label>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Netto Stunden</label>
               <input
                 type="number"
                 step="0.05"
                 min={0}
                 value={editTotalHours}
                 onChange={(e) => setEditTotalHours(parseFloat(e.target.value) || 0)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/40 font-mono"
+                className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-secondary font-mono"
               />
             </div>
 
             <div className="space-y-1">
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Lager</label>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Lager</label>
               <select
                 value={editWarehouseId}
                 onChange={(e) => setEditWarehouseId(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-2 py-2 text-xs text-white focus:outline-none focus:border-blue-500/40 outline-none"
+                className="w-full bg-white border border-outline-variant rounded-xl px-2 py-2 text-xs text-slate-800 focus:outline-none focus:border-secondary outline-none"
               >
                 {warehouses.map((w) => (
-                  <option key={w.id} value={w.id} className="bg-slate-900 text-white">
+                  <option key={w.id} value={w.id}>
                     {w.name}
                   </option>
                 ))}
@@ -968,14 +968,14 @@ export default function AttendancePage() {
             </div>
 
             <div className="space-y-1">
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Halle</label>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Halle</label>
               <select
                 value={editHallId}
                 onChange={(e) => setEditHallId(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-2 py-2 text-xs text-white focus:outline-none focus:border-blue-500/40 outline-none"
+                className="w-full bg-white border border-outline-variant rounded-xl px-2 py-2 text-xs text-slate-800 focus:outline-none focus:border-secondary outline-none"
               >
                 {filteredHallsForEdit.map((h) => (
-                  <option key={h.id} value={h.id} className="bg-slate-900 text-white">
+                  <option key={h.id} value={h.id}>
                     {h.name}
                   </option>
                 ))}
@@ -987,14 +987,14 @@ export default function AttendancePage() {
           <div className="flex gap-3 pt-2">
             <button
               onClick={() => setSelectedCell(null)}
-              className="px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-slate-300 hover:text-white transition-all text-xs cursor-pointer"
+              className="px-5 py-2.5 rounded-xl bg-white border border-outline-variant hover:bg-slate-50 text-slate-700 transition-all text-xs cursor-pointer"
             >
               Abbrechen
             </button>
             <button
               onClick={handleSaveEntry}
               disabled={submitting || !editStartTime || !editEndTime}
-              className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-semibold py-2.5 px-5 rounded-xl shadow transition-all flex items-center justify-center gap-1.5 cursor-pointer text-xs"
+              className="flex-1 bg-secondary hover:bg-blue-700 disabled:opacity-60 text-white font-semibold py-2.5 px-5 rounded-xl shadow transition-all flex items-center justify-center gap-1.5 cursor-pointer text-xs"
             >
               {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
               {submitting ? "Wird gespeichert..." : "Speichern & Übernehmen"}
@@ -1008,14 +1008,14 @@ export default function AttendancePage() {
         <div
           className={`p-4 rounded-xl flex items-start gap-2.5 text-xs shadow-md animate-slideUp max-w-xl ${
             message.type === "success"
-              ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-300"
-              : "bg-red-500/10 border border-red-500/30 text-red-300"
+              ? "bg-emerald-50 border border-emerald-200 text-emerald-850"
+              : "bg-red-50 border border-red-200 text-red-850"
           }`}
         >
           {message.type === "success" ? (
-            <CheckCircle className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
+            <CheckCircle className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
           ) : (
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-400" />
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
           )}
           <div>
             <p className="font-bold">{message.type === "success" ? "Erfolg" : "Fehler aufgetreten"}</p>
@@ -1086,13 +1086,13 @@ function WeeklyMatrixTable({
   };
 
   return (
-    <table className="w-full text-left border-collapse min-w-[700px] border border-white/5 rounded-xl overflow-hidden font-sans">
+    <table className="w-full text-left border-collapse min-w-[700px] border border-outline-variant rounded-xl overflow-hidden font-sans">
       <thead>
-        <tr className="bg-white/10 border-b border-white/5 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+        <tr className="bg-slate-100 border-b border-outline-variant text-[9px] font-bold text-slate-600 uppercase tracking-wider">
           <th className="px-4 py-2">Mitarbeiter</th>
           {daysOfWeekList.map((dayStr) => (
             <th key={dayStr} className="px-2 py-2 text-center font-mono text-[10px] leading-tight">
-              <span className="block text-white">{getGermanWeekdayLabel(dayStr)}</span>
+              <span className="block text-slate-800">{getGermanWeekdayLabel(dayStr)}</span>
               <span className="text-[9px] text-slate-500 font-normal">{formatDateLabel(dayStr)}</span>
             </th>
           ))}
@@ -1100,14 +1100,14 @@ function WeeklyMatrixTable({
           <th className="px-4 py-2 text-right">Aktionen</th>
         </tr>
       </thead>
-      <tbody className="divide-y divide-white/5 text-xs text-slate-300">
+      <tbody className="divide-y divide-outline-variant text-xs text-slate-700">
         {displayEmployees.map((emp) => {
           let weeklySum = 0;
           let linkedTsId: string | null = null;
 
           return (
-            <tr key={emp.id} className="hover:bg-white/5 transition-colors">
-              <td className="px-4 py-2.5 font-semibold text-white">
+            <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
+              <td className="px-4 py-2.5 font-semibold text-slate-800">
                 <span className="block">{emp.name}</span>
               </td>
 
@@ -1126,16 +1126,16 @@ function WeeklyMatrixTable({
                     onClick={() => onCellSelect(emp.id, dayStr)}
                     className={`px-1 py-2.5 text-center font-mono text-[11px] cursor-pointer transition-all ${
                       isSelected
-                        ? "bg-blue-600/20 text-white font-bold ring-1 ring-blue-500 rounded"
-                        : "hover:bg-white/10"
+                        ? "bg-blue-50 text-slate-900 font-bold ring-1 ring-secondary rounded"
+                        : "hover:bg-slate-50"
                     }`}
                   >
-                    {cellRecord ? `${cellRecord.totalHours?.toFixed(1)} h` : <span className="text-slate-700">—</span>}
+                    {cellRecord ? `${cellRecord.totalHours?.toFixed(1)} h` : <span className="text-slate-400">—</span>}
                   </td>
                 );
               })}
 
-              <td className="px-2 py-2.5 text-center font-mono font-bold text-blue-400">
+              <td className="px-2 py-2.5 text-center font-mono font-bold text-secondary">
                 {weeklySum > 0 ? `${weeklySum.toFixed(1)} h` : "—"}
               </td>
 
@@ -1145,7 +1145,7 @@ function WeeklyMatrixTable({
                     <button
                       onClick={() => downloadTsFile(linkedTsId!, "pdf")}
                       disabled={downloadingTs?.id === linkedTsId}
-                      className="p-1 text-slate-400 hover:text-red-400 transition-colors"
+                      className="p-1 text-slate-450 hover:text-red-650 transition-colors cursor-pointer"
                       title="Stundenzettel PDF"
                     >
                       <FileText size={12} />
@@ -1153,7 +1153,7 @@ function WeeklyMatrixTable({
                     <button
                       onClick={() => downloadTsFile(linkedTsId!, "xlsx")}
                       disabled={downloadingTs?.id === linkedTsId}
-                      className="p-1 text-slate-400 hover:text-emerald-400 transition-colors"
+                      className="p-1 text-slate-450 hover:text-emerald-650 transition-colors cursor-pointer"
                       title="Stundenzettel Excel"
                     >
                       <FileSpreadsheet size={12} />

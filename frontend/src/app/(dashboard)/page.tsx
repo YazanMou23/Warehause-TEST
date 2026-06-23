@@ -37,6 +37,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import { useTranslation } from "../i18n/LanguageContext";
+import ActiveEmployeeCalendar from "../components/ActiveEmployeeCalendar";
 
 interface Metrics {
   employeesCount: number;
@@ -87,6 +88,7 @@ export default function DashboardPage() {
 
   // Manager/Admin Dashboard States
   const [recentActivityLogs, setRecentActivityLogs] = useState<any[]>([]);
+  const [dailyAttendance, setDailyAttendance] = useState<any[]>([]);
 
   const handleExportCSV = (plan: PlanItem) => {
     if (!plan) return;
@@ -341,6 +343,7 @@ export default function DashboardPage() {
 
           const attendanceRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/attendance/daily`, { headers });
           const attendanceData = attendanceRes.ok ? await attendanceRes.json() : [];
+          setDailyAttendance(attendanceData);
 
           setMetrics({
             employeesCount: usersList.length || 12,
@@ -425,6 +428,68 @@ export default function DashboardPage() {
             containersCount: 180,
             hallsCount: 18,
           });
+
+          // Generate mock today date format
+          const baseToday = new Date();
+          const yyyy = baseToday.getFullYear();
+          const mm = String(baseToday.getMonth() + 1).padStart(2, "0");
+          const dd = String(baseToday.getDate()).padStart(2, "0");
+          const todayPrefix = `${yyyy}-${mm}-${dd}`;
+
+          setDailyAttendance([
+            {
+              id: "att-mock-1",
+              employeeId: "emp-1",
+              employeeName: "Alex Arbeiter",
+              employee: { id: "emp-1", name: "Alex Arbeiter", phone: "+491701111111" },
+              clockIn: `${todayPrefix}T06:30:00.000Z`,
+              clockOut: null,
+              warehouseId: "wh-1",
+              warehouseName: "Duisburg Port Hub",
+              hallId: "hall-1",
+              hallName: "Hall A",
+              date: `${todayPrefix}T00:00:00.000Z`
+            },
+            {
+              id: "att-mock-2",
+              employeeId: "emp-2",
+              employeeName: "Bella Buche",
+              employee: { id: "emp-2", name: "Bella Buche", phone: "+491702222222" },
+              clockIn: `${todayPrefix}T08:00:00.000Z`,
+              clockOut: `${todayPrefix}T16:00:00.000Z`,
+              warehouseId: "wh-1",
+              warehouseName: "Duisburg Port Hub",
+              hallId: "hall-2",
+              hallName: "Hall B",
+              date: `${todayPrefix}T00:00:00.000Z`
+            },
+            {
+              id: "att-mock-3",
+              employeeId: "emp-3",
+              employeeName: "Chris Container",
+              employee: { id: "emp-3", name: "Chris Container", phone: "+491703333333" },
+              clockIn: `${todayPrefix}T09:15:00.000Z`,
+              clockOut: null,
+              warehouseId: "wh-2",
+              warehouseName: "Wesel NRW-North",
+              hallId: "hall-3",
+              hallName: "Hall A",
+              date: `${todayPrefix}T00:00:00.000Z`
+            },
+            {
+              id: "att-mock-4",
+              employeeId: "emp-4",
+              employeeName: "Dieter Depots",
+              employee: { id: "emp-4", name: "Dieter Depots", phone: "+491704444444" },
+              clockIn: `${todayPrefix}T07:45:00.000Z`,
+              clockOut: null,
+              warehouseId: "wh-2",
+              warehouseName: "Wesel NRW-North",
+              hallId: "hall-3",
+              hallName: "Hall A",
+              date: `${todayPrefix}T00:00:00.000Z`
+            }
+          ]);
 
           if (payload.role === "MANAGER") {
             setRecentActivityLogs([
@@ -530,7 +595,7 @@ export default function DashboardPage() {
                           setClockInWarehouseId(e.target.value);
                           setClockInHallId(""); // Reset hall
                         }}
-                        className="w-full bg-white border border-[#e5e7eb] rounded-lg px-3 py-2.5 text-body-sm text-[#0f172a] focus:border-[#2563eb] outline-none transition-colors"
+                        className="w-full bg-white border border-[#e5e7eb] rounded-lg px-3 py-2.5 text-body-sm text-[#0f172a] focus:border-[#1d4ed8] outline-none transition-colors"
                       >
                         <option value="">{t("chooseWarehousePlaceholder")}</option>
                         {allWarehouses.map((wh) => (
@@ -547,7 +612,7 @@ export default function DashboardPage() {
                         value={clockInHallId}
                         onChange={(e) => setClockInHallId(e.target.value)}
                         disabled={!clockInWarehouseId}
-                        className="w-full bg-white border border-[#e5e7eb] disabled:opacity-50 rounded-lg px-3 py-2.5 text-body-sm text-[#0f172a] focus:border-[#2563eb] outline-none transition-colors"
+                        className="w-full bg-white border border-[#e5e7eb] disabled:opacity-50 rounded-lg px-3 py-2.5 text-body-sm text-[#0f172a] focus:border-[#1d4ed8] outline-none transition-colors"
                       >
                         <option value="">{t("chooseHallPlaceholder")}</option>
                         {allHalls
@@ -834,6 +899,13 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {/* Active Employee Calendar (Gantt style timeline) */}
+          <ActiveEmployeeCalendar
+            logs={dailyAttendance}
+            loading={loading}
+            isOffline={isOffline}
+          />
+
           {/* Quick Operations Section */}
           <div className="space-y-stack-md">
             <h6 className="font-label-md text-outline uppercase tracking-wider text-[11px] font-semibold">
@@ -842,7 +914,7 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-stack-md">
               <Link
                 href="/planning"
-                className="flex items-center gap-4 p-stack-md bg-white border border-outline-variant rounded-lg hover:bg-surface-container-low hover:border-secondary/30 transition-all group shadow-sm text-left"
+                className="flex items-center gap-4 p-stack-md bg-white border border-outline-variant rounded-lg hover:-translate-y-1 hover:shadow-md hover:border-secondary/40 transition-all duration-200 group text-left cursor-pointer"
               >
                 <div className="w-12 h-12 flex items-center justify-center bg-secondary-container rounded-lg text-white group-hover:scale-105 transition-transform shrink-0">
                   <PlusCircle className="w-6 h-6" />
@@ -855,7 +927,7 @@ export default function DashboardPage() {
 
               <Link
                 href="/ocr"
-                className="flex items-center gap-4 p-stack-md bg-white border border-outline-variant rounded-lg hover:bg-surface-container-low hover:border-secondary/30 transition-all group shadow-sm text-left"
+                className="flex items-center gap-4 p-stack-md bg-white border border-outline-variant rounded-lg hover:-translate-y-1 hover:shadow-md hover:border-secondary/40 transition-all duration-200 group text-left cursor-pointer"
               >
                 <div className="w-12 h-12 flex items-center justify-center bg-secondary-container rounded-lg text-white group-hover:scale-105 transition-transform shrink-0">
                   <UploadCloud className="w-6 h-6" />
@@ -868,7 +940,7 @@ export default function DashboardPage() {
 
               <Link
                 href="/containers"
-                className="flex items-center gap-4 p-stack-md bg-white border border-outline-variant rounded-lg hover:bg-surface-container-low hover:border-secondary/30 transition-all group shadow-sm text-left"
+                className="flex items-center gap-4 p-stack-md bg-white border border-outline-variant rounded-lg hover:-translate-y-1 hover:shadow-md hover:border-secondary/40 transition-all duration-200 group text-left cursor-pointer"
               >
                 <div className="w-12 h-12 flex items-center justify-center bg-secondary-container rounded-lg text-white group-hover:scale-105 transition-transform shrink-0">
                   <Package className="w-6 h-6" />
@@ -881,7 +953,7 @@ export default function DashboardPage() {
 
               <Link
                 href="/employees"
-                className="flex items-center gap-4 p-stack-md bg-white border border-outline-variant rounded-lg hover:bg-surface-container-low hover:border-secondary/30 transition-all group shadow-sm text-left"
+                className="flex items-center gap-4 p-stack-md bg-white border border-outline-variant rounded-lg hover:-translate-y-1 hover:shadow-md hover:border-secondary/40 transition-all duration-200 group text-left cursor-pointer"
               >
                 <div className="w-12 h-12 flex items-center justify-center bg-secondary-container rounded-lg text-white group-hover:scale-105 transition-transform shrink-0">
                   <Users className="w-6 h-6" />
@@ -1107,7 +1179,7 @@ export default function DashboardPage() {
                                     <span className="font-semibold text-[#0f172a]">{log.user?.name || "System"}</span>
                                     <span suppressHydrationWarning className="text-[9px] text-[#94a3b8] font-mono"> {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                   </div>
-                                  <span className="font-mono text-[10px] mt-0.5 uppercase text-[#2563eb] bg-[#eff6ff] w-fit px-1.5 py-0.5 rounded font-semibold">{log.action}</span>
+                                  <span className="font-mono text-[10px] mt-0.5 uppercase text-[#1d4ed8] bg-[#eff6ff] w-fit px-1.5 py-0.5 rounded font-semibold">{log.action}</span>
                                   <span className="text-[#64748b] mt-1">{log.details}</span>
                                 </div>
                               ))
@@ -1194,7 +1266,7 @@ export default function DashboardPage() {
               {/* Staff Roster */}
               <div className="space-y-2.5">
                 <h5 className="font-bold text-body-md text-[#0f172a] flex items-center gap-2">
-                  <Users className="w-4 h-4 text-[#2563eb]" /> {t("assignedStaff")} ({selectedPlanForView.assignedEmployees?.length || 0})
+                  <Users className="w-4 h-4 text-[#1d4ed8]" /> {t("assignedStaff")} ({selectedPlanForView.assignedEmployees?.length || 0})
                 </h5>
                 <div className="bg-white border border-[#e2e8f0] rounded-xl overflow-hidden">
                   <table className="w-full text-left text-xs border-collapse">
@@ -1215,7 +1287,7 @@ export default function DashboardPage() {
                           <tr key={idx} className="hover:bg-[#f8fafc]">
                             <td className="p-3 font-medium text-[#0f172a]">{emp.name}</td>
                             <td className="p-3">
-                              <span className="px-2 py-0.5 bg-[#eff6ff] text-[#2563eb] rounded-full text-[10px] font-semibold uppercase tracking-wider">
+                              <span className="px-2 py-0.5 bg-[#eff6ff] text-[#1d4ed8] rounded-full text-[10px] font-semibold uppercase tracking-wider">
                                 {emp.role}
                               </span>
                             </td>
@@ -1231,7 +1303,7 @@ export default function DashboardPage() {
               {/* Container Queue */}
               <div className="space-y-2.5">
                 <h5 className="font-bold text-body-md text-[#0f172a] flex items-center gap-2">
-                  <Package className="w-4 h-4 text-[#2563eb]" /> {t("routedContainers")} ({selectedPlanForView.assignedContainers?.length || 0})
+                  <Package className="w-4 h-4 text-[#1d4ed8]" /> {t("routedContainers")} ({selectedPlanForView.assignedContainers?.length || 0})
                 </h5>
                 <div className="bg-white border border-[#e2e8f0] rounded-xl overflow-hidden">
                   <table className="w-full text-left text-xs border-collapse">

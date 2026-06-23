@@ -144,7 +144,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         
         {/* Brand */}
         <div className="px-5 py-5 flex items-center gap-3 border-b border-[#1e293b]">
-          <div className="w-9 h-9 bg-[#2563eb] flex items-center justify-center rounded-lg shrink-0 shadow-lg">
+          <div className="w-9 h-9 bg-[#1d4ed8] flex items-center justify-center rounded-lg shrink-0 shadow-lg">
             <Warehouse className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -165,7 +165,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 onClick={() => setMobileMenuOpen(false)}
                 className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-all group ${
                   isActive
-                    ? "bg-[#2563eb] text-white shadow-sm"
+                    ? "bg-[#1d4ed8] text-white shadow-sm"
                     : "text-[#94a3b8] hover:bg-[#1e293b] hover:text-white"
                 }`}
               >
@@ -183,7 +183,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             href="/profile"
             className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#1e293b] transition-colors"
           >
-            <div className="w-7 h-7 rounded-full bg-[#2563eb] flex items-center justify-center font-bold text-xs text-white shrink-0 overflow-hidden relative">
+            <div className="w-7 h-7 rounded-full bg-[#1d4ed8] flex items-center justify-center font-bold text-xs text-white shrink-0 overflow-hidden relative">
               {mounted && userId && (
                 <img
                   src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${userId}/photo?t=${photoTrigger}`}
@@ -264,7 +264,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   {userRole === "MANAGER" ? t("roleManager") : userRole === "ADMIN" ? t("roleAdmin") : t("roleEmployee")}
                 </p>
               </div>
-              <div className="w-8 h-8 rounded-full bg-[#2563eb] text-white flex items-center justify-center font-bold text-sm overflow-hidden relative">
+              <div className="w-8 h-8 rounded-full bg-[#1d4ed8] text-white flex items-center justify-center font-bold text-sm overflow-hidden relative">
                 {mounted && userId && (
                   <img
                     src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${userId}/photo?t=${photoTrigger}`}
