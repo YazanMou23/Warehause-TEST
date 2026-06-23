@@ -94,10 +94,6 @@ export class TimesheetService {
       throw new NotFoundException(`Stundenzettel mit ID ${id} nicht gefunden`);
     }
 
-    if (timesheet.status === TimesheetStatus.CONFIRMED) {
-      throw new BadRequestException('Dieser Stundenzettel wurde bereits bestätigt');
-    }
-
     // ── Validate entries ────────────────────────────────────────────────────
     const validEntries = dto.entries.filter(
       (e) => e.startTime?.trim() && e.endTime?.trim(),
@@ -187,9 +183,101 @@ export class TimesheetService {
 
     // ── Persist in transaction ───────────────────────────────────────────────
     const updated = await this.prisma.$transaction(async (tx) => {
-      // Delete old entries and recreate with corrected data
+      // 1. Delete old attendance entries linked to this timesheet
+      await tx.attendance.deleteMany({
+        where: { timesheetId: id },
+      });
+
+      // 2. Delete old timesheet entries
       await tx.timesheetEntry.deleteMany({ where: { timesheetId: id } });
 
+      // 3. Resolve employee default warehouse & hall if needed
+      const emp = await tx.user.findUnique({
+        where: { id: employeeId },
+        select: { warehouseId: true, hallId: true },
+      });
+
+      // Find first fallback warehouse/hall
+      let fallbackWhId: string | null = null;
+      let fallbackHallId: string | null = null;
+      const fallbackWh = await tx.warehouse.findFirst({
+        where: { deletedAt: null },
+        include: { halls: { where: { deletedAt: null } } },
+      });
+      if (fallbackWh) {
+        fallbackWhId = fallbackWh.id;
+        if (fallbackWh.halls && fallbackWh.halls.length > 0) {
+          fallbackHallId = fallbackWh.halls[0].id;
+        }
+      }
+
+      // 4. Create new Timesheet entries & Attendance records
+      const entriesToCreate = [];
+      const attendanceToCreate = [];
+
+      for (const e of validEntries) {
+        // Resolve warehouse and hall for this entry
+        let entryWhId = emp?.warehouseId || fallbackWhId;
+        let entryHallId = emp?.hallId || fallbackHallId;
+
+        if (e.location?.trim()) {
+          const matchedWh = await tx.warehouse.findFirst({
+            where: {
+              name: { contains: e.location.trim(), mode: 'insensitive' },
+              deletedAt: null,
+            },
+            include: { halls: { where: { deletedAt: null } } },
+          });
+          if (matchedWh) {
+            entryWhId = matchedWh.id;
+            if (matchedWh.halls && matchedWh.halls.length > 0) {
+              entryHallId = matchedWh.halls[0].id;
+            }
+          }
+        }
+
+        if (!entryWhId || !entryHallId) {
+          throw new BadRequestException(
+            `Kein Lager oder Halle für den Eintrag am ${e.date} gefunden. Bitte weise dem Mitarbeiter ein Standardlager zu oder erstelle ein Lager im System.`,
+          );
+        }
+
+        // Parse startTime and endTime
+        const [startH, startM] = e.startTime.split(':').map(Number);
+        const [endH, endM] = e.endTime.split(':').map(Number);
+
+        const clockIn = new Date(e.date);
+        clockIn.setUTCHours(startH, startM, 0, 0);
+
+        const clockOut = new Date(e.date);
+        clockOut.setUTCHours(endH, endM, 0, 0);
+
+        // Add to arrays
+        entriesToCreate.push({
+          weekday: e.weekday,
+          date: new Date(e.date),
+          startTime: e.startTime.trim(),
+          endTime: e.endTime.trim(),
+          breakMinutes: e.breakMinutes,
+          totalHours: e.totalHours,
+          location: e.location?.trim() ?? null,
+        });
+
+        attendanceToCreate.push({
+          employeeId,
+          warehouseId: entryWhId,
+          hallId: entryHallId,
+          clockIn,
+          clockOut,
+          totalHours: e.totalHours,
+          breakMinutes: e.breakMinutes,
+          source: 'SCAN',
+          date: new Date(e.date),
+          timesheetId: id,
+        });
+      }
+
+      // Save entries
       const confirmed = await tx.timesheet.update({
         where: { id },
         data: {
@@ -198,15 +286,7 @@ export class TimesheetService {
           weekStartDate: weekStart,
           status: TimesheetStatus.CONFIRMED,
           entries: {
-            create: validEntries.map((e) => ({
-              weekday: e.weekday,
-              date: new Date(e.date),
-              startTime: e.startTime.trim(),
-              endTime: e.endTime.trim(),
-              breakMinutes: e.breakMinutes,
-              totalHours: e.totalHours,
-              location: e.location?.trim() ?? null,
-            })),
+            create: entriesToCreate,
           },
         },
         include: {
@@ -214,6 +294,11 @@ export class TimesheetService {
           employee: { select: { id: true, name: true } },
         },
       });
+
+      // Create attendance records
+      for (const att of attendanceToCreate) {
+        await tx.attendance.create({ data: att });
+      }
 
       return confirmed;
     });

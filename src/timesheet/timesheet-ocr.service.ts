@@ -13,6 +13,7 @@ export interface OcrTimesheetEntry {
 
 export interface OcrTimesheetResult {
   employeeName: string;
+  weekStartDate?: string;
   entries: OcrTimesheetEntry[];
   sandbox?: boolean;
   warning?: string;
@@ -72,9 +73,10 @@ WICHTIGE REGELN:
 7. totalHours: Stunden als Dezimalzahl ohne Pause (z.B. 8.0 für 8 Stunden).
 8. Wenn eine Zahl schwer lesbar ist, gib deine beste Schätzung ab — kein leeres Feld.
 
-Extrahiere EXAKT dieses JSON:
+Extrahiere EXAKT dieses JSON (weekStartDate ist der Montag der Arbeitswoche, extrahiert aus dem Tabellenkopf oder Wochenzeitraum auf dem Zettel, im Format YYYY-MM-DD):
 {
   "employeeName": "Vorname Nachname",
+  "weekStartDate": "YYYY-MM-DD",
   "entries": [
     {
       "weekday": "Montag",
@@ -129,21 +131,122 @@ Extrahiere EXAKT dieses JSON:
 
     const parsed = JSON.parse(contentStr) as OcrTimesheetResult;
 
-    if (!parsed.employeeName || !Array.isArray(parsed.entries)) {
-      throw new Error('Invalid OCR response structure');
+    if (!parsed.employeeName) {
+      parsed.employeeName = 'Unbekannter Mitarbeiter';
     }
 
-    // Sanitize entries — remove truly empty ones
-    parsed.entries = parsed.entries.filter(
-      (e) => e.startTime && e.endTime && e.startTime.trim() !== '' && e.endTime.trim() !== '',
-    );
+    if (!Array.isArray(parsed.entries)) {
+      parsed.entries = [];
+    }
+
+    // Strict validation & sanitization
+    const sanitizedEntries: OcrTimesheetEntry[] = [];
+    for (const entry of parsed.entries) {
+      // 1. Validate Date (YYYY-MM-DD)
+      if (!entry.date || !/^\d{4}-\d{2}-\d{2}$/.test(entry.date)) {
+        continue; // Discard entries with corrupt dates
+      }
+      const entryDate = new Date(entry.date);
+      if (isNaN(entryDate.getTime())) {
+        continue;
+      }
+
+      // 2. Normalize times
+      const cleanStart = this.normalizeTime(entry.startTime);
+      const cleanEnd = this.normalizeTime(entry.endTime);
+      if (!cleanStart || !cleanEnd) {
+        continue; // Discard if times are unreadable or missing
+      }
+
+      // 3. Recalculate/validate weekday based on UTC date
+      const computedWeekday = this.getGermanWeekday(entry.date);
+
+      // 4. Sanitize breakMinutes
+      let breakMin = Math.max(0, Math.floor(Number(entry.breakMinutes || 0)));
+      if (isNaN(breakMin)) breakMin = 0;
+
+      // 5. Sanitize totalHours (ensure positive and fallback to calculated)
+      let calculatedHours = this.calculateHours(cleanStart, cleanEnd, breakMin);
+      let parsedHours = Number(entry.totalHours);
+      if (isNaN(parsedHours) || parsedHours <= 0) {
+        parsedHours = calculatedHours;
+      }
+
+      sanitizedEntries.push({
+        weekday: computedWeekday,
+        date: entry.date,
+        startTime: cleanStart,
+        endTime: cleanEnd,
+        breakMinutes: breakMin,
+        totalHours: Math.round(parsedHours * 100) / 100,
+        location: entry.location?.trim() || '',
+      });
+    }
+
+    parsed.entries = sanitizedEntries;
+
+    // Validate weekStartDate
+    if (!parsed.weekStartDate || !/^\d{4}-\d{2}-\d{2}$/.test(parsed.weekStartDate)) {
+      parsed.weekStartDate = this.deriveWeekStartFromEntries(parsed.entries);
+    }
 
     return parsed;
+  }
+
+  private normalizeTime(tStr: string): string | null {
+    if (!tStr) return null;
+    let clean = tStr.replace(/[^0-9:]/g, '').trim();
+    if (!clean.includes(':') && clean.length === 4) {
+      clean = clean.substring(0, 2) + ':' + clean.substring(2);
+    }
+    const match = clean.match(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/);
+    if (!match) return null;
+    const parts = clean.split(':');
+    const h = parts[0].padStart(2, '0');
+    const m = parts[1].padStart(2, '0');
+    return `${h}:${m}`;
+  }
+
+  private getGermanWeekday(dateStr: string): string {
+    const d = new Date(dateStr);
+    const day = d.getUTCDay();
+    const weekdaysDe = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+    return weekdaysDe[day];
+  }
+
+  private calculateHours(startTime: string, endTime: string, breakMinutes: number): number {
+    const [startH, startM] = startTime.split(':').map(Number);
+    const [endH, endM] = endTime.split(':').map(Number);
+    const startMin = startH * 60 + startM;
+    const endMin = endH * 60 + endM;
+    if (endMin <= startMin) return 0;
+    const netMin = endMin - startMin - breakMinutes;
+    return Math.max(0, netMin / 60);
+  }
+
+  private deriveWeekStartFromEntries(entries: OcrTimesheetEntry[]): string {
+    if (entries.length > 0) {
+      const firstDate = new Date(entries[0].date);
+      if (!isNaN(firstDate.getTime())) {
+        const day = firstDate.getUTCDay();
+        const distToMonday = day === 0 ? 6 : day - 1;
+        const monday = new Date(firstDate);
+        monday.setUTCDate(monday.getUTCDate() - distToMonday);
+        return monday.toISOString().split('T')[0];
+      }
+    }
+    const now = new Date();
+    const day = now.getUTCDay();
+    const distToMonday = day === 0 ? 6 : day - 1;
+    const monday = new Date(now);
+    monday.setUTCDate(monday.getUTCDate() - distToMonday);
+    return monday.toISOString().split('T')[0];
   }
 
   private getSandboxFallback(warning?: string): OcrTimesheetResult {
     return {
       employeeName: 'Max Mustermann',
+      weekStartDate: '2026-06-15',
       sandbox: true,
       warning: warning ?? 'Sandbox-Modus aktiv — Demo-Daten werden angezeigt.',
       entries: [

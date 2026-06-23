@@ -1,7 +1,9 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { AttendanceService } from './attendance.service';
 import { ClockInDto } from './dto/clock-in.dto';
 import { ClockOutDto } from './dto/clock-out.dto';
+import { AttendanceReportDto } from './dto/attendance-report.dto';
+import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -64,5 +66,23 @@ export class AttendanceController {
     }
 
     return this.attendanceService.getMonthlyReport(employeeId, y, m);
+  }
+
+  @Get('report')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  async getReport(@Query() query: AttendanceReportDto) {
+    return this.attendanceService.getAttendanceReport(query);
+  }
+
+  @Put(':id')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  async update(@Param('id') id: string, @Body() dto: UpdateAttendanceDto) {
+    return this.attendanceService.updateAttendance(id, dto);
+  }
+
+  @Post('manual')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  async createManual(@Body() dto: any) {
+    return this.attendanceService.createManualEntry(dto);
   }
 }

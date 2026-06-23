@@ -157,8 +157,15 @@ model Attendance {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
+  // Unified fields
+  breakMinutes Int       @default(0)
+  source       String    @default("MANUAL") // "MANUAL" or "SCAN"
+  timesheetId  String?
+  timesheet    Timesheet? @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
+
   @@index([employeeId, date])
   @@index([warehouseId, date])
+  @@index([timesheetId])
 }
 
 model ActionLog {
@@ -201,6 +208,7 @@ model Timesheet {
   updatedAt      DateTime        @updatedAt
 
   entries        TimesheetEntry[]
+  attendance     Attendance[]
 
   @@index([employeeId])
   @@index([weekStartDate])

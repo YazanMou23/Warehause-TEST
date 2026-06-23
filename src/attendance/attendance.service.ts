@@ -162,4 +162,180 @@ export class AttendanceService {
       })),
     };
   }
+
+  async getAttendanceReport(query: any) {
+    const timeframe = query.timeframe;
+    const year = parseInt(query.year, 10);
+    let start: Date;
+    let end: Date;
+
+    if (timeframe === 'daily') {
+      if (!query.date) {
+        throw new BadRequestException('Query parameter "date" is required for daily timeframe');
+      }
+      start = new Date(query.date);
+      start.setUTCHours(0, 0, 0, 0);
+      end = new Date(start);
+      end.setUTCHours(23, 59, 59, 999);
+    } else if (timeframe === 'weekly') {
+      if (!query.week) {
+        throw new BadRequestException('Query parameter "week" is required for weekly timeframe');
+      }
+      const week = parseInt(query.week, 10);
+      const range = this.getDateRangeOfWeek(week, year);
+      start = range.start;
+      end = range.end;
+    } else if (timeframe === 'monthly') {
+      if (!query.month) {
+        throw new BadRequestException('Query parameter "month" is required for monthly timeframe');
+      }
+      const month = parseInt(query.month, 10);
+      start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+      end = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+    } else {
+      throw new BadRequestException('Invalid timeframe');
+    }
+
+    const where: any = {
+      date: {
+        gte: start,
+        lte: end,
+      },
+    };
+
+    if (query.employeeId && query.employeeId !== 'ALL') {
+      where.employeeId = query.employeeId;
+    }
+
+    const logs = await this.prisma.attendance.findMany({
+      where,
+      include: {
+        employee: { select: { id: true, name: true, phone: true } },
+        warehouse: { select: { id: true, name: true } },
+        hall: { select: { id: true, name: true } },
+      },
+      orderBy: { clockIn: 'asc' },
+    });
+
+    return {
+      start,
+      end,
+      logs,
+    };
+  }
+
+  async updateAttendance(id: string, dto: any) {
+    const attendance = await this.prisma.attendance.findUnique({
+      where: { id },
+    });
+
+    if (!attendance) {
+      throw new NotFoundException(`Zeiterfassungs-Eintrag mit ID ${id} nicht gefunden`);
+    }
+
+    const clockIn = new Date(dto.clockIn);
+    const clockOut = dto.clockOut ? new Date(dto.clockOut) : null;
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.attendance.update({
+        where: { id },
+        data: {
+          clockIn,
+          clockOut,
+          breakMinutes: dto.breakMinutes,
+          totalHours: dto.totalHours,
+          warehouseId: dto.warehouseId || attendance.warehouseId,
+          hallId: dto.hallId || attendance.hallId,
+          date: new Date(dto.clockIn), // keep date aligned
+        },
+        include: {
+          employee: { select: { id: true, name: true, phone: true } },
+          warehouse: { select: { id: true, name: true } },
+          hall: { select: { id: true, name: true } },
+        },
+      });
+
+      // Keep TimesheetEntry in sync if it belongs to a timesheet
+      if (attendance.timesheetId) {
+        // We find the entry by timesheetId and the date of the attendance record
+        const entryDate = new Date(attendance.date);
+        const tsEntry = await tx.timesheetEntry.findFirst({
+          where: {
+            timesheetId: attendance.timesheetId,
+            date: entryDate,
+          },
+        });
+
+        if (tsEntry) {
+          const pad = (num: number) => num.toString().padStart(2, '0');
+          const startTimeStr = `${pad(clockIn.getUTCHours())}:${pad(clockIn.getUTCMinutes())}`;
+          const endTimeStr = clockOut
+            ? `${pad(clockOut.getUTCHours())}:${pad(clockOut.getUTCMinutes())}`
+            : '00:00';
+
+          let locationName = tsEntry.location;
+          if (dto.warehouseId) {
+            const wh = await tx.warehouse.findUnique({ where: { id: dto.warehouseId } });
+            if (wh) locationName = wh.name;
+          }
+
+          await tx.timesheetEntry.update({
+            where: { id: tsEntry.id },
+            data: {
+              startTime: startTimeStr,
+              endTime: endTimeStr,
+              breakMinutes: dto.breakMinutes,
+              totalHours: dto.totalHours,
+              location: locationName,
+            },
+          });
+        }
+      }
+
+      return updated;
+    });
+  }
+
+  async createManualEntry(dto: any) {
+    const clockIn = new Date(dto.clockIn);
+    const clockOut = dto.clockOut ? new Date(dto.clockOut) : null;
+
+    return this.prisma.attendance.create({
+      data: {
+        employeeId: dto.employeeId,
+        warehouseId: dto.warehouseId,
+        hallId: dto.hallId,
+        clockIn,
+        clockOut,
+        breakMinutes: dto.breakMinutes,
+        totalHours: dto.totalHours,
+        date: new Date(dto.clockIn),
+        source: 'MANUAL',
+      },
+      include: {
+        employee: { select: { id: true, name: true, phone: true } },
+        warehouse: { select: { id: true, name: true } },
+        hall: { select: { id: true, name: true } },
+      },
+    });
+  }
+
+  private getDateRangeOfWeek(week: number, year: number) {
+    // Find the first Thursday of the year (ISO week standard)
+    const jan1 = new Date(Date.UTC(year, 0, 1));
+    const day = jan1.getUTCDay();
+    const diff = (day <= 4 ? 1 - day : 8 - day);
+    const firstMonday = new Date(jan1);
+    firstMonday.setUTCDate(jan1.getUTCDate() + diff);
+
+    const start = new Date(firstMonday);
+    start.setUTCDate(firstMonday.getUTCDate() + (week - 1) * 7);
+    start.setUTCHours(0, 0, 0, 0);
+
+    const end = new Date(start);
+    end.setUTCDate(start.getUTCDate() + 6);
+    end.setUTCHours(23, 59, 59, 999);
+
+    return { start, end };
+  }
 }
