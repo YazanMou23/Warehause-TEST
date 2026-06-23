@@ -194,7 +194,7 @@ export class TimesheetService {
         where: { id },
         data: {
           employeeId,
-          employeeName: timesheet.employeeName,
+          employeeName: dto.employeeName || timesheet.employeeName,
           status: TimesheetStatus.CONFIRMED,
           entries: {
             create: validEntries.map((e) => ({

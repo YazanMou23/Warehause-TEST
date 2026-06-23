@@ -89,6 +89,28 @@ function formatDate(iso: string): string {
   });
 }
 
+function getGermanWeekday(dateStr: string): string {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  const weekdaysDe = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+  return weekdaysDe[d.getDay()];
+}
+
+function calculateHours(startTime: string, endTime: string, breakMinutes: number): number {
+  if (!startTime || !endTime) return 0;
+  const [startH, startM] = startTime.split(':').map(Number);
+  const [endH, endM] = endTime.split(':').map(Number);
+  if (isNaN(startH) || isNaN(startM) || isNaN(endH) || isNaN(endM)) return 0;
+  
+  const startMin = startH * 60 + startM;
+  const endMin = endH * 60 + endM;
+  if (endMin <= startMin) return 0;
+  
+  const netMin = endMin - startMin - (breakMinutes || 0);
+  return Math.max(0, netMin / 60);
+}
+
 function getWeekRange(weekStart: string): string {
   if (!weekStart) return '—';
   const start = new Date(weekStart);
@@ -296,13 +318,17 @@ function ReviewView({
   onDiscard: () => void;
   isLoading: boolean;
 }) {
-  const [entries, setEntries] = useState<TimesheetEntry[]>(
-    scanResult.entries.map((e) => ({ ...e })),
-  );
+  const [entries, setEntries] = useState<TimesheetEntry[]>(() => {
+    const allWeekdays = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+    return allWeekdays.map((day) => {
+      const found = scanResult.entries.find((e) => e.weekday === day);
+      return found ?? { weekday: day, date: '', startTime: '', endTime: '', breakMinutes: 0, totalHours: 0, location: '' };
+    });
+  });
+  const [employeeName, setEmployeeName] = useState(scanResult.employeeName);
   const [employeeId, setEmployeeId] = useState<string>(scanResult.employeeId ?? '');
   const [createNew, setCreateNew] = useState(!scanResult.employeeMatch.found);
   const [newEmployee, setNewEmployee] = useState({
-    name: scanResult.employeeName,
     username: '',
     phone: '',
     password: 'changeme123',
@@ -310,23 +336,26 @@ function ReviewView({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showAllRows, setShowAllRows] = useState(false);
 
-  const allWeekdays = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
-  const fullEntries = allWeekdays.map((day) => {
-    const found = entries.find((e) => e.weekday === day);
-    return found ?? { weekday: day, date: '', startTime: '', endTime: '', breakMinutes: 0, totalHours: 0, location: '' };
-  });
-
   const updateEntry = (idx: number, field: keyof TimesheetEntry, value: string | number) => {
     setEntries((prev) => {
       const updated = [...prev];
-      const currentEntry = fullEntries[idx];
-      const dayExists = prev.findIndex((e) => e.weekday === currentEntry.weekday);
+      updated[idx] = { ...updated[idx], [field]: value };
 
-      if (dayExists >= 0) {
-        updated[dayExists] = { ...updated[dayExists], [field]: value };
-      } else if (value !== '' && value !== 0) {
-        updated.push({ ...currentEntry, [field]: value });
+      if (field === 'date') {
+        const computedWeekday = getGermanWeekday(value as string);
+        if (computedWeekday) {
+          updated[idx].weekday = computedWeekday;
+        }
       }
+
+      if (field === 'startTime' || field === 'endTime' || field === 'breakMinutes') {
+        updated[idx].totalHours = calculateHours(
+          updated[idx].startTime,
+          updated[idx].endTime,
+          Number(updated[idx].breakMinutes || 0)
+        );
+      }
+
       return updated;
     });
   };
@@ -335,6 +364,7 @@ function ReviewView({
 
   const handleConfirm = () => {
     const payload: any = {
+      employeeName,
       entries: entries
         .filter((e) => e.startTime && e.endTime)
         .map((e) => ({
@@ -349,11 +379,14 @@ function ReviewView({
     };
 
     if (createNew) {
-      if (!newEmployee.name || !newEmployee.username || !newEmployee.phone) {
+      if (!employeeName || !newEmployee.username || !newEmployee.phone) {
         setErrors({ general: 'Bitte alle Pflichtfelder für den neuen Mitarbeiter ausfüllen' });
         return;
       }
-      payload.createNewEmployee = newEmployee;
+      payload.createNewEmployee = {
+        ...newEmployee,
+        name: employeeName,
+      };
     } else {
       if (!employeeId) {
         setErrors({ general: 'Bitte einen Mitarbeiter auswählen' });
@@ -397,9 +430,14 @@ function ReviewView({
         </h3>
 
         <div className="flex items-center gap-3 mb-4">
-          <div className="flex-1 px-3 py-2 bg-white/8 rounded-xl border border-white/10">
-            <p className="text-xs text-slate-400 mb-0.5">OCR-erkannter Name</p>
-            <p className="text-white font-medium">{scanResult.employeeName}</p>
+          <div className="flex-1 px-3 py-2 bg-white/8 rounded-xl border border-white/10 focus-within:border-blue-500/40 transition-colors">
+            <p className="text-xs text-slate-400 mb-0.5">OCR-erkannter Name (bearbeitbar)</p>
+            <input
+              type="text"
+              value={employeeName}
+              onChange={(e) => setEmployeeName(e.target.value)}
+              className="w-full bg-transparent text-white font-medium focus:outline-none border-b border-transparent focus:border-blue-400/40 py-0.5"
+            />
           </div>
           <ConfidenceBadge confidence={scanResult.employeeMatch.confidence} />
         </div>
@@ -504,7 +542,7 @@ function ReviewView({
         </div>
 
         {/* Table Rows */}
-        {fullEntries.map((entry, idx) => {
+        {entries.map((entry, idx) => {
           const hasData = entry.startTime !== '' || entry.endTime !== '';
           const isWeekend = idx >= 5;
 
