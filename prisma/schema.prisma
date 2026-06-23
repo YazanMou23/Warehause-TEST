@@ -47,6 +47,9 @@ model User {
   plans        PlanEmployee[]
   actionLogs   ActionLog[]
   passwordResetTokens PasswordResetToken[]
+  sentMessages        ChatMessage[] @relation("SentMessages")
+  receivedMessages    ChatMessage[] @relation("ReceivedMessages")
+  isChatBlocked       Boolean       @default(false)
 
   @@index([warehouseId])
   @@index([hallId])
@@ -230,3 +233,19 @@ model TimesheetEntry {
 
   @@index([timesheetId])
 }
+
+model ChatMessage {
+  id         String   @id @default(uuid())
+  senderId   String
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId String
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  content    String
+  createdAt  DateTime @default(now())
+  read       Boolean  @default(false)
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([createdAt])
+}
+

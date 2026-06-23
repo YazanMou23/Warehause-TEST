@@ -23,6 +23,7 @@ import {
   Shield,
   ChevronRight,
   FileCheck,
+  MessageSquare,
 } from "lucide-react";
 import { useTranslation } from "../i18n/LanguageContext";
 
@@ -36,6 +37,7 @@ interface SidebarLink {
 const sidebarLinks: SidebarLink[] = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard, section: "main" },
   { name: "Planning", href: "/planning", icon: Calendar, section: "main" },
+  { name: "Chat", href: "/chat", icon: MessageSquare, section: "main" },
   { name: "Employees", href: "/employees", icon: Users, section: "people" },
   { name: "Admins", href: "/admins", icon: Shield, section: "people" },
   { name: "Warehouses", href: "/warehouses", icon: Warehouse, section: "resources" },
@@ -116,6 +118,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const map: Record<string, string> = {
       Dashboard: "dashboard",
       Planning: "planning",
+      Chat: "chat",
       Employees: "employees",
       Admins: "admins",
       Warehouses: "warehouses",
@@ -133,7 +136,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const SidebarContent = () => {
     const allowedLinks = sidebarLinks.filter((link) => {
-      if (userRole === "EMPLOYEE") return ["Dashboard", "Profile", "Settings"].includes(link.name);
+      if (userRole === "EMPLOYEE") return ["Dashboard", "Profile", "Settings", "Chat"].includes(link.name);
       if (userRole === "ADMIN") return !["Reports", "Admins"].includes(link.name);
       return true;
     });
