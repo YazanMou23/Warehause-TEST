@@ -335,7 +335,17 @@ function ReviewView({
 
   const handleConfirm = () => {
     const payload: any = {
-      entries: entries.filter((e) => e.startTime && e.endTime),
+      entries: entries
+        .filter((e) => e.startTime && e.endTime)
+        .map((e) => ({
+          weekday: e.weekday,
+          date: e.date,
+          startTime: e.startTime,
+          endTime: e.endTime,
+          breakMinutes: Number(e.breakMinutes),
+          totalHours: Number(e.totalHours),
+          location: e.location || '',
+        })),
     };
 
     if (createNew) {
@@ -519,7 +529,7 @@ function ReviewView({
 
               <input
                 type="date"
-                value={entry.date}
+                value={entry.date ? entry.date.split('T')[0] : ''}
                 onChange={(e) => updateEntry(idx, 'date', e.target.value)}
                 className="px-2 py-1 bg-white/8 border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-blue-400/60 w-full"
               />

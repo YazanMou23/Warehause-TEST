@@ -26,6 +26,14 @@ export class NewEmployeeDto {
 }
 
 export class TimesheetEntryInputDto {
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @IsOptional()
+  @IsString()
+  timesheetId?: string;
+
   @IsString()
   weekday: string;
 
