@@ -19,6 +19,10 @@ import {
   Square,
   Lock,
   Calendar,
+  Upload,
+  Download,
+  FileSpreadsheet,
+  CheckCircle2,
 } from "lucide-react";
 import { useTranslation } from "../../i18n/LanguageContext";
 
@@ -76,6 +80,12 @@ export default function EmployeesPage() {
   const [emailLoading, setEmailLoading] = useState(false);
   const [emailError, setEmailError] = useState("");
   const [emailSuccess, setEmailSuccess] = useState("");
+
+  // Excel Import State
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importResult, setImportResult] = useState<any>(null);
+  const [importError, setImportError] = useState("");
 
   const router = useRouter();
 
@@ -445,6 +455,60 @@ export default function EmployeesPage() {
 
   const canManage = userRole === "ADMIN" || userRole === "MANAGER";
 
+  const handleDownloadTemplate = async () => {
+    const token = localStorage.getItem("accessToken");
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/excel-template`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Download failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "mitarbeiter_import_template.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert("Failed to download template. Make sure you are logged in.");
+    }
+  };
+
+  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Reset input so same file can be re-selected
+    e.target.value = "";
+
+    setImportLoading(true);
+    setImportError("");
+    setImportResult(null);
+    setImportModalOpen(true);
+
+    const token = localStorage.getItem("accessToken");
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/import-excel`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setImportResult(data);
+        if (data.summary?.createdCount > 0) loadEmployees();
+      } else {
+        setImportError(Array.isArray(data.message) ? data.message.join(", ") : data.message || "Import failed");
+      }
+    } catch (err: any) {
+      setImportError(err.message || "Network error");
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -465,12 +529,38 @@ export default function EmployeesPage() {
         </div>
 
         {canManage && (
-          <button
-            onClick={openAddModal}
-            className="bg-primary text-on-primary px-4 py-2.5 rounded-lg font-label-md uppercase tracking-wider flex items-center gap-2 hover:bg-neutral-800 transition-colors shadow-sm self-start sm:self-auto cursor-pointer"
-          >
-            <Plus className="w-4 h-4" /> {t("addEmployee")}
-          </button>
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            {/* Download Template */}
+            <button
+              onClick={handleDownloadTemplate}
+              title="Download Excel template"
+              className="border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500 hover:text-white px-3 py-2.5 rounded-lg font-label-md uppercase tracking-wider flex items-center gap-2 transition-colors shadow-sm cursor-pointer text-xs"
+            >
+              <Download className="w-4 h-4" /> Template
+            </button>
+
+            {/* Upload Excel */}
+            <label
+              title="Import employees from Excel"
+              className="border border-blue-500/40 text-blue-400 hover:bg-blue-500 hover:text-white px-3 py-2.5 rounded-lg font-label-md uppercase tracking-wider flex items-center gap-2 transition-colors shadow-sm cursor-pointer text-xs"
+            >
+              <Upload className="w-4 h-4" /> Import Excel
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={handleImportExcel}
+              />
+            </label>
+
+            {/* Add Single Employee */}
+            <button
+              onClick={openAddModal}
+              className="bg-primary text-on-primary px-4 py-2.5 rounded-lg font-label-md uppercase tracking-wider flex items-center gap-2 hover:bg-neutral-800 transition-colors shadow-sm cursor-pointer"
+            >
+              <Plus className="w-4 h-4" /> {t("addEmployee")}
+            </button>
+          </div>
         )}
       </div>
 
@@ -673,6 +763,97 @@ export default function EmployeesPage() {
           </table>
         </div>
       </div>
+
+      {/* ── Excel Import Result Modal ── */}
+      {importModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[#1e293b] border border-[#334155] rounded-xl max-w-lg w-full shadow-2xl overflow-hidden animate-scaleIn">
+            <div className="px-6 py-4 bg-[#0f1117] border-b border-[#334155] flex justify-between items-center">
+              <h4 className="font-bold text-body-lg text-white flex items-center gap-2">
+                <FileSpreadsheet className="w-5 h-5 text-blue-400" />
+                Excel Import
+              </h4>
+              {!importLoading && (
+                <button onClick={() => setImportModalOpen(false)} className="text-on-surface-variant hover:text-white p-1 hover:bg-[#334155] rounded-lg transition-colors cursor-pointer">
+                  <X className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Loading */}
+              {importLoading && (
+                <div className="flex flex-col items-center gap-3 py-6">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-400" />
+                  <p className="text-white text-sm">Processing Excel file...</p>
+                </div>
+              )}
+
+              {/* Error */}
+              {!importLoading && importError && (
+                <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                  <p className="text-red-300 text-sm">{importError}</p>
+                </div>
+              )}
+
+              {/* Success Result */}
+              {!importLoading && importResult && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-[#0f1117] rounded-lg p-3 text-center border border-[#334155]">
+                      <p className="text-2xl font-bold text-white">{importResult.summary?.totalProcessed ?? 0}</p>
+                      <p className="text-[11px] text-[#94a3b8] uppercase tracking-wider mt-1">Processed</p>
+                    </div>
+                    <div className="bg-emerald-500/10 rounded-lg p-3 text-center border border-emerald-500/20">
+                      <p className="text-2xl font-bold text-emerald-400">{importResult.summary?.createdCount ?? 0}</p>
+                      <p className="text-[11px] text-emerald-400/70 uppercase tracking-wider mt-1">Created</p>
+                    </div>
+                    <div className="bg-red-500/10 rounded-lg p-3 text-center border border-red-500/20">
+                      <p className="text-2xl font-bold text-red-400">{importResult.summary?.failedCount ?? 0}</p>
+                      <p className="text-[11px] text-red-400/70 uppercase tracking-wider mt-1">Skipped</p>
+                    </div>
+                  </div>
+
+                  {importResult.summary?.createdCount > 0 && (
+                    <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <p className="text-emerald-300 text-sm">{importResult.message}</p>
+                    </div>
+                  )}
+
+                  {/* Errors list */}
+                  {importResult.summary?.errors?.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-bold uppercase text-[#94a3b8] tracking-wider">Skipped Rows</p>
+                      <div className="max-h-40 overflow-y-auto space-y-1">
+                        {importResult.summary.errors.map((err: any, i: number) => (
+                          <div key={i} className="flex items-start gap-2 p-2 bg-[#0f1117] rounded text-xs border border-[#334155]">
+                            <span className="text-[#64748b] shrink-0">Row {err.row}:</span>
+                            <span className="text-[#94a3b8]">{err.name || err.phone || "—"}</span>
+                            <span className="text-red-400 ml-auto text-right">{err.reason}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {!importLoading && (
+              <div className="px-6 py-4 bg-[#0f1117] border-t border-[#334155] flex justify-end">
+                <button
+                  onClick={() => setImportModalOpen(false)}
+                  className="px-4 py-2 bg-secondary text-white font-bold rounded-lg text-sm hover:bg-secondary/90 cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Add Employee Modal */}
       {addModalOpen && (
