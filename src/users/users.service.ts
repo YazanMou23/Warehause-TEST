@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { EmailService } from '../email/email.service';
-import { Role } from '@prisma/client';
+import { Role, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as ExcelJS from 'exceljs';
 
@@ -611,9 +611,9 @@ export class UsersService {
       }
     });
 
-    if ((!colMap['name'] && !colMap['vorname'] && !colMap['lastName']) || !colMap['phone']) {
+    if (!colMap['name'] && !colMap['vorname'] && !colMap['lastName']) {
       throw new BadRequestException(
-        'Excel header must contain at least "Name" (or "Vorname" / "Nachname") and "Telefon" (or "Phone") columns.'
+        'Excel header must contain at least a "Name" (or "Vorname" / "Nachname") column.'
       );
     }
 
@@ -640,23 +640,20 @@ export class UsersService {
 
       const rawPhone = colMap['phone'] ? this.getCellValueString(row.getCell(colMap['phone'])) : '';
       const rawAddress = colMap['address'] ? this.getCellValueString(row.getCell(colMap['address'])) : '';
-
-      // Skip row if both name and phone are empty
-      if (!rawName && !rawPhone) {
-        continue;
-      }
-
-      if (!rawName) {
-        errors.push({ row: rowNumber, phone: rawPhone, reason: 'Name is missing' });
-        continue;
-      }
-      if (!rawPhone) {
-        errors.push({ row: rowNumber, name: rawName, reason: 'Phone number is missing' });
-        continue;
-      }
-
       const rawUsername = colMap['username'] ? this.getCellValueString(row.getCell(colMap['username'])) : '';
       const rawEmail = colMap['email'] ? this.getCellValueString(row.getCell(colMap['email'])) : '';
+
+      // Skip empty row
+      if (!rawName && !rawPhone && !rawUsername && !rawEmail) {
+        continue;
+      }
+
+      // Name (First/Last) is the ONLY required field for creation
+      if (!rawName) {
+        errors.push({ row: rowNumber, phone: rawPhone || 'N/A', reason: 'First Name / Last Name is missing.' });
+        continue;
+      }
+
       const rawPassword = colMap['password'] ? this.getCellValueString(row.getCell(colMap['password'])) : '';
       const rawRole = colMap['role'] ? this.getCellValueString(row.getCell(colMap['role'])) : '';
       const rawWarehouse = colMap['warehouse'] ? this.getCellValueString(row.getCell(colMap['warehouse'])) : '';
@@ -664,12 +661,25 @@ export class UsersService {
       const rawTelegramId = colMap['telegramId'] ? this.getCellValueString(row.getCell(colMap['telegramId'])) : '';
       const rawStart = colMap['employmentStart'] ? this.getCellValueString(row.getCell(colMap['employmentStart'])) : '';
 
+      // Generate phone if missing to satisfy unique constraint
+      let phone = rawPhone;
+      if (!phone) {
+        phone = `+49000${Date.now().toString().slice(-6)}${rowNumber}`;
+      }
+
       // Auto-generate username if not provided
       let username = rawUsername;
       if (!username) {
-        const cleanPhone = rawPhone.replace(/\D/g, '');
-        const cleanName = rawName.toLowerCase().replace(/[^a-z0-9]/g, '');
-        username = cleanName ? `${cleanName}_${cleanPhone.slice(-4) || 'emp'}` : `emp_${cleanPhone}`;
+        const cleanName = rawName.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+        const baseUsername = cleanName || `employee_${rowNumber}`;
+
+        let candidate = baseUsername;
+        let counter = 1;
+        while (await this.prisma.user.findFirst({ where: { username: candidate } })) {
+          candidate = `${baseUsername}_${counter}`;
+          counter++;
+        }
+        username = candidate;
       }
 
       // Default password if missing
@@ -727,26 +737,27 @@ export class UsersService {
         }
       }
 
-      // Conflict checks
+      // Deduplication check: Do not create duplicate employee if name/phone/email/username already exists
       const existingUser = await this.prisma.user.findFirst({
         where: {
+          deletedAt: null,
           OR: [
-            { username },
-            { phone: rawPhone },
-            ...(rawEmail ? [{ email: rawEmail }] : []),
+            { name: { equals: rawName, mode: Prisma.QueryMode.insensitive } },
+            ...(rawUsername ? [{ username: { equals: rawUsername, mode: Prisma.QueryMode.insensitive } }] : []),
+            ...(rawPhone ? [{ phone: rawPhone }] : []),
+            ...(rawEmail ? [{ email: { equals: rawEmail, mode: Prisma.QueryMode.insensitive } }] : []),
             ...(rawTelegramId ? [{ telegramId: rawTelegramId }] : []),
           ],
         },
       });
 
       if (existingUser) {
-        let reason = 'User conflict: ';
-        if (existingUser.username === username) reason += `Username "${username}" already exists. `;
-        if (existingUser.phone === rawPhone) reason += `Phone "${rawPhone}" already exists. `;
-        if (rawEmail && existingUser.email === rawEmail) reason += `Email "${rawEmail}" already exists. `;
-        if (rawTelegramId && existingUser.telegramId === rawTelegramId) reason += `Telegram ID "${rawTelegramId}" already exists. `;
+        let reason = `Employee "${rawName}" already exists in the system (duplicate skipped).`;
+        if (existingUser.phone === rawPhone && rawPhone) reason = `Phone "${rawPhone}" is already assigned to ${existingUser.name}.`;
+        if (existingUser.username === rawUsername && rawUsername) reason = `Username "${rawUsername}" already exists.`;
+        if (rawEmail && existingUser.email?.toLowerCase() === rawEmail.toLowerCase()) reason = `Email "${rawEmail}" already exists.`;
 
-        errors.push({ row: rowNumber, name: rawName, phone: rawPhone, reason: reason.trim() });
+        errors.push({ row: rowNumber, name: rawName, phone: rawPhone || 'N/A', reason });
         continue;
       }
 
@@ -757,7 +768,7 @@ export class UsersService {
           data: {
             username,
             name: rawName,
-            phone: rawPhone,
+            phone,
             email: rawEmail || null,
             address: rawAddress || null,
             passwordHash,
