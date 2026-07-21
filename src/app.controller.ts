@@ -123,6 +123,7 @@ export class AppController {
       <div class="route"><span class="m post">POST</span><span class="path">/planning</span></div>
       <div class="route"><span class="m post">POST</span><span class="path">/ocr/upload</span></div>
       <div class="route"><span class="m post">POST</span><span class="path">/telegram/broadcast</span></div>
+      <div class="route"><span class="m post">POST</span><span class="path">/employees/import-excel</span></div>
     </div>
 
     <a href="/api-test" class="btn">🚀 Open API Tester</a>

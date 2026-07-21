@@ -1,10 +1,11 @@
-import { Injectable, ConflictException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { EmailService } from '../email/email.service';
 import { Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import * as ExcelJS from 'exceljs';
 
 @Injectable()
 export class UsersService {
@@ -533,6 +534,322 @@ export class UsersService {
       plansHistory: formattedPastPlans,
       workHistory: formattedAttendanceHistory,
     };
+  }
+
+  private getCellValueString(cell: ExcelJS.Cell): string {
+    if (!cell || cell.value === null || cell.value === undefined) return '';
+    if (typeof cell.value === 'object') {
+      if (cell.value instanceof Date) {
+        return cell.value.toISOString().split('T')[0];
+      }
+      if ('result' in cell.value && cell.value.result !== undefined && cell.value.result !== null) {
+        return String(cell.value.result).trim();
+      }
+      if ('text' in cell.value && cell.value.text) {
+        return String(cell.value.text).trim();
+      }
+      if ('richText' in cell.value && Array.isArray(cell.value.richText)) {
+        return cell.value.richText.map((t) => t.text).join('').trim();
+      }
+    }
+    return String(cell.value).trim();
+  }
+
+  async importEmployeesFromExcel(fileBuffer: Buffer, actorId?: string, actorRole?: Role) {
+    if (!fileBuffer || fileBuffer.length === 0) {
+      throw new BadRequestException('Uploaded Excel file is empty.');
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    try {
+      await workbook.xlsx.load(fileBuffer as any);
+    } catch (error) {
+      throw new BadRequestException('Invalid or corrupted Excel file format.');
+    }
+
+    const worksheet = workbook.worksheets[0];
+    if (!worksheet || worksheet.rowCount < 2) {
+      throw new BadRequestException('The Excel file contains no data rows. Header must be on row 1, data on row 2+.');
+    }
+
+    // Map column headers from Row 1
+    const headerRow = worksheet.getRow(1);
+    const colMap: { [key: string]: number } = {};
+
+    headerRow.eachCell((cell, colNumber) => {
+      const headerText = this.getCellValueString(cell).toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      if (['name', 'mitarbeiter', 'mitarbeitername', 'fullname', 'vorname', 'vornamenachname'].some((k) => headerText.includes(k))) {
+        if (!colMap['name']) colMap['name'] = colNumber;
+      } else if (['phone', 'telefon', 'telefonnummer', 'handy', 'handynummer', 'mobil', 'mobile'].some((k) => headerText.includes(k))) {
+        if (!colMap['phone']) colMap['phone'] = colNumber;
+      } else if (['username', 'benutzername', 'nutzername'].some((k) => headerText.includes(k))) {
+        if (!colMap['username']) colMap['username'] = colNumber;
+      } else if (['email', 'email', 'mail'].some((k) => headerText.includes(k))) {
+        if (!colMap['email']) colMap['email'] = colNumber;
+      } else if (['password', 'passwort', 'kennwort'].some((k) => headerText.includes(k))) {
+        if (!colMap['password']) colMap['password'] = colNumber;
+      } else if (['role', 'rolle'].some((k) => headerText.includes(k))) {
+        if (!colMap['role']) colMap['role'] = colNumber;
+      } else if (['warehouse', 'lager', 'lagerhaus'].some((k) => headerText.includes(k))) {
+        if (!colMap['warehouse']) colMap['warehouse'] = colNumber;
+      } else if (['hall', 'halle'].some((k) => headerText.includes(k))) {
+        if (!colMap['hall']) colMap['hall'] = colNumber;
+      } else if (['telegram', 'telegramid'].some((k) => headerText.includes(k))) {
+        if (!colMap['telegramId']) colMap['telegramId'] = colNumber;
+      } else if (['employmentstart', 'eintrittsdatum', 'startdate', 'eintritt'].some((k) => headerText.includes(k))) {
+        if (!colMap['employmentStart']) colMap['employmentStart'] = colNumber;
+      }
+    });
+
+    if (!colMap['name'] || !colMap['phone']) {
+      throw new BadRequestException(
+        'Excel header must contain at least "Name" (or "Mitarbeiter") and "Telefon" (or "Phone") columns.'
+      );
+    }
+
+    const warehouses = await this.prisma.warehouse.findMany({ where: { deletedAt: null } });
+    const halls = await this.prisma.hall.findMany({ where: { deletedAt: null } });
+
+    const createdUsers: any[] = [];
+    const errors: Array<{ row: number; name?: string; phone?: string; reason: string }> = [];
+
+    // Process data rows starting from row 2
+    for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
+      const row = worksheet.getRow(rowNumber);
+
+      const rawName = colMap['name'] ? this.getCellValueString(row.getCell(colMap['name'])) : '';
+      const rawPhone = colMap['phone'] ? this.getCellValueString(row.getCell(colMap['phone'])) : '';
+
+      // Skip row if both name and phone are empty
+      if (!rawName && !rawPhone) {
+        continue;
+      }
+
+      if (!rawName) {
+        errors.push({ row: rowNumber, phone: rawPhone, reason: 'Name is missing' });
+        continue;
+      }
+      if (!rawPhone) {
+        errors.push({ row: rowNumber, name: rawName, reason: 'Phone number is missing' });
+        continue;
+      }
+
+      const rawUsername = colMap['username'] ? this.getCellValueString(row.getCell(colMap['username'])) : '';
+      const rawEmail = colMap['email'] ? this.getCellValueString(row.getCell(colMap['email'])) : '';
+      const rawPassword = colMap['password'] ? this.getCellValueString(row.getCell(colMap['password'])) : '';
+      const rawRole = colMap['role'] ? this.getCellValueString(row.getCell(colMap['role'])) : '';
+      const rawWarehouse = colMap['warehouse'] ? this.getCellValueString(row.getCell(colMap['warehouse'])) : '';
+      const rawHall = colMap['hall'] ? this.getCellValueString(row.getCell(colMap['hall'])) : '';
+      const rawTelegramId = colMap['telegramId'] ? this.getCellValueString(row.getCell(colMap['telegramId'])) : '';
+      const rawStart = colMap['employmentStart'] ? this.getCellValueString(row.getCell(colMap['employmentStart'])) : '';
+
+      // Auto-generate username if not provided
+      let username = rawUsername;
+      if (!username) {
+        const cleanPhone = rawPhone.replace(/\D/g, '');
+        const cleanName = rawName.toLowerCase().replace(/[^a-z0-9]/g, '');
+        username = cleanName ? `${cleanName}_${cleanPhone.slice(-4) || 'emp'}` : `emp_${cleanPhone}`;
+      }
+
+      // Default password if missing
+      const password = rawPassword || 'employeepassword';
+
+      // Parse Role
+      let role: Role = Role.EMPLOYEE;
+      if (rawRole) {
+        const upperRole = rawRole.toUpperCase();
+        if (upperRole.includes('ADMIN')) {
+          role = Role.ADMIN;
+        } else if (upperRole.includes('MANAGER') || upperRole.includes('LEITER')) {
+          role = Role.MANAGER;
+        } else {
+          role = Role.EMPLOYEE;
+        }
+      }
+
+      // Admin role restrictions
+      if (actorRole === Role.ADMIN && (role === Role.ADMIN || role === Role.MANAGER)) {
+        role = Role.EMPLOYEE;
+      }
+
+      // Resolve Warehouse ID
+      let warehouseId: string | null = null;
+      if (rawWarehouse) {
+        const matchedWh = warehouses.find(
+          (w) => w.id === rawWarehouse || w.name.toLowerCase() === rawWarehouse.toLowerCase()
+        );
+        if (matchedWh) {
+          warehouseId = matchedWh.id;
+        }
+      }
+
+      // Resolve Hall ID
+      let hallId: string | null = null;
+      if (rawHall) {
+        const matchedHall = halls.find(
+          (h) =>
+            h.id === rawHall ||
+            h.name.toLowerCase() === rawHall.toLowerCase() ||
+            (warehouseId && h.warehouseId === warehouseId && h.name.toLowerCase() === rawHall.toLowerCase())
+        );
+        if (matchedHall) {
+          hallId = matchedHall.id;
+        }
+      }
+
+      // Parse employmentStart date
+      let employmentStart: Date = new Date();
+      if (rawStart) {
+        const parsedDate = new Date(rawStart);
+        if (!isNaN(parsedDate.getTime())) {
+          employmentStart = parsedDate;
+        }
+      }
+
+      // Conflict checks
+      const existingUser = await this.prisma.user.findFirst({
+        where: {
+          OR: [
+            { username },
+            { phone: rawPhone },
+            ...(rawEmail ? [{ email: rawEmail }] : []),
+            ...(rawTelegramId ? [{ telegramId: rawTelegramId }] : []),
+          ],
+        },
+      });
+
+      if (existingUser) {
+        let reason = 'User conflict: ';
+        if (existingUser.username === username) reason += `Username "${username}" already exists. `;
+        if (existingUser.phone === rawPhone) reason += `Phone "${rawPhone}" already exists. `;
+        if (rawEmail && existingUser.email === rawEmail) reason += `Email "${rawEmail}" already exists. `;
+        if (rawTelegramId && existingUser.telegramId === rawTelegramId) reason += `Telegram ID "${rawTelegramId}" already exists. `;
+
+        errors.push({ row: rowNumber, name: rawName, phone: rawPhone, reason: reason.trim() });
+        continue;
+      }
+
+      // Hash password and create user
+      try {
+        const passwordHash = await bcrypt.hash(password, 10);
+        const newUser = await this.prisma.user.create({
+          data: {
+            username,
+            name: rawName,
+            phone: rawPhone,
+            email: rawEmail || null,
+            passwordHash,
+            role,
+            warehouseId,
+            hallId,
+            telegramId: rawTelegramId || null,
+            employmentStart,
+          },
+          select: {
+            id: true,
+            username: true,
+            name: true,
+            phone: true,
+            email: true,
+            role: true,
+            warehouseId: true,
+            hallId: true,
+            telegramId: true,
+            employmentStart: true,
+            createdAt: true,
+          },
+        });
+
+        createdUsers.push(newUser);
+
+        if (newUser.email) {
+          this.emailService.sendWelcomeEmail(newUser.email, newUser.name).catch(() => {});
+        }
+      } catch (err: any) {
+        errors.push({ row: rowNumber, name: rawName, phone: rawPhone, reason: err.message || 'Database creation failed' });
+      }
+    }
+
+    if (createdUsers.length > 0) {
+      await this.prisma.actionLog.create({
+        data: {
+          userId: actorId || null,
+          action: 'IMPORT_EMPLOYEES_EXCEL',
+          details: `Imported ${createdUsers.length} employees from Excel file (${errors.length} skipped/failed)`,
+        },
+      });
+    }
+
+    return {
+      success: true,
+      message: `Import complete: ${createdUsers.length} employee(s) created, ${errors.length} row(s) skipped/failed.`,
+      summary: {
+        totalProcessed: createdUsers.length + errors.length,
+        createdCount: createdUsers.length,
+        failedCount: errors.length,
+        errors,
+      },
+      createdUsers,
+    };
+  }
+
+  async generateEmployeesExcelTemplate(): Promise<Buffer> {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Mitarbeiter Template');
+
+    worksheet.columns = [
+      { header: 'Name', key: 'name', width: 22 },
+      { header: 'Telefon', key: 'phone', width: 18 },
+      { header: 'Benutzername', key: 'username', width: 18 },
+      { header: 'E-Mail', key: 'email', width: 25 },
+      { header: 'Passwort', key: 'password', width: 16 },
+      { header: 'Rolle', key: 'role', width: 14 },
+      { header: 'Lagerhaus', key: 'warehouse', width: 18 },
+      { header: 'Halle', key: 'hall', width: 16 },
+      { header: 'Telegram ID', key: 'telegramId', width: 16 },
+      { header: 'Eintrittsdatum', key: 'employmentStart', width: 16 },
+    ];
+
+    // Style Header Row
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true, color: { argb: 'FFFFFF' } };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '1E3A5F' },
+    };
+    headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+    // Add Example Rows
+    worksheet.addRow({
+      name: 'Max Mustermann',
+      phone: '+491705555555',
+      username: 'mmustermann',
+      email: 'max@example.com',
+      password: 'Start1234!',
+      role: 'EMPLOYEE',
+      warehouse: 'Lager 1',
+      hall: 'Halle A',
+      telegramId: '',
+      employmentStart: '2026-01-15',
+    });
+
+    worksheet.addRow({
+      name: 'Erika Musterfrau',
+      phone: '+491706666666',
+      username: 'emusterfrau',
+      email: 'erika@example.com',
+      password: 'Start1234!',
+      role: 'EMPLOYEE',
+      warehouse: '',
+      hall: '',
+      telegramId: '',
+      employmentStart: '2026-02-01',
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
   }
 }
 

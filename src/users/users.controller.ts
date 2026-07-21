@@ -61,6 +61,57 @@ export class UsersController {
     return this.usersService.bulkDeactivate(ids, currentUser.id, currentUser.role);
   }
 
+  @Get('excel-template')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  async downloadExcelTemplate(@Res() res: any) {
+    const buffer = await this.usersService.generateEmployeesExcelTemplate();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="mitarbeiter_import_template.xlsx"');
+    return res.send(buffer);
+  }
+
+  @Post('import-excel')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  @UseInterceptors(FileInterceptor('file', {
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (!file.originalname.match(/\.(xlsx|xls)$/i)) {
+        return cb(new BadRequestException('Only Excel files (.xlsx, .xls) are allowed!'), false);
+      }
+      cb(null, true);
+    },
+  }))
+  async importExcel(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() currentUser: any,
+  ) {
+    if (!file || !file.buffer) {
+      throw new BadRequestException('No Excel file uploaded. Please select an .xlsx file.');
+    }
+    return this.usersService.importEmployeesFromExcel(file.buffer, currentUser.id, currentUser.role);
+  }
+
+  @Post('upload-excel')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  @UseInterceptors(FileInterceptor('file', {
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (!file.originalname.match(/\.(xlsx|xls)$/i)) {
+        return cb(new BadRequestException('Only Excel files (.xlsx, .xls) are allowed!'), false);
+      }
+      cb(null, true);
+    },
+  }))
+  async uploadExcel(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() currentUser: any,
+  ) {
+    if (!file || !file.buffer) {
+      throw new BadRequestException('No Excel file uploaded. Please select an .xlsx file.');
+    }
+    return this.usersService.importEmployeesFromExcel(file.buffer, currentUser.id, currentUser.role);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string, @CurrentUser() currentUser: any) {
     // Employees can only fetch their own profile
