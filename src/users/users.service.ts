@@ -61,6 +61,7 @@ export class UsersService {
         name: createUserDto.name,
         phone: createUserDto.phone,
         email: createUserDto.email || null,
+        address: createUserDto.address || null,
         passwordHash,
         role: createUserDto.role || Role.EMPLOYEE,
         warehouseId: createUserDto.warehouseId || null,
@@ -115,6 +116,7 @@ export class UsersService {
           name: true,
           phone: true,
           email: true,
+          address: true,
           profilePhoto: true,
           role: true,
           warehouseId: true,
@@ -148,6 +150,7 @@ export class UsersService {
         name: true,
         phone: true,
         email: true,
+        address: true,
         profilePhoto: true,
         role: true,
         warehouseId: true,
@@ -579,10 +582,16 @@ export class UsersService {
     headerRow.eachCell((cell, colNumber) => {
       const headerText = this.getCellValueString(cell).toLowerCase().replace(/[^a-z0-9]/g, '');
 
-      if (['name', 'mitarbeiter', 'mitarbeitername', 'fullname', 'vorname', 'vornamenachname'].some((k) => headerText.includes(k))) {
+      if (['vorname', 'firstname', 'first_name'].some((k) => headerText.includes(k))) {
+        colMap['vorname'] = colNumber;
+      } else if (['nachname', 'lastname', 'last_name', 'familienname'].some((k) => headerText.includes(k))) {
+        colMap['lastName'] = colNumber;
+      } else if (['name', 'mitarbeiter', 'mitarbeitername', 'fullname'].some((k) => headerText.includes(k))) {
         if (!colMap['name']) colMap['name'] = colNumber;
       } else if (['phone', 'telefon', 'telefonnummer', 'handy', 'handynummer', 'mobil', 'mobile'].some((k) => headerText.includes(k))) {
         if (!colMap['phone']) colMap['phone'] = colNumber;
+      } else if (['adresse', 'address', 'anschrift', 'strasse', 'street'].some((k) => headerText.includes(k))) {
+        if (!colMap['address']) colMap['address'] = colNumber;
       } else if (['username', 'benutzername', 'nutzername'].some((k) => headerText.includes(k))) {
         if (!colMap['username']) colMap['username'] = colNumber;
       } else if (['email', 'email', 'mail'].some((k) => headerText.includes(k))) {
@@ -602,9 +611,9 @@ export class UsersService {
       }
     });
 
-    if (!colMap['name'] || !colMap['phone']) {
+    if ((!colMap['name'] && !colMap['vorname'] && !colMap['lastName']) || !colMap['phone']) {
       throw new BadRequestException(
-        'Excel header must contain at least "Name" (or "Mitarbeiter") and "Telefon" (or "Phone") columns.'
+        'Excel header must contain at least "Name" (or "Vorname" / "Nachname") and "Telefon" (or "Phone") columns.'
       );
     }
 
@@ -618,8 +627,19 @@ export class UsersService {
     for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
       const row = worksheet.getRow(rowNumber);
 
-      const rawName = colMap['name'] ? this.getCellValueString(row.getCell(colMap['name'])) : '';
+      const rawVorname = colMap['vorname'] ? this.getCellValueString(row.getCell(colMap['vorname'])) : '';
+      const rawLastName = colMap['lastName'] ? this.getCellValueString(row.getCell(colMap['lastName'])) : '';
+      const rawFullName = colMap['name'] ? this.getCellValueString(row.getCell(colMap['name'])) : '';
+
+      let rawName = '';
+      if (rawVorname || rawLastName) {
+        rawName = `${rawVorname} ${rawLastName}`.trim();
+      } else {
+        rawName = rawFullName;
+      }
+
       const rawPhone = colMap['phone'] ? this.getCellValueString(row.getCell(colMap['phone'])) : '';
+      const rawAddress = colMap['address'] ? this.getCellValueString(row.getCell(colMap['address'])) : '';
 
       // Skip row if both name and phone are empty
       if (!rawName && !rawPhone) {
@@ -739,6 +759,7 @@ export class UsersService {
             name: rawName,
             phone: rawPhone,
             email: rawEmail || null,
+            address: rawAddress || null,
             passwordHash,
             role,
             warehouseId,
@@ -752,6 +773,7 @@ export class UsersService {
             name: true,
             phone: true,
             email: true,
+            address: true,
             role: true,
             warehouseId: true,
             hallId: true,
@@ -799,8 +821,10 @@ export class UsersService {
     const worksheet = workbook.addWorksheet('Mitarbeiter Template');
 
     worksheet.columns = [
-      { header: 'Name', key: 'name', width: 22 },
+      { header: 'Vorname', key: 'vorname', width: 16 },
+      { header: 'Name', key: 'name', width: 18 },
       { header: 'Telefon', key: 'phone', width: 18 },
+      { header: 'Adresse', key: 'address', width: 25 },
       { header: 'Benutzername', key: 'username', width: 18 },
       { header: 'E-Mail', key: 'email', width: 25 },
       { header: 'Passwort', key: 'password', width: 16 },
@@ -823,8 +847,10 @@ export class UsersService {
 
     // Add Example Rows
     worksheet.addRow({
-      name: 'Max Mustermann',
+      vorname: 'Max',
+      name: 'Mustermann',
       phone: '+491705555555',
+      address: 'Musterstraße 1, 47051 Duisburg',
       username: 'mmustermann',
       email: 'max@example.com',
       password: 'Start1234!',
@@ -836,8 +862,10 @@ export class UsersService {
     });
 
     worksheet.addRow({
-      name: 'Erika Musterfrau',
+      vorname: 'Erika',
+      name: 'Musterfrau',
       phone: '+491706666666',
+      address: 'Hauptstraße 12, 47057 Duisburg',
       username: 'emusterfrau',
       email: 'erika@example.com',
       password: 'Start1234!',

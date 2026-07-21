@@ -28,6 +28,7 @@ model User {
   name         String
   phone        String        @unique
   email        String?       @unique
+  address      String?
   profilePhoto String?
   passwordHash String
   role         Role          @default(EMPLOYEE)

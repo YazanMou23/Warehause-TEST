@@ -32,6 +32,7 @@ interface Employee {
   name: string;
   phone: string;
   email?: string | null;
+  address?: string | null;
   role: string;
   isActive: boolean;
   telegramId: string | null;
