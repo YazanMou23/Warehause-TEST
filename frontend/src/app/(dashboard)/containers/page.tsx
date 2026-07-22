@@ -413,56 +413,56 @@ export default function ContainersPage() {
       {/* Title */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h3 className="font-headline-lg font-bold text-on-surface">Container Inventory</h3>
-          <p className="text-on-surface-variant font-body-sm">
+          <h3 className="text-xl font-bold text-slate-800 tracking-tight">Container Inventory</h3>
+          <p className="text-slate-500 text-xs mt-1">
             Manage, list, and log shipping containers allocated to storage zones.
           </p>
         </div>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="bg-secondary hover:bg-secondary/90 text-white font-bold px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+          className="btn-primary py-2 px-4 text-xs cursor-pointer font-semibold uppercase tracking-wider"
         >
-          <Plus className="w-5 h-5" /> Registered Container
+          <Plus className="w-3.5 h-3.5 text-white" /> Registered Container
         </button>
       </div>
 
       {isOffline && (
-        <div className="bg-tertiary-container text-on-tertiary-container border border-on-tertiary-container/20 px-3.5 py-2.5 rounded-lg flex items-center gap-2 text-label-md">
-          <AlertTriangle className="w-5 h-5 shrink-0 text-amber-500" />
+        <div className="bg-amber-50 text-amber-800 border border-amber-200 rounded-lg p-3 flex items-center gap-2 text-xs font-semibold">
+          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
           <span>Offline mode active. Modifying entries will happen in local state only.</span>
         </div>
       )}
 
       {/* Filter and Search Bar */}
-      <div className="bg-white border border-outline-variant p-stack-md rounded-lg shadow-sm flex flex-col md:flex-row gap-stack-md items-center justify-between">
+      <div className="bg-white border border-slate-100 p-5 rounded-xl shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
         
         {/* Search */}
         <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
             placeholder="Search Container Number..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-surface-container-low border border-outline-variant rounded-lg text-body-sm text-on-surface outline-none focus:ring-1 focus:ring-secondary focus:border-transparent"
+            className="input-premium pl-9 py-2 text-xs"
           />
         </div>
 
         {/* Status Filters */}
-        <div className="flex items-center gap-2 self-start md:self-auto">
-          <Filter className="w-4 h-4 text-outline" />
-          <span className="text-label-md text-outline font-bold uppercase tracking-wider text-[10px]">
+        <div className="flex items-center gap-2 self-start md:self-auto text-xs">
+          <Filter className="w-3.5 h-3.5 text-slate-400" />
+          <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">
             Status:
           </span>
-          <div className="bg-surface-container-low p-1 rounded-lg border border-outline-variant flex gap-1">
+          <div className="bg-slate-50 p-1 rounded-lg border border-slate-100 flex gap-1">
             {["ALL", "FULL", "EMPTY"].map((status) => (
               <button
                 key={status}
                 onClick={() => setStatusFilter(status)}
-                className={`px-3 py-1 text-label-md rounded font-semibold transition-all ${
+                className={`px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
                   statusFilter === status
-                    ? "bg-secondary text-white shadow-sm"
-                    : "text-on-surface-variant hover:bg-surface-container-high"
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "text-slate-500 hover:bg-slate-100/55"
                 }`}
               >
                 {status}
@@ -473,97 +473,101 @@ export default function ContainersPage() {
       </div>
 
       {/* Container Table */}
-      <div className="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden shadow-sm">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-surface-container-low border-b border-outline-variant text-[11px] font-bold text-outline uppercase tracking-wider">
-              <th className="px-container-margin py-3">Container Number</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Warehouse / Hall</th>
-              <th className="px-4 py-3">Arrival Date</th>
-              <th className="px-container-margin py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-outline-variant text-body-sm text-on-surface">
-            {filteredContainers.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="text-center py-12 text-outline font-medium">
-                  No matching shipping containers found.
-                </td>
+      <div className="bg-white border border-slate-100 rounded-xl overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                <th className="px-6 py-3">Container Number</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Warehouse / Hall</th>
+                <th className="px-4 py-3">Arrival Date</th>
+                <th className="px-6 py-3 text-right pr-6">Actions</th>
               </tr>
-            ) : (
-              filteredContainers.map((c) => (
-                <tr key={c.id} className="hover:bg-surface-bright transition-colors">
-                  <td className="px-container-margin py-3.5 font-bold font-mono text-on-surface">
-                    {c.containerNumber}
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase font-mono ${
-                        c.status === "FULL"
-                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400"
-                          : "bg-surface-container-high text-on-surface-variant"
-                      }`}
-                    >
-                      {c.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <div className="flex flex-col">
-                      <span className="font-semibold text-on-surface">{c.warehouseName}</span>
-                      <span className="text-[12px] text-outline">{c.hallName}</span>
-                    </div>
-                  </td>
-                  <td suppressHydrationWarning className="px-4 py-3.5 font-mono text-[12px] text-outline"> {new Date(c.arrivalDate).toLocaleDateString()}
-                  </td>
-                  <td className="px-container-margin py-3.5 text-right space-x-1.5">
-                    <button
-                      onClick={() => {
-                        setActiveContainer(c);
-                        setMoveWarehouseId(c.warehouseId);
-                        setMoveHallId(c.hallId);
-                        setMoveStatus(c.status);
-                        setIsMoveModalOpen(true);
-                      }}
-                      className="text-outline hover:text-secondary p-1.5 rounded hover:bg-surface-container-low transition-colors inline-flex"
-                      title="Move / Edit Container"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteContainer(c.id)}
-                      className="text-outline hover:text-error p-1.5 rounded hover:bg-error-container transition-colors inline-flex"
-                      title="Delete Container"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-xs text-slate-600">
+              {filteredContainers.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="text-center py-12 text-slate-400 italic">
+                    No matching shipping containers found.
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                filteredContainers.map((c) => (
+                  <tr key={c.id} className="hover:bg-slate-50/30 transition-colors">
+                    <td className="px-6 py-3.5 font-bold font-mono text-slate-800">
+                      {c.containerNumber}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <span
+                        className={`badge-premium text-[9px] py-0.5 px-2 ${
+                          c.status === "FULL"
+                            ? "badge-warning"
+                            : "badge-neutral"
+                        }`}
+                      >
+                        {c.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-slate-800">{c.warehouseName}</span>
+                        <span className="text-[11px] text-slate-400">{c.hallName}</span>
+                      </div>
+                    </td>
+                    <td suppressHydrationWarning className="px-4 py-3.5 font-mono text-slate-400"> {new Date(c.arrivalDate).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-3.5 text-right pr-6 space-x-1.5">
+                      <button
+                        onClick={() => {
+                          setActiveContainer(c);
+                          setMoveWarehouseId(c.warehouseId);
+                          setMoveHallId(c.hallId);
+                          setMoveStatus(c.status);
+                          setIsMoveModalOpen(true);
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer inline-flex"
+                        title="Move / Edit Container"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteContainer(c.id)}
+                        className="p-1.5 text-slate-400 hover:text-red-650 rounded-lg hover:bg-red-50 transition-colors cursor-pointer inline-flex"
+                        title="Delete Container"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Modal - Add Container */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="max-w-md w-full bg-white border border-outline-variant rounded-xl shadow-xl p-6 relative animate-zoomIn">
-            <button
-              onClick={() => setIsModalOpen(false)}
-              className="absolute top-4 right-4 p-1.5 text-outline hover:bg-surface-container-low rounded-lg transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fadeIn">
+          <div className="max-w-md w-full bg-white border border-slate-100 rounded-2xl shadow-2xl overflow-hidden animate-scaleIn">
+            
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+              <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                <Package className="w-4 h-4 text-blue-650" /> Register Shipping Container
+              </h4>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-            <h4 className="font-headline-md font-bold text-on-surface flex items-center gap-2 mb-4">
-              <Package className="w-5 h-5 text-secondary" /> Register Shipping Container
-            </h4>
-
-            <form onSubmit={handleAddContainer} className="space-y-4">
+            <form onSubmit={handleAddContainer} className="p-6 space-y-4">
               {/* Container Number */}
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-outline uppercase tracking-wider">
+              <div className="space-y-1.5 text-xs">
+                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
                   Container Number
                 </label>
                 <input
@@ -572,19 +576,19 @@ export default function ContainersPage() {
                   placeholder="e.g. HLXU8472910"
                   value={newContainerNumber}
                   onChange={(e) => setNewContainerNumber(e.target.value)}
-                  className="w-full bg-surface-container-low border border-outline-variant focus:border-secondary rounded-lg px-3 py-2 text-body-sm text-on-surface outline-none uppercase font-mono"
+                  className="input-premium uppercase font-mono"
                 />
               </div>
 
               {/* Status Select */}
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-outline uppercase tracking-wider">
+              <div className="space-y-1.5 text-xs">
+                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
                   Status
                 </label>
                 <select
                   value={newStatus}
                   onChange={(e) => setNewStatus(e.target.value as any)}
-                  className="w-full bg-surface-container-low border border-outline-variant focus:border-secondary rounded-lg px-3 py-2 text-body-sm text-on-surface outline-none"
+                  className="input-premium"
                 >
                   <option value="EMPTY">EMPTY</option>
                   <option value="FULL">FULL</option>
@@ -592,58 +596,52 @@ export default function ContainersPage() {
               </div>
 
               {/* Warehouse Select */}
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-outline uppercase tracking-wider">
+              <div className="space-y-1.5 text-xs">
+                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
                   Warehouse Location
                 </label>
-                <div className="relative">
-                  <Warehouse className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
-                  <select
-                    value={newWarehouseId}
-                    onChange={(e) => setNewWarehouseId(e.target.value)}
-                    className="w-full bg-surface-container-low border border-outline-variant focus:border-secondary rounded-lg pl-10 pr-3 py-2 text-body-sm text-on-surface outline-none appearance-none"
-                  >
-                    {warehouses.map((wh) => (
-                      <option key={wh.id} value={wh.id}>
-                        {wh.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <select
+                  value={newWarehouseId}
+                  onChange={(e) => setNewWarehouseId(e.target.value)}
+                  className="input-premium"
+                >
+                  {warehouses.map((wh) => (
+                    <option key={wh.id} value={wh.id}>
+                      {wh.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Hall Select */}
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-outline uppercase tracking-wider">
+              <div className="space-y-1.5 text-xs">
+                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
                   Warehouse Hall
                 </label>
-                <div className="relative">
-                  <Grid className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
-                  <select
-                    value={newHallId}
-                    onChange={(e) => setNewHallId(e.target.value)}
-                    className="w-full bg-surface-container-low border border-outline-variant focus:border-secondary rounded-lg pl-10 pr-3 py-2 text-body-sm text-on-surface outline-none appearance-none"
-                  >
-                    <option value="" disabled>Select Staging Hall...</option>
-                    {filteredHalls.map((h) => (
-                      <option key={h.id} value={h.id}>
-                        {h.name}
-                      </option>
-                    ))}
-                    <option value="create_new" className="text-secondary font-bold">+ Create New Staging Hall...</option>
-                  </select>
-                </div>
+                <select
+                  value={newHallId}
+                  onChange={(e) => setNewHallId(e.target.value)}
+                  className="input-premium"
+                >
+                  <option value="" disabled>Select Staging Hall...</option>
+                  {filteredHalls.map((h) => (
+                    <option key={h.id} value={h.id}>
+                      {h.name}
+                    </option>
+                  ))}
+                  <option value="create_new" className="text-blue-600 font-bold">+ Create New Staging Hall...</option>
+                </select>
               </div>
 
               {/* Inline Hall Creation Inputs */}
               {newHallId === "create_new" && (
-                <div className="p-4 bg-surface-container-low border border-secondary/35 rounded-lg space-y-3 animate-fadeIn">
-                  <span className="text-[10px] text-secondary font-bold uppercase tracking-wider block">
+                <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-3 animate-fadeIn text-xs">
+                  <span className="text-[10px] text-blue-600 font-bold uppercase tracking-wider block">
                     Configure Staging Hall
                   </span>
                   
-                  <div className="space-y-1">
-                    <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                       Hall Name
                     </label>
                     <input
@@ -651,13 +649,13 @@ export default function ContainersPage() {
                       placeholder="e.g. Hall C - Cold Store"
                       value={inlineHallName}
                       onChange={(e) => setInlineHallName(e.target.value)}
-                      className="w-full bg-white border border-outline-variant focus:border-secondary rounded-lg px-3 py-1.5 text-body-sm text-on-surface outline-none"
+                      className="input-premium bg-white"
                       required
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                       Staging Capacity
                     </label>
                     <input
@@ -666,7 +664,7 @@ export default function ContainersPage() {
                       min="10"
                       value={inlineHallCapacity}
                       onChange={(e) => setInlineHallCapacity(e.target.value)}
-                      className="w-full bg-white border border-outline-variant focus:border-secondary rounded-lg px-3 py-1.5 text-body-sm text-on-surface outline-none"
+                      className="input-premium bg-white"
                       required
                     />
                   </div>
@@ -674,18 +672,18 @@ export default function ContainersPage() {
               )}
 
               {/* Action Buttons */}
-              <div className="flex gap-3 justify-end pt-4">
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 -mx-6 -mb-6">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 border border-outline-variant rounded-lg text-body-sm font-semibold hover:bg-surface-container-low transition-colors"
+                  className="btn-secondary py-1.5 px-4 cursor-pointer text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting || !newHallId}
-                  className="bg-secondary hover:bg-secondary/90 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-1 cursor-pointer"
+                  className="btn-primary py-1.5 px-4 cursor-pointer text-xs"
                 >
                   {submitting ? "Saving..." : "Add Container"}
                 </button>
@@ -697,42 +695,43 @@ export default function ContainersPage() {
 
       {/* Modal - Relocate Container */}
       {isMoveModalOpen && activeContainer && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="max-w-md w-full bg-white border border-outline-variant rounded-xl shadow-xl p-6 relative animate-zoomIn">
-            <button
-              onClick={() => setIsMoveModalOpen(false)}
-              className="absolute top-4 right-4 p-1.5 text-outline hover:bg-surface-container-low rounded-lg transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fadeIn">
+          <div className="max-w-md w-full bg-white border border-slate-100 rounded-2xl shadow-2xl overflow-hidden animate-scaleIn">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+              <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                <Package className="w-4 h-4 text-blue-650" /> Relocate / Edit Container
+              </h4>
+              <button
+                onClick={() => setIsMoveModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-            <h4 className="font-headline-md font-bold text-on-surface flex items-center gap-2 mb-4">
-              <Package className="w-5 h-5 text-secondary" /> Relocate / Edit Container
-            </h4>
-
-            <form onSubmit={handleMoveContainer} className="space-y-4">
+            <form onSubmit={handleMoveContainer} className="p-6 space-y-4">
               {/* Container Number */}
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-outline uppercase tracking-wider">
+              <div className="space-y-1.5 text-xs">
+                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
                   Container Number
                 </label>
                 <input
                   type="text"
                   disabled
                   value={activeContainer.containerNumber}
-                  className="w-full bg-surface-container-low/50 border border-outline-variant rounded-lg px-3 py-2 text-body-sm text-outline outline-none font-mono uppercase cursor-not-allowed"
+                  className="input-premium font-mono uppercase cursor-not-allowed opacity-60"
                 />
               </div>
 
               {/* Status Select */}
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-outline uppercase tracking-wider">
+              <div className="space-y-1.5 text-xs">
+                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
                   Status
                 </label>
                 <select
                   value={moveStatus}
                   onChange={(e) => setMoveStatus(e.target.value as any)}
-                  className="w-full bg-surface-container-low border border-outline-variant focus:border-secondary rounded-lg px-3 py-2 text-body-sm text-on-surface outline-none"
+                  className="input-premium"
                 >
                   <option value="EMPTY">EMPTY</option>
                   <option value="FULL">FULL</option>
@@ -740,62 +739,56 @@ export default function ContainersPage() {
               </div>
 
               {/* Warehouse Select */}
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-outline uppercase tracking-wider">
+              <div className="space-y-1.5 text-xs">
+                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
                   Destination Warehouse
                 </label>
-                <div className="relative">
-                  <Warehouse className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
-                  <select
-                    value={moveWarehouseId}
-                    onChange={(e) => handleMoveWarehouseChange(e.target.value)}
-                    className="w-full bg-surface-container-low border border-outline-variant focus:border-secondary rounded-lg pl-10 pr-3 py-2 text-body-sm text-on-surface outline-none appearance-none"
-                  >
-                    {warehouses.map((wh) => (
-                      <option key={wh.id} value={wh.id}>
-                        {wh.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <select
+                  value={moveWarehouseId}
+                  onChange={(e) => handleMoveWarehouseChange(e.target.value)}
+                  className="input-premium"
+                >
+                  {warehouses.map((wh) => (
+                    <option key={wh.id} value={wh.id}>
+                      {wh.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Hall Select */}
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-outline uppercase tracking-wider">
+              <div className="space-y-1.5 text-xs">
+                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
                   Destination Hall
                 </label>
-                <div className="relative">
-                  <Grid className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
-                  <select
-                    value={moveHallId}
-                    onChange={(e) => setMoveHallId(e.target.value)}
-                    className="w-full bg-surface-container-low border border-outline-variant focus:border-secondary rounded-lg pl-10 pr-3 py-2 text-body-sm text-on-surface outline-none appearance-none"
-                  >
-                    {halls
-                      .filter((h) => h.warehouseId === moveWarehouseId)
-                      .map((h) => (
-                        <option key={h.id} value={h.id}>
-                          {h.name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
+                <select
+                  value={moveHallId}
+                  onChange={(e) => setMoveHallId(e.target.value)}
+                  className="input-premium"
+                >
+                  {halls
+                    .filter((h) => h.warehouseId === moveWarehouseId)
+                    .map((h) => (
+                      <option key={h.id} value={h.id}>
+                        {h.name}
+                      </option>
+                    ))}
+                </select>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-3 justify-end pt-4">
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 -mx-6 -mb-6">
                 <button
                   type="button"
                   onClick={() => setIsMoveModalOpen(false)}
-                  className="px-4 py-2 border border-outline-variant rounded-lg text-body-sm font-semibold hover:bg-surface-container-low transition-colors"
+                  className="btn-secondary py-1.5 px-4 cursor-pointer text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting || !moveHallId}
-                  className="bg-secondary hover:bg-secondary/90 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-1 cursor-pointer"
+                  className="btn-primary py-1.5 px-4 cursor-pointer text-xs"
                 >
                   {submitting ? "Saving..." : "Confirm Move"}
                 </button>
@@ -808,21 +801,27 @@ export default function ContainersPage() {
       {/* Notification Toast */}
       {message.text && (
         <div
-          className={`p-4 rounded-lg flex items-start gap-2.5 text-body-sm shadow-md animate-slideUp max-w-xl ${
+          className={`fixed bottom-5 right-5 p-4 rounded-xl flex items-start gap-3 shadow-2xl max-w-sm z-50 animate-slideUp text-xs ${
             message.type === "success"
-              ? "bg-emerald-100 border border-emerald-300 text-emerald-800"
-              : "bg-error-container border border-error/20 text-error"
+              ? "bg-emerald-50 border border-emerald-100 text-emerald-800"
+              : "bg-red-50 border border-red-100 text-red-800"
           }`}
         >
           {message.type === "success" ? (
-            <CheckCircle className="w-5 h-5 shrink-0 mt-0.5 text-emerald-600" />
+            <CheckCircle className="w-4.5 h-4.5 shrink-0 mt-0.5 text-emerald-600" />
           ) : (
-            <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-error" />
+            <AlertTriangle className="w-4.5 h-4.5 shrink-0 mt-0.5 text-red-650" />
           )}
           <div>
-            <p className="font-bold">{message.type === "success" ? "Success" : "Error Occurred"}</p>
-            <p className="text-[13px] opacity-90">{message.text}</p>
+            <p className="font-bold text-slate-800">{message.type === "success" ? "Success" : "Error Occurred"}</p>
+            <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{message.text}</p>
           </div>
+          <button
+            onClick={() => setMessage({ text: "", type: "" })}
+            className="text-slate-400 hover:text-slate-700 ml-auto p-0.5 rounded cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
     </div>

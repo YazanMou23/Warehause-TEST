@@ -529,64 +529,64 @@ export default function DashboardPage() {
       
       {/* 1. EMPLOYEE DASHBOARD */}
       {userRole === "EMPLOYEE" ? (
-        <div className="space-y-stack-lg print:hidden">
+        <div className="space-y-6 print:hidden">
           {/* Welcome Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h3 className="font-headline-lg font-bold text-on-surface">
+              <h3 className="text-xl font-bold text-slate-800 tracking-tight">
                 {t("employeeDashboard")}
               </h3>
-              <p className="text-on-surface-variant font-body-sm">
-                {t("welcomeBack")}, <span className="font-semibold text-primary">{employeeInfo?.name || "Mitarbeiter"}</span>. {t("manageShiftsDesc")}
+              <p className="text-slate-500 text-xs mt-1">
+                {t("welcomeBack")}, <span className="font-semibold text-slate-800">{employeeInfo?.name || "Mitarbeiter"}</span>. {t("manageShiftsDesc")}
               </p>
             </div>
             <div className="flex items-center gap-2">
               {employeeSummary?.activeShift ? (
-                <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3.5 py-1.5 rounded-lg flex items-center gap-2 text-label-md shadow-sm animate-pulse">
-                  <span className="w-2 h-2 bg-emerald-400 rounded-full"></span> {t("clockedIn")}
+                <span className="badge-premium badge-success animate-pulse">
+                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span> {t("clockedIn")}
                 </span>
               ) : (
-                <span className="bg-error-container/20 text-error border border-error/20 px-3.5 py-1.5 rounded-lg flex items-center gap-2 text-label-md shadow-sm">
-                  <span className="w-2 h-2 bg-error rounded-full"></span> {t("clockedOut")}
+                <span className="badge-premium badge-error">
+                  <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span> {t("clockedOut")}
                 </span>
               )}
             </div>
           </div>
 
           {/* Main Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-stack-md">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left Side: Clock Widget, Stats & Profile */}
-            <div className="lg:col-span-1 space-y-stack-md">
+            <div className="lg:col-span-1 space-y-6">
               
               {/* Clock In / Clock Out Card */}
-              <div className="bg-surface-container-lowest border border-outline-variant p-stack-md rounded-xl shadow-sm space-y-4">
-                <h4 className="font-bold text-body-lg text-on-surface flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-secondary" /> {t("timeTracking")}
+              <div className="card-premium space-y-4">
+                <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-slate-500" /> {t("timeTracking")}
                 </h4>
                 
                 {employeeSummary?.activeShift ? (
                   <div className="space-y-4">
-                    <div className="bg-surface-container-low border border-outline-variant rounded-lg p-4 space-y-2">
-                      <p className="text-xs text-outline uppercase tracking-wider font-bold">{t("currentShift")}</p>
-                      <p className="font-bold text-on-surface">{employeeSummary.activeShift.warehouseName}</p>
-                      <p className="text-body-sm text-on-surface-variant">{employeeSummary.activeShift.hallName}</p>
-                      <p className="text-body-sm text-outline flex items-center gap-1.5 mt-2">
-                        <LogIn className="w-4 h-4 text-emerald-400" />
+                    <div className="bg-slate-50 border border-slate-100 rounded-lg p-4 space-y-2">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">{t("currentShift")}</p>
+                      <p className="font-bold text-slate-800 text-sm">{employeeSummary.activeShift.warehouseName}</p>
+                      <p className="text-xs text-slate-500">{employeeSummary.activeShift.hallName}</p>
+                      <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-2">
+                        <LogIn className="w-3.5 h-3.5 text-emerald-500" />
                         {language === "de" ? "Seit" : "Since"} {new Date(employeeSummary.activeShift.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {language === "de" ? "Uhr" : ""}
                       </p>
                     </div>
                     <button
                       onClick={handleClockInOut}
                       disabled={clockLoading}
-                      className="w-full bg-error hover:bg-red-700 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-4 rounded-lg text-xs shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                     >
                       {clockLoading ? (language === "de" ? "Wird verarbeitet..." : "Processing...") : t("clockOutButton")}
                     </button>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="space-y-2">
-                      <label className="block text-xs font-bold text-[#374151] uppercase tracking-wider">
+                    <div className="space-y-1.5">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                         {t("selectWarehouse")}
                       </label>
                       <select
@@ -595,7 +595,7 @@ export default function DashboardPage() {
                           setClockInWarehouseId(e.target.value);
                           setClockInHallId(""); // Reset hall
                         }}
-                        className="w-full bg-white border border-[#e5e7eb] rounded-lg px-3 py-2.5 text-body-sm text-[#0f172a] focus:border-[#1d4ed8] outline-none transition-colors"
+                        className="input-premium py-2 text-xs"
                       >
                         <option value="">{t("chooseWarehousePlaceholder")}</option>
                         {allWarehouses.map((wh) => (
@@ -604,15 +604,15 @@ export default function DashboardPage() {
                       </select>
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="block text-xs font-bold text-[#374151] uppercase tracking-wider">
+                    <div className="space-y-1.5">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                         {t("selectHall")}
                       </label>
                       <select
                         value={clockInHallId}
                         onChange={(e) => setClockInHallId(e.target.value)}
                         disabled={!clockInWarehouseId}
-                        className="w-full bg-white border border-[#e5e7eb] disabled:opacity-50 rounded-lg px-3 py-2.5 text-body-sm text-[#0f172a] focus:border-[#1d4ed8] outline-none transition-colors"
+                        className="input-premium py-2 text-xs"
                       >
                         <option value="">{t("chooseHallPlaceholder")}</option>
                         {allHalls
@@ -626,7 +626,7 @@ export default function DashboardPage() {
                     <button
                       onClick={handleClockInOut}
                       disabled={clockLoading || !clockInWarehouseId || !clockInHallId}
-                      className="w-full bg-secondary hover:bg-secondary/90 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full btn-primary py-2.5 text-xs shadow-sm hover:shadow transition-all"
                     >
                       {clockLoading ? (language === "de" ? "Wird verarbeitet..." : "Processing...") : t("clockInButton")}
                     </button>
@@ -635,55 +635,55 @@ export default function DashboardPage() {
               </div>
 
               {/* Hours Summary Statistics */}
-              <div className="bg-surface-container-lowest border border-outline-variant p-stack-md rounded-xl shadow-sm space-y-4">
-                <h4 className="font-bold text-body-lg text-on-surface flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-secondary" /> {t("workHours")}
+              <div className="card-premium space-y-4">
+                <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-slate-500" /> {t("workHours")}
                 </h4>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="bg-surface-container-low border border-outline-variant rounded-lg p-2.5">
-                    <p className="text-[10px] text-outline uppercase tracking-wider font-bold">{t("today")}</p>
-                    <p className="text-headline-sm font-black text-on-surface mt-1">{employeeSummary?.hoursSummary?.today || 0}h</p>
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div className="bg-slate-50 border border-slate-100 rounded-lg p-3">
+                    <p className="text-[9px] text-slate-400 uppercase tracking-wider font-bold">{t("today")}</p>
+                    <p className="text-lg font-bold text-slate-800 font-mono mt-1">{employeeSummary?.hoursSummary?.today || 0}h</p>
                   </div>
-                  <div className="bg-surface-container-low border border-outline-variant rounded-lg p-2.5">
-                    <p className="text-[10px] text-outline uppercase tracking-wider font-bold">{t("thisWeek")}</p>
-                    <p className="text-headline-sm font-black text-secondary mt-1">{employeeSummary?.hoursSummary?.week || 0}h</p>
+                  <div className="bg-slate-50 border border-slate-100 rounded-lg p-3">
+                    <p className="text-[9px] text-slate-400 uppercase tracking-wider font-bold">{t("thisWeek")}</p>
+                    <p className="text-lg font-bold text-blue-600 font-mono mt-1">{employeeSummary?.hoursSummary?.week || 0}h</p>
                   </div>
-                  <div className="bg-surface-container-low border border-outline-variant rounded-lg p-2.5">
-                    <p className="text-[10px] text-outline uppercase tracking-wider font-bold">{t("thisMonth")}</p>
-                    <p className="text-headline-sm font-black text-on-surface mt-1">{employeeSummary?.hoursSummary?.month || 0}h</p>
+                  <div className="bg-slate-50 border border-slate-100 rounded-lg p-3">
+                    <p className="text-[9px] text-slate-400 uppercase tracking-wider font-bold">{t("thisMonth")}</p>
+                    <p className="text-lg font-bold text-slate-800 font-mono mt-1">{employeeSummary?.hoursSummary?.month || 0}h</p>
                   </div>
                 </div>
               </div>
 
               {/* Personal Profile Details Card */}
-              <div className="bg-surface-container-lowest border border-outline-variant p-stack-md rounded-xl shadow-sm space-y-4">
-                <h4 className="font-bold text-body-lg text-on-surface flex items-center gap-2">
-                  <User className="w-5 h-5 text-secondary" /> {t("profileDetails")}
+              <div className="card-premium space-y-4">
+                <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                  <User className="w-4 h-4 text-slate-500" /> {t("profileDetails")}
                 </h4>
-                <div className="divide-y divide-outline-variant text-body-sm text-on-surface-variant">
+                <div className="divide-y divide-slate-100 text-xs text-slate-600">
                   <div className="py-2.5 flex justify-between">
-                    <span className="text-outline">{t("usernameLabel")}</span>
-                    <span className="font-semibold text-on-surface font-mono">{employeeInfo?.username}</span>
+                    <span className="text-slate-400">{t("usernameLabel")}</span>
+                    <span className="font-semibold text-slate-800 font-mono">{employeeInfo?.username}</span>
                   </div>
                   <div className="py-2.5 flex justify-between">
-                    <span className="text-outline">{t("employmentStart")}</span>
-                    <span suppressHydrationWarning className="font-semibold text-on-surface">
+                    <span className="text-slate-400">{t("employmentStart")}</span>
+                    <span suppressHydrationWarning className="font-semibold text-slate-800">
                       {employeeSummary?.employmentStart 
                         ? new Date(employeeSummary.employmentStart).toLocaleDateString(language === "de" ? "de-DE" : "en-CA") 
                         : "—"}
                     </span>
                   </div>
                   <div className="py-2.5 flex justify-between">
-                    <span className="text-outline">{t("phone")}</span>
-                    <span className="font-semibold text-on-surface">{employeeInfo?.phone}</span>
+                    <span className="text-slate-400">{t("phone")}</span>
+                    <span className="font-semibold text-slate-800">{employeeInfo?.phone}</span>
                   </div>
                   <div className="py-2.5 flex justify-between">
-                    <span className="text-outline">{t("email")}</span>
-                    <span className="font-semibold text-on-surface">{employeeInfo?.email || "—"}</span>
+                    <span className="text-slate-400">{t("email")}</span>
+                    <span className="font-semibold text-slate-800">{employeeInfo?.email || "—"}</span>
                   </div>
                   <div className="py-2.5 flex justify-between">
-                    <span className="text-outline">{t("telegramId")}</span>
-                    <span className="font-semibold text-on-surface">{employeeInfo?.telegramId || "—"}</span>
+                    <span className="text-slate-400">{t("telegramId")}</span>
+                    <span className="font-semibold text-slate-800">{employeeInfo?.telegramId || "—"}</span>
                   </div>
                 </div>
               </div>
@@ -691,43 +691,43 @@ export default function DashboardPage() {
             </div>
 
             {/* Right Side: Assigned Plans, Plans History & Work History */}
-            <div className="lg:col-span-2 space-y-stack-md">
+            <div className="lg:col-span-2 space-y-6">
               
               {/* Assigned Plans for Today */}
-              <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden">
-                <div className="p-stack-md border-b border-outline-variant bg-surface-container-low">
-                  <h5 className="font-bold text-body-lg text-on-surface flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-secondary" /> {t("activeShiftPlansToday")}
+              <div className="card-premium p-0 overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                  <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-slate-500" /> {t("activeShiftPlansToday")}
                   </h5>
                 </div>
-                <div className="divide-y divide-outline-variant">
+                <div className="divide-y divide-slate-100">
                   {!employeeSummary?.plansToday || employeeSummary.plansToday.length === 0 ? (
-                    <div className="p-stack-lg text-center text-outline">
-                      <p className="text-body-sm">{t("noShiftsToday")}</p>
+                    <div className="py-10 text-center text-slate-400 text-xs">
+                      <p>{t("noShiftsToday")}</p>
                     </div>
                   ) : (
                     employeeSummary.plansToday.map((p: any) => (
-                      <div key={p.id} className="p-stack-md flex flex-col sm:flex-row justify-between sm:items-center hover:bg-surface-bright transition-colors gap-3">
+                      <div key={p.id} className="p-5 flex flex-col sm:flex-row justify-between sm:items-center hover:bg-slate-50/30 transition-colors gap-3">
                         <div>
-                          <span className="text-body-md font-bold text-on-surface block">
+                          <span className="text-sm font-bold text-slate-800 block">
                             {p.warehouseName} — {p.hallName}
                           </span>
-                          <div className="flex flex-wrap gap-3 mt-1 text-[11px] text-outline">
-                            <span suppressHydrationWarning className="flex items-center gap-1 font-mono text-secondary-container bg-secondary-container/10 px-1 py-0.5 rounded font-bold"> {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
+                          <div className="flex flex-wrap gap-3 mt-1.5 text-[10px] text-slate-400 font-semibold">
+                            <span suppressHydrationWarning className="font-mono text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded"> {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
                             </span>
                             <span className="flex items-center gap-1">
-                              <Users className="w-3.5 h-3.5" />
+                              <Users className="w-3.5 h-3.5 text-slate-300" />
                               {p.assignedEmployees?.length || 0} {language === "de" ? "Mitarbeiter" : "Staff Assigned"}
                             </span>
                             <span className="flex items-center gap-1">
-                              <Package className="w-3.5 h-3.5" />
+                              <Package className="w-3.5 h-3.5 text-slate-300" />
                               {p.assignedContainers?.length || 0} {language === "de" ? "Container" : "Containers"}
                             </span>
                           </div>
                         </div>
                         <button
                           onClick={() => setSelectedPlanForView(p)}
-                          className="px-3.5 py-1.5 bg-secondary text-white hover:bg-secondary-container rounded-lg text-xs font-bold uppercase tracking-wider text-center transition-colors shadow-sm self-start sm:self-center"
+                          className="btn-secondary py-1.5 px-3 text-[10px] uppercase font-bold tracking-wider hover:bg-slate-50 cursor-pointer self-start sm:self-center"
                         >
                           {t("viewDetails")}
                         </button>
@@ -738,32 +738,32 @@ export default function DashboardPage() {
               </div>
 
               {/* Plans History */}
-              <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden">
-                <div className="p-stack-md border-b border-outline-variant bg-surface-container-low">
-                  <h5 className="font-bold text-body-lg text-on-surface flex items-center gap-2">
-                    <History className="w-5 h-5 text-secondary" /> {t("shiftHistory")}
+              <div className="card-premium p-0 overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                  <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                    <History className="w-4 h-4 text-slate-500" /> {t("shiftHistory")}
                   </h5>
                 </div>
-                <div className="divide-y divide-outline-variant">
+                <div className="divide-y divide-slate-100">
                   {!employeeSummary?.plansHistory || employeeSummary.plansHistory.length === 0 ? (
-                    <div className="p-stack-lg text-center text-outline">
-                      <p className="text-body-sm">{t("noPastShifts")}</p>
+                    <div className="py-10 text-center text-slate-400 text-xs">
+                      <p>{t("noPastShifts")}</p>
                     </div>
                   ) : (
                     employeeSummary.plansHistory.slice(0, 5).map((p: any) => (
-                      <div key={p.id} className="p-stack-md flex flex-col sm:flex-row justify-between sm:items-center hover:bg-surface-bright transition-colors gap-3">
+                      <div key={p.id} className="p-5 flex flex-col sm:flex-row justify-between sm:items-center hover:bg-slate-50/30 transition-colors gap-3">
                         <div>
-                          <span className="text-body-md font-bold text-on-surface block">
+                          <span className="text-sm font-bold text-slate-800 block">
                             {p.warehouseName} — {p.hallName}
                           </span>
-                          <div className="flex flex-wrap gap-3 mt-1 text-[11px] text-outline">
-                            <span suppressHydrationWarning className="font-mono"> {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}</span>
+                          <div className="flex flex-wrap gap-3 mt-1.5 text-[10px] text-slate-400 font-semibold">
+                            <span suppressHydrationWarning className="font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded"> {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}</span>
                             <span>{p.assignedContainers?.length || 0} {language === "de" ? "Container bearbeitet" : "Containers processed"}</span>
                           </div>
                         </div>
                         <button
                           onClick={() => setSelectedPlanForView(p)}
-                          className="px-3 py-1.5 border border-outline-variant hover:border-secondary hover:text-secondary rounded-lg text-xs font-bold uppercase tracking-wider text-center transition-colors self-start sm:self-center"
+                          className="btn-secondary py-1.5 px-3 text-[10px] uppercase font-bold tracking-wider hover:bg-slate-50 cursor-pointer self-start sm:self-center"
                         >
                           {t("details")}
                         </button>
@@ -774,36 +774,36 @@ export default function DashboardPage() {
               </div>
 
               {/* Work History (Attendance Logs) */}
-              <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden">
-                <div className="p-stack-md border-b border-outline-variant bg-surface-container-low">
-                  <h5 className="font-bold text-body-lg text-on-surface flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-secondary" /> {t("timesheetsTitle")}
+              <div className="card-premium p-0 overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                  <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-slate-500" /> {t("timesheetsTitle")}
                   </h5>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="bg-surface-container-low border-b border-outline-variant text-on-surface-variant">
-                        <th className="p-3.5 font-semibold">{t("date")}</th>
-                        <th className="p-3.5 font-semibold">{t("warehouse")}</th>
-                        <th className="p-3.5 font-semibold">{t("clockedIn")}</th>
-                        <th className="p-3.5 font-semibold">{t("clockedOut")}</th>
-                        <th className="p-3.5 font-semibold text-right">{t("totalHours")}</th>
+                      <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-500">
+                        <th className="px-6 py-3 font-semibold">{t("date")}</th>
+                        <th className="px-6 py-3 font-semibold">{t("warehouse")}</th>
+                        <th className="px-6 py-3 font-semibold">{t("clockedIn")}</th>
+                        <th className="px-6 py-3 font-semibold">{t("clockedOut")}</th>
+                        <th className="px-6 py-3 font-semibold text-right">{t("totalHours")}</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-outline-variant text-on-surface-variant">
+                    <tbody className="divide-y divide-slate-100 text-slate-600">
                       {!employeeSummary?.workHistory || employeeSummary.workHistory.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="p-4 text-center">{t("noAttendanceLogs")}</td>
+                          <td colSpan={5} className="p-6 text-center text-slate-400 italic">{t("noAttendanceLogs")}</td>
                         </tr>
                       ) : (
                         employeeSummary.workHistory.map((r: any) => (
-                          <tr key={r.id} className="hover:bg-surface-bright transition-colors">
-                            <td suppressHydrationWarning className="p-3.5 font-mono text-on-surface"> {new Date(r.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}</td>
-                            <td className="p-3.5">{r.warehouseName} — {r.hallName}</td>
-                            <td suppressHydrationWarning className="p-3.5 font-mono"> {new Date(r.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                            <td className="p-3.5 font-mono">{r.clockOut ? new Date(r.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "—"}</td>
-                            <td className="p-3.5 font-mono text-right text-white font-bold">{r.totalHours ? `${r.totalHours}h` : t("activeShiftLabel")}</td>
+                          <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
+                            <td suppressHydrationWarning className="px-6 py-3 font-mono text-slate-800"> {new Date(r.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}</td>
+                            <td className="px-6 py-3 text-slate-600">{r.warehouseName} — {r.hallName}</td>
+                            <td suppressHydrationWarning className="px-6 py-3 font-mono text-slate-500"> {new Date(r.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                            <td className="px-6 py-3 font-mono text-slate-500">{r.clockOut ? new Date(r.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "—"}</td>
+                            <td className="px-6 py-3 font-mono text-right text-slate-800 font-semibold">{r.totalHours ? `${r.totalHours}h` : t("activeShiftLabel")}</td>
                           </tr>
                         ))
                       )}
@@ -817,85 +817,97 @@ export default function DashboardPage() {
         </div>
       ) : (
         /* 2. MANAGER & ADMIN DASHBOARD */
-        <div className="space-y-stack-lg print:hidden">
+        <div className="space-y-6 print:hidden">
           {/* Welcome header & Offline status */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h3 className="font-headline-lg font-bold text-on-surface">
+              <h3 className="text-xl font-bold text-slate-800 tracking-tight">
                 {userRole === "MANAGER" ? t("roleManager") + " Dashboard" : t("operationalDashboard")}
               </h3>
-              <p className="text-on-surface-variant font-body-sm">
+              <p className="text-slate-500 text-xs mt-1">
                 {t("statusOverview")}
               </p>
             </div>
 
             {isOffline && (
-              <div className="bg-tertiary-container text-on-tertiary-container border border-on-tertiary-container/20 px-3.5 py-1.5 rounded-lg flex items-center gap-2 text-label-md max-w-fit shadow-sm">
-                <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
+              <span className="badge-premium badge-warning animate-pulse">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                 <span>{t("sandboxMode")}</span>
-              </div>
+              </span>
             )}
           </div>
 
           {/* Key Metrics Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-stack-md">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
             
             {/* Total Employees */}
-            <div className="bg-surface-container-lowest border border-outline-variant p-stack-md rounded-lg shadow-sm hover:shadow transition-shadow">
+            <div className="card-premium">
               <div className="flex justify-between items-start mb-2">
-                <Users className="w-6 h-6 text-outline" />
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant flex items-center gap-0.5">
-                  <TrendingUp className="w-3 h-3 text-emerald-500" /> +2.4%
+                <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                  {t("totalEmployees")}
+                </span>
+                <Users className="w-4 h-4 text-slate-400" />
+              </div>
+              <div className="flex items-baseline gap-2 mt-1">
+                <h4 className="text-2xl font-bold font-mono tracking-tight text-slate-800">
+                  {metrics.employeesCount}
+                </h4>
+                <span className="badge-premium badge-success py-0.5 px-1.5 text-[9px] flex items-center gap-0.5 font-semibold">
+                  <TrendingUp className="w-2.5 h-2.5 text-emerald-600" /> +2.4%
                 </span>
               </div>
-              <p className="text-outline font-label-md uppercase tracking-wider text-[10px] font-semibold">
-                {t("totalEmployees")}
-              </p>
-              <h4 className="text-headline-md font-black mt-1 font-mono text-on-surface">
-                {metrics.employeesCount}
-              </h4>
+              <p className="text-[10px] text-slate-400 mt-1.5">Registered personnel</p>
             </div>
 
             {/* Active Today */}
-            <div className="bg-surface-container-lowest border border-outline-variant p-stack-md rounded-lg shadow-sm hover:shadow transition-shadow">
+            <div className="card-premium">
               <div className="flex justify-between items-start mb-2">
-                <Activity className="w-6 h-6 text-secondary" />
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-secondary-container text-white flex items-center gap-1 animate-pulse">
-                  <span className="w-1.5 h-1.5 bg-white rounded-full"></span> {t("live")}
+                <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                  {t("activeToday")}
+                </span>
+                <Activity className="w-4 h-4 text-blue-600" />
+              </div>
+              <div className="flex items-baseline gap-2 mt-1">
+                <h4 className="text-2xl font-bold font-mono tracking-tight text-blue-600">
+                  {metrics.activeTodayCount}
+                </h4>
+                <span className="badge-premium badge-info py-0.5 px-1.5 text-[9px] flex items-center gap-0.5 animate-pulse font-semibold">
+                  <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span> {t("live")}
                 </span>
               </div>
-              <p className="text-outline font-label-md uppercase tracking-wider text-[10px] font-semibold">
-                {t("activeToday")}
-              </p>
-              <h4 className="text-headline-md font-black mt-1 font-mono text-secondary">
-                {metrics.activeTodayCount}
-              </h4>
+              <p className="text-[10px] text-slate-400 mt-1.5">Currently clocked-in staff</p>
             </div>
 
             {/* Containers Today */}
-            <div className="bg-surface-container-lowest border border-outline-variant p-stack-md rounded-lg shadow-sm hover:shadow transition-shadow">
+            <div className="card-premium">
               <div className="flex justify-between items-start mb-2">
-                <Package className="w-6 h-6 text-outline" />
+                <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                  {t("totalContainers")}
+                </span>
+                <Package className="w-4 h-4 text-slate-400" />
               </div>
-              <p className="text-outline font-label-md uppercase tracking-wider text-[10px] font-semibold">
-                {t("totalContainers")}
-              </p>
-              <h4 className="text-headline-md font-black mt-1 font-mono text-on-surface">
-                {metrics.containersCount}
-              </h4>
+              <div className="flex items-baseline gap-2 mt-1">
+                <h4 className="text-2xl font-bold font-mono tracking-tight text-slate-800">
+                  {metrics.containersCount}
+                </h4>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1.5">Routed containers queue</p>
             </div>
 
             {/* Active Halls */}
-            <div className="bg-surface-container-lowest border border-outline-variant p-stack-md rounded-lg shadow-sm hover:shadow transition-shadow">
+            <div className="card-premium">
               <div className="flex justify-between items-start mb-2">
-                <Grid className="w-6 h-6 text-outline" />
+                <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                  {t("activeHalls")}
+                </span>
+                <Grid className="w-4 h-4 text-slate-400" />
               </div>
-              <p className="text-outline font-label-md uppercase tracking-wider text-[10px] font-semibold">
-                {t("activeHalls")}
-              </p>
-              <h4 className="text-headline-md font-black mt-1 font-mono text-on-surface">
-                {metrics.hallsCount}
-              </h4>
+              <div className="flex items-baseline gap-2 mt-1">
+                <h4 className="text-2xl font-bold font-mono tracking-tight text-slate-800">
+                  {metrics.hallsCount}
+                </h4>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1.5">Assigned staging zones</p>
             </div>
           </div>
 
@@ -907,74 +919,74 @@ export default function DashboardPage() {
           />
 
           {/* Quick Operations Section */}
-          <div className="space-y-stack-md">
-            <h6 className="font-label-md text-outline uppercase tracking-wider text-[11px] font-semibold">
+          <div className="space-y-3">
+            <h6 className="text-[10px] font-bold tracking-widest text-[#4b5563] uppercase px-1">
               {t("quickOperations")}
             </h6>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-stack-md">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               <Link
                 href="/planning"
-                className="flex items-center gap-4 p-stack-md bg-white border border-outline-variant rounded-lg hover:-translate-y-1 hover:shadow-md hover:border-secondary/40 transition-all duration-200 group text-left cursor-pointer"
+                className="flex items-center gap-4 p-5 bg-white border border-slate-100 rounded-xl hover:border-blue-300 hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-all group text-left cursor-pointer shadow-sm"
               >
-                <div className="w-12 h-12 flex items-center justify-center bg-secondary-container rounded-lg text-secondary group-hover:scale-105 transition-transform shrink-0">
-                  <PlusCircle className="w-6 h-6" />
+                <div className="w-10 h-10 flex items-center justify-center bg-blue-50 border border-blue-100 rounded-lg text-blue-600 group-hover:scale-105 transition-transform shrink-0">
+                  <PlusCircle className="w-5 h-5" />
                 </div>
                 <div>
-                  <span className="font-bold text-on-surface block text-body-md">{t("createNewPlan")}</span>
-                  <span className="text-[12px] text-outline">{t("createPlanDesc")}</span>
+                  <span className="font-bold text-slate-800 block text-xs">{t("createNewPlan")}</span>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">{t("createPlanDesc")}</span>
                 </div>
               </Link>
 
               <Link
                 href="/ocr"
-                className="flex items-center gap-4 p-stack-md bg-white border border-outline-variant rounded-lg hover:-translate-y-1 hover:shadow-md hover:border-secondary/40 transition-all duration-200 group text-left cursor-pointer"
+                className="flex items-center gap-4 p-5 bg-white border border-slate-100 rounded-xl hover:border-blue-300 hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-all group text-left cursor-pointer shadow-sm"
               >
-                <div className="w-12 h-12 flex items-center justify-center bg-secondary-container rounded-lg text-secondary group-hover:scale-105 transition-transform shrink-0">
-                  <UploadCloud className="w-6 h-6" />
+                <div className="w-10 h-10 flex items-center justify-center bg-blue-50 border border-blue-100 rounded-lg text-blue-600 group-hover:scale-105 transition-transform shrink-0">
+                  <UploadCloud className="w-5 h-5" />
                 </div>
                 <div>
-                  <span className="font-bold text-on-surface block text-body-md">{t("ocrUpload")}</span>
-                  <span className="text-[12px] text-outline">{t("ocrDesc")}</span>
+                  <span className="font-bold text-slate-800 block text-xs">{t("ocrUpload")}</span>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">{t("ocrDesc")}</span>
                 </div>
               </Link>
 
               <Link
                 href="/containers"
-                className="flex items-center gap-4 p-stack-md bg-white border border-outline-variant rounded-lg hover:-translate-y-1 hover:shadow-md hover:border-secondary/40 transition-all duration-200 group text-left cursor-pointer"
+                className="flex items-center gap-4 p-5 bg-white border border-slate-100 rounded-xl hover:border-blue-300 hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-all group text-left cursor-pointer shadow-sm"
               >
-                <div className="w-12 h-12 flex items-center justify-center bg-secondary-container rounded-lg text-secondary group-hover:scale-105 transition-transform shrink-0">
-                  <Package className="w-6 h-6" />
+                <div className="w-10 h-10 flex items-center justify-center bg-blue-50 border border-blue-100 rounded-lg text-blue-600 group-hover:scale-105 transition-transform shrink-0">
+                  <Package className="w-5 h-5" />
                 </div>
                 <div>
-                  <span className="font-bold text-on-surface block text-body-md">{t("containers")}</span>
-                  <span className="text-[12px] text-outline">{t("containersDesc")}</span>
+                  <span className="font-bold text-slate-800 block text-xs">{t("containers")}</span>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">{t("containersDesc")}</span>
                 </div>
               </Link>
 
               <Link
                 href="/employees"
-                className="flex items-center gap-4 p-stack-md bg-white border border-outline-variant rounded-lg hover:-translate-y-1 hover:shadow-md hover:border-secondary/40 transition-all duration-200 group text-left cursor-pointer"
+                className="flex items-center gap-4 p-5 bg-white border border-slate-100 rounded-xl hover:border-blue-300 hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-all group text-left cursor-pointer shadow-sm"
               >
-                <div className="w-12 h-12 flex items-center justify-center bg-secondary-container rounded-lg text-secondary group-hover:scale-105 transition-transform shrink-0">
-                  <Users className="w-6 h-6" />
+                <div className="w-10 h-10 flex items-center justify-center bg-blue-50 border border-blue-100 rounded-lg text-blue-600 group-hover:scale-105 transition-transform shrink-0">
+                  <Users className="w-5 h-5" />
                 </div>
                 <div>
-                  <span className="font-bold text-on-surface block text-body-md">{t("employees")}</span>
-                  <span className="text-[12px] text-outline">{t("staffDesc")}</span>
+                  <span className="font-bold text-slate-800 block text-xs">{t("employees")}</span>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">{t("staffDesc")}</span>
                 </div>
               </Link>
             </div>
           </div>
 
           {/* Grid Layout: Active Shift Plans & Activity Logs */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-stack-md">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             {/* Active Shift Plans */}
-            <div className="lg:col-span-2 bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden shadow-sm flex flex-col justify-between">
+            <div className="lg:col-span-2 card-premium p-0 overflow-hidden flex flex-col justify-between">
               <div>
-                <div className="p-stack-md border-b border-outline-variant flex flex-col sm:flex-row justify-between sm:items-center bg-surface-container-low gap-3">
-                  <h5 className="font-bold text-body-lg text-on-surface flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-secondary" />
+                <div className="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between sm:items-center bg-slate-50/50 gap-3">
+                  <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-slate-500" />
                     {t("shiftPlans")} {showAllPlans ? `(${t("showingAll")})` : `(${selectedDate})`}
                   </h5>
                   
@@ -984,16 +996,16 @@ export default function DashboardPage() {
                         type="date"
                         value={selectedDate}
                         onChange={(e) => setSelectedDate(e.target.value)}
-                        className="px-2 py-1 text-xs border border-outline-variant rounded bg-white text-on-surface focus:outline-none focus:ring-1 focus:ring-secondary"
+                        className="input-premium py-1 px-2 text-xs w-36"
                       />
                     )}
                     
                     <button
                       onClick={() => setShowAllPlans(!showAllPlans)}
-                      className={`px-3 py-1 rounded text-xs font-bold transition-all border ${
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all border ${
                         showAllPlans
-                          ? "bg-secondary text-white border-secondary"
-                          : "bg-white text-secondary border-outline-variant hover:bg-surface-container-low"
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                       }`}
                     >
                       {showAllPlans ? t("showingAll") : t("showAllPlans")}
@@ -1001,7 +1013,7 @@ export default function DashboardPage() {
 
                     <Link
                       href="/planning"
-                      className="bg-secondary text-white px-3 py-1 rounded text-xs font-bold hover:bg-secondary-container transition-all flex items-center gap-1"
+                      className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-semibold hover:bg-blue-700 transition-all flex items-center gap-1"
                     >
                       {t("createNewPlan")} <PlusCircle className="w-3.5 h-3.5" />
                     </Link>
@@ -1010,20 +1022,20 @@ export default function DashboardPage() {
 
                 {/* Bulk Delete Bar */}
                 {selectedPlanIds.length > 0 && (
-                  <div className="bg-error-container/20 border-b border-error-container px-stack-md py-2.5 flex justify-between items-center text-xs animate-fadeIn">
-                    <span className="text-error font-medium flex items-center gap-1">
+                  <div className="bg-red-50/50 border-b border-red-100 px-6 py-3 flex justify-between items-center text-xs animate-fadeIn">
+                    <span className="text-red-700 font-semibold flex items-center gap-1">
                       <Trash2 className="w-4 h-4" /> {selectedPlanIds.length} {language === "de" ? "Pläne ausgewählt" : "plans selected"}
                     </span>
                     <div className="flex gap-2">
                       <button
                         onClick={() => setSelectedPlanIds([])}
-                        className="text-on-surface hover:underline font-bold px-2 py-1"
+                        className="text-slate-500 hover:text-slate-800 font-semibold px-2 py-1 cursor-pointer"
                       >
                         {t("clear")}
                       </button>
                       <button
                         onClick={handleBulkDeletePlans}
-                        className="bg-error text-white px-3 py-1 rounded font-bold hover:bg-red-700 transition-colors shadow-sm"
+                        className="bg-red-650 hover:bg-red-700 text-white px-3 py-1 rounded-lg font-semibold transition-colors cursor-pointer"
                       >
                         {t("bulkDeleteSelected")}
                       </button>
@@ -1032,15 +1044,15 @@ export default function DashboardPage() {
                 )}
 
                 {plansLoading ? (
-                  <div className="p-stack-lg text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-secondary mx-auto"></div>
+                  <div className="py-10 text-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
                   </div>
                 ) : (
-                  <div className="divide-y divide-outline-variant">
+                  <div className="divide-y divide-slate-100">
                     {plans.length === 0 ? (
-                      <div className="p-stack-lg text-center text-outline">
-                        <AlertTriangle className="w-10 h-10 mx-auto mb-2 opacity-50 text-amber-500" />
-                        <p className="text-body-sm font-medium">{t("noPlansConfigured")}</p>
+                      <div className="py-12 text-center text-slate-400">
+                        <AlertTriangle className="w-8 h-8 mx-auto mb-2 opacity-40 text-amber-500" />
+                        <p className="text-xs font-medium">{t("noPlansConfigured")}</p>
                       </div>
                     ) : (
                       plans.map((p) => (
@@ -1055,8 +1067,8 @@ export default function DashboardPage() {
                               }
                             }
                           }}
-                          className={`px-stack-md py-4 flex flex-col sm:flex-row justify-between sm:items-center hover:bg-surface-bright transition-colors gap-3 ${
-                            selectedPlanIds.includes(p.id) ? "bg-secondary-container/5" : ""
+                          className={`px-6 py-4 flex flex-col sm:flex-row justify-between sm:items-center hover:bg-slate-50/30 transition-colors gap-3 ${
+                            selectedPlanIds.includes(p.id) ? "bg-blue-50/30" : ""
                           }`}
                         >
                           <div className="flex items-center">
@@ -1070,29 +1082,29 @@ export default function DashboardPage() {
                                     setSelectedPlanIds(prev => [...prev, p.id]);
                                   }
                                 }}
-                                className="mr-3 text-on-surface-variant hover:text-secondary shrink-0 transition-colors"
+                                className="mr-3 text-slate-300 hover:text-blue-600 shrink-0 transition-colors cursor-pointer"
                               >
                                 {selectedPlanIds.includes(p.id) ? (
-                                  <CheckSquare className="w-4 h-4 text-secondary" />
+                                  <CheckSquare className="w-4 h-4 text-blue-600" />
                                 ) : (
                                   <Square className="w-4 h-4" />
                                 )}
                               </button>
                             )}
                             <div className="flex flex-col">
-                              <span className="text-body-md font-bold text-on-surface">
+                              <span className="text-xs font-bold text-slate-800">
                                 {p.warehouseName} — {p.hallName}
                               </span>
-                              <div className="flex flex-wrap gap-3 mt-1 text-[12px] text-outline">
-                                <span suppressHydrationWarning className="font-mono text-secondary-container bg-secondary-container/10 px-1.5 py-0.5 rounded font-bold"> {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
+                              <div className="flex flex-wrap gap-3 mt-1.5 text-[10px] text-slate-400 font-semibold">
+                                <span suppressHydrationWarning className="font-mono text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded"> {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
                                 </span>
                                 <span className="flex items-center gap-1">
-                                  <Users className="w-3.5 h-3.5" />
-                                  {p.assignedEmployees?.length || 0} {language === "de" ? "Mitarbeiter zugeteilt" : "Staff Assigned"}
+                                  <Users className="w-3.5 h-3.5 text-slate-300" />
+                                  {p.assignedEmployees?.length || 0} {language === "de" ? "Mitarbeiter" : "Staff"}
                                 </span>
                                 <span className="flex items-center gap-1">
-                                  <Package className="w-3.5 h-3.5" />
-                                  {p.assignedContainers?.length || 0} {language === "de" ? "Container geleitet" : "Containers Routed"}
+                                  <Package className="w-3.5 h-3.5 text-slate-300" />
+                                  {p.assignedContainers?.length || 0} {language === "de" ? "Container" : "Containers"}
                                 </span>
                               </div>
                             </div>
@@ -1103,14 +1115,14 @@ export default function DashboardPage() {
                                 e.stopPropagation();
                                 setSelectedPlanForView(p);
                               }}
-                              className="px-3.5 py-1.5 bg-secondary text-white hover:bg-secondary-container rounded-lg text-xs font-bold uppercase tracking-wider text-center transition-colors shadow-sm"
+                              className="btn-primary py-1.5 px-3.5 text-[10px] uppercase font-bold tracking-wider cursor-pointer"
                             >
                               {t("viewDetails")}
                             </button>
                             <Link
                               href={`/planning?date=${p.date.split("T")[0]}&warehouseId=${p.warehouseId}&hallId=${p.hallId}`}
                               onClick={(e) => e.stopPropagation()}
-                              className="px-3.5 py-1.5 border border-outline-variant hover:border-secondary hover:text-secondary rounded-lg text-xs font-bold uppercase tracking-wider text-center transition-colors"
+                              className="btn-secondary py-1.5 px-3.5 text-[10px] uppercase font-bold tracking-wider cursor-pointer"
                             >
                               {t("managePlan")}
                             </Link>
@@ -1124,63 +1136,63 @@ export default function DashboardPage() {
             </div>
 
             {/* Right Side: Manager Audit Feed OR Active Staff */}
-            <div className="lg:col-span-1 space-y-stack-md">
+            <div className="lg:col-span-1 space-y-6">
               {userRole === "MANAGER" ? (
-                <div className="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden shadow-sm flex flex-col justify-between">
+                <div className="card-premium p-0 overflow-hidden flex flex-col justify-between">
                   <div>
-                    <div className="p-stack-md border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
-                      <h5 className="font-bold text-body-lg text-on-surface flex items-center gap-2">
-                        <Shield className="w-5 h-5 text-secondary" /> {t("auditActivityLogs")}
+                    <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                      <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                        <Shield className="w-4 h-4 text-slate-500" /> {t("auditActivityLogs")}
                       </h5>
-                      <Link href="/reports" className="text-secondary text-label-md font-bold hover:underline flex items-center gap-1">
-                        {t("reports")} <ArrowRight className="w-3.5 h-3.5" />
+                      <Link href="/reports" className="text-blue-600 text-xs font-bold hover:underline flex items-center gap-1">
+                        {t("reports")} <ArrowRight className="w-3 h-3" />
                       </Link>
                     </div>
                     
-                    <div className="p-4 space-y-4 max-h-[500px] overflow-y-auto divide-y divide-outline-variant">
+                    <div className="p-5 space-y-5 max-h-[500px] overflow-y-auto divide-y divide-slate-100">
                       <div>
-                        <p className="text-xs text-outline uppercase tracking-wider font-bold mb-2.5 flex items-center gap-1.5 text-secondary">
-                          <Users className="w-3.5 h-3.5" /> {t("employeeActivity")}
+                        <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-3 flex items-center gap-1.5 font-semibold">
+                          <Users className="w-3.5 h-3.5 text-blue-600" /> {t("employeeActivity")}
                         </p>
-                        <div className="space-y-2">
+                        <div className="space-y-2.5">
                           {recentActivityLogs.filter(log => ["LOGIN", "LOGOUT", "CLOCK_IN", "CLOCK_OUT"].includes(log.action)).length === 0 ? (
-                            <p className="text-xs text-outline italic">{t("noRecentActivity")}</p>
+                            <p className="text-xs text-slate-400 italic">{t("noRecentActivity")}</p>
                           ) : (
                             recentActivityLogs
                               .filter(log => ["LOGIN", "LOGOUT", "CLOCK_IN", "CLOCK_OUT"].includes(log.action))
                               .slice(0, 5)
                               .map(log => (
-                                <div key={log.id} className="text-xs p-2.5 bg-[#f8fafc] rounded-lg border border-[#e2e8f0] flex flex-col gap-0.5">
+                                <div key={log.id} className="text-xs p-3 bg-slate-50 border border-slate-100 rounded-lg flex flex-col gap-1">
                                   <div className="flex justify-between items-center">
-                                    <span className="font-semibold text-[#0f172a]">{log.user?.name || "System"}</span>
-                                    <span suppressHydrationWarning className="text-[9px] text-[#94a3b8] font-mono"> {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    <span className="font-semibold text-slate-800">{log.user?.name || "System"}</span>
+                                    <span suppressHydrationWarning className="text-[9px] text-slate-400 font-mono"> {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                   </div>
-                                  <span className="text-[#64748b]">{log.details}</span>
+                                  <span className="text-slate-500 text-[11px] leading-relaxed">{log.details}</span>
                                 </div>
                               ))
                           )}
                         </div>
                       </div>
 
-                      <div className="pt-4">
-                        <p className="text-xs text-outline uppercase tracking-wider font-bold mb-2.5 flex items-center gap-1.5 text-emerald-400">
-                          <Shield className="w-3.5 h-3.5" /> {t("adminActivity")}
+                      <div className="pt-5">
+                        <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-3 flex items-center gap-1.5 font-semibold">
+                          <Shield className="w-3.5 h-3.5 text-slate-500" /> {t("adminActivity")}
                         </p>
-                        <div className="space-y-2">
+                        <div className="space-y-2.5">
                           {recentActivityLogs.filter(log => !["LOGIN", "LOGOUT", "CLOCK_IN", "CLOCK_OUT"].includes(log.action)).length === 0 ? (
-                            <p className="text-xs text-outline italic">{t("noRecentActivity")}</p>
+                            <p className="text-xs text-slate-400 italic">{t("noRecentActivity")}</p>
                           ) : (
                             recentActivityLogs
                               .filter(log => !["LOGIN", "LOGOUT", "CLOCK_IN", "CLOCK_OUT"].includes(log.action))
                               .slice(0, 5)
                               .map(log => (
-                                <div key={log.id} className="text-xs p-2.5 bg-[#f8fafc] rounded-lg border border-[#e2e8f0] flex flex-col gap-0.5">
+                                <div key={log.id} className="text-xs p-3 bg-slate-50 border border-slate-100 rounded-lg flex flex-col gap-1">
                                   <div className="flex justify-between items-center">
-                                    <span className="font-semibold text-[#0f172a]">{log.user?.name || "System"}</span>
-                                    <span suppressHydrationWarning className="text-[9px] text-[#94a3b8] font-mono"> {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    <span className="font-semibold text-slate-800">{log.user?.name || "System"}</span>
+                                    <span suppressHydrationWarning className="text-[9px] text-slate-400 font-mono"> {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                   </div>
-                                  <span className="font-mono text-[10px] mt-0.5 uppercase text-[#1d4ed8] bg-[#eff6ff] w-fit px-1.5 py-0.5 rounded font-semibold">{log.action}</span>
-                                  <span className="text-[#64748b] mt-1">{log.details}</span>
+                                  <span className="font-mono text-[9px] mt-0.5 uppercase text-blue-600 bg-blue-50 border border-blue-100/50 w-fit px-1.5 py-0.5 rounded font-bold">{log.action}</span>
+                                  <span className="text-slate-500 text-[11px] leading-relaxed mt-1">{log.details}</span>
                                 </div>
                               ))
                           )}
@@ -1191,26 +1203,26 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 /* Admin Recent Log */
-                <div className="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden shadow-sm flex flex-col justify-between">
+                <div className="card-premium p-0 overflow-hidden flex flex-col justify-between">
                   <div>
-                    <div className="p-stack-md border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
-                      <h5 className="font-bold text-body-lg text-on-surface">{language === "de" ? "Aktuelle Systemereignisse" : "Recent System Events"}</h5>
-                      <span className="text-[10px] bg-secondary-container px-2 py-0.5 rounded font-bold text-white uppercase tracking-wider">Operational</span>
+                    <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                      <h5 className="font-bold text-sm text-slate-800">{language === "de" ? "Aktuelle Systemereignisse" : "Recent System Events"}</h5>
+                      <span className="badge-premium badge-info text-[9px] py-0.5 px-2">Operational</span>
                     </div>
-                    <div className="divide-y divide-outline-variant">
-                      <div className="px-stack-md py-3.5 flex justify-between items-center hover:bg-surface-bright transition-colors">
+                    <div className="divide-y divide-slate-100">
+                      <div className="px-6 py-4 flex justify-between items-center hover:bg-slate-50/30 transition-colors">
                         <div className="flex flex-col">
-                          <span className="text-body-sm font-medium text-on-surface">{language === "de" ? "Plan für Duisburg verarbeitet" : "Plan processed for Duisburg"}</span>
-                          <span className="text-[10px] text-outline uppercase tracking-wider font-mono mt-0.5">System • {language === "de" ? "Gerade eben" : "Just Now"}</span>
+                          <span className="text-xs font-bold text-slate-800">{language === "de" ? "Plan für Duisburg verarbeitet" : "Plan processed for Duisburg"}</span>
+                          <span className="text-[9px] text-slate-400 uppercase tracking-wider font-mono mt-0.5">System • {language === "de" ? "Gerade eben" : "Just Now"}</span>
                         </div>
-                        <span className="px-2 py-0.5 bg-emerald-900/30 text-emerald-400 rounded text-[10px] font-bold uppercase tracking-wider font-mono">{t("success")}</span>
+                        <span className="badge-premium badge-success text-[9px] py-0.5 px-2">{t("success")}</span>
                       </div>
-                      <div className="px-stack-md py-3.5 flex justify-between items-center hover:bg-surface-bright transition-colors">
+                      <div className="px-6 py-4 flex justify-between items-center hover:bg-slate-50/30 transition-colors">
                         <div className="flex flex-col">
-                          <span className="text-body-sm font-medium text-on-surface">{language === "de" ? "Neuer Mitarbeiter hinzugefügt" : "New Employee Added"}</span>
-                          <span className="text-[10px] text-outline uppercase tracking-wider font-mono mt-0.5">Admin • {language === "de" ? "vor 1 Std." : "1h ago"}</span>
+                          <span className="text-xs font-bold text-slate-800">{language === "de" ? "Neuer Mitarbeiter hinzugefügt" : "New Employee Added"}</span>
+                          <span className="text-[9px] text-slate-400 uppercase tracking-wider font-mono mt-0.5">Admin • {language === "de" ? "vor 1 Std." : "1h ago"}</span>
                         </div>
-                        <span className="px-2 py-0.5 bg-blue-900/30 text-blue-400 rounded text-[10px] font-bold uppercase tracking-wider font-mono">Audit</span>
+                        <span className="badge-premium badge-neutral text-[9px] py-0.5 px-2">Audit</span>
                       </div>
                     </div>
                   </div>
@@ -1224,20 +1236,20 @@ export default function DashboardPage() {
 
       {/* Detail View Modal */}
       {selectedPlanForView && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn print:hidden">
-          <div className="bg-white border border-[#e2e8f0] rounded-2xl max-w-2xl w-full shadow-xl overflow-hidden animate-scaleIn">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fadeIn print:hidden">
+          <div className="bg-white border border-slate-100 rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden animate-scaleIn">
             
             {/* Modal Header */}
-            <div className="px-6 py-4 bg-[#f8fafc] border-b border-[#e2e8f0] flex justify-between items-center">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
               <div>
-                <h4 className="font-bold text-body-lg text-[#0f172a]">{t("shiftDetailsModalTitle")}</h4>
-                <p className="text-xs text-[#64748b] mt-0.5">
+                <h4 className="font-bold text-slate-800 text-sm">{t("shiftDetailsModalTitle")}</h4>
+                <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
                   {t("shiftDetailsSubtitle")}
                 </p>
               </div>
               <button
                 onClick={() => setSelectedPlanForView(null)}
-                className="text-[#64748b] hover:text-[#0f172a] p-1.5 hover:bg-[#f1f5f9] rounded-lg transition-colors"
+                className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1247,51 +1259,51 @@ export default function DashboardPage() {
             <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
               
               {/* Warehouse Details */}
-              <div className="grid grid-cols-2 gap-4 bg-[#f8fafc] border border-[#e2e8f0] p-4 rounded-xl">
+              <div className="grid grid-cols-2 gap-4 bg-slate-50 border border-slate-100 p-4 rounded-xl text-xs">
                 <div>
-                  <span className="text-[11px] text-[#64748b] uppercase tracking-wider block font-bold">{t("depotLocation")}</span>
-                  <span className="font-bold text-[#0f172a] text-body-md mt-1 block">{selectedPlanForView.warehouseName}</span>
+                  <span className="text-[10px] text-slate-400 uppercase tracking-widest block font-bold">{t("depotLocation")}</span>
+                  <span className="font-bold text-slate-850 mt-1 block">{selectedPlanForView.warehouseName}</span>
                 </div>
                 <div>
-                  <span className="text-[11px] text-[#64748b] uppercase tracking-wider block font-bold">{t("stagingHall")}</span>
-                  <span className="font-bold text-[#0f172a] text-body-md mt-1 block">{selectedPlanForView.hallName}</span>
+                  <span className="text-[10px] text-slate-400 uppercase tracking-widest block font-bold">{t("stagingHall")}</span>
+                  <span className="font-bold text-slate-850 mt-1 block">{selectedPlanForView.hallName}</span>
                 </div>
-                <div className="col-span-2 mt-2 pt-2 border-t border-[#e2e8f0]">
-                  <span className="text-[11px] text-[#64748b] uppercase tracking-wider block font-bold">{t("shiftDate")}</span>
-                  <span suppressHydrationWarning className="font-mono text-secondary text-body-md font-bold mt-1 block"> {new Date(selectedPlanForView.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                <div className="col-span-2 mt-2 pt-2 border-t border-slate-100">
+                  <span className="text-[10px] text-slate-400 uppercase tracking-widest block font-bold">{t("shiftDate")}</span>
+                  <span suppressHydrationWarning className="font-mono text-blue-600 font-bold mt-1 block"> {new Date(selectedPlanForView.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                   </span>
                 </div>
               </div>
 
               {/* Staff Roster */}
               <div className="space-y-2.5">
-                <h5 className="font-bold text-body-md text-[#0f172a] flex items-center gap-2">
-                  <Users className="w-4 h-4 text-[#1d4ed8]" /> {t("assignedStaff")} ({selectedPlanForView.assignedEmployees?.length || 0})
+                <h5 className="font-bold text-xs text-slate-800 flex items-center gap-2">
+                  <Users className="w-4 h-4 text-blue-600" /> {t("assignedStaff")} ({selectedPlanForView.assignedEmployees?.length || 0})
                 </h5>
-                <div className="bg-white border border-[#e2e8f0] rounded-xl overflow-hidden">
+                <div className="bg-white border border-slate-100 rounded-xl overflow-hidden shadow-sm">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="bg-[#f8fafc] border-b border-[#e2e8f0] text-[#64748b]">
-                        <th className="p-3 font-semibold">{t("nameColumn")}</th>
-                        <th className="p-3 font-semibold">{t("roleColumn")}</th>
-                        <th className="p-3 font-semibold">{t("phone")}</th>
+                      <tr className="bg-slate-50 border-b border-slate-100 text-slate-500">
+                        <th className="px-4 py-2 font-semibold">{t("nameColumn")}</th>
+                        <th className="px-4 py-2 font-semibold">{t("roleColumn")}</th>
+                        <th className="px-4 py-2 font-semibold">{t("phone")}</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#f1f5f9]">
+                    <tbody className="divide-y divide-slate-100">
                       {!selectedPlanForView.assignedEmployees || selectedPlanForView.assignedEmployees.length === 0 ? (
                         <tr>
-                          <td colSpan={3} className="p-4 text-center text-[#94a3b8]">{t("noStaffAssigned")}</td>
+                          <td colSpan={3} className="p-4 text-center text-slate-400 italic">{t("noStaffAssigned")}</td>
                         </tr>
                       ) : (
                         selectedPlanForView.assignedEmployees.map((emp, idx) => (
-                          <tr key={idx} className="hover:bg-[#f8fafc]">
-                            <td className="p-3 font-medium text-[#0f172a]">{emp.name}</td>
-                            <td className="p-3">
-                              <span className="px-2 py-0.5 bg-[#eff6ff] text-[#1d4ed8] rounded-full text-[10px] font-semibold uppercase tracking-wider">
+                          <tr key={idx} className="hover:bg-slate-50/50">
+                            <td className="px-4 py-2.5 font-medium text-slate-850">{emp.name}</td>
+                            <td className="px-4 py-2.5">
+                              <span className="badge-premium badge-info text-[9px] py-0.5 px-2">
                                 {emp.role}
                               </span>
                             </td>
-                            <td className="p-3 font-mono text-[#64748b]">{emp.phone || "—"}</td>
+                            <td className="px-4 py-2.5 font-mono text-slate-500">{emp.phone || "—"}</td>
                           </tr>
                         ))
                       )}
@@ -1302,31 +1314,31 @@ export default function DashboardPage() {
 
               {/* Container Queue */}
               <div className="space-y-2.5">
-                <h5 className="font-bold text-body-md text-[#0f172a] flex items-center gap-2">
-                  <Package className="w-4 h-4 text-[#1d4ed8]" /> {t("routedContainers")} ({selectedPlanForView.assignedContainers?.length || 0})
+                <h5 className="font-bold text-xs text-slate-800 flex items-center gap-2">
+                  <Package className="w-4 h-4 text-blue-600" /> {t("routedContainers")} ({selectedPlanForView.assignedContainers?.length || 0})
                 </h5>
-                <div className="bg-white border border-[#e2e8f0] rounded-xl overflow-hidden">
+                <div className="bg-white border border-slate-100 rounded-xl overflow-hidden shadow-sm">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="bg-[#f8fafc] border-b border-[#e2e8f0] text-[#64748b]">
-                        <th className="p-3 font-semibold">{t("containerNumber")}</th>
-                        <th className="p-3 font-semibold">Status</th>
+                      <tr className="bg-slate-50 border-b border-slate-100 text-slate-500">
+                        <th className="px-4 py-2 font-semibold">{t("containerNumber")}</th>
+                        <th className="px-4 py-2 font-semibold">Status</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#f1f5f9]">
+                    <tbody className="divide-y divide-slate-100">
                       {!selectedPlanForView.assignedContainers || selectedPlanForView.assignedContainers.length === 0 ? (
                         <tr>
-                          <td colSpan={2} className="p-4 text-center text-[#94a3b8]">{t("noContainersRouted")}</td>
+                          <td colSpan={2} className="p-4 text-center text-slate-400 italic">{t("noContainersRouted")}</td>
                         </tr>
                       ) : (
                         selectedPlanForView.assignedContainers.map((c, idx) => (
-                          <tr key={idx} className="hover:bg-[#f8fafc]">
-                            <td className="p-3 font-mono text-[#0f172a] font-medium">{c.containerNumber}</td>
-                            <td className="p-3">
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${
+                          <tr key={idx} className="hover:bg-slate-50/50">
+                            <td className="px-4 py-2.5 font-mono text-slate-850 font-semibold">{c.containerNumber}</td>
+                            <td className="px-4 py-2.5">
+                              <span className={`badge-premium text-[9px] py-0.5 px-2 ${
                                 c.status === "FULL" 
-                                  ? "bg-amber-50 text-amber-700 border border-amber-200" 
-                                  : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  ? "badge-warning" 
+                                  : "badge-success"
                               }`}>
                                 {c.status}
                               </span>
@@ -1341,25 +1353,25 @@ export default function DashboardPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 bg-[#f8fafc] border-t border-[#e2e8f0] flex justify-between items-center">
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
               <button
                 onClick={() => setSelectedPlanForView(null)}
-                className="px-4 py-2 border border-[#e2e8f0] hover:bg-[#f1f5f9] text-[#64748b] hover:text-[#0f172a] rounded-lg text-sm transition-colors"
+                className="btn-secondary py-1.5 px-4 cursor-pointer"
               >
                 {t("close")}
               </button>
               <div className="flex gap-2">
                 <button
                   onClick={() => handleExportCSV(selectedPlanForView)}
-                  className="px-4 py-2 bg-secondary/20 border border-secondary/30 hover:bg-secondary/35 text-secondary hover:text-white rounded-lg text-sm font-semibold flex items-center gap-1.5 transition-colors"
+                  className="btn-secondary py-1.5 px-4 cursor-pointer text-xs"
                 >
-                  <Download className="w-4 h-4" /> {t("exportCsv")}
+                  <Download className="w-3.5 h-3.5 text-slate-500" /> {t("exportCsv")}
                 </button>
                 <button
                   onClick={() => window.print()}
-                  className="px-4 py-2 bg-secondary hover:bg-secondary-container text-white rounded-lg text-sm font-semibold flex items-center gap-1.5 transition-colors"
+                  className="btn-primary py-1.5 px-4 cursor-pointer text-xs"
                 >
-                  <Printer className="w-4 h-4" /> {t("printPlan")}
+                  <Printer className="w-3.5 h-3.5 text-white" /> {t("printPlan")}
                 </button>
               </div>
             </div>

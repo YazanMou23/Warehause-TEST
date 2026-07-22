@@ -76,6 +76,130 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* ── Enterprise SaaS Utilities ── */
+@utility btn-primary {
+  background-color: var(--color-secondary);
+  color: var(--color-on-secondary);
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
+
+  &:hover {
+    background-color: #1e40af;
+  }
+  &:disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+}
+
+@utility btn-secondary {
+  background-color: #ffffff;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
+
+  &:hover {
+    background-color: #f8fafc;
+    color: #0f172a;
+    border-color: #cbd5e1;
+  }
+  &:disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+}
+
+@utility card-premium {
+  background-color: #ffffff;
+  border: 1px solid #f1f5f9;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease-in-out;
+
+  &:hover {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    border-color: #e2e8f0;
+  }
+}
+
+@utility input-premium {
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  outline: none;
+  background-color: #ffffff;
+  color: #0f172a;
+  transition: all 0.15s ease-in-out;
+
+  &:focus {
+    border-color: var(--color-secondary);
+    box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.1);
+  }
+  &:disabled {
+    background-color: #f1f5f9;
+    color: #64748b;
+    opacity: 0.7;
+  }
+}
+
+@utility badge-premium {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-width: 1px;
+}
+
+@utility badge-success {
+  background-color: #f0fdf4;
+  color: #15803d;
+  border-color: #dcfce7;
+}
+@utility badge-warning {
+  background-color: #fffbeb;
+  color: #b45309;
+  border-color: #fef3c7;
+}
+@utility badge-error {
+  background-color: #fff5f5;
+  color: #c53030;
+  border-color: #fed7d7;
+}
+@utility badge-info {
+  background-color: #f0f9ff;
+  color: #0369a1;
+  border-color: #e0f2fe;
+}
+@utility badge-neutral {
+  background-color: #f8fafc;
+  color: #475569;
+  border-color: #f1f5f9;
+}
+
+
 /* ── Custom Scrollbar ── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }

@@ -550,8 +550,8 @@ export default function EmployeesPage() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h3 className="font-headline-lg font-bold text-on-surface">{t("employeeManagement")}</h3>
-          <p className="text-on-surface-variant font-body-sm">
+          <h3 className="text-xl font-bold text-slate-800 tracking-tight">{t("employeeManagement")}</h3>
+          <p className="text-slate-500 text-xs mt-1">
             {t("staffSubtitle")}
           </p>
         </div>
@@ -562,17 +562,17 @@ export default function EmployeesPage() {
             <button
               onClick={handleDownloadTemplate}
               title="Download Excel template"
-              className="border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500 hover:text-white px-3 py-2.5 rounded-lg font-label-md uppercase tracking-wider flex items-center gap-2 transition-colors shadow-sm cursor-pointer text-xs"
+              className="btn-secondary py-2 px-3 text-xs"
             >
-              <Download className="w-4 h-4" /> Template
+              <Download className="w-3.5 h-3.5 text-slate-500" /> Template
             </button>
 
             {/* Upload Excel */}
             <label
               title="Import employees from Excel"
-              className="border border-blue-500/40 text-blue-400 hover:bg-blue-500 hover:text-white px-3 py-2.5 rounded-lg font-label-md uppercase tracking-wider flex items-center gap-2 transition-colors shadow-sm cursor-pointer text-xs"
+              className="btn-secondary py-2 px-3 text-xs cursor-pointer"
             >
-              <Upload className="w-4 h-4" /> Import Excel
+              <Upload className="w-3.5 h-3.5 text-slate-500" /> Import Excel
               <input
                 type="file"
                 accept=".xlsx,.xls"
@@ -584,31 +584,31 @@ export default function EmployeesPage() {
             {/* Add Single Employee */}
             <button
               onClick={openAddModal}
-              className="bg-primary text-on-primary px-4 py-2.5 rounded-lg font-label-md uppercase tracking-wider flex items-center gap-2 hover:bg-neutral-800 transition-colors shadow-sm cursor-pointer"
+              className="btn-primary py-2 px-4 text-xs"
             >
-              <Plus className="w-4 h-4" /> {t("addEmployee")}
+              <Plus className="w-3.5 h-3.5 text-white" /> {t("addEmployee")}
             </button>
           </div>
         )}
       </div>
 
       {/* Search & Actions Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-outline-variant p-stack-md rounded-lg shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-100 p-5 rounded-xl shadow-sm">
         <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 text-outline absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Search by name, username or phone..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-surface-container-low border border-outline-variant rounded-lg text-body-sm outline-none focus:ring-1 focus:ring-secondary focus:border-transparent text-on-surface"
+            className="input-premium pl-9 py-2 text-xs"
           />
         </div>
 
         {canManage && selectedEmpIds.length > 0 && (
           <button
             onClick={handleBulkDeactivate}
-            className="px-4 py-2 bg-error hover:bg-red-700 text-white rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors self-start cursor-pointer shadow-sm"
+            className="bg-red-650 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors self-start cursor-pointer shadow-sm"
           >
             <Trash2 className="w-4 h-4" /> {t("deactivateSelected")} ({selectedEmpIds.length})
           </button>
@@ -616,11 +616,11 @@ export default function EmployeesPage() {
       </div>
 
       {/* Grid List */}
-      <div className="bg-white border border-outline-variant rounded-lg overflow-hidden shadow-sm">
+      <div className="bg-white border border-slate-100 rounded-xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-surface-container-low border-b border-outline-variant text-[#64748b] font-semibold text-xs uppercase tracking-wider">
+              <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold uppercase tracking-wider">
                 {canManage && (
                   <th className="p-3 text-center w-12">
                     <button
@@ -631,7 +631,7 @@ export default function EmployeesPage() {
                           setSelectedEmpIds(filteredEmployees.map((e) => e.id));
                         }
                       }}
-                      className="text-outline hover:text-secondary"
+                      className="text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
                     >
                       {selectedEmpIds.length === filteredEmployees.length && filteredEmployees.length > 0 ? (
                         <CheckSquare className="w-4 h-4 inline" />
@@ -649,19 +649,19 @@ export default function EmployeesPage() {
                 <th className="px-4 py-3">{t("employmentStart")}</th>
                 <th className="px-4 py-3">{t("telegramId")}</th>
                 <th className="px-4 py-3">{t("actionsColumn")}</th>
-                {canManage && <th className="px-4 py-3 text-right">Settings</th>}
+                {canManage && <th className="px-4 py-3 text-right pr-6">Settings</th>}
               </tr>
             </thead>
-            <tbody className="divide-y divide-outline-variant text-body-sm text-on-surface">
+            <tbody className="divide-y divide-slate-100 text-slate-600">
               {filteredEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={canManage ? 10 : 8} className="p-8 text-center text-outline italic">
+                  <td colSpan={canManage ? 10 : 8} className="p-8 text-center text-slate-400 italic">
                     {t("noStaffFound")}
                   </td>
                 </tr>
               ) : (
                 filteredEmployees.map((emp) => (
-                  <tr key={emp.id} className={`hover:bg-surface-bright transition-colors ${selectedEmpIds.includes(emp.id) ? "bg-secondary-container/5" : ""}`}>
+                  <tr key={emp.id} className={`hover:bg-slate-50/30 transition-colors ${selectedEmpIds.includes(emp.id) ? "bg-blue-50/20" : ""}`}>
                     {canManage && (
                       <td className="p-3 text-center">
                         <button
@@ -672,19 +672,19 @@ export default function EmployeesPage() {
                               setSelectedEmpIds(prev => [...prev, emp.id]);
                             }
                           }}
-                          className="text-outline hover:text-secondary cursor-pointer"
+                          className="text-slate-300 hover:text-blue-600 transition-colors cursor-pointer"
                         >
                           {selectedEmpIds.includes(emp.id) ? (
-                            <CheckSquare className="w-4 h-4 text-secondary inline" />
+                            <CheckSquare className="w-4 h-4 text-blue-600 inline" />
                           ) : (
                             <Square className="w-4 h-4 inline" />
                           )}
                         </button>
                       </td>
                     )}
-                    <td className="px-4 py-3.5">
+                    <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8.5 h-8.5 rounded-full bg-secondary/15 text-secondary flex items-center justify-center font-bold text-sm relative overflow-hidden shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs relative overflow-hidden shrink-0 shadow-sm">
                           <img
                             src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${emp.id}/photo`}
                             alt={emp.name}
@@ -697,65 +697,65 @@ export default function EmployeesPage() {
                               e.currentTarget.style.display = "none";
                             }}
                           />
-                          <span className="text-xs font-bold">
+                          <span className="text-[10px] font-bold">
                             {emp.name.split(" ").map((n) => n[0]).join("")}
                           </span>
                         </div>
                         <div>
-                          <span className="font-semibold text-on-surface block leading-tight">{getFirstName(emp.name)}</span>
+                          <span className="font-semibold text-slate-800 block leading-tight">{getFirstName(emp.name)}</span>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3.5 font-semibold text-on-surface">
+                    <td className="px-4 py-3 font-semibold text-slate-800">
                       {getLastName(emp.name)}
                     </td>
-                    <td className="px-4 py-3.5 font-mono text-[12.5px] text-on-surface">
+                    <td className="px-4 py-3 font-mono text-xs text-slate-700">
                       {emp.username}
                     </td>
-                    <td className="px-4 py-3.5 font-mono text-[12.5px] text-outline">
+                    <td className="px-4 py-3 font-mono text-xs text-slate-400">
                       {emp.phone}
                     </td>
-                    <td className="px-4 py-3.5">
+                    <td className="px-4 py-3">
                       {emp.email ? (
                         <a
                           href={`mailto:${emp.email}`}
-                          className="text-[12px] text-[#2563eb] hover:underline font-mono flex items-center gap-1 group"
+                          className="text-xs text-blue-600 hover:underline font-mono flex items-center gap-1 group"
                           title={emp.email}
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 shrink-0 text-[#94a3b8] group-hover:text-[#2563eb]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 shrink-0 text-slate-400 group-hover:text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                           </svg>
                           <span className="max-w-[160px] truncate">{emp.email}</span>
                         </a>
                       ) : (
-                        <span className="text-outline italic text-[11px]">— no email</span>
+                        <span className="text-slate-400 italic text-[11px]">— no email</span>
                       )}
                     </td>
-                    <td suppressHydrationWarning className="px-4 py-3.5 font-mono text-[12.5px]">
+                    <td suppressHydrationWarning className="px-4 py-3 font-mono text-xs text-slate-500">
                       {emp.employmentStart ? new Date(emp.employmentStart).toLocaleDateString(language === "de" ? "de-DE" : "en-CA") : "—"}
                     </td>
-                    <td className="px-4 py-3.5 font-mono text-[12px]">
+                    <td className="px-4 py-3 font-mono text-xs">
                       {emp.telegramId ? (
-                        <span className="text-secondary flex items-center gap-1 font-bold">
-                          <MessageSquare className="w-3.5 h-3.5" /> {emp.telegramId}
+                        <span className="text-blue-600 flex items-center gap-1 font-bold">
+                          <MessageSquare className="w-3.5 h-3.5 text-blue-500" /> {emp.telegramId}
                         </span>
                       ) : (
-                        <span className="text-outline italic">—</span>
+                        <span className="text-slate-400 italic">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3.5">
+                    <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <a
                           href={getWhatsAppLink(emp.phone, emp.name)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded border border-emerald-500/20 text-[11px] font-bold transition-all"
+                          className="badge-premium badge-success hover:bg-emerald-100 font-bold transition-all cursor-pointer"
                         >
                           WhatsApp
                         </a>
                         <a
                           href={getSmsLink(emp.phone)}
-                          className="px-2.5 py-1 bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white rounded border border-blue-500/20 text-[11px] font-bold transition-all"
+                          className="badge-premium badge-info hover:bg-sky-100 font-bold transition-all cursor-pointer"
                         >
                           SMS
                         </a>
@@ -763,7 +763,7 @@ export default function EmployeesPage() {
                           <button
                             onClick={() => openEmailModal(emp)}
                             title={`Send email to ${emp.email}`}
-                            className="px-2.5 py-1 bg-violet-500/10 text-violet-400 hover:bg-violet-500 hover:text-white rounded border border-violet-500/20 text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer"
+                            className="badge-premium badge-neutral hover:bg-slate-200 font-bold transition-all flex items-center gap-1 cursor-pointer"
                           >
                             <Mail className="w-3 h-3" /> Email
                           </button>
@@ -771,19 +771,19 @@ export default function EmployeesPage() {
                       </div>
                     </td>
                     {canManage && (
-                      <td className="px-4 py-3.5 text-right">
-                        <div className="inline-flex gap-1">
+                      <td className="px-4 py-3 text-right pr-6">
+                        <div className="inline-flex gap-1.5">
                           <button
                             onClick={() => openEditModal(emp)}
-                            className="p-1 text-on-surface-variant hover:text-secondary rounded hover:bg-surface-container-high transition-colors cursor-pointer"
+                            className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => handleDeactivate(emp.id, emp.name)}
-                            className="p-1 text-on-surface-variant hover:text-error rounded hover:bg-error-container/10 transition-colors cursor-pointer"
+                            className="p-1.5 text-slate-400 hover:text-red-650 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
@@ -798,16 +798,16 @@ export default function EmployeesPage() {
 
       {/* ── Excel Import Result Modal ── */}
       {importModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-[#1e293b] border border-[#334155] rounded-xl max-w-lg w-full shadow-2xl overflow-hidden animate-scaleIn">
-            <div className="px-6 py-4 bg-[#0f1117] border-b border-[#334155] flex justify-between items-center">
-              <h4 className="font-bold text-body-lg text-white flex items-center gap-2">
-                <FileSpreadsheet className="w-5 h-5 text-blue-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fadeIn">
+          <div className="bg-white border border-slate-100 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-scaleIn">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+              <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                <FileSpreadsheet className="w-4.5 h-4.5 text-blue-500" />
                 Excel Import
               </h4>
               {!importLoading && (
-                <button onClick={() => setImportModalOpen(false)} className="text-on-surface-variant hover:text-white p-1 hover:bg-[#334155] rounded-lg transition-colors cursor-pointer">
-                  <X className="w-5 h-5" />
+                <button onClick={() => setImportModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer">
+                  <X className="w-4 h-4" />
                 </button>
               )}
             </div>
@@ -816,54 +816,54 @@ export default function EmployeesPage() {
               {/* Loading */}
               {importLoading && (
                 <div className="flex flex-col items-center gap-3 py-6">
-                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-400" />
-                  <p className="text-white text-sm">Processing Excel file...</p>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+                  <p className="text-slate-600 text-xs">Processing Excel file...</p>
                 </div>
               )}
 
               {/* Error */}
               {!importLoading && importError && (
-                <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
-                  <p className="text-red-300 text-sm">{importError}</p>
+                <div className="p-4 bg-red-50 border border-red-100 rounded-lg flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                  <p className="text-red-800 text-xs">{importError}</p>
                 </div>
               )}
 
               {/* Success Result */}
               {!importLoading && importResult && (
-                <div className="space-y-4">
+                <div className="space-y-4 text-xs">
                   <div className="grid grid-cols-3 gap-3">
-                    <div className="bg-[#0f1117] rounded-lg p-3 text-center border border-[#334155]">
-                      <p className="text-2xl font-bold text-white">{importResult.summary?.totalProcessed ?? 0}</p>
-                      <p className="text-[11px] text-[#94a3b8] uppercase tracking-wider mt-1">Processed</p>
+                    <div className="bg-slate-50 rounded-lg p-3 text-center border border-slate-100">
+                      <p className="text-xl font-bold text-slate-800 font-mono">{importResult.summary?.totalProcessed ?? 0}</p>
+                      <p className="text-[9px] text-slate-400 uppercase tracking-wider font-semibold mt-1">Processed</p>
                     </div>
-                    <div className="bg-emerald-500/10 rounded-lg p-3 text-center border border-emerald-500/20">
-                      <p className="text-2xl font-bold text-emerald-400">{importResult.summary?.createdCount ?? 0}</p>
-                      <p className="text-[11px] text-emerald-400/70 uppercase tracking-wider mt-1">Created</p>
+                    <div className="bg-emerald-50 rounded-lg p-3 text-center border border-emerald-100">
+                      <p className="text-xl font-bold text-emerald-700 font-mono">{importResult.summary?.createdCount ?? 0}</p>
+                      <p className="text-[9px] text-emerald-550 uppercase tracking-wider font-semibold mt-1">Created</p>
                     </div>
-                    <div className="bg-red-500/10 rounded-lg p-3 text-center border border-red-500/20">
-                      <p className="text-2xl font-bold text-red-400">{importResult.summary?.failedCount ?? 0}</p>
-                      <p className="text-[11px] text-red-400/70 uppercase tracking-wider mt-1">Skipped</p>
+                    <div className="bg-rose-50 rounded-lg p-3 text-center border border-rose-100">
+                      <p className="text-xl font-bold text-rose-700 font-mono">{importResult.summary?.failedCount ?? 0}</p>
+                      <p className="text-[9px] text-rose-550 uppercase tracking-wider font-semibold mt-1">Skipped</p>
                     </div>
                   </div>
 
                   {importResult.summary?.createdCount > 0 && (
-                    <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <p className="text-emerald-300 text-sm">{importResult.message}</p>
+                    <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-100 rounded-lg">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <p className="text-emerald-800 text-xs">{importResult.message}</p>
                     </div>
                   )}
 
                   {/* Errors list */}
                   {importResult.summary?.errors?.length > 0 && (
                     <div className="space-y-1.5">
-                      <p className="text-xs font-bold uppercase text-[#94a3b8] tracking-wider">Skipped Rows</p>
-                      <div className="max-h-40 overflow-y-auto space-y-1">
+                      <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Skipped Rows</p>
+                      <div className="max-h-40 overflow-y-auto space-y-1.5">
                         {importResult.summary.errors.map((err: any, i: number) => (
-                          <div key={i} className="flex items-start gap-2 p-2 bg-[#0f1117] rounded text-xs border border-[#334155]">
-                            <span className="text-[#64748b] shrink-0">Row {err.row}:</span>
-                            <span className="text-[#94a3b8]">{err.name || err.phone || "—"}</span>
-                            <span className="text-red-400 ml-auto text-right">{err.reason}</span>
+                          <div key={i} className="flex items-start gap-2 p-2 bg-slate-50 rounded border border-slate-100">
+                            <span className="text-slate-400 shrink-0">Row {err.row}:</span>
+                            <span className="text-slate-700 font-semibold">{err.name || err.phone || "—"}</span>
+                            <span className="text-rose-600 ml-auto text-right font-medium">{err.reason}</span>
                           </div>
                         ))}
                       </div>
@@ -874,10 +874,10 @@ export default function EmployeesPage() {
             </div>
 
             {!importLoading && (
-              <div className="px-6 py-4 bg-[#0f1117] border-t border-[#334155] flex justify-end">
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
                 <button
                   onClick={() => setImportModalOpen(false)}
-                  className="px-4 py-2 bg-secondary text-white font-bold rounded-lg text-sm hover:bg-secondary/90 cursor-pointer"
+                  className="btn-secondary py-1.5 px-4 cursor-pointer text-xs"
                 >
                   Close
                 </button>
@@ -889,119 +889,119 @@ export default function EmployeesPage() {
 
       {/* Add Employee Modal */}
       {addModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-[#1e293b] border border-[#334155] rounded-xl max-w-lg w-full shadow-2xl overflow-hidden animate-scaleIn">
-            <div className="px-6 py-4 bg-[#0f1117] border-b border-[#334155] flex justify-between items-center">
-              <h4 className="font-bold text-body-lg text-white">{t("addEmployee")}</h4>
-              <button onClick={() => setAddModalOpen(false)} className="text-on-surface-variant hover:text-white p-1 hover:bg-[#334155] rounded-lg transition-colors cursor-pointer">
-                <X className="w-5 h-5" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fadeIn">
+          <div className="bg-white border border-slate-100 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-scaleIn">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+              <h4 className="font-bold text-sm text-slate-800">{t("addEmployee")}</h4>
+              <button onClick={() => setAddModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer">
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             <form onSubmit={handleAddEmployee} className="p-6 space-y-4">
               {formError && (
-                <div className="p-3 bg-error-container/20 border border-error/20 text-error rounded-lg flex items-start gap-2 text-xs">
+                <div className="p-3 bg-red-50 border border-red-100 text-red-700 rounded-lg flex items-start gap-2 text-xs">
                   <AlertTriangle className="w-4.5 h-4.5 shrink-0 mt-0.5" />
                   <span>{formError}</span>
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("firstNameColumn")}</label>
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("firstNameColumn")}</label>
                   <input
                     type="text"
                     required
                     value={formVorname}
                     onChange={(e) => setFormVorname(e.target.value)}
                     placeholder="e.g. Emil"
-                    className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                    className="input-premium"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("lastNameColumn")}</label>
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("lastNameColumn")}</label>
                   <input
                     type="text"
                     value={formNachname}
                     onChange={(e) => setFormNachname(e.target.value)}
                     placeholder="e.g. Employee"
-                    className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                    className="input-premium"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("phone")}</label>
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("phone")}</label>
                   <input
                     type="text"
                     required
                     value={formPhone}
                     onChange={(e) => setFormPhone(e.target.value)}
                     placeholder="+491701234567"
-                    className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                    className="input-premium"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("usernameLabel")}</label>
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("usernameLabel")}</label>
                   <input
                     type="text"
                     required
                     value={formUsername}
                     onChange={(e) => setFormUsername(e.target.value)}
                     placeholder="e.g. emilemployee"
-                    className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                    className="input-premium"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("passwordLabel")}</label>
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("passwordLabel")}</label>
                   <input
                     type="password"
                     required
                     value={formPassword}
                     onChange={(e) => setFormPassword(e.target.value)}
                     placeholder="Password"
-                    className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                    className="input-premium"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("email")}</label>
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("email")}</label>
                   <input
                     type="email"
                     value={formEmail}
                     onChange={(e) => setFormEmail(e.target.value)}
                     placeholder="e.g. e.employee@logiflow.de"
-                    className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                    className="input-premium"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("employmentStart")}</label>
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("employmentStart")}</label>
                   <input
                     type="date"
                     required
                     value={formEmploymentStart}
                     onChange={(e) => setFormEmploymentStart(e.target.value)}
-                    className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                    className="input-premium"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">Warehouse Assignment</label>
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Warehouse Assignment</label>
                   <select
                     value={formWarehouse}
                     onChange={(e) => {
                       setFormWarehouse(e.target.value);
                       setFormHall("");
                     }}
-                    className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                    className="input-premium"
                   >
                     <option value="">None</option>
                     {warehouses.map(w => (
@@ -1010,12 +1010,12 @@ export default function EmployeesPage() {
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">Hall Assignment</label>
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Hall Assignment</label>
                   <select
                     value={formHall}
                     onChange={(e) => setFormHall(e.target.value)}
                     disabled={!formWarehouse}
-                    className="w-full px-3.5 py-2 border border-[#334155] disabled:opacity-50 focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                    className="input-premium"
                   >
                     <option value="">None</option>
                     {halls.filter(h => h.warehouseId === formWarehouse).map(h => (
@@ -1025,29 +1025,29 @@ export default function EmployeesPage() {
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("telegramId")}</label>
+              <div className="space-y-1.5 text-xs">
+                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("telegramId")}</label>
                 <input
                   type="text"
                   value={formTelegram}
                   onChange={(e) => setFormTelegram(e.target.value)}
                   placeholder="e.g. @username"
-                  className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                  className="input-premium"
                 />
               </div>
 
-              <div className="px-6 py-4 bg-[#0f1117] border-t border-[#334155] flex justify-end gap-3 -mx-6 -mb-6">
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 -mx-6 -mb-6">
                 <button
                   type="button"
                   onClick={() => setAddModalOpen(false)}
-                  className="px-4 py-2 border border-[#334155] text-white rounded-lg text-sm hover:bg-[#1e293b] cursor-pointer"
+                  className="btn-secondary py-1.5 px-4 cursor-pointer text-xs"
                 >
                   {t("close")}
                 </button>
                 <button
                   type="submit"
                   disabled={formLoading}
-                  className="px-4 py-2 bg-secondary text-white font-bold rounded-lg text-sm hover:bg-secondary/90 disabled:opacity-50 cursor-pointer"
+                  className="btn-primary py-1.5 px-4 cursor-pointer text-xs"
                 >
                   {formLoading ? "Saving..." : t("saveSettings")}
                 </button>
@@ -1059,122 +1059,122 @@ export default function EmployeesPage() {
 
       {/* Edit Employee Modal */}
       {editModalOpen && selectedEmp && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-[#1e293b] border border-[#334155] rounded-xl max-w-lg w-full shadow-2xl overflow-hidden animate-scaleIn">
-            <div className="px-6 py-4 bg-[#0f1117] border-b border-[#334155] flex justify-between items-center">
-              <h4 className="font-bold text-body-lg text-white">{t("editEmployee")}</h4>
-              <button onClick={() => setEditModalOpen(false)} className="text-on-surface-variant hover:text-white p-1 hover:bg-[#334155] rounded-lg transition-colors cursor-pointer">
-                <X className="w-5 h-5" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fadeIn">
+          <div className="bg-white border border-slate-100 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-scaleIn">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+              <h4 className="font-bold text-sm text-slate-800">{t("editEmployee")}</h4>
+              <button onClick={() => setEditModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer">
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             <form onSubmit={handleEditEmployee} className="p-6 space-y-4">
               {formError && (
-                <div className="p-3 bg-error-container/20 border border-error/20 text-error rounded-lg flex items-start gap-2 text-xs">
+                <div className="p-3 bg-red-50 border border-red-100 text-red-700 rounded-lg flex items-start gap-2 text-xs">
                   <AlertTriangle className="w-4.5 h-4.5 shrink-0 mt-0.5" />
                   <span>{formError}</span>
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("firstNameColumn")}</label>
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("firstNameColumn")}</label>
                   <input
                     type="text"
                     required
                     value={formVorname}
                     onChange={(e) => setFormVorname(e.target.value)}
-                    className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                    className="input-premium"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("lastNameColumn")}</label>
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("lastNameColumn")}</label>
                   <input
                     type="text"
                     value={formNachname}
                     onChange={(e) => setFormNachname(e.target.value)}
-                    className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                    className="input-premium"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("usernameLabel")}</label>
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("usernameLabel")}</label>
                   <input
                     type="text"
                     required
                     value={formUsername}
                     onChange={(e) => setFormUsername(e.target.value)}
-                    className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                    className="input-premium"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("passwordLabel")} (Leave blank to keep current)</label>
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("passwordLabel")} (Leave blank to keep current)</label>
                   <input
                     type="password"
                     value={formPassword}
                     onChange={(e) => setFormPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                    className="input-premium"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("phone")}</label>
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("phone")}</label>
                   <input
                     type="text"
                     required
                     value={formPhone}
                     onChange={(e) => setFormPhone(e.target.value)}
-                    className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                    className="input-premium"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("email")}</label>
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("email")}</label>
                   <input
                     type="email"
                     value={formEmail}
                     onChange={(e) => setFormEmail(e.target.value)}
-                    className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                    className="input-premium"
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("employmentStart")}</label>
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("employmentStart")}</label>
                   <input
                     type="date"
                     required
                     value={formEmploymentStart}
                     onChange={(e) => setFormEmploymentStart(e.target.value)}
-                    className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                    className="input-premium"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("telegramId")}</label>
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("telegramId")}</label>
                   <input
                     type="text"
                     value={formTelegram}
                     onChange={(e) => setFormTelegram(e.target.value)}
                     placeholder="e.g. @username"
-                    className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                    className="input-premium"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">Warehouse Assignment</label>
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Warehouse Assignment</label>
                   <select
                     value={formWarehouse}
                     onChange={(e) => {
                       setFormWarehouse(e.target.value);
                       setFormHall("");
                     }}
-                    className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                    className="input-premium"
                   >
                     <option value="">None</option>
                     {warehouses.map(w => (
@@ -1183,12 +1183,12 @@ export default function EmployeesPage() {
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">Hall Assignment</label>
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Hall Assignment</label>
                   <select
                     value={formHall}
                     onChange={(e) => setFormHall(e.target.value)}
                     disabled={!formWarehouse}
-                    className="w-full px-3.5 py-2 border border-[#334155] disabled:opacity-50 focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                    className="input-premium"
                   >
                     <option value="">None</option>
                     {halls.filter(h => h.warehouseId === formWarehouse).map(h => (
@@ -1198,23 +1198,13 @@ export default function EmployeesPage() {
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("telegramId")}</label>
-                <input
-                  type="text"
-                  value={formTelegram}
-                  onChange={(e) => setFormTelegram(e.target.value)}
-                  className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
-                />
-              </div>
-
               {userRole === "MANAGER" && (
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">Role</label>
+                <div className="space-y-1.5 text-xs">
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Role</label>
                   <select
                     value={formRole}
                     onChange={(e) => setFormRole(e.target.value)}
-                    className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                    className="input-premium"
                   >
                     <option value="EMPLOYEE">EMPLOYEE</option>
                     <option value="ADMIN">ADMIN (Promote to Admin)</option>
@@ -1223,18 +1213,18 @@ export default function EmployeesPage() {
                 </div>
               )}
 
-              <div className="px-6 py-4 bg-[#0f1117] border-t border-[#334155] flex justify-end gap-3 -mx-6 -mb-6">
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 -mx-6 -mb-6">
                 <button
                   type="button"
                   onClick={() => setEditModalOpen(false)}
-                  className="px-4 py-2 border border-[#334155] text-white rounded-lg text-sm hover:bg-[#1e293b] cursor-pointer"
+                  className="btn-secondary py-1.5 px-4 cursor-pointer text-xs"
                 >
                   {t("close")}
                 </button>
                 <button
                   type="submit"
                   disabled={formLoading}
-                  className="px-4 py-2 bg-secondary text-white font-bold rounded-lg text-sm hover:bg-secondary/90 disabled:opacity-50 cursor-pointer"
+                  className="btn-primary py-1.5 px-4 cursor-pointer text-xs"
                 >
                   {formLoading ? "Saving..." : t("saveSettings")}
                 </button>
@@ -1246,32 +1236,32 @@ export default function EmployeesPage() {
 
       {/* Email Compose Modal */}
       {emailModalOpen && emailTargetEmp && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-[#1e293b] border border-[#334155] rounded-xl max-w-lg w-full shadow-2xl overflow-hidden animate-scaleIn">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fadeIn">
+          <div className="bg-white border border-slate-100 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-scaleIn">
             {/* Modal Header */}
-            <div className="px-6 py-4 bg-[#0f1117] border-b border-[#334155] flex justify-between items-center">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
               <div>
-                <h4 className="font-bold text-body-lg text-white flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-violet-400" />
+                <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-blue-600" />
                   Send Email
                 </h4>
-                <p className="text-xs text-on-surface-variant mt-0.5">
-                  To: <span className="text-violet-300 font-mono">{emailTargetEmp.email}</span>
+                <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                  To: <span className="text-blue-600 font-mono">{emailTargetEmp.email}</span>
                   {" — "}{emailTargetEmp.name}
                 </p>
               </div>
               <button
                 onClick={() => setEmailModalOpen(false)}
-                className="text-on-surface-variant hover:text-white p-1 hover:bg-[#334155] rounded-lg transition-colors cursor-pointer"
+                className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             <form onSubmit={handleSendEmail} className="p-6 space-y-4">
               {/* Error */}
               {emailError && (
-                <div className="p-3 bg-red-900/30 border border-red-500/30 text-red-300 rounded-lg flex items-start gap-2 text-xs">
+                <div className="p-3 bg-red-50 border border-red-100 text-red-700 rounded-lg flex items-start gap-2 text-xs">
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>{emailError}</span>
                 </div>
@@ -1279,16 +1269,16 @@ export default function EmployeesPage() {
 
               {/* Success */}
               {emailSuccess && (
-                <div className="p-3 bg-green-900/30 border border-green-500/30 text-green-300 rounded-lg flex items-start gap-2 text-xs">
+                <div className="p-3 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-lg flex items-start gap-2 text-xs">
                   <Send className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>{emailSuccess}</span>
                 </div>
               )}
 
               {/* Subject */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">
-                  Subject <span className="text-red-400">*</span>
+              <div className="space-y-1.5 text-xs">
+                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
+                  Subject <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -1297,14 +1287,14 @@ export default function EmployeesPage() {
                   onChange={(e) => setEmailSubject(e.target.value)}
                   placeholder="e.g. Shift Schedule Update"
                   maxLength={200}
-                  className="w-full px-3.5 py-2 border border-[#334155] focus:border-violet-500 rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                  className="input-premium"
                 />
               </div>
 
               {/* Message */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">
-                  Message <span className="text-red-400">*</span>
+              <div className="space-y-1.5 text-xs">
+                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
+                  Message <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   required
@@ -1313,25 +1303,25 @@ export default function EmployeesPage() {
                   placeholder="Type your message here..."
                   rows={6}
                   maxLength={5000}
-                  className="w-full px-3.5 py-2 border border-[#334155] focus:border-violet-500 rounded-lg text-body-sm outline-none bg-[#0f1117] text-white resize-y"
+                  className="input-premium resize-y min-h-[120px]"
                 />
-                <p className="text-[10px] text-on-surface-variant text-right">{emailMessage.length}/5000</p>
+                <p className="text-[9px] text-slate-400 text-right mt-1 font-semibold">{emailMessage.length}/5000</p>
               </div>
 
               {/* Footer Actions */}
-              <div className="px-6 py-4 bg-[#0f1117] border-t border-[#334155] flex justify-end gap-3 -mx-6 -mb-6">
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 -mx-6 -mb-6">
                 <button
                   type="button"
                   onClick={() => setEmailModalOpen(false)}
                   disabled={emailLoading}
-                  className="px-4 py-2 border border-[#334155] text-white rounded-lg text-sm hover:bg-[#1e293b] cursor-pointer disabled:opacity-50"
+                  className="btn-secondary py-1.5 px-4 cursor-pointer text-xs"
                 >
                   Close
                 </button>
                 <button
                   type="submit"
                   disabled={emailLoading}
-                  className="px-4 py-2 bg-violet-600 text-white font-bold rounded-lg text-sm hover:bg-violet-500 disabled:opacity-50 cursor-pointer flex items-center gap-2"
+                  className="btn-primary py-1.5 px-4 cursor-pointer text-xs flex items-center gap-2"
                 >
                   {emailLoading ? (
                     <>
