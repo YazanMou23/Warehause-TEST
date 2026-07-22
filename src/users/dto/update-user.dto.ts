@@ -49,4 +49,8 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   employmentStart?: string;
+
+  @IsOptional()
+  @IsString()
+  employmentEnd?: string;
 }

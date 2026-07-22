@@ -45,4 +45,8 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   employmentStart?: string;
+
+  @IsOptional()
+  @IsString()
+  employmentEnd?: string;
 }

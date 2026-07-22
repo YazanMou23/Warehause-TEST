@@ -141,6 +141,7 @@ export class UsersController {
       delete updateUserDto.hallId;
       delete updateUserDto.isActive;
       delete updateUserDto.employmentStart;
+      delete updateUserDto.employmentEnd;
     } else if (currentUser.role !== Role.MANAGER && currentUser.role !== Role.ADMIN) {
       // General safety fallback
       delete updateUserDto.role;
@@ -148,6 +149,7 @@ export class UsersController {
       delete updateUserDto.hallId;
       delete updateUserDto.isActive;
       delete updateUserDto.employmentStart;
+      delete updateUserDto.employmentEnd;
     }
     return this.usersService.update(id, updateUserDto, currentUser.id, currentUser.role);
   }

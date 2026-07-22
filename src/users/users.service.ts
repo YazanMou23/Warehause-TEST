@@ -68,6 +68,7 @@ export class UsersService {
         hallId: createUserDto.hallId || null,
         telegramId: createUserDto.telegramId || null,
         employmentStart: createUserDto.employmentStart ? new Date(createUserDto.employmentStart) : new Date(),
+        employmentEnd: createUserDto.employmentEnd ? new Date(createUserDto.employmentEnd) : null,
       },
     });
 
@@ -124,6 +125,7 @@ export class UsersService {
           isActive: true,
           telegramId: true,
           employmentStart: true,
+          employmentEnd: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -158,6 +160,7 @@ export class UsersService {
         isActive: true,
         telegramId: true,
         employmentStart: true,
+        employmentEnd: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -242,6 +245,14 @@ export class UsersService {
     if (updateUserDto.password) {
       data.passwordHash = await bcrypt.hash(updateUserDto.password, 10);
       delete data.password;
+    }
+
+    if (updateUserDto.employmentStart) {
+      data.employmentStart = new Date(updateUserDto.employmentStart);
+    }
+
+    if (updateUserDto.employmentEnd !== undefined) {
+      data.employmentEnd = updateUserDto.employmentEnd ? new Date(updateUserDto.employmentEnd) : null;
     }
 
     const updated = await this.prisma.user.update({

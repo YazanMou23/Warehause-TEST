@@ -39,6 +39,7 @@ model User {
   isActive     Boolean       @default(true)
   telegramId   String?       @unique
   employmentStart DateTime?    @default(now())
+  employmentEnd   DateTime?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   deletedAt    DateTime?

@@ -39,6 +39,7 @@ interface Employee {
   warehouseId?: string | null;
   hallId?: string | null;
   employmentStart?: string;
+  employmentEnd?: string | null;
 }
 
 const getFirstName = (fullName: string) => {
@@ -81,6 +82,8 @@ export default function EmployeesPage() {
   const [formHall, setFormHall] = useState("");
   const [formTelegram, setFormTelegram] = useState("");
   const [formEmploymentStart, setFormEmploymentStart] = useState("");
+  const [formEmploymentEnd, setFormEmploymentEnd] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
   const [formRole, setFormRole] = useState("EMPLOYEE");
   const [formError, setFormError] = useState("");
   const [formLoading, setFormLoading] = useState(false);
@@ -169,6 +172,10 @@ export default function EmployeesPage() {
     if (token) loadInfo();
   }, [router]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
   const openAddModal = () => {
     setFormName("");
     setFormVorname("");
@@ -182,6 +189,7 @@ export default function EmployeesPage() {
     setFormTelegram("");
     setFormRole("EMPLOYEE");
     setFormEmploymentStart(new Date().toISOString().split("T")[0]);
+    setFormEmploymentEnd("");
     setFormError("");
     setAddModalOpen(true);
   };
@@ -200,6 +208,7 @@ export default function EmployeesPage() {
     setFormTelegram(emp.telegramId || "");
     setFormRole(emp.role);
     setFormEmploymentStart(emp.employmentStart ? emp.employmentStart.split("T")[0] : new Date().toISOString().split("T")[0]);
+    setFormEmploymentEnd(emp.employmentEnd ? emp.employmentEnd.split("T")[0] : "");
     setFormError("");
     setEditModalOpen(true);
   };
@@ -228,6 +237,7 @@ export default function EmployeesPage() {
           warehouseId: formWarehouse || null,
           hallId: formHall || null,
           employmentStart: new Date(formEmploymentStart).toISOString(),
+          employmentEnd: formEmploymentEnd ? new Date(formEmploymentEnd).toISOString() : null,
         };
         setEmployees(prev => [...prev, newEmp]);
         setAddModalOpen(false);
@@ -251,6 +261,7 @@ export default function EmployeesPage() {
           hallId: formHall || undefined,
           telegramId: formTelegram || undefined,
           employmentStart: new Date(formEmploymentStart).toISOString(),
+          employmentEnd: formEmploymentEnd ? new Date(formEmploymentEnd).toISOString() : undefined,
         }),
       });
 
@@ -292,6 +303,7 @@ export default function EmployeesPage() {
           warehouseId: formWarehouse || null,
           hallId: formHall || null,
           employmentStart: new Date(formEmploymentStart).toISOString(),
+          employmentEnd: formEmploymentEnd ? new Date(formEmploymentEnd).toISOString() : null,
         } : emp));
         setEditModalOpen(false);
         return;
@@ -306,6 +318,7 @@ export default function EmployeesPage() {
         hallId: formHall || null,
         telegramId: formTelegram || null,
         employmentStart: new Date(formEmploymentStart).toISOString(),
+        employmentEnd: formEmploymentEnd ? new Date(formEmploymentEnd).toISOString() : null,
       };
 
       if (userRole === "MANAGER") {
@@ -481,6 +494,10 @@ export default function EmployeesPage() {
     emp.username.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const itemsPerPage = 10;
+  const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage) || 1;
+  const paginatedEmployees = filteredEmployees.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   const canManage = userRole === "ADMIN" || userRole === "MANAGER";
 
   const handleDownloadTemplate = async () => {
@@ -550,7 +567,9 @@ export default function EmployeesPage() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h3 className="text-xl font-bold text-slate-800 tracking-tight">{t("employeeManagement")}</h3>
+          <h3 className="text-xl font-bold text-slate-800 tracking-tight">
+            {t("employeeManagement")} <span className="text-slate-400 font-medium ml-1">({filteredEmployees.length})</span>
+          </h3>
           <p className="text-slate-500 text-xs mt-1">
             {t("staffSubtitle")}
           </p>
@@ -646,21 +665,22 @@ export default function EmployeesPage() {
                 <th className="px-4 py-3">{t("usernameLabel")}</th>
                 <th className="px-4 py-3">{t("phone")}</th>
                 <th className="px-4 py-3">{t("email")}</th>
-                <th className="px-4 py-3">{t("employmentStart")}</th>
+                <th className="px-4 py-3">{language === "de" ? "Vertrag ab (from)" : "Contract From"}</th>
+                <th className="px-4 py-3">{language === "de" ? "Vertrag bis (to)" : "Contract To"}</th>
                 <th className="px-4 py-3">{t("telegramId")}</th>
                 <th className="px-4 py-3">{t("actionsColumn")}</th>
                 {canManage && <th className="px-4 py-3 text-right pr-6">Settings</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-600">
-              {filteredEmployees.length === 0 ? (
+              {paginatedEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={canManage ? 10 : 8} className="p-8 text-center text-slate-400 italic">
+                  <td colSpan={canManage ? 11 : 9} className="p-8 text-center text-slate-400 italic">
                     {t("noStaffFound")}
                   </td>
                 </tr>
               ) : (
-                filteredEmployees.map((emp) => (
+                paginatedEmployees.map((emp) => (
                   <tr key={emp.id} className={`hover:bg-slate-50/30 transition-colors ${selectedEmpIds.includes(emp.id) ? "bg-blue-50/20" : ""}`}>
                     {canManage && (
                       <td className="p-3 text-center">
@@ -734,6 +754,9 @@ export default function EmployeesPage() {
                     <td suppressHydrationWarning className="px-4 py-3 font-mono text-xs text-slate-500">
                       {emp.employmentStart ? new Date(emp.employmentStart).toLocaleDateString(language === "de" ? "de-DE" : "en-CA") : "—"}
                     </td>
+                    <td suppressHydrationWarning className="px-4 py-3 font-mono text-xs text-slate-500">
+                      {emp.employmentEnd ? new Date(emp.employmentEnd).toLocaleDateString(language === "de" ? "de-DE" : "en-CA") : (language === "de" ? "Unbefristet" : "Permanent")}
+                    </td>
                     <td className="px-4 py-3 font-mono text-xs">
                       {emp.telegramId ? (
                         <span className="text-blue-600 flex items-center gap-1 font-bold">
@@ -793,6 +816,36 @@ export default function EmployeesPage() {
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Pagination Pager */}
+      <div className="flex items-center justify-between bg-white border border-slate-100 px-6 py-4 rounded-xl shadow-sm">
+        <div className="text-slate-500 text-xs font-semibold">
+          {language === "de"
+            ? `Zeige ${filteredEmployees.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} bis ${Math.min(filteredEmployees.length, currentPage * itemsPerPage)} von ${filteredEmployees.length} Mitarbeitern`
+            : `Showing ${filteredEmployees.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} to ${Math.min(filteredEmployees.length, currentPage * itemsPerPage)} of ${filteredEmployees.length} employees`}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            disabled={currentPage === 1}
+            className="btn-secondary py-1 px-3 text-xs disabled:opacity-50 cursor-pointer"
+          >
+            {language === "de" ? "Zurück" : "Previous"}
+          </button>
+          <span className="text-xs font-semibold text-slate-800 px-2">
+            {language === "de" ? `Seite ${currentPage} von ${totalPages}` : `Page ${currentPage} of ${totalPages}`}
+          </span>
+          <button
+            type="button"
+            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            disabled={currentPage === totalPages}
+            className="btn-secondary py-1 px-3 text-xs disabled:opacity-50 cursor-pointer"
+          >
+            {language === "de" ? "Weiter" : "Next"}
+          </button>
         </div>
       </div>
 
@@ -980,13 +1033,25 @@ export default function EmployeesPage() {
                     className="input-premium"
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("employmentStart")}</label>
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{language === "de" ? "Vertrag ab (from)" : "Contract From"}</label>
                   <input
                     type="date"
                     required
                     value={formEmploymentStart}
                     onChange={(e) => setFormEmploymentStart(e.target.value)}
+                    className="input-premium"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{language === "de" ? "Vertrag bis (to)" : "Contract To"}</label>
+                  <input
+                    type="date"
+                    value={formEmploymentEnd}
+                    onChange={(e) => setFormEmploymentEnd(e.target.value)}
                     className="input-premium"
                   />
                 </div>
@@ -1144,7 +1209,7 @@ export default function EmployeesPage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("employmentStart")}</label>
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{language === "de" ? "Vertrag ab (from)" : "Contract From"}</label>
                   <input
                     type="date"
                     required
@@ -1153,6 +1218,17 @@ export default function EmployeesPage() {
                     className="input-premium"
                   />
                 </div>
+                <div className="space-y-1.5">
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{language === "de" ? "Vertrag bis (to)" : "Contract To"}</label>
+                  <input
+                    type="date"
+                    value={formEmploymentEnd}
+                    onChange={(e) => setFormEmploymentEnd(e.target.value)}
+                    className="input-premium"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
                   <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("telegramId")}</label>
                   <input
