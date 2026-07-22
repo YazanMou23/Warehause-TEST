@@ -942,6 +942,7 @@ export default function EmployeesPage() {
                     className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
                   />
                 </div>
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
