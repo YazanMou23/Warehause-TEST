@@ -611,11 +611,8 @@ export class UsersService {
       }
     });
 
-    if (!colMap['name'] && !colMap['vorname'] && !colMap['lastName']) {
-      throw new BadRequestException(
-        'Excel header must contain at least a "Name" (or "Vorname" / "Nachname") column.'
-      );
-    }
+    // NOTE: Even if standard header columns are missing, we do NOT block/cancel the import process!
+    // We proceed to process all rows with available data and default missing values.
 
     const warehouses = await this.prisma.warehouse.findMany({ where: { deletedAt: null } });
     const halls = await this.prisma.hall.findMany({ where: { deletedAt: null } });
@@ -634,7 +631,7 @@ export class UsersService {
       let rawName = '';
       if (rawVorname || rawLastName) {
         rawName = `${rawVorname} ${rawLastName}`.trim();
-      } else {
+      } else if (rawFullName) {
         rawName = rawFullName;
       }
 
@@ -643,15 +640,34 @@ export class UsersService {
       const rawUsername = colMap['username'] ? this.getCellValueString(row.getCell(colMap['username'])) : '';
       const rawEmail = colMap['email'] ? this.getCellValueString(row.getCell(colMap['email'])) : '';
 
-      // Skip empty row
-      if (!rawName && !rawPhone && !rawUsername && !rawEmail) {
+      // Check if row has ANY content across cells (unmapped columns as well)
+      let rowHasAnyData = false;
+      row.eachCell((cell) => {
+        if (this.getCellValueString(cell).trim().length > 0) {
+          rowHasAnyData = true;
+        }
+      });
+
+      if (!rowHasAnyData && !rawName && !rawPhone && !rawUsername && !rawEmail) {
         continue;
       }
 
-      // Name (First/Last) is the ONLY required field for creation
+      // Auto-fallback Name if missing due to absent name column
       if (!rawName) {
-        errors.push({ row: rowNumber, phone: rawPhone || 'N/A', reason: 'First Name / Last Name is missing.' });
-        continue;
+        if (rawUsername) {
+          rawName = rawUsername
+            .replace(/[._-]/g, ' ')
+            .replace(/\b\w/g, (c) => c.toUpperCase());
+        } else if (rawEmail) {
+          const prefix = rawEmail.split('@')[0];
+          rawName = prefix
+            .replace(/[._-]/g, ' ')
+            .replace(/\b\w/g, (c) => c.toUpperCase());
+        } else if (rawPhone) {
+          rawName = `Mitarbeiter ${rawPhone}`;
+        } else {
+          rawName = `Mitarbeiter ${rowNumber}`;
+        }
       }
 
       const rawPassword = colMap['password'] ? this.getCellValueString(row.getCell(colMap['password'])) : '';
@@ -664,10 +680,14 @@ export class UsersService {
       // Generate phone if missing to satisfy unique constraint
       let phone = rawPhone;
       if (!phone) {
-        phone = `+49000${Date.now().toString().slice(-6)}${rowNumber}`;
+        let candidatePhone = `+49000${Date.now().toString().slice(-5)}${rowNumber}`;
+        while (await this.prisma.user.findFirst({ where: { phone: candidatePhone } })) {
+          candidatePhone = `+49000${Math.floor(100000 + Math.random() * 900000)}`;
+        }
+        phone = candidatePhone;
       }
 
-      // Auto-generate username if not provided
+      // Auto-generate username if not provided or if duplicate
       let username = rawUsername;
       if (!username) {
         const cleanName = rawName.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
@@ -675,8 +695,16 @@ export class UsersService {
 
         let candidate = baseUsername;
         let counter = 1;
-        while (await this.prisma.user.findFirst({ where: { username: candidate } })) {
+        while (await this.prisma.user.findFirst({ where: { username: candidate } }) || createdUsers.some((u) => u.username === candidate)) {
           candidate = `${baseUsername}_${counter}`;
+          counter++;
+        }
+        username = candidate;
+      } else {
+        let candidate = username;
+        let counter = 1;
+        while (await this.prisma.user.findFirst({ where: { username: candidate } }) || createdUsers.some((u) => u.username === candidate)) {
+          candidate = `${username}_${counter}`;
           counter++;
         }
         username = candidate;
@@ -737,28 +765,15 @@ export class UsersService {
         }
       }
 
-      // Deduplication check: Do not create duplicate employee if name/phone/email/username already exists
-      const existingUser = await this.prisma.user.findFirst({
-        where: {
-          deletedAt: null,
-          OR: [
-            { name: { equals: rawName, mode: Prisma.QueryMode.insensitive } },
-            ...(rawUsername ? [{ username: { equals: rawUsername, mode: Prisma.QueryMode.insensitive } }] : []),
-            ...(rawPhone ? [{ phone: rawPhone }] : []),
-            ...(rawEmail ? [{ email: { equals: rawEmail, mode: Prisma.QueryMode.insensitive } }] : []),
-            ...(rawTelegramId ? [{ telegramId: rawTelegramId }] : []),
-          ],
-        },
-      });
-
-      if (existingUser) {
-        let reason = `Employee "${rawName}" already exists in the system (duplicate skipped).`;
-        if (existingUser.phone === rawPhone && rawPhone) reason = `Phone "${rawPhone}" is already assigned to ${existingUser.name}.`;
-        if (existingUser.username === rawUsername && rawUsername) reason = `Username "${rawUsername}" already exists.`;
-        if (rawEmail && existingUser.email?.toLowerCase() === rawEmail.toLowerCase()) reason = `Email "${rawEmail}" already exists.`;
-
-        errors.push({ row: rowNumber, name: rawName, phone: rawPhone || 'N/A', reason });
-        continue;
+      // If email provided and already exists, clear duplicate email so unique constraint doesn't throw
+      let email = rawEmail || null;
+      if (email) {
+        const existingEmail = await this.prisma.user.findFirst({
+          where: { email: { equals: email, mode: Prisma.QueryMode.insensitive }, deletedAt: null },
+        });
+        if (existingEmail || createdUsers.some((u) => u.email?.toLowerCase() === email?.toLowerCase())) {
+          email = null;
+        }
       }
 
       // Hash password and create user
@@ -769,7 +784,7 @@ export class UsersService {
             username,
             name: rawName,
             phone,
-            email: rawEmail || null,
+            email,
             address: rawAddress || null,
             passwordHash,
             role,
@@ -833,7 +848,7 @@ export class UsersService {
 
     worksheet.columns = [
       { header: 'Vorname', key: 'vorname', width: 16 },
-      { header: 'Name', key: 'name', width: 18 },
+      { header: 'Nachname', key: 'lastName', width: 18 },
       { header: 'Telefon', key: 'phone', width: 18 },
       { header: 'Adresse', key: 'address', width: 25 },
       { header: 'Benutzername', key: 'username', width: 18 },
@@ -859,7 +874,7 @@ export class UsersService {
     // Add Example Rows
     worksheet.addRow({
       vorname: 'Max',
-      name: 'Mustermann',
+      lastName: 'Mustermann',
       phone: '+491705555555',
       address: 'Musterstraße 1, 47051 Duisburg',
       username: 'mmustermann',

@@ -41,6 +41,19 @@ interface Employee {
   employmentStart?: string;
 }
 
+const getFirstName = (fullName: string) => {
+  if (!fullName) return "—";
+  const parts = fullName.trim().split(/\s+/);
+  return parts[0] || "—";
+};
+
+const getLastName = (fullName: string) => {
+  if (!fullName) return "—";
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length <= 1) return "—";
+  return parts.slice(1).join(" ");
+};
+
 export default function EmployeesPage() {
   const { t, language } = useTranslation();
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -58,6 +71,8 @@ export default function EmployeesPage() {
 
   // Form states
   const [formName, setFormName] = useState("");
+  const [formVorname, setFormVorname] = useState("");
+  const [formNachname, setFormNachname] = useState("");
   const [formPhone, setFormPhone] = useState("");
   const [formEmail, setFormEmail] = useState("");
   const [formUsername, setFormUsername] = useState("");
@@ -156,6 +171,8 @@ export default function EmployeesPage() {
 
   const openAddModal = () => {
     setFormName("");
+    setFormVorname("");
+    setFormNachname("");
     setFormPhone("");
     setFormEmail("");
     setFormUsername("");
@@ -172,6 +189,8 @@ export default function EmployeesPage() {
   const openEditModal = (emp: Employee) => {
     setSelectedEmp(emp);
     setFormName(emp.name);
+    setFormVorname(getFirstName(emp.name));
+    setFormNachname(getLastName(emp.name) === "—" ? "" : getLastName(emp.name));
     setFormPhone(emp.phone);
     setFormEmail(emp.email || "");
     setFormUsername(emp.username);
@@ -190,13 +209,17 @@ export default function EmployeesPage() {
     setFormLoading(true);
     setFormError("");
 
+    const submittedName = (formVorname || formNachname)
+      ? `${formVorname} ${formNachname}`.trim()
+      : formName;
+
     const token = localStorage.getItem("accessToken");
     try {
       if (isOffline) {
         const newEmp: Employee = {
           id: "emp-" + Date.now(),
           username: formUsername,
-          name: formName,
+          name: submittedName,
           phone: formPhone,
           email: formEmail || null,
           role: "EMPLOYEE",
@@ -219,7 +242,7 @@ export default function EmployeesPage() {
         },
         body: JSON.stringify({
           username: formUsername,
-          name: formName,
+          name: submittedName,
           phone: formPhone,
           email: formEmail || undefined,
           passwordHash: formPassword,
@@ -251,13 +274,17 @@ export default function EmployeesPage() {
     setFormLoading(true);
     setFormError("");
 
+    const submittedName = (formVorname || formNachname)
+      ? `${formVorname} ${formNachname}`.trim()
+      : formName;
+
     const token = localStorage.getItem("accessToken");
     try {
       if (isOffline) {
         setEmployees(prev => prev.map(emp => emp.id === selectedEmp.id ? {
           ...emp,
           username: formUsername,
-          name: formName,
+          name: submittedName,
           phone: formPhone,
           email: formEmail || null,
           role: userRole === "MANAGER" ? formRole : emp.role,
@@ -272,7 +299,7 @@ export default function EmployeesPage() {
 
       const body: any = {
         username: formUsername,
-        name: formName,
+        name: submittedName,
         phone: formPhone,
         email: formEmail || null,
         warehouseId: formWarehouse || null,
@@ -614,7 +641,8 @@ export default function EmployeesPage() {
                     </button>
                   </th>
                 )}
-                <th className="px-4 py-3">{t("nameColumn")}</th>
+                <th className="px-4 py-3">{t("firstNameColumn")}</th>
+                <th className="px-4 py-3">{t("lastNameColumn")}</th>
                 <th className="px-4 py-3">{t("usernameLabel")}</th>
                 <th className="px-4 py-3">{t("phone")}</th>
                 <th className="px-4 py-3">{t("email")}</th>
@@ -627,7 +655,7 @@ export default function EmployeesPage() {
             <tbody className="divide-y divide-outline-variant text-body-sm text-on-surface">
               {filteredEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={canManage ? 9 : 7} className="p-8 text-center text-outline italic">
+                  <td colSpan={canManage ? 10 : 8} className="p-8 text-center text-outline italic">
                     {t("noStaffFound")}
                   </td>
                 </tr>
@@ -674,9 +702,12 @@ export default function EmployeesPage() {
                           </span>
                         </div>
                         <div>
-                          <span className="font-semibold text-on-surface block leading-tight">{emp.name}</span>
+                          <span className="font-semibold text-on-surface block leading-tight">{getFirstName(emp.name)}</span>
                         </div>
                       </div>
+                    </td>
+                    <td className="px-4 py-3.5 font-semibold text-on-surface">
+                      {getLastName(emp.name)}
                     </td>
                     <td className="px-4 py-3.5 font-mono text-[12.5px] text-on-surface">
                       {emp.username}
@@ -877,16 +908,29 @@ export default function EmployeesPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("nameColumn")}</label>
+                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("firstNameColumn")}</label>
                   <input
                     type="text"
                     required
-                    value={formName}
-                    onChange={(e) => setFormName(e.target.value)}
-                    placeholder="e.g. Emil Employee"
+                    value={formVorname}
+                    onChange={(e) => setFormVorname(e.target.value)}
+                    placeholder="e.g. Emil"
                     className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
                   />
                 </div>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("lastNameColumn")}</label>
+                  <input
+                    type="text"
+                    value={formNachname}
+                    onChange={(e) => setFormNachname(e.target.value)}
+                    placeholder="e.g. Employee"
+                    className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("phone")}</label>
                   <input
@@ -898,7 +942,6 @@ export default function EmployeesPage() {
                     className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
                   />
                 </div>
-              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
@@ -1034,22 +1077,21 @@ export default function EmployeesPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("nameColumn")}</label>
+                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("firstNameColumn")}</label>
                   <input
                     type="text"
                     required
-                    value={formName}
-                    onChange={(e) => setFormName(e.target.value)}
+                    value={formVorname}
+                    onChange={(e) => setFormVorname(e.target.value)}
                     className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("phone")}</label>
+                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("lastNameColumn")}</label>
                   <input
                     type="text"
-                    required
-                    value={formPhone}
-                    onChange={(e) => setFormPhone(e.target.value)}
+                    value={formNachname}
+                    onChange={(e) => setFormNachname(e.target.value)}
                     className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
                   />
                 </div>
@@ -1080,6 +1122,16 @@ export default function EmployeesPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
+                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("phone")}</label>
+                  <input
+                    type="text"
+                    required
+                    value={formPhone}
+                    onChange={(e) => setFormPhone(e.target.value)}
+                    className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                  />
+                </div>
+                <div className="space-y-1.5">
                   <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("email")}</label>
                   <input
                     type="email"
@@ -1088,6 +1140,7 @@ export default function EmployeesPage() {
                     className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
                   />
                 </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("employmentStart")}</label>
                   <input
@@ -1095,6 +1148,16 @@ export default function EmployeesPage() {
                     required
                     value={formEmploymentStart}
                     onChange={(e) => setFormEmploymentStart(e.target.value)}
+                    className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("telegramId")}</label>
+                  <input
+                    type="text"
+                    value={formTelegram}
+                    onChange={(e) => setFormTelegram(e.target.value)}
+                    placeholder="e.g. @username"
                     className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
                   />
                 </div>
