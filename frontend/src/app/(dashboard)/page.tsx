@@ -346,10 +346,10 @@ export default function DashboardPage() {
           setDailyAttendance(attendanceData);
 
           setMetrics({
-            employeesCount: usersList.length,
+            employeesCount: usersJson?.meta?.total ?? usersList.length,
             activeTodayCount: Array.isArray(attendanceData) ? attendanceData.length : 0,
-            containersCount: containersList.length,
-            hallsCount: hallsList.length,
+            containersCount: containersJson?.meta?.total ?? containersList.length,
+            hallsCount: hallsJson?.meta?.total ?? hallsList.length,
           });
 
           if (payload.role === "MANAGER") {
