@@ -26,4 +26,9 @@ export class UpdatePlanDto {
   @IsArray()
   @IsString({ each: true })
   assignedContainerIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  assignedContainerNumbers?: string[];
 }

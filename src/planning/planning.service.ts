@@ -78,9 +78,42 @@ export class PlanningService {
       }
 
       // 3. Assign containers
+      const containerIdsToLink = new Set<string>();
+
       if (createPlanDto.assignedContainerIds && createPlanDto.assignedContainerIds.length > 0) {
+        createPlanDto.assignedContainerIds.forEach((cId) => containerIdsToLink.add(cId));
+      }
+
+      if (createPlanDto.assignedContainerNumbers && createPlanDto.assignedContainerNumbers.length > 0) {
+        for (const num of createPlanDto.assignedContainerNumbers) {
+          const cleanNum = num.trim().toUpperCase();
+          if (!cleanNum) continue;
+
+          let container = await tx.container.findFirst({
+            where: {
+              containerNumber: cleanNum,
+              deletedAt: null,
+            },
+          });
+
+          if (!container) {
+            container = await tx.container.create({
+              data: {
+                containerNumber: cleanNum,
+                warehouseId: createPlanDto.warehouseId,
+                hallId: createPlanDto.hallId,
+                status: 'EMPTY',
+              },
+            });
+          }
+
+          containerIdsToLink.add(container.id);
+        }
+      }
+
+      if (containerIdsToLink.size > 0) {
         await tx.planContainer.createMany({
-          data: createPlanDto.assignedContainerIds.map((cId) => ({
+          data: Array.from(containerIdsToLink).map((cId) => ({
             planId: newPlan.id,
             containerId: cId,
           })),
@@ -197,14 +230,47 @@ export class PlanningService {
       }
 
       // Update container assignments
-      if (updatePlanDto.assignedContainerIds !== undefined) {
+      if (updatePlanDto.assignedContainerIds !== undefined || updatePlanDto.assignedContainerNumbers !== undefined) {
         await tx.planContainer.deleteMany({
           where: { planId: id },
         });
 
-        if (updatePlanDto.assignedContainerIds.length > 0) {
+        const containerIdsToLink = new Set<string>();
+
+        if (updatePlanDto.assignedContainerIds && updatePlanDto.assignedContainerIds.length > 0) {
+          updatePlanDto.assignedContainerIds.forEach((cId) => containerIdsToLink.add(cId));
+        }
+
+        if (updatePlanDto.assignedContainerNumbers && updatePlanDto.assignedContainerNumbers.length > 0) {
+          for (const num of updatePlanDto.assignedContainerNumbers) {
+            const cleanNum = num.trim().toUpperCase();
+            if (!cleanNum) continue;
+
+            let container = await tx.container.findFirst({
+              where: {
+                containerNumber: cleanNum,
+                deletedAt: null,
+              },
+            });
+
+            if (!container) {
+              container = await tx.container.create({
+                data: {
+                  containerNumber: cleanNum,
+                  warehouseId: plan.warehouseId,
+                  hallId: plan.hallId,
+                  status: 'EMPTY',
+                },
+              });
+            }
+
+            containerIdsToLink.add(container.id);
+          }
+        }
+
+        if (containerIdsToLink.size > 0) {
           await tx.planContainer.createMany({
-            data: updatePlanDto.assignedContainerIds.map((cId) => ({
+            data: Array.from(containerIdsToLink).map((cId) => ({
               planId: id,
               containerId: cId,
             })),

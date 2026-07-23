@@ -191,6 +191,11 @@ export class UsersService {
       throw new ForbiddenException('Access denied: No access to Manager accounts');
     }
 
+    // Admin cannot modify other Admin accounts
+    if (actorRole === Role.ADMIN && user.role === Role.ADMIN && user.id !== actorId) {
+      throw new ForbiddenException('Access denied: Admins cannot modify other Admin accounts');
+    }
+
     // Role Promotion checks
     if (updateUserDto.role && updateUserDto.role !== user.role) {
       if (actorRole !== Role.MANAGER) {

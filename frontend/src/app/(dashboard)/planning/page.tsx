@@ -46,6 +46,8 @@ function PlanningPageContent() {
   const [assignedEmployeeIds, setAssignedEmployeeIds] = useState<string[]>([]);
   const [shift, setShift] = useState("Frühschicht");
   const [notes, setNotes] = useState("");
+  const [assignedContainerNumbers, setAssignedContainerNumbers] = useState<string[]>([]);
+  const [typedContainerNumber, setTypedContainerNumber] = useState("");
 
   const [planId, setPlanId] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
@@ -185,6 +187,9 @@ function PlanningPageContent() {
             setAssignedEmployeeIds(hallPlan.assignedEmployees.map((e: any) => e.id));
             setShift(hallPlan.shift || "Frühschicht");
             setNotes(hallPlan.notes || "");
+            setAssignedContainerNumbers(hallPlan.assignedContainers?.map((c: any) => c.containerNumber) || []);
+          } else {
+            setAssignedContainerNumbers([]);
           }
         }
       } catch (err) {
@@ -231,7 +236,7 @@ function PlanningPageContent() {
           },
           body: JSON.stringify({
             assignedEmployeeIds,
-            assignedContainerIds: [], // bypassed
+            assignedContainerNumbers,
             shift,
             notes,
           }),
@@ -249,7 +254,7 @@ function PlanningPageContent() {
             warehouseId: selectedWarehouseId,
             hallId: selectedHallId,
             assignedEmployeeIds,
-            assignedContainerIds: [],
+            assignedContainerNumbers,
             shift,
             notes,
           }),
@@ -383,6 +388,72 @@ function PlanningPageContent() {
             className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-xs text-slate-700 outline-none focus:border-blue-400 transition-colors resize-none"
           />
         </div>
+      </div>
+
+      {/* Container Input Section */}
+      <div className="bg-white border border-slate-100 p-5 rounded-xl shadow-sm space-y-4">
+        <div>
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+            Geplante Container (Planned Containers)
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="z.B. MSCU1284920 (Containernummer)"
+              value={typedContainerNumber}
+              onChange={(e) => setTypedContainerNumber(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const val = typedContainerNumber.trim().toUpperCase();
+                  if (val && !assignedContainerNumbers.includes(val)) {
+                    setAssignedContainerNumbers((prev) => [...prev, val]);
+                  }
+                  setTypedContainerNumber("");
+                }
+              }}
+              className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 outline-none focus:border-blue-400 transition-colors"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const val = typedContainerNumber.trim().toUpperCase();
+                if (val && !assignedContainerNumbers.includes(val)) {
+                  setAssignedContainerNumbers((prev) => [...prev, val]);
+                }
+                setTypedContainerNumber("");
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm shadow-blue-500/10 cursor-pointer"
+            >
+              Hinzufügen
+            </button>
+          </div>
+        </div>
+
+        {assignedContainerNumbers.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              Hinzugefügte Container ({assignedContainerNumbers.length})
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {assignedContainerNumbers.map((cNum) => (
+                <div
+                  key={cNum}
+                  className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-semibold border border-slate-200"
+                >
+                  <span className="font-mono">{cNum}</span>
+                  <button
+                    type="button"
+                    onClick={() => setAssignedContainerNumbers((prev) => prev.filter((num) => num !== cNum))}
+                    className="text-slate-400 hover:text-slate-650 transition-colors p-0.5 rounded-full hover:bg-slate-200 cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Selected Employees Chips Bar */}

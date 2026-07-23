@@ -353,7 +353,7 @@ export default function EmployeesPage() {
   };
 
   const handleDeactivate = async (id: string, name: string) => {
-    if (!window.confirm(language === "de" ? `Sind Sie sicher, dass Sie den Mitarbeiter ${name} deactivieren möchten?` : `Are you sure you want to deactivate employee ${name}?`)) {
+    if (!window.confirm(language === "de" ? `Sind Sie sicher, dass Sie den Mitarbeiter ${name} löschen möchten?` : `Are you sure you want to delete employee ${name}?`)) {
       return;
     }
 
@@ -372,7 +372,7 @@ export default function EmployeesPage() {
       if (res.ok) {
         loadEmployees();
       } else {
-        alert("Failed to deactivate employee");
+        alert(language === "de" ? "Mitarbeiter konnte nicht gelöscht werden" : "Failed to delete employee");
       }
     } catch (e) {
       console.error(e);
@@ -382,7 +382,7 @@ export default function EmployeesPage() {
 
   const handleBulkDeactivate = async () => {
     if (selectedEmpIds.length === 0) return;
-    if (!window.confirm(language === "de" ? `Sind Sie sicher, dass Sie die ${selectedEmpIds.length} ausgewählten Mitarbeiter deaktivieren möchten?` : `Are you sure you want to deactivate the ${selectedEmpIds.length} selected employee(s)?`)) {
+    if (!window.confirm(language === "de" ? `Sind Sie sicher, dass Sie die ${selectedEmpIds.length} ausgewählten Mitarbeiter löschen möchten?` : `Are you sure you want to delete the ${selectedEmpIds.length} selected employee(s)?`)) {
       return;
     }
 
@@ -407,7 +407,7 @@ export default function EmployeesPage() {
         setSelectedEmpIds([]);
         loadEmployees();
       } else {
-        alert("Failed to deactivate employees");
+        alert(language === "de" ? "Mitarbeiter konnten nicht gelöscht werden" : "Failed to delete employees");
       }
     } catch (e) {
       console.error(e);
@@ -662,7 +662,7 @@ export default function EmployeesPage() {
     emp.username.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const itemsPerPage = 10;
+  const itemsPerPage = 50;
   const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage) || 1;
   const paginatedEmployees = filteredEmployees.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
@@ -805,9 +805,9 @@ export default function EmployeesPage() {
             <button
               onClick={handleBulkDeactivate}
               className="bg-red-600 hover:bg-red-700 text-white px-3.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-sm"
-              title="Mitarbeiter deaktivieren"
+              title="Mitarbeiter löschen"
             >
-              <Trash2 className="w-3.5 h-3.5" /> Deaktivieren
+              <Trash2 className="w-3.5 h-3.5" /> Löschen
             </button>
 
             {/* Bulk Activate */}
@@ -864,14 +864,6 @@ export default function EmployeesPage() {
               className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-sm"
             >
               <Download className="w-3.5 h-3.5" /> Exportieren (CSV)
-            </button>
-
-            {/* Print Selected */}
-            <button
-              onClick={handlePrintSelected}
-              className="bg-slate-650 hover:bg-slate-700 text-white px-3.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-sm"
-            >
-              <Users className="w-3.5 h-3.5" /> Drucken
             </button>
           </div>
         )}
