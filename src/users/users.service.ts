@@ -739,6 +739,17 @@ export class UsersService {
       }
     });
 
+    // If no columns were mapped (or if only 1 column exists and it wasn't mapped), map Column 1 as name or phone fallback
+    if (Object.keys(colMap).length === 0 && worksheet.columnCount >= 1) {
+      const firstDataCell = worksheet.getRow(2).getCell(1);
+      const val = this.getCellValueString(firstDataCell).trim();
+      if (/^\+?[0-9\s-]{5,20}$/.test(val)) {
+        colMap['phone'] = 1;
+      } else {
+        colMap['name'] = 1;
+      }
+    }
+
     // NOTE: Even if standard header columns are missing, we do NOT block/cancel the import process!
     // We proceed to process all rows with available data and default missing values.
 
@@ -805,11 +816,23 @@ export class UsersService {
       const rawTelegramId = colMap['telegramId'] ? this.getCellValueString(row.getCell(colMap['telegramId'])) : '';
       const rawStart = colMap['employmentStart'] ? this.getCellValueString(row.getCell(colMap['employmentStart'])) : '';
 
-      // Generate phone if missing to satisfy unique constraint
+      // Ensure phone is unique; if it exists already in database or current batch, treat it as duplicate/missing so we generate a unique fallback
       let phone = rawPhone;
+      if (phone) {
+        const existingPhone = await this.prisma.user.findFirst({
+          where: { phone: { equals: phone, mode: Prisma.QueryMode.insensitive }, deletedAt: null },
+        });
+        if (existingPhone || createdUsers.some((u) => u.phone === phone)) {
+          phone = '';
+        }
+      }
+
       if (!phone) {
         let candidatePhone = `+49000${Date.now().toString().slice(-5)}${rowNumber}`;
-        while (await this.prisma.user.findFirst({ where: { phone: candidatePhone } })) {
+        while (
+          (await this.prisma.user.findFirst({ where: { phone: candidatePhone } })) ||
+          createdUsers.some((u) => u.phone === candidatePhone)
+        ) {
           candidatePhone = `+49000${Math.floor(100000 + Math.random() * 900000)}`;
         }
         phone = candidatePhone;
