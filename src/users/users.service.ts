@@ -759,6 +759,17 @@ export class UsersService {
     const createdUsers: any[] = [];
     const errors: Array<{ row: number; name?: string; phone?: string; reason: string }> = [];
 
+    // Pre-load all existing phone numbers from the DB into a Set for O(1) uniqueness checks.
+    // This also tracks every phone we assign during this import session to prevent within-batch collisions.
+    const allExistingPhones = await this.prisma.user.findMany({
+      where: { deletedAt: null },
+      select: { phone: true },
+    });
+    const usedPhones = new Set<string>(allExistingPhones.map((u) => u.phone?.toLowerCase() ?? '').filter(Boolean));
+
+    // Counter for guaranteed-unique fallback phone suffix
+    let fallbackPhoneCounter = Date.now();
+
     // Process data rows starting from row 2
     for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
       const row = worksheet.getRow(rowNumber);
@@ -816,27 +827,24 @@ export class UsersService {
       const rawTelegramId = colMap['telegramId'] ? this.getCellValueString(row.getCell(colMap['telegramId'])) : '';
       const rawStart = colMap['employmentStart'] ? this.getCellValueString(row.getCell(colMap['employmentStart'])) : '';
 
-      // Ensure phone is unique; if it exists already in database or current batch, treat it as duplicate/missing so we generate a unique fallback
+      // Ensure phone is unique across the database AND within the current import batch.
+      // If the phone from the Excel sheet already exists or is blank, generate a guaranteed-unique fallback.
       let phone = rawPhone;
-      if (phone) {
-        const existingPhone = await this.prisma.user.findFirst({
-          where: { phone: { equals: phone, mode: Prisma.QueryMode.insensitive }, deletedAt: null },
-        });
-        if (existingPhone || createdUsers.some((u) => u.phone === phone)) {
-          phone = '';
-        }
+      if (phone && usedPhones.has(phone.toLowerCase())) {
+        phone = ''; // duplicate — treat as missing so we generate a unique placeholder
       }
 
       if (!phone) {
-        let candidatePhone = `+49000${Date.now().toString().slice(-5)}${rowNumber}`;
-        while (
-          (await this.prisma.user.findFirst({ where: { phone: candidatePhone } })) ||
-          createdUsers.some((u) => u.phone === candidatePhone)
-        ) {
-          candidatePhone = `+49000${Math.floor(100000 + Math.random() * 900000)}`;
-        }
+        let candidatePhone: string;
+        do {
+          fallbackPhoneCounter++;
+          candidatePhone = `+49000${String(fallbackPhoneCounter).slice(-8)}`;
+        } while (usedPhones.has(candidatePhone));
         phone = candidatePhone;
       }
+
+      // Register this phone in the session set immediately so no later row can claim the same number
+      usedPhones.add(phone.toLowerCase());
 
       // Auto-generate username if not provided or if duplicate
       let username = rawUsername;
