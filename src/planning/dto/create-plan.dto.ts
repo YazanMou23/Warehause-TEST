@@ -22,6 +22,14 @@ export class CreatePlanDto {
   description?: string;
 
   @IsOptional()
+  @IsString()
+  shift?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   assignedEmployeeIds?: string[];

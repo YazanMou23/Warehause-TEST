@@ -102,7 +102,7 @@ export class AttendanceService {
           select: { id: true, name: true, phone: true },
         },
         warehouse: { select: { name: true } },
-        hall: { select: { name: true } },
+        hall: { select: { name: true, color: true } },
       },
       orderBy: { clockIn: 'desc' },
     });
@@ -292,6 +292,16 @@ export class AttendanceService {
         }
       }
 
+      // Trigger notification for hours changed
+      await tx.notification.create({
+        data: {
+          userId: updated.employeeId,
+          title: 'Arbeitszeit aktualisiert',
+          message: `Ihr Zeiterfassungs-Eintrag für den ${updated.date.toLocaleDateString('de-DE')} wurde aktualisiert auf: ${updated.totalHours} Stunden.`,
+          type: 'HOURS_CHANGED',
+        },
+      }).catch(() => {});
+
       return updated;
     });
   }
@@ -300,7 +310,7 @@ export class AttendanceService {
     const clockIn = new Date(dto.clockIn);
     const clockOut = dto.clockOut ? new Date(dto.clockOut) : null;
 
-    return this.prisma.attendance.create({
+    const manualEntry = await this.prisma.attendance.create({
       data: {
         employeeId: dto.employeeId,
         warehouseId: dto.warehouseId,
@@ -318,6 +328,18 @@ export class AttendanceService {
         hall: { select: { id: true, name: true } },
       },
     });
+
+    // Trigger notification
+    await this.prisma.notification.create({
+      data: {
+        userId: manualEntry.employeeId,
+        title: 'Manuelle Zeiterfassung',
+        message: `Ein neuer Zeiterfassungs-Eintrag wurde manuell für den ${manualEntry.date.toLocaleDateString('de-DE')} erfasst: ${manualEntry.totalHours} Stunden.`,
+        type: 'HOURS_CHANGED',
+      },
+    }).catch(() => {});
+
+    return manualEntry;
   }
 
   private getDateRangeOfWeek(week: number, year: number) {

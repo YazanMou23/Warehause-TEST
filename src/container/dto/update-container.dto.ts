@@ -1,7 +1,11 @@
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString, IsNumber, IsArray } from 'class-validator';
 import { ContainerStatus } from '@prisma/client';
 
 export class UpdateContainerDto {
+  @IsOptional()
+  @IsString()
+  containerNumber?: string;
+
   @IsOptional()
   @IsEnum(ContainerStatus)
   status?: ContainerStatus;
@@ -13,4 +17,17 @@ export class UpdateContainerDto {
   @IsOptional()
   @IsString()
   hallId?: string;
+
+  @IsOptional()
+  @IsNumber()
+  workedHours?: number;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  assignedEmployeeIds?: string[];
 }

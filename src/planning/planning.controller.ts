@@ -73,6 +73,42 @@ export class PlanningController {
     return this.planningService.bulkDeactivate(ids, actorId);
   }
 
+  @Patch('bulk-duplicate')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  bulkDuplicate(@Body('ids') ids: string[], @CurrentUser('id') actorId: string) {
+    return this.planningService.bulkDuplicate(ids, actorId);
+  }
+
+  @Patch('bulk-change-hall')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  bulkChangeHall(
+    @Body('ids') ids: string[],
+    @Body('hallId') hallId: string,
+    @CurrentUser('id') actorId: string,
+  ) {
+    return this.planningService.bulkChangeHall(ids, hallId, actorId);
+  }
+
+  @Patch('bulk-change-shift')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  bulkChangeShift(
+    @Body('ids') ids: string[],
+    @Body('shift') shift: string,
+    @CurrentUser('id') actorId: string,
+  ) {
+    return this.planningService.bulkChangeShift(ids, shift, actorId);
+  }
+
+  @Patch('bulk-assign-employees')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  bulkAssignEmployees(
+    @Body('ids') ids: string[],
+    @Body('employeeIds') employeeIds: string[],
+    @CurrentUser('id') actorId: string,
+  ) {
+    return this.planningService.bulkAssignEmployees(ids, employeeIds, actorId);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.planningService.findOne(id);

@@ -53,6 +53,12 @@ model User {
   receivedMessages    ChatMessage[] @relation("ReceivedMessages")
   isChatBlocked       Boolean       @default(false)
 
+  // Custom relations
+  notifications       Notification[]
+  createdContainers   Container[]   @relation("ContainerCreatedBy")
+  updatedContainers   Container[]   @relation("ContainerUpdatedBy")
+  workedContainers    ContainerEmployee[]
+
   @@index([warehouseId])
   @@index([hallId])
 }
@@ -77,6 +83,7 @@ model Hall {
   warehouseId String
   warehouse   Warehouse    @relation(fields: [warehouseId], references: [id])
   capacity    Int?
+  color       String?      @default("#1d4ed8")
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   deletedAt   DateTime?
@@ -91,7 +98,7 @@ model Hall {
 
 model Container {
   id              String          @id @default(uuid())
-  containerNumber String          @unique
+  containerNumber String
   status          ContainerStatus @default(EMPTY)
   warehouseId     String
   warehouse       Warehouse       @relation(fields: [warehouseId], references: [id])
@@ -102,6 +109,15 @@ model Container {
   updatedAt       DateTime        @updatedAt
   deletedAt       DateTime?
 
+  // Worked container fields
+  workedHours     Float           @default(0)
+  notes           String?
+  createdById     String?
+  createdBy       User?           @relation("ContainerCreatedBy", fields: [createdById], references: [id])
+  updatedById     String?
+  updatedBy       User?           @relation("ContainerUpdatedBy", fields: [updatedById], references: [id])
+  
+  employees       ContainerEmployee[]
   plans           PlanContainer[]
 
   @@index([warehouseId])
@@ -118,6 +134,8 @@ model Plan {
   warehouse   Warehouse       @relation(fields: [warehouseId], references: [id])
   hallId      String
   hall        Hall            @relation(fields: [hallId], references: [id])
+  shift       String?
+  notes       String?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   deletedAt   DateTime?
@@ -249,5 +267,28 @@ model ChatMessage {
   @@index([senderId])
   @@index([receiverId])
   @@index([createdAt])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   // "PLAN_CREATED" | "PLAN_UPDATED" | "EMPLOYEE_ASSIGNED" | "CONTAINER_UPDATED" | "HOURS_CHANGED" | "ROLE_CHANGED" | "SYSTEM_ALERT"
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model ContainerEmployee {
+  containerId String
+  container   Container @relation(fields: [containerId], references: [id], onDelete: Cascade)
+  employeeId  String
+  employee    User      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@id([containerId, employeeId])
 }
 

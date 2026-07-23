@@ -62,6 +62,8 @@ export class PlanningService {
           hallId: createPlanDto.hallId,
           title: createPlanDto.title || null,
           description: createPlanDto.description || null,
+          shift: createPlanDto.shift || null,
+          notes: createPlanDto.notes || null,
         },
       });
 
@@ -92,41 +94,42 @@ export class PlanningService {
       data: {
         userId: actorId || null,
         action: 'CREATE_PLAN',
-        details: `Created daily plan (ID: ${plan.id}) for date ${normalizedDate.toISOString().split('T')[0]} at warehouse ${plan.warehouseId}, hall ${plan.hallId}`,
+        details: `Created daily plan for date ${normalizedDate.toISOString().split('T')[0]} in warehouse ${plan.warehouseId}, hall ${plan.hallId}`,
       },
     });
 
     const fullPlan = await this.findOne(plan.id);
 
-    // Send email notifications asynchronously
+    // Trigger Notification & Emails for assigned employees
     if (fullPlan.assignedEmployees && fullPlan.assignedEmployees.length > 0) {
-      const employeesWithEmail = fullPlan.assignedEmployees.filter((e: any) => e.email);
-      this.logger.log(
-        `Plan created: ${fullPlan.assignedEmployees.length} employee(s) assigned, ` +
-        `${employeesWithEmail.length} with email address(es). Sending notifications...`
-      );
-
       for (const employee of fullPlan.assignedEmployees) {
+        // App Notification
+        await this.prisma.notification.create({
+          data: {
+            userId: employee.id,
+            title: 'Neuer Schichtplan erstellt',
+            message: `Sie wurden einer neuen Schicht am ${normalizedDate.toLocaleDateString('de-DE')} in Halle ${hall.name} zugewiesen.`,
+            type: 'PLAN_CREATED',
+          },
+        }).catch(() => {});
+
+        // Email Notification
         if (employee.email) {
-          this.logger.log(`Sending plan notification to ${employee.name} <${employee.email}>`);
-          const emailDetails = {
-            employeeName: employee.name,
-            date: new Date(fullPlan.date).toLocaleDateString('de-DE', {
-              weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-            }),
-            warehouseName: fullPlan.warehouseName,
-            hallName: fullPlan.hallName,
-            title: fullPlan.title || 'Schichtplan Zuweisung',
-            description: fullPlan.description || 'Sie wurden einer neuen Schicht zugewiesen.',
-            containers: fullPlan.assignedContainers.map((c: any) => c.containerNumber),
-          };
-          this.emailService.sendPlanNotification(employee.email, emailDetails)
-            .then((sent) => {
-              if (sent) {
-                this.logger.log(`✓ Email sent to ${employee.name} (${employee.email})`);
-              } else {
-                this.logger.warn(`✗ Email failed for ${employee.name} (${employee.email})`);
-              }
+          const emailSubject = `Neue Schichtzuweisung - ${normalizedDate.toLocaleDateString('de-DE')}`;
+          const emailHtml = `
+            <h3>Hallo ${employee.name},</h3>
+            <p>Sie wurden für eine Schicht eingeteilt:</p>
+            <ul>
+              <li><strong>Datum:</strong> ${normalizedDate.toLocaleDateString('de-DE')}</li>
+              <li><strong>Halle:</strong> ${hall.name}</li>
+              <li><strong>Schicht:</strong> ${fullPlan.shift || 'Standard'}</li>
+              <li><strong>Notizen:</strong> ${fullPlan.notes || 'Keine'}</li>
+            </ul>
+            <p>Bitte loggen Sie sich in das Dashboard ein, um weitere Details zu sehen.</p>
+          `;
+
+          this.emailService.sendEmail(employee.email, emailSubject, emailHtml)
+            .then((sent: any) => {
               this.prisma.actionLog.create({
                 data: {
                   userId: actorId || null,
@@ -137,15 +140,11 @@ export class PlanningService {
                 },
               }).catch(() => {});
             })
-            .catch((err) => {
+            .catch((err: any) => {
               this.logger.error(`Email error for ${employee.email}: ${err.message}`);
             });
-        } else {
-          this.logger.debug(`Skipping ${employee.name} — no email address on record.`);
         }
       }
-    } else {
-      this.logger.log('Plan created with no assigned employees — no emails to send.');
     }
 
     return fullPlan;
@@ -154,18 +153,26 @@ export class PlanningService {
   async update(id: string, updatePlanDto: UpdatePlanDto, actorId?: string) {
     const plan = await this.prisma.plan.findFirst({
       where: { id, deletedAt: null },
+      include: {
+        assignedEmployees: true,
+        hall: true,
+      },
     });
 
     if (!plan) {
       throw new NotFoundException(`Daily plan with ID ${id} not found`);
     }
 
+    const prevEmployeeIds = plan.assignedEmployees.map((ae) => ae.employeeId);
+
     await this.prisma.$transaction(async (tx) => {
       // Update plan properties
       const updateData: any = {};
       if (updatePlanDto.title !== undefined) updateData.title = updatePlanDto.title;
       if (updatePlanDto.description !== undefined) updateData.description = updatePlanDto.description;
-      
+      if (updatePlanDto.shift !== undefined) updateData.shift = updatePlanDto.shift;
+      if (updatePlanDto.notes !== undefined) updateData.notes = updatePlanDto.notes;
+
       if (Object.keys(updateData).length > 0) {
         await tx.plan.update({
           where: { id },
@@ -175,12 +182,10 @@ export class PlanningService {
 
       // Update employee assignments
       if (updatePlanDto.assignedEmployeeIds !== undefined) {
-        // Clear old ones
         await tx.planEmployee.deleteMany({
           where: { planId: id },
         });
 
-        // Insert new ones
         if (updatePlanDto.assignedEmployeeIds.length > 0) {
           await tx.planEmployee.createMany({
             data: updatePlanDto.assignedEmployeeIds.map((empId) => ({
@@ -193,12 +198,10 @@ export class PlanningService {
 
       // Update container assignments
       if (updatePlanDto.assignedContainerIds !== undefined) {
-        // Clear old ones
         await tx.planContainer.deleteMany({
           where: { planId: id },
         });
 
-        // Insert new ones
         if (updatePlanDto.assignedContainerIds.length > 0) {
           await tx.planContainer.createMany({
             data: updatePlanDto.assignedContainerIds.map((cId) => ({
@@ -218,7 +221,26 @@ export class PlanningService {
       },
     });
 
-    return this.findOne(id);
+    const updatedPlan = await this.findOne(id);
+
+    // Notify Employees of updates or assignments
+    if (updatePlanDto.assignedEmployeeIds !== undefined) {
+      for (const empId of updatePlanDto.assignedEmployeeIds) {
+        const isNew = !prevEmployeeIds.includes(empId);
+        await this.prisma.notification.create({
+          data: {
+            userId: empId,
+            title: isNew ? 'Neue Schichtzuweisung' : 'Schichtplan aktualisiert',
+            message: isNew 
+              ? `Sie wurden am ${updatedPlan.date.toLocaleDateString('de-DE')} einer Schicht in Halle ${updatedPlan.hallName} zugewiesen.`
+              : `Ihr Schichtplan für den ${updatedPlan.date.toLocaleDateString('de-DE')} in Halle ${updatedPlan.hallName} wurde aktualisiert.`,
+            type: isNew ? 'EMPLOYEE_ASSIGNED' : 'PLAN_UPDATED',
+          },
+        }).catch(() => {});
+      }
+    }
+
+    return updatedPlan;
   }
 
   async findOne(id: string) {
@@ -253,7 +275,6 @@ export class PlanningService {
       throw new NotFoundException(`Daily plan with ID ${id} not found`);
     }
 
-    // Format output to be clean
     return {
       id: plan.id,
       title: plan.title,
@@ -263,6 +284,8 @@ export class PlanningService {
       warehouseName: plan.warehouse.name,
       hallId: plan.hallId,
       hallName: plan.hall.name,
+      shift: plan.shift,
+      notes: plan.notes,
       assignedEmployees: plan.assignedEmployees.map((ae) => ae.employee),
       assignedContainers: plan.assignedContainers.map((ac) => ac.container),
     };
@@ -315,6 +338,8 @@ export class PlanningService {
       warehouseName: plan.warehouse.name,
       hallId: plan.hallId,
       hallName: plan.hall.name,
+      shift: plan.shift,
+      notes: plan.notes,
       assignedEmployees: plan.assignedEmployees.map((ae) => ae.employee),
       assignedContainers: plan.assignedContainers.map((ac) => ac.container),
     }));
@@ -408,6 +433,8 @@ export class PlanningService {
       warehouseName: plan.warehouse.name,
       hallId: plan.hallId,
       hallName: plan.hall.name,
+      shift: plan.shift,
+      notes: plan.notes,
       assignedEmployees: plan.assignedEmployees.map((ae) => ae.employee),
       assignedContainers: plan.assignedContainers.map((ac) => ac.container),
     }));
@@ -453,5 +480,164 @@ export class PlanningService {
     });
 
     return { message: `${result.count} daily plans deactivated successfully` };
+  }
+
+  async bulkDuplicate(ids: string[], actorId?: string) {
+    const plans = await this.prisma.plan.findMany({
+      where: { id: { in: ids }, deletedAt: null },
+      include: { assignedEmployees: true, assignedContainers: true },
+    });
+
+    let count = 0;
+    for (const plan of plans) {
+      const nextDay = new Date(plan.date);
+      nextDay.setDate(nextDay.getDate() + 1);
+
+      // Check unique constraint: date + warehouseId + hallId
+      const exists = await this.prisma.plan.findFirst({
+        where: {
+          date: nextDay,
+          warehouseId: plan.warehouseId,
+          hallId: plan.hallId,
+          deletedAt: null,
+        },
+      });
+
+      if (exists) continue;
+
+      await this.prisma.$transaction(async (tx) => {
+        const newPlan = await tx.plan.create({
+          data: {
+            date: nextDay,
+            warehouseId: plan.warehouseId,
+            hallId: plan.hallId,
+            title: plan.title ? `${plan.title} (Kopie)` : null,
+            description: plan.description,
+            shift: plan.shift,
+            notes: plan.notes,
+          },
+        });
+
+        if (plan.assignedEmployees.length > 0) {
+          await tx.planEmployee.createMany({
+            data: plan.assignedEmployees.map((emp) => ({
+              planId: newPlan.id,
+              employeeId: emp.employeeId,
+            })),
+          });
+        }
+        count++;
+      });
+    }
+
+    await this.prisma.actionLog.create({
+      data: {
+        userId: actorId || null,
+        action: 'BULK_DUPLICATE_PLAN',
+        details: `Duplicated ${count} daily plans to next day`,
+      },
+    });
+
+    return { message: `${count} daily plans duplicated successfully` };
+  }
+
+  async bulkChangeHall(ids: string[], hallId: string, actorId?: string) {
+    const hall = await this.prisma.hall.findFirst({
+      where: { id: hallId, deletedAt: null },
+    });
+
+    if (!hall) {
+      throw new NotFoundException(`Hall with ID ${hallId} not found`);
+    }
+
+    const plans = await this.prisma.plan.findMany({
+      where: { id: { in: ids }, deletedAt: null },
+    });
+
+    let count = 0;
+    for (const plan of plans) {
+      // Check unique constraint
+      const exists = await this.prisma.plan.findFirst({
+        where: {
+          date: plan.date,
+          warehouseId: hall.warehouseId,
+          hallId,
+          deletedAt: null,
+        },
+      });
+
+      if (exists) continue;
+
+      await this.prisma.plan.update({
+        where: { id: plan.id },
+        data: {
+          hallId,
+          warehouseId: hall.warehouseId,
+        },
+      });
+      count++;
+    }
+
+    await this.prisma.actionLog.create({
+      data: {
+        userId: actorId || null,
+        action: 'BULK_CHANGE_HALL_PLAN',
+        details: `Changed hall for ${count} plans to ${hall.name}`,
+      },
+    });
+
+    return { message: `Hall updated for ${count} daily plans successfully` };
+  }
+
+  async bulkChangeShift(ids: string[], shift: string, actorId?: string) {
+    const result = await this.prisma.plan.updateMany({
+      where: { id: { in: ids }, deletedAt: null },
+      data: { shift },
+    });
+
+    await this.prisma.actionLog.create({
+      data: {
+        userId: actorId || null,
+        action: 'BULK_CHANGE_SHIFT_PLAN',
+        details: `Bulk updated shift for ${result.count} plans to ${shift}`,
+      },
+    });
+
+    return { message: `Shift updated for ${result.count} daily plans successfully` };
+  }
+
+  async bulkAssignEmployees(ids: string[], employeeIds: string[], actorId?: string) {
+    const plans = await this.prisma.plan.findMany({
+      where: { id: { in: ids }, deletedAt: null },
+    });
+
+    for (const plan of plans) {
+      await this.prisma.$transaction(async (tx) => {
+        // Clear existing
+        await tx.planEmployee.deleteMany({
+          where: { planId: plan.id },
+        });
+
+        // Assign new
+        if (employeeIds.length > 0) {
+          await tx.planEmployee.createMany({
+            data: employeeIds.map((empId) => ({
+              planId: plan.id,
+              employeeId: empId,
+            })),
+          });
+        }
+      });
+    }
+
+    await this.prisma.actionLog.create({
+      data: {
+        userId: actorId || null,
+        action: 'BULK_ASSIGN_EMPLOYEES_PLAN',
+        details: `Bulk assigned employees to ${plans.length} daily plans`,
+      },
+    });
+
+    return { message: `Employees assigned to ${plans.length} daily plans successfully` };
   }
 }

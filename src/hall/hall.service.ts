@@ -21,6 +21,7 @@ export class HallService {
         name: createHallDto.name,
         warehouseId: createHallDto.warehouseId,
         capacity: createHallDto.capacity || null,
+        color: createHallDto.color || "#1d4ed8",
       },
     });
 

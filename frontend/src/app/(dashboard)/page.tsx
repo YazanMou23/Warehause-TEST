@@ -89,6 +89,9 @@ export default function DashboardPage() {
   // Manager/Admin Dashboard States
   const [recentActivityLogs, setRecentActivityLogs] = useState<any[]>([]);
   const [dailyAttendance, setDailyAttendance] = useState<any[]>([]);
+  const [dashboardEmployees, setDashboardEmployees] = useState<any[]>([]);
+  const [bulkAssignEmployeesModalOpen, setBulkAssignEmployeesModalOpen] = useState(false);
+  const [bulkSelectedEmployeeIds, setBulkSelectedEmployeeIds] = useState<string[]>([]);
 
   const handleExportCSV = (plan: PlanItem) => {
     if (!plan) return;
@@ -227,6 +230,141 @@ export default function DashboardPage() {
     }
   };
 
+  const handleBulkDuplicatePlans = async () => {
+    if (selectedPlanIds.length === 0) return;
+    if (!window.confirm(`Are you sure you want to duplicate the ${selectedPlanIds.length} selected plan(s)?`)) {
+      return;
+    }
+
+    const token = localStorage.getItem("accessToken");
+    try {
+      if (isOffline) {
+        alert("Mock: duplicated plans successfully!");
+        setSelectedPlanIds([]);
+        return;
+      }
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/bulk-duplicate`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ids: selectedPlanIds }),
+      });
+
+      if (res.ok) {
+        setSelectedPlanIds([]);
+        fetchPlans(selectedDate, showAllPlans);
+        alert("Pläne erfolgreich dupliziert.");
+      } else {
+        alert("Failed to duplicate plans");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error duplicating plans");
+    }
+  };
+
+  const handleBulkChangeHallPlans = async (hallId: string) => {
+    if (selectedPlanIds.length === 0 || !hallId) return;
+
+    const token = localStorage.getItem("accessToken");
+    try {
+      if (isOffline) {
+        alert("Mock: changed hall successfully!");
+        setSelectedPlanIds([]);
+        return;
+      }
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/bulk-change-hall`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ids: selectedPlanIds, hallId }),
+      });
+
+      if (res.ok) {
+        setSelectedPlanIds([]);
+        fetchPlans(selectedDate, showAllPlans);
+        alert("Halle für ausgewählte Pläne erfolgreich geändert.");
+      } else {
+        alert("Failed to change hall");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error changing hall");
+    }
+  };
+
+  const handleBulkChangeShiftPlans = async (shift: string) => {
+    if (selectedPlanIds.length === 0 || !shift) return;
+
+    const token = localStorage.getItem("accessToken");
+    try {
+      if (isOffline) {
+        alert("Mock: changed shift successfully!");
+        setSelectedPlanIds([]);
+        return;
+      }
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/bulk-change-shift`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ids: selectedPlanIds, shift }),
+      });
+
+      if (res.ok) {
+        setSelectedPlanIds([]);
+        fetchPlans(selectedDate, showAllPlans);
+        alert("Schicht für ausgewählte Pläne erfolgreich geändert.");
+      } else {
+        alert("Failed to change shift");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error changing shift");
+    }
+  };
+
+  const handleBulkAssignEmployeesPlans = async (employeeIds: string[]) => {
+    if (selectedPlanIds.length === 0) return;
+
+    const token = localStorage.getItem("accessToken");
+    try {
+      if (isOffline) {
+        alert("Mock: assigned employees successfully!");
+        setSelectedPlanIds([]);
+        return;
+      }
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/bulk-assign-employees`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ids: selectedPlanIds, employeeIds }),
+      });
+
+      if (res.ok) {
+        setSelectedPlanIds([]);
+        fetchPlans(selectedDate, showAllPlans);
+        alert("Mitarbeiter erfolgreich für ausgewählte Pläne zugewiesen.");
+      } else {
+        alert("Failed to assign employees");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error assigning employees");
+    }
+  };
+
   const handleClockInOut = async () => {
     if (!employeeSummary) return;
     setClockLoading(true);
@@ -329,9 +467,10 @@ export default function DashboardPage() {
           }
         } else {
           // Admin/Manager dashboard data
-          const usersRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees`, { headers });
+          const usersRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees?limit=1000`, { headers });
           const usersJson = usersRes.ok ? await usersRes.json() : null;
           const usersList = usersJson && Array.isArray(usersJson.data) ? usersJson.data : [];
+          setDashboardEmployees(usersList);
 
           const containersRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/containers`, { headers });
           const containersJson = containersRes.ok ? await containersRes.json() : null;
@@ -340,6 +479,12 @@ export default function DashboardPage() {
           const hallsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/halls`, { headers });
           const hallsJson = hallsRes.ok ? await hallsRes.json() : null;
           const hallsList = hallsJson && Array.isArray(hallsJson.data) ? hallsJson.data : [];
+          setAllHalls(hallsList);
+
+          const whRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/warehouses`, { headers });
+          const whJson = whRes.ok ? await whRes.json() : null;
+          const whList = whJson && Array.isArray(whJson.data) ? whJson.data : (Array.isArray(whJson) ? whJson : []);
+          setAllWarehouses(whList);
 
           const attendanceRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/attendance/daily`, { headers });
           const attendanceData = attendanceRes.ok ? await attendanceRes.json() : [];
@@ -991,6 +1136,21 @@ export default function DashboardPage() {
                   </h5>
                   
                   <div className="flex flex-wrap items-center gap-2">
+                    {canManage && plans.length > 0 && (
+                      <button
+                        onClick={() => {
+                          if (selectedPlanIds.length === plans.length) {
+                            setSelectedPlanIds([]);
+                          } else {
+                            setSelectedPlanIds(plans.map(p => p.id));
+                          }
+                        }}
+                        className="bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer"
+                      >
+                        {selectedPlanIds.length === plans.length ? "Keine auswählen" : "Alle auswählen"}
+                      </button>
+                    )}
+
                     {!showAllPlans && (
                       <input
                         type="date"
@@ -1020,26 +1180,79 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Bulk Delete Bar */}
+                {/* Bulk Action Bar */}
                 {selectedPlanIds.length > 0 && (
-                  <div className="bg-red-50/50 border-b border-red-100 px-6 py-3 flex justify-between items-center text-xs animate-fadeIn">
-                    <span className="text-red-700 font-semibold flex items-center gap-1">
-                      <Trash2 className="w-4 h-4" /> {selectedPlanIds.length} {language === "de" ? "Pläne ausgewählt" : "plans selected"}
+                  <div className="bg-blue-50/50 border-b border-blue-150 px-6 py-4 flex flex-wrap items-center gap-3 text-xs animate-fadeIn">
+                    <span className="text-blue-800 font-bold flex items-center gap-1.5 mr-2">
+                      <Users className="w-4 h-4" />
+                      <span>{selectedPlanIds.length} Pläne ausgewählt:</span>
                     </span>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setSelectedPlanIds([])}
-                        className="text-slate-500 hover:text-slate-800 font-semibold px-2 py-1 cursor-pointer"
-                      >
-                        {t("clear")}
-                      </button>
-                      <button
-                        onClick={handleBulkDeletePlans}
-                        className="bg-red-650 hover:bg-red-700 text-white px-3 py-1 rounded-lg font-semibold transition-colors cursor-pointer"
-                      >
-                        {t("bulkDeleteSelected")}
-                      </button>
-                    </div>
+
+                    {/* Bulk Delete */}
+                    <button
+                      onClick={handleBulkDeletePlans}
+                      className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-sm"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Löschen
+                    </button>
+
+                    {/* Bulk Duplicate */}
+                    <button
+                      onClick={handleBulkDuplicatePlans}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-sm"
+                    >
+                      Duplizieren
+                    </button>
+
+                    {/* Bulk Assign Employees */}
+                    <button
+                      onClick={() => setBulkAssignEmployeesModalOpen(true)}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-sm"
+                    >
+                      <Users className="w-3.5 h-3.5" /> Mitarbeiter zuweisen
+                    </button>
+
+                    {/* Bulk Change Hall */}
+                    <select
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          handleBulkChangeHallPlans(e.target.value);
+                          e.target.value = "";
+                        }
+                      }}
+                      className="bg-white border border-slate-200 px-3 py-1.5 rounded-lg font-bold text-slate-700 outline-none hover:border-slate-350 cursor-pointer"
+                      defaultValue=""
+                    >
+                      <option value="" disabled>Halle ändern...</option>
+                      {allHalls.map((h) => (
+                        <option key={h.id} value={h.id}>{h.name}</option>
+                      ))}
+                    </select>
+
+                    {/* Bulk Change Shift */}
+                    <select
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          handleBulkChangeShiftPlans(e.target.value);
+                          e.target.value = "";
+                        }
+                      }}
+                      className="bg-white border border-slate-200 px-3 py-1.5 rounded-lg font-bold text-slate-700 outline-none hover:border-slate-350 cursor-pointer"
+                      defaultValue=""
+                    >
+                      <option value="" disabled>Schicht ändern...</option>
+                      <option value="FRUEH">Frühschicht</option>
+                      <option value="SPAET">Spätschicht</option>
+                      <option value="NACHT">Nachtschicht</option>
+                    </select>
+
+                    {/* Clear selection */}
+                    <button
+                      onClick={() => setSelectedPlanIds([])}
+                      className="text-slate-500 hover:text-slate-800 font-bold ml-auto px-2 py-1 cursor-pointer"
+                    >
+                      Auswahl aufheben
+                    </button>
                   </div>
                 )}
 
@@ -1374,6 +1587,86 @@ export default function DashboardPage() {
                   <Printer className="w-3.5 h-3.5 text-white" /> {t("printPlan")}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Bulk Assign Employees Modal ── */}
+      {bulkAssignEmployeesModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fadeIn">
+          <div className="bg-white border border-slate-100 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-scaleIn">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+              <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                <Users className="w-4.5 h-4.5 text-blue-500" />
+                Massen-Mitarbeiterzuweisung
+              </h4>
+              <button
+                onClick={() => {
+                  setBulkAssignEmployeesModalOpen(false);
+                  setBulkSelectedEmployeeIds([]);
+                }}
+                className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+              <p className="text-xs text-slate-500">
+                Wählen Sie die Mitarbeiter aus, die Sie allen {selectedPlanIds.length} ausgewählten Plänen zuweisen möchten:
+              </p>
+              <div className="space-y-2">
+                {dashboardEmployees.map((emp) => {
+                  const isChecked = bulkSelectedEmployeeIds.includes(emp.id);
+                  return (
+                    <label
+                      key={emp.id}
+                      className="flex items-center gap-2.5 p-2 hover:bg-slate-50 rounded-lg border border-slate-100 cursor-pointer text-xs transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => {
+                          if (isChecked) {
+                            setBulkSelectedEmployeeIds(prev => prev.filter(id => id !== emp.id));
+                          } else {
+                            setBulkSelectedEmployeeIds(prev => [...prev, emp.id]);
+                          }
+                        }}
+                        className="rounded text-blue-600 focus:ring-blue-500"
+                      />
+                      <div>
+                        <span className="font-semibold text-slate-800">{emp.name}</span>
+                        <span className="text-[10px] text-slate-450 block">{emp.role} {emp.hallName ? `• ${emp.hallName}` : ""}</span>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setBulkAssignEmployeesModalOpen(false);
+                  setBulkSelectedEmployeeIds([]);
+                }}
+                className="btn-secondary py-1.5 px-4 cursor-pointer text-xs"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={() => {
+                  handleBulkAssignEmployeesPlans(bulkSelectedEmployeeIds);
+                  setBulkAssignEmployeesModalOpen(false);
+                  setBulkSelectedEmployeeIds([]);
+                }}
+                className="btn-primary py-1.5 px-4 cursor-pointer text-xs"
+                disabled={bulkSelectedEmployeeIds.length === 0}
+              >
+                Zuweisen
+              </button>
             </div>
           </div>
         </div>

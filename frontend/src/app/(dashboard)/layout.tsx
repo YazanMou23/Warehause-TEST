@@ -63,6 +63,70 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [photoTrigger, setPhotoTrigger] = useState(0);
   const [mounted, setMounted] = useState(false);
 
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  const fetchNotifications = async () => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) return;
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/notifications`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch notifications", e);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const markAllRead = async () => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) return;
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/notifications/read-all`,
+        {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      if (res.ok) {
+        fetchNotifications();
+      }
+    } catch (e) {}
+  };
+
+  const markRead = async (id: string) => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) return;
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/notifications/${id}/read`,
+        {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      if (res.ok) {
+        fetchNotifications();
+      }
+    } catch (e) {}
+  };
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
   useEffect(() => {
     setMounted(true);
     const token = localStorage.getItem("accessToken");
@@ -297,20 +361,77 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           {/* Right side controls */}
           <div className="flex items-center gap-4">
-            {/* Search Launcher Button */}
-            <button className="hidden md:flex items-center justify-between w-64 px-3.5 py-1.5 border border-slate-200 rounded-lg bg-slate-50/50 hover:bg-slate-50 hover:border-slate-300 text-left text-xs text-slate-400 cursor-not-allowed transition-all">
-              <span className="flex items-center gap-2">
-                <Search className="w-3.5 h-3.5 text-slate-400" />
-                Search operations...
-              </span>
-              <span className="bg-white border border-slate-200 px-1.5 py-0.5 rounded text-[9px] font-bold text-slate-400">⌘K</span>
-            </button>
-
             {/* Notifications */}
-            <button className="w-8 h-8 flex items-center justify-center hover:bg-[#f1f5f9] rounded-lg relative transition-colors cursor-pointer">
-              <Bell className="w-4 h-4 text-[#64748b]" />
-              <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-secondary rounded-full" />
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="w-8 h-8 flex items-center justify-center hover:bg-[#f1f5f9] rounded-lg relative transition-colors cursor-pointer"
+              >
+                <Bell className="w-4 h-4 text-[#64748b]" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 min-w-4 h-4 px-1 flex items-center justify-center bg-red-600 rounded-full text-[9px] font-bold text-white leading-none">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {showNotifications && (
+                <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                    <span className="font-bold text-slate-800 text-xs">Benachrichtigungen</span>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={markAllRead}
+                        className="text-[10px] text-blue-600 hover:text-blue-700 font-bold transition-colors cursor-pointer"
+                      >
+                        Alle lesen
+                      </button>
+                    )}
+                  </div>
+                  <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
+                    {notifications.length === 0 ? (
+                      <div className="p-8 text-center text-xs text-slate-400">
+                        Keine Benachrichtigungen
+                      </div>
+                    ) : (
+                      notifications.map((n) => (
+                        <div
+                          key={n.id}
+                          className={`p-3 text-left transition-colors flex gap-2.5 items-start ${
+                            n.read ? "bg-white" : "bg-blue-50/30"
+                          }`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1">
+                              <p className={`text-xs truncate ${n.read ? "text-slate-700 font-medium" : "text-slate-900 font-bold"}`}>
+                                {n.title}
+                              </p>
+                              {!n.read && (
+                                <button
+                                  onClick={() => markRead(n.id)}
+                                  className="text-[9px] text-slate-400 hover:text-blue-600 font-medium shrink-0 transition-colors cursor-pointer"
+                                >
+                                  Gelesen
+                                </button>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-500 mt-0.5 whitespace-pre-wrap leading-relaxed">
+                              {n.message}
+                            </p>
+                            <p className="text-[9px] text-slate-400 mt-1">
+                              {new Date(n.createdAt).toLocaleDateString("de-DE", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Profile Chip */}
             <Link

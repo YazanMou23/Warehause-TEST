@@ -13,4 +13,8 @@ export class CreateHallDto {
   @IsInt()
   @Min(1)
   capacity?: number;
+
+  @IsOptional()
+  @IsString()
+  color?: string;
 }

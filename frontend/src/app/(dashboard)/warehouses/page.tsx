@@ -437,8 +437,8 @@ export default function WarehousesPage() {
             >
               <div>
                 <div className="flex justify-between items-start mb-4">
-                  <div className="w-12 h-12 bg-surface-container-high rounded-xl flex items-center justify-center group-hover:bg-secondary-container group-hover:text-white transition-colors">
-                    <WarehouseIcon className="w-6 h-6 text-secondary group-hover:text-white" />
+                  <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center transition-all duration-300 ease-in-out group-hover:scale-105 group-hover:bg-blue-100 group-hover:shadow-sm">
+                    <WarehouseIcon className="w-6 h-6 text-blue-600 transition-colors" />
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className={`px-2.5 py-0.5 rounded font-label-md text-[10px] uppercase font-bold tracking-wider ${badgeColor}`}>

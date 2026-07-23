@@ -37,7 +37,7 @@ export class UsersController {
   ) {}
 
   @Post()
-  @Roles(Role.MANAGER, Role.ADMIN)
+  @Roles(Role.MANAGER)
   create(@Body() createUserDto: CreateUserDto, @CurrentUser() currentUser: any) {
     return this.usersService.create(createUserDto, currentUser.id, currentUser.role);
   }
@@ -56,9 +56,41 @@ export class UsersController {
   }
 
   @Delete('bulk')
-  @Roles(Role.MANAGER, Role.ADMIN)
+  @Roles(Role.MANAGER)
   bulkRemove(@Body('ids') ids: string[], @CurrentUser() currentUser: any) {
     return this.usersService.bulkDeactivate(ids, currentUser.id, currentUser.role);
+  }
+
+  @Patch('bulk-activate')
+  @Roles(Role.MANAGER)
+  bulkActivate(@Body('ids') ids: string[], @CurrentUser() currentUser: any) {
+    return this.usersService.bulkActivate(ids, currentUser.id);
+  }
+
+  @Patch('bulk-deactivate')
+  @Roles(Role.MANAGER)
+  bulkDeactivate(@Body('ids') ids: string[], @CurrentUser() currentUser: any) {
+    return this.usersService.bulkDeactivate(ids, currentUser.id, currentUser.role);
+  }
+
+  @Patch('bulk-assign-hall')
+  @Roles(Role.MANAGER)
+  bulkAssignHall(
+    @Body('ids') ids: string[],
+    @Body('hallId') hallId: string,
+    @CurrentUser() currentUser: any,
+  ) {
+    return this.usersService.bulkAssignHall(ids, hallId, currentUser.id);
+  }
+
+  @Patch('bulk-assign-role')
+  @Roles(Role.MANAGER)
+  bulkAssignRole(
+    @Body('ids') ids: string[],
+    @Body('role') role: Role,
+    @CurrentUser() currentUser: any,
+  ) {
+    return this.usersService.bulkAssignRole(ids, role, currentUser.id);
   }
 
   @Get('excel-template')
@@ -71,7 +103,7 @@ export class UsersController {
   }
 
   @Post('import-excel')
-  @Roles(Role.MANAGER, Role.ADMIN)
+  @Roles(Role.MANAGER)
   @UseInterceptors(FileInterceptor('file', {
     limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
@@ -92,7 +124,7 @@ export class UsersController {
   }
 
   @Post('upload-excel')
-  @Roles(Role.MANAGER, Role.ADMIN)
+  @Roles(Role.MANAGER)
   @UseInterceptors(FileInterceptor('file', {
     limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
@@ -127,23 +159,15 @@ export class UsersController {
     @Body() updateUserDto: UpdateUserDto,
     @CurrentUser() currentUser: any,
   ) {
-    // Employees can only update their own profile
-    if (currentUser.role === Role.EMPLOYEE && currentUser.id !== id) {
-      throw new ForbiddenException('You can only update your own profile');
+    // Standard employees and Admins can only update their own profile
+    if ((currentUser.role === Role.EMPLOYEE || currentUser.role === Role.ADMIN) && currentUser.id !== id) {
+      throw new ForbiddenException('Only Managers can edit other user profiles');
     }
-    // Strict limits for standard employees
-    if (currentUser.role === Role.EMPLOYEE) {
+    // Strict limits for standard employees and Admins
+    if (currentUser.role === Role.EMPLOYEE || currentUser.role === Role.ADMIN) {
       delete updateUserDto.username;
       delete updateUserDto.password;
       delete updateUserDto.phone;
-      delete updateUserDto.role;
-      delete updateUserDto.warehouseId;
-      delete updateUserDto.hallId;
-      delete updateUserDto.isActive;
-      delete updateUserDto.employmentStart;
-      delete updateUserDto.employmentEnd;
-    } else if (currentUser.role !== Role.MANAGER && currentUser.role !== Role.ADMIN) {
-      // General safety fallback
       delete updateUserDto.role;
       delete updateUserDto.warehouseId;
       delete updateUserDto.hallId;
@@ -155,7 +179,7 @@ export class UsersController {
   }
 
   @Delete(':id')
-  @Roles(Role.MANAGER, Role.ADMIN)
+  @Roles(Role.MANAGER)
   remove(@Param('id') id: string, @CurrentUser() currentUser: any) {
     return this.usersService.deactivate(id, currentUser.id, currentUser.role);
   }

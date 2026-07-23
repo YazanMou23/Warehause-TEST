@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateContainerDto } from './dto/create-container.dto';
 import { UpdateContainerDto } from './dto/update-container.dto';
@@ -9,18 +9,6 @@ export class ContainerService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(createContainerDto: CreateContainerDto, actorId?: string) {
-    // Check if container already exists
-    const existing = await this.prisma.container.findFirst({
-      where: {
-        containerNumber: createContainerDto.containerNumber,
-        deletedAt: null,
-      },
-    });
-
-    if (existing) {
-      throw new ConflictException(`Container with number ${createContainerDto.containerNumber} already exists`);
-    }
-
     // Verify warehouse & hall exist
     const hall = await this.prisma.hall.findFirst({
       where: {
@@ -34,21 +22,40 @@ export class ContainerService {
       throw new NotFoundException('Specified hall does not exist in the specified warehouse');
     }
 
-    const container = await this.prisma.container.create({
-      data: {
-        containerNumber: createContainerDto.containerNumber.toUpperCase(),
-        status: createContainerDto.status,
-        warehouseId: createContainerDto.warehouseId,
-        hallId: createContainerDto.hallId,
-        arrivalDate: createContainerDto.arrivalDate ? new Date(createContainerDto.arrivalDate) : new Date(),
-      },
+    const { assignedEmployeeIds, ...directData } = createContainerDto;
+
+    const container = await this.prisma.$transaction(async (tx) => {
+      const containerObj = await tx.container.create({
+        data: {
+          containerNumber: directData.containerNumber.toUpperCase(),
+          status: directData.status,
+          warehouseId: directData.warehouseId,
+          hallId: directData.hallId,
+          arrivalDate: directData.arrivalDate ? new Date(directData.arrivalDate) : new Date(),
+          workedHours: directData.workedHours !== undefined ? directData.workedHours : 0,
+          notes: directData.notes || null,
+          createdById: actorId || null,
+          updatedById: actorId || null,
+        },
+      });
+
+      if (assignedEmployeeIds && assignedEmployeeIds.length > 0) {
+        await tx.containerEmployee.createMany({
+          data: assignedEmployeeIds.map((empId) => ({
+            containerId: containerObj.id,
+            employeeId: empId,
+          })),
+        });
+      }
+
+      return containerObj;
     });
 
     await this.prisma.actionLog.create({
       data: {
         userId: actorId || null,
         action: 'CREATE_CONTAINER',
-        details: `Created container ${container.containerNumber} (ID: ${container.id}) in warehouse ${container.warehouseId}, hall ${container.hallId}`,
+        details: `Created worked container ${container.containerNumber} (ID: ${container.id}) in warehouse ${container.warehouseId}, hall ${container.hallId}`,
       },
     });
 
@@ -59,7 +66,6 @@ export class ContainerService {
     const results = [];
     const errors = [];
 
-    // Run sequentially to ensure proper error tracking and validations
     for (const cDto of bulkImportDto.containers) {
       try {
         const result = await this.create(cDto, actorId);
@@ -113,6 +119,19 @@ export class ContainerService {
         include: {
           warehouse: { select: { name: true } },
           hall: { select: { name: true } },
+          employees: {
+            include: {
+              employee: {
+                select: {
+                  id: true,
+                  name: true,
+                  role: true,
+                },
+              },
+            },
+          },
+          createdBy: { select: { name: true } },
+          updatedBy: { select: { name: true } },
         },
         skip,
         take: limit,
@@ -137,6 +156,20 @@ export class ContainerService {
       include: {
         warehouse: true,
         hall: true,
+        employees: {
+          include: {
+            employee: {
+              select: {
+                id: true,
+                name: true,
+                role: true,
+                phone: true,
+              },
+            },
+          },
+        },
+        createdBy: { select: { id: true, name: true } },
+        updatedBy: { select: { id: true, name: true } },
       },
     });
 
@@ -150,6 +183,9 @@ export class ContainerService {
   async update(id: string, updateContainerDto: UpdateContainerDto, actorId?: string) {
     const container = await this.prisma.container.findFirst({
       where: { id, deletedAt: null },
+      include: {
+        employees: true,
+      },
     });
 
     if (!container) {
@@ -174,20 +210,67 @@ export class ContainerService {
       }
     }
 
-    const updated = await this.prisma.container.update({
-      where: { id },
-      data: updateContainerDto,
+    const { assignedEmployeeIds, ...directData } = updateContainerDto;
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const containerObj = await tx.container.update({
+        where: { id },
+        data: {
+          ...directData,
+          updatedById: actorId || null,
+        },
+      });
+
+      if (assignedEmployeeIds !== undefined) {
+        // Clear old ones
+        await tx.containerEmployee.deleteMany({
+          where: { containerId: id },
+        });
+
+        // Insert new ones
+        if (assignedEmployeeIds.length > 0) {
+          await tx.containerEmployee.createMany({
+            data: assignedEmployeeIds.map((empId) => ({
+              containerId: id,
+              employeeId: empId,
+            })),
+          });
+        }
+      }
+
+      return containerObj;
     });
+
+    // Create detailed audit trail changes
+    const changes = [];
+    if (updateContainerDto.status && updateContainerDto.status !== container.status) {
+      changes.push(`status to ${updateContainerDto.status}`);
+    }
+    if (updateContainerDto.workedHours !== undefined && updateContainerDto.workedHours !== container.workedHours) {
+      changes.push(`worked hours to ${updateContainerDto.workedHours}`);
+    }
+    if (updateContainerDto.notes !== undefined && updateContainerDto.notes !== container.notes) {
+      changes.push(`notes updated`);
+    }
+    if (updateContainerDto.warehouseId && updateContainerDto.warehouseId !== container.warehouseId) {
+      changes.push(`relocated warehouse`);
+    }
+    if (updateContainerDto.hallId && updateContainerDto.hallId !== container.hallId) {
+      changes.push(`relocated hall`);
+    }
+    if (assignedEmployeeIds !== undefined) {
+      changes.push(`updated assigned employees`);
+    }
 
     await this.prisma.actionLog.create({
       data: {
         userId: actorId || null,
         action: 'UPDATE_CONTAINER',
-        details: `Updated container ${updated.containerNumber} (ID: ${updated.id})`,
+        details: `Updated container ${container.containerNumber} (${container.id}): ${changes.join(', ') || 'no changes'}`,
       },
     });
 
-    return updated;
+    return this.findOne(id);
   }
 
   async deactivate(id: string, actorId?: string) {
@@ -213,5 +296,35 @@ export class ContainerService {
     });
 
     return { message: 'Container deactivated successfully' };
+  }
+
+  async getAuditTrail(id: string) {
+    const container = await this.prisma.container.findFirst({
+      where: { id, deletedAt: null },
+    });
+
+    if (!container) {
+      throw new NotFoundException(`Container with ID ${id} not found`);
+    }
+
+    return this.prisma.actionLog.findMany({
+      where: {
+        details: {
+          contains: id,
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            role: true,
+          },
+        },
+      },
+      orderBy: {
+        timestamp: 'desc',
+      },
+    });
   }
 }

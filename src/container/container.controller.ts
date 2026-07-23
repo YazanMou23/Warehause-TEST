@@ -44,6 +44,11 @@ export class ContainerController {
     return this.containerService.findOne(id);
   }
 
+  @Get(':id/history')
+  getHistory(@Param('id') id: string) {
+    return this.containerService.getAuditTrail(id);
+  }
+
   @Patch(':id')
   @Roles(Role.MANAGER, Role.ADMIN)
   update(

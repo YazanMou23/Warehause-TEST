@@ -260,7 +260,7 @@ export class UsersService {
       data,
     });
 
-    // Logging
+    // Logging & Notification
     if (updateUserDto.role && updateUserDto.role !== user.role) {
       await this.prisma.actionLog.create({
         data: {
@@ -269,6 +269,15 @@ export class UsersService {
           details: `Changed role of user ${updated.name} (${updated.username}) from ${user.role} to ${updated.role}`,
         },
       });
+
+      await this.prisma.notification.create({
+        data: {
+          userId: id,
+          title: 'Benutzerrolle geändert',
+          message: `Ihre Rolle wurde von ${user.role} auf ${updated.role} geändert.`,
+          type: 'ROLE_CHANGED',
+        },
+      }).catch(() => {});
     } else if (isChangingCredentials) {
       await this.prisma.actionLog.create({
         data: {
@@ -372,11 +381,114 @@ export class UsersService {
       data: {
         userId: actorId,
         action: 'USER_DELETE',
-        details: `Bulk deleted ${result.count} users: ${users.map((u) => u.username).join(', ')}`,
+        details: `Bulk deactivated ${result.count} users: ${users.map((u) => u.username).join(', ')}`,
       },
     });
 
     return { message: `${result.count} users deactivated successfully` };
+  }
+
+  async bulkActivate(ids: string[], actorId?: string) {
+    const users = await this.prisma.user.findMany({
+      where: {
+        id: { in: ids },
+      },
+    });
+
+    if (users.length === 0) {
+      throw new NotFoundException('No users found for the provided IDs');
+    }
+
+    const result = await this.prisma.user.updateMany({
+      where: {
+        id: { in: ids },
+      },
+      data: {
+        isActive: true,
+        deletedAt: null,
+      },
+    });
+
+    await this.prisma.actionLog.create({
+      data: {
+        userId: actorId || null,
+        action: 'USER_ACTIVATE',
+        details: `Bulk activated ${result.count} users: ${users.map((u) => u.username).join(', ')}`,
+      },
+    });
+
+    return { message: `${result.count} users activated successfully` };
+  }
+
+  async bulkAssignHall(ids: string[], hallId: string, actorId?: string) {
+    const users = await this.prisma.user.findMany({
+      where: {
+        id: { in: ids },
+      },
+    });
+
+    if (users.length === 0) {
+      throw new NotFoundException('No users found for the provided IDs');
+    }
+
+    const hall = await this.prisma.hall.findFirst({
+      where: { id: hallId, deletedAt: null },
+    });
+
+    if (!hall) {
+      throw new NotFoundException(`Hall with ID ${hallId} not found`);
+    }
+
+    const result = await this.prisma.user.updateMany({
+      where: {
+        id: { in: ids },
+      },
+      data: {
+        hallId,
+        warehouseId: hall.warehouseId,
+      },
+    });
+
+    await this.prisma.actionLog.create({
+      data: {
+        userId: actorId || null,
+        action: 'USER_ASSIGN_HALL',
+        details: `Bulk assigned ${result.count} users to hall ${hall.name} (Warehouse ID: ${hall.warehouseId})`,
+      },
+    });
+
+    return { message: `${result.count} users assigned to hall successfully` };
+  }
+
+  async bulkAssignRole(ids: string[], role: Role, actorId?: string) {
+    const users = await this.prisma.user.findMany({
+      where: {
+        id: { in: ids },
+      },
+    });
+
+    if (users.length === 0) {
+      throw new NotFoundException('No users found for the provided IDs');
+    }
+
+    const result = await this.prisma.user.updateMany({
+      where: {
+        id: { in: ids },
+      },
+      data: {
+        role,
+      },
+    });
+
+    await this.prisma.actionLog.create({
+      data: {
+        userId: actorId || null,
+        action: 'USER_ASSIGN_ROLE',
+        details: `Bulk changed role of ${result.count} users to ${role}`,
+      },
+    });
+
+    return { message: `${result.count} users roles updated successfully` };
   }
 
   async getEmployeeDashboardSummary(employeeId: string) {

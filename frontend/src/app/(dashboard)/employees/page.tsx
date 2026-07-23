@@ -382,7 +382,7 @@ export default function EmployeesPage() {
 
   const handleBulkDeactivate = async () => {
     if (selectedEmpIds.length === 0) return;
-    if (!window.confirm(language === "de" ? `Sind Sie sicher, dass Sie die ${selectedEmpIds.length} ausgewählten Mitarbeiter deactivieren möchten?` : `Are you sure you want to deactivate the ${selectedEmpIds.length} selected employee(s)?`)) {
+    if (!window.confirm(language === "de" ? `Sind Sie sicher, dass Sie die ${selectedEmpIds.length} ausgewählten Mitarbeiter deaktivieren möchten?` : `Are you sure you want to deactivate the ${selectedEmpIds.length} selected employee(s)?`)) {
       return;
     }
 
@@ -394,8 +394,8 @@ export default function EmployeesPage() {
         return;
       }
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/bulk`, {
-        method: "DELETE",
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/bulk-deactivate`, {
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
@@ -413,6 +413,174 @@ export default function EmployeesPage() {
       console.error(e);
       alert("Error occurred");
     }
+  };
+
+  const handleBulkActivate = async () => {
+    if (selectedEmpIds.length === 0) return;
+    if (!window.confirm(language === "de" ? `Ausgewählte ${selectedEmpIds.length} Mitarbeiter aktivieren?` : `Activate the ${selectedEmpIds.length} selected employee(s)?`)) {
+      return;
+    }
+
+    const token = localStorage.getItem("accessToken");
+    try {
+      if (isOffline) {
+        alert("Mock: bulk activate");
+        setSelectedEmpIds([]);
+        return;
+      }
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/bulk-activate`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ids: selectedEmpIds }),
+      });
+
+      if (res.ok) {
+        setSelectedEmpIds([]);
+        loadEmployees();
+      } else {
+        alert("Failed to activate employees");
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleBulkAssignHall = async (hallId: string) => {
+    if (selectedEmpIds.length === 0 || !hallId) return;
+
+    const token = localStorage.getItem("accessToken");
+    try {
+      if (isOffline) {
+        alert("Mock: bulk assign hall");
+        setSelectedEmpIds([]);
+        return;
+      }
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/bulk-assign-hall`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ids: selectedEmpIds, hallId }),
+      });
+
+      if (res.ok) {
+        setSelectedEmpIds([]);
+        loadEmployees();
+      } else {
+        alert("Failed to assign hall");
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleBulkAssignRole = async (role: string) => {
+    if (selectedEmpIds.length === 0 || !role) return;
+
+    const token = localStorage.getItem("accessToken");
+    try {
+      if (isOffline) {
+        alert("Mock: bulk assign role");
+        setSelectedEmpIds([]);
+        return;
+      }
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/bulk-assign-role`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ids: selectedEmpIds, role }),
+      });
+
+      if (res.ok) {
+        setSelectedEmpIds([]);
+        loadEmployees();
+      } else {
+        alert("Failed to assign role");
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleExportSelected = () => {
+    const selectedEmployees = employees.filter((e) => selectedEmpIds.includes(e.id));
+    if (selectedEmployees.length === 0) return;
+    
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "ID,Name,Username,Phone,Email,Role,IsActive\n";
+    selectedEmployees.forEach((emp) => {
+      csvContent += `"${emp.id}","${emp.name}","${emp.username}","${emp.phone}","${emp.email || ""}","${emp.role}","${emp.isActive}"\n`;
+    });
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `employees_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handlePrintSelected = () => {
+    const selectedEmployees = employees.filter((e) => selectedEmpIds.includes(e.id));
+    if (selectedEmployees.length === 0) return;
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Mitarbeiterliste Drucken</title>
+          <style>
+            body { font-family: sans-serif; padding: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; }
+          </style>
+        </head>
+        <body>
+          <h2>Ausgewählte Mitarbeiter (${selectedEmployees.length})</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Benutzername</th>
+                <th>Telefonnummer</th>
+                <th>E-Mail</th>
+                <th>Rolle</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${selectedEmployees.map(emp => `
+                <tr>
+                  <td>${emp.name}</td>
+                  <td>${emp.username}</td>
+                  <td>${emp.phone}</td>
+                  <td>${emp.email || "—"}</td>
+                  <td>${emp.role}</td>
+                  <td>${emp.isActive ? "Aktiv" : "Inaktiv"}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+          <script>
+            window.onload = function() { window.print(); window.close(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   const getWhatsAppLink = (phone: string, name: string) => {
@@ -612,25 +780,100 @@ export default function EmployeesPage() {
       </div>
 
       {/* Search & Actions Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-100 p-5 rounded-xl shadow-sm">
-        <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search by name, username or phone..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="input-premium pl-9 py-2 text-xs"
-          />
+      <div className="space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-100 p-5 rounded-xl shadow-sm">
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search by name, username or phone..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="input-premium pl-9 py-2 text-xs"
+            />
+          </div>
         </div>
 
         {canManage && selectedEmpIds.length > 0 && (
-          <button
-            onClick={handleBulkDeactivate}
-            className="bg-red-650 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors self-start cursor-pointer shadow-sm"
-          >
-            <Trash2 className="w-4 h-4" /> {t("deactivateSelected")} ({selectedEmpIds.length})
-          </button>
+          <div className="bg-blue-50/50 border border-blue-150 p-4 rounded-xl shadow-sm flex flex-wrap items-center gap-3 animate-fadeIn text-xs">
+            <div className="font-bold text-blue-800 mr-2 flex items-center gap-1.5">
+              <Users className="w-4 h-4" />
+              <span>{selectedEmpIds.length} Mitarbeiter ausgewählt:</span>
+            </div>
+
+            {/* Bulk Deactivate */}
+            <button
+              onClick={handleBulkDeactivate}
+              className="bg-red-600 hover:bg-red-700 text-white px-3.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-sm"
+              title="Mitarbeiter deaktivieren"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Deaktivieren
+            </button>
+
+            {/* Bulk Activate */}
+            <button
+              onClick={handleBulkActivate}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-sm"
+              title="Mitarbeiter aktivieren"
+            >
+              <UserCheck className="w-3.5 h-3.5" /> Aktivieren
+            </button>
+
+            {/* Bulk Assign Hall Select */}
+            <div className="relative">
+              <select
+                onChange={(e) => {
+                  if (e.target.value) {
+                    handleBulkAssignHall(e.target.value);
+                    e.target.value = "";
+                  }
+                }}
+                className="bg-white border border-slate-200 px-3 py-1.5 rounded-lg font-bold text-slate-700 outline-none hover:border-slate-350 cursor-pointer"
+                defaultValue=""
+              >
+                <option value="" disabled>Halle zuweisen...</option>
+                {halls.map((h) => (
+                  <option key={h.id} value={h.id}>{h.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Bulk Assign Role Select */}
+            <div className="relative">
+              <select
+                onChange={(e) => {
+                  if (e.target.value) {
+                    handleBulkAssignRole(e.target.value);
+                    e.target.value = "";
+                  }
+                }}
+                className="bg-white border border-slate-200 px-3 py-1.5 rounded-lg font-bold text-slate-700 outline-none hover:border-slate-350 cursor-pointer"
+                defaultValue=""
+              >
+                <option value="" disabled>Rolle zuweisen...</option>
+                <option value="EMPLOYEE">Mitarbeiter</option>
+                <option value="TEAM_LEADER">Vorarbeiter</option>
+                <option value="ADMIN">Administrator</option>
+                <option value="MANAGER">Manager</option>
+              </select>
+            </div>
+
+            {/* Export Selected */}
+            <button
+              onClick={handleExportSelected}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-sm"
+            >
+              <Download className="w-3.5 h-3.5" /> Exportieren (CSV)
+            </button>
+
+            {/* Print Selected */}
+            <button
+              onClick={handlePrintSelected}
+              className="bg-slate-650 hover:bg-slate-700 text-white px-3.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-sm"
+            >
+              <Users className="w-3.5 h-3.5" /> Drucken
+            </button>
+          </div>
         )}
       </div>
 

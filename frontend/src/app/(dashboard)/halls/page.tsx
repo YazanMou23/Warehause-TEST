@@ -15,6 +15,7 @@ import {
   Activity,
   SlidersHorizontal,
   ChevronDown,
+  Edit2,
 } from "lucide-react";
 
 interface UserCompact {
@@ -34,6 +35,7 @@ interface HallItem {
   warehouseId: string;
   warehouse?: WarehouseItem;
   capacity: number | null;
+  color?: string;
   containers?: any[];
   users?: UserCompact[];
 }
@@ -56,11 +58,34 @@ function HallsPageContent() {
   const [newHallName, setNewHallName] = useState("");
   const [newHallWhId, setNewHallWhId] = useState("");
   const [newHallCapacity, setNewHallCapacity] = useState("100");
+  const [newHallColor, setNewHallColor] = useState("#1d4ed8");
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState("");
 
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingHall, setEditingHall] = useState<HallItem | null>(null);
+  const [editHallName, setEditHallName] = useState("");
+  const [editHallWhId, setEditHallWhId] = useState("");
+  const [editHallCapacity, setEditHallCapacity] = useState("100");
+  const [editHallColor, setEditHallColor] = useState("#1d4ed8");
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState("");
+
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const COLOR_PRESETS = [
+    "#1d4ed8",
+    "#b91c1c",
+    "#0f766e",
+    "#6b21a8",
+    "#c2410c",
+    "#0369a1",
+    "#15803d",
+    "#4d7c0f",
+    "#312e81",
+    "#b45309",
+  ];
 
   const router = useRouter();
 
@@ -211,6 +236,7 @@ function HallsPageContent() {
           name: newHallName,
           warehouseId: newHallWhId,
           capacity: parseInt(newHallCapacity, 10),
+          color: newHallColor,
         }),
       });
 
@@ -220,12 +246,52 @@ function HallsPageContent() {
       }
 
       setNewHallName("");
+      setNewHallColor("#1d4ed8");
       setCreateModalOpen(false);
       await fetchHalls();
     } catch (err: any) {
       setCreateError(err.message || "Network error occurred.");
     } finally {
       setCreateLoading(false);
+    }
+  };
+
+  // Edit hall action
+  const handleEditHall = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingHall || !editHallName.trim() || !editHallWhId) return;
+
+    setEditLoading(true);
+    setEditError("");
+    const token = localStorage.getItem("accessToken");
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/halls/${editingHall.id}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({
+          name: editHallName,
+          warehouseId: editHallWhId,
+          capacity: parseInt(editHallCapacity, 10),
+          color: editHallColor,
+        }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.message || "Failed to update hall");
+      }
+
+      setEditModalOpen(false);
+      setEditingHall(null);
+      await fetchHalls();
+    } catch (err: any) {
+      setEditError(err.message || "Network error occurred.");
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -422,14 +488,15 @@ function HallsPageContent() {
               statusBadge = "bg-neutral-100 text-neutral-800 dark:bg-neutral-900/30 dark:text-neutral-400";
             }
 
-            return (
+             return (
               <div
                 key={hall.id}
                 className="bg-white border border-outline-variant rounded-xl p-stack-md shadow-sm hover:shadow-md hover:border-secondary/40 transition-all flex flex-col justify-between"
+                style={{ borderTop: `4px solid ${hall.color || '#1d4ed8'}` }}
               >
                 <div>
                   <div className="flex justify-between items-start mb-3">
-                    <div className="w-10 h-10 bg-secondary/10 text-secondary flex items-center justify-center rounded-lg">
+                    <div className="w-10 h-10 bg-secondary/10 text-secondary flex items-center justify-center rounded-lg" style={{ color: hall.color || undefined, backgroundColor: `${hall.color}15` || undefined }}>
                       <GridIcon className="w-5 h-5 animate-pulse" />
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -437,13 +504,29 @@ function HallsPageContent() {
                         {statusLabel}
                       </span>
                       {userRole === "ADMIN" && (
-                        <button
-                          onClick={() => setConfirmDeleteId(hall.id)}
-                          className="p-1 text-on-surface-variant hover:text-error hover:bg-error-container/20 rounded transition-colors"
-                          title="Delete Hall"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => {
+                              setEditingHall(hall);
+                              setEditHallName(hall.name);
+                              setEditHallWhId(hall.warehouseId);
+                              setEditHallCapacity(String(hall.capacity || 100));
+                              setEditHallColor(hall.color || "#1d4ed8");
+                              setEditModalOpen(true);
+                            }}
+                            className="p-1 text-on-surface-variant hover:text-blue-600 hover:bg-blue-50 rounded transition-colors cursor-pointer"
+                            title="Edit Hall"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteId(hall.id)}
+                            className="p-1 text-on-surface-variant hover:text-error hover:bg-error-container/20 rounded transition-colors cursor-pointer"
+                            title="Delete Hall"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -565,6 +648,35 @@ function HallsPageContent() {
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-1">
+                  Sector Color
+                </label>
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    type="color"
+                    value={newHallColor}
+                    onChange={(e) => setNewHallColor(e.target.value)}
+                    className="w-10 h-10 border border-outline-variant rounded cursor-pointer p-0 bg-transparent"
+                  />
+                  <span className="text-body-sm font-mono text-slate-650">{newHallColor}</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {COLOR_PRESETS.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setNewHallColor(color)}
+                      className={`w-6 h-6 rounded-full border transition-all cursor-pointer ${
+                        newHallColor === color ? "border-slate-800 scale-110 shadow-sm" : "border-transparent hover:scale-105"
+                      }`}
+                      style={{ backgroundColor: color }}
+                      title={color}
+                    />
+                  ))}
+                </div>
+              </div>
+
               {createError && (
                 <div className="bg-error-container text-on-error-container px-3 py-2 rounded-lg text-xs flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
@@ -586,6 +698,134 @@ function HallsPageContent() {
                   className="px-4 py-2 bg-secondary text-white hover:bg-secondary-container rounded-lg text-label-md transition-colors font-bold disabled:opacity-50"
                 >
                   {createLoading ? "Saving..." : "Configure Sector"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal - Edit Hall */}
+      {editModalOpen && editingHall && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white border border-outline-variant rounded-xl max-w-md w-full p-stack-md shadow-2xl relative animate-scaleIn">
+            <button
+              onClick={() => {
+                setEditModalOpen(false);
+                setEditingHall(null);
+              }}
+              className="absolute top-4 right-4 p-1 rounded-full text-on-surface hover:bg-surface-container-high transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h3 className="font-bold text-body-lg text-on-surface mb-1">Edit Hall Staging Sector</h3>
+            <p className="text-on-surface-variant text-xs mb-4">
+              Update staging sector configurations and custom color assignment.
+            </p>
+
+            <form onSubmit={handleEditHall} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-1">
+                  Staging Sector Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Hall C - Cold Storage"
+                  value={editHallName}
+                  onChange={(e) => setEditHallName(e.target.value)}
+                  className="w-full px-3.5 py-2 border border-outline-variant rounded-lg text-body-sm focus:ring-1 focus:ring-secondary focus:border-secondary outline-none bg-surface-container-low"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-1">
+                  Assign Warehouse Location
+                </label>
+                <select
+                  value={editHallWhId}
+                  onChange={(e) => setEditHallWhId(e.target.value)}
+                  className="w-full px-3.5 py-2 border border-outline-variant rounded-lg text-body-sm focus:ring-1 focus:ring-secondary focus:border-secondary outline-none bg-surface-container-low font-medium cursor-pointer"
+                  required
+                >
+                  <option value="" disabled>Select Depot...</option>
+                  {warehouses.map((wh) => (
+                    <option key={wh.id} value={wh.id}>
+                      {wh.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-1">
+                  Maximum Container Capacity
+                </label>
+                <input
+                  type="number"
+                  placeholder="100"
+                  min="10"
+                  value={editHallCapacity}
+                  onChange={(e) => setEditHallCapacity(e.target.value)}
+                  className="w-full px-3.5 py-2 border border-outline-variant rounded-lg text-body-sm focus:ring-1 focus:ring-secondary focus:border-secondary outline-none bg-surface-container-low"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-1">
+                  Sector Color
+                </label>
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    type="color"
+                    value={editHallColor}
+                    onChange={(e) => setEditHallColor(e.target.value)}
+                    className="w-10 h-10 border border-outline-variant rounded cursor-pointer p-0 bg-transparent"
+                  />
+                  <span className="text-body-sm font-mono text-slate-650">{editHallColor}</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {COLOR_PRESETS.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setEditHallColor(color)}
+                      className={`w-6 h-6 rounded-full border transition-all cursor-pointer ${
+                        editHallColor === color ? "border-slate-800 scale-110 shadow-sm" : "border-transparent hover:scale-105"
+                      }`}
+                      style={{ backgroundColor: color }}
+                      title={color}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {editError && (
+                <div className="bg-error-container text-on-error-container px-3 py-2 rounded-lg text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+                  <span>{editError}</span>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditModalOpen(false);
+                    setEditingHall(null);
+                  }}
+                  className="px-4 py-2 border border-outline-variant hover:bg-surface-container-high rounded-lg text-label-md transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editLoading}
+                  className="px-4 py-2 bg-secondary text-white hover:bg-secondary-container rounded-lg text-label-md transition-colors font-bold disabled:opacity-50 cursor-pointer"
+                >
+                  {editLoading ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </form>

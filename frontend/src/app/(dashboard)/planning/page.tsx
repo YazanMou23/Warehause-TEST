@@ -7,13 +7,10 @@ import {
   Grid,
   Warehouse as WarehouseIcon,
   Users,
-  Package,
-  Plus,
-  Trash2,
   Save,
   CheckCircle,
   AlertTriangle,
-  Info,
+  X,
 } from "lucide-react";
 
 interface Warehouse {
@@ -34,12 +31,6 @@ interface Employee {
   role: string;
 }
 
-interface Container {
-  id: string;
-  containerNumber: string;
-  status: "FULL" | "EMPTY";
-}
-
 function PlanningPageContent() {
   const [date, setDate] = useState("");
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -50,12 +41,11 @@ function PlanningPageContent() {
   const [hasInitializedFromQuery, setHasInitializedFromQuery] = useState(false);
 
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [containers, setContainers] = useState<Container[]>([]);
 
   // Selection states for planning
   const [assignedEmployeeIds, setAssignedEmployeeIds] = useState<string[]>([]);
-  const [assignedContainerIds, setAssignedContainerIds] = useState<string[]>([]);
-  const [containerFree, setContainerFree] = useState(false);
+  const [shift, setShift] = useState("Frühschicht");
+  const [notes, setNotes] = useState("");
 
   const [planId, setPlanId] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
@@ -106,17 +96,11 @@ function PlanningPageContent() {
           setSelectedHallId(qHall);
         }
 
-        // Fetch employees
-        const empRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees`, { headers });
+        // Fetch all employees (limit=10000 to prevent pagination hiding employees)
+        const empRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees?limit=10000`, { headers });
         const empJson = empRes.ok ? await empRes.json() : null;
         const empData = empJson && Array.isArray(empJson.data) ? empJson.data : (Array.isArray(empJson) ? empJson : []);
         setEmployees(empData.filter((u: any) => u.role !== "ADMIN"));
-
-        // Fetch containers
-        const containerRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/containers`, { headers });
-        const containerJson = containerRes.ok ? await containerRes.json() : null;
-        const containerData = containerJson && Array.isArray(containerJson.data) ? containerJson.data : (Array.isArray(containerJson) ? containerJson : []);
-        setContainers(containerData);
 
         setIsOffline(false);
       } catch (err) {
@@ -135,11 +119,8 @@ function PlanningPageContent() {
           { id: "emp-1", name: "Johannes Müller", phone: "+491704444444", role: "EMPLOYEE" },
           { id: "emp-2", name: "Dieter Schmidt", phone: "+491705555555", role: "EMPLOYEE" },
           { id: "emp-3", name: "Anna Weber", phone: "+491706666666", role: "TEAM_LEADER" },
-        ];
-        const mockContainers = [
-          { id: "c-1", containerNumber: "MSCU1284920", status: "FULL" as const },
-          { id: "c-2", containerNumber: "HLXU8472910", status: "EMPTY" as const },
-          { id: "c-3", containerNumber: "MAEU5829104", status: "FULL" as const },
+          { id: "emp-4", name: "Lukas Wagner", phone: "+491707777777", role: "EMPLOYEE" },
+          { id: "emp-5", name: "Sarah Meyer", phone: "+491708888888", role: "EMPLOYEE" },
         ];
 
         setWarehouses(mockWH);
@@ -153,7 +134,6 @@ function PlanningPageContent() {
           setSelectedHallId(qHall);
         }
         setEmployees(mockEmployees);
-        setContainers(mockContainers);
       } finally {
         setHasInitializedFromQuery(true);
       }
@@ -186,8 +166,8 @@ function PlanningPageContent() {
       setIsLoading(true);
       setPlanId(null);
       setAssignedEmployeeIds([]);
-      setAssignedContainerIds([]);
-      setContainerFree(false);
+      setShift("Frühschicht");
+      setNotes("");
 
       try {
         const res = await fetch(
@@ -203,8 +183,8 @@ function PlanningPageContent() {
           if (hallPlan) {
             setPlanId(hallPlan.id);
             setAssignedEmployeeIds(hallPlan.assignedEmployees.map((e: any) => e.id));
-            setAssignedContainerIds(hallPlan.assignedContainers.map((c: any) => c.id));
-            setContainerFree(hallPlan.assignedContainers.length === 0);
+            setShift(hallPlan.shift || "Frühschicht");
+            setNotes(hallPlan.notes || "");
           }
         }
       } catch (err) {
@@ -223,21 +203,12 @@ function PlanningPageContent() {
     );
   };
 
-  const toggleContainer = (containerId: string) => {
-    if (containerFree) return;
-    setAssignedContainerIds((prev) =>
-      prev.includes(containerId) ? prev.filter((id) => id !== containerId) : [...prev, containerId]
-    );
-  };
-
   const handleSavePlan = async () => {
     const token = localStorage.getItem("accessToken");
     if (!token) return;
 
     setIsLoading(true);
     setMessage({ text: "", type: "" });
-
-    const containersToSend = containerFree ? [] : assignedContainerIds;
 
     if (isOffline) {
       setTimeout(() => {
@@ -260,7 +231,9 @@ function PlanningPageContent() {
           },
           body: JSON.stringify({
             assignedEmployeeIds,
-            assignedContainerIds: containersToSend,
+            assignedContainerIds: [], // bypassed
+            shift,
+            notes,
           }),
         });
       } else {
@@ -276,7 +249,9 @@ function PlanningPageContent() {
             warehouseId: selectedWarehouseId,
             hallId: selectedHallId,
             assignedEmployeeIds,
-            assignedContainerIds: containersToSend,
+            assignedContainerIds: [],
+            shift,
+            notes,
           }),
         });
       }
@@ -287,9 +262,9 @@ function PlanningPageContent() {
       }
 
       setPlanId(data.id);
-      setMessage({ text: "Daily plan updated successfully! Notifications broadcasted.", type: "success" });
+      setMessage({ text: "Schichtplan erfolgreich gespeichert! Mitarbeiter wurden benachrichtigt.", type: "success" });
     } catch (err: any) {
-      setMessage({ text: err.message || "Failed to save plan.", type: "error" });
+      setMessage({ text: err.message || "Fehler beim Speichern des Plans.", type: "error" });
     } finally {
       setIsLoading(false);
     }
@@ -298,52 +273,52 @@ function PlanningPageContent() {
   const filteredHalls = halls.filter((h) => h.warehouseId === selectedWarehouseId);
 
   return (
-    <div className="space-y-stack-lg animate-fadeIn text-on-background">
+    <div className="space-y-6 animate-fadeIn text-[#0f172a]">
       {/* Title */}
       <div>
-        <h3 className="font-headline-lg font-bold text-on-surface">Daily Shift Planning</h3>
-        <p className="text-on-surface-variant font-body-sm">
-          Select date and warehouse hall to assign employees and import containers.
+        <h3 className="text-2xl font-extrabold text-slate-800 tracking-tight">Schichtplanung (Shift Planning)</h3>
+        <p className="text-slate-500 text-xs mt-1">
+          Erstellen und verwalten Sie die täglichen Personaleinsatzpläne für Hallen und Schichten.
         </p>
       </div>
 
       {isOffline && (
-        <div className="bg-tertiary-container text-on-tertiary-container border border-on-tertiary-container/20 px-3.5 py-2.5 rounded-lg flex items-center gap-2 text-label-md">
+        <div className="bg-amber-50 text-amber-800 border border-amber-200 px-4 py-3 rounded-xl flex items-center gap-3 text-xs font-semibold">
           <AlertTriangle className="w-5 h-5 shrink-0 text-amber-500" />
-          <span>Offline mode active. Modifications will be preserved locally in mock states.</span>
+          <span>Offline-Modus aktiv. Planänderungen werden lokal simuliert.</span>
         </div>
       )}
 
       {/* Configuration Bar */}
-      <div className="bg-white border border-outline-variant p-stack-md rounded-lg shadow-sm grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-stack-md">
+      <div className="bg-white border border-slate-100 p-5 rounded-xl shadow-sm grid grid-cols-1 md:grid-cols-4 gap-4">
         
         {/* Date Selector */}
         <div className="space-y-1.5">
-          <label className="text-label-md font-bold text-outline uppercase tracking-wider text-[10px]">
-            Shift Date
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+            Datum (Shift Date)
           </label>
           <div className="relative">
-            <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+            <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-4 py-2 text-body-sm text-on-surface outline-none"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-10 pr-3 py-2 text-xs text-slate-700 outline-none focus:border-blue-400 transition-colors"
             />
           </div>
         </div>
 
         {/* Warehouse Selector */}
         <div className="space-y-1.5">
-          <label className="text-label-md font-bold text-outline uppercase tracking-wider text-[10px]">
-            Warehouse
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+            Lager (Warehouse)
           </label>
           <div className="relative">
-            <WarehouseIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+            <WarehouseIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <select
               value={selectedWarehouseId}
               onChange={(e) => setSelectedWarehouseId(e.target.value)}
-              className="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-4 py-2 text-body-sm text-on-surface outline-none appearance-none"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-10 pr-3 py-2 text-xs text-slate-700 outline-none focus:border-blue-400 transition-colors appearance-none"
             >
               {warehouses.map((wh) => (
                 <option key={wh.id} value={wh.id}>
@@ -356,18 +331,18 @@ function PlanningPageContent() {
 
         {/* Hall Selector */}
         <div className="space-y-1.5">
-          <label className="text-label-md font-bold text-outline uppercase tracking-wider text-[10px]">
-            Warehouse Hall
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+            Halle (Warehouse Hall)
           </label>
           <div className="relative">
-            <Grid className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+            <Grid className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <select
               value={selectedHallId}
               onChange={(e) => setSelectedHallId(e.target.value)}
-              className="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-4 py-2 text-body-sm text-on-surface outline-none appearance-none"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-10 pr-3 py-2 text-xs text-slate-700 outline-none focus:border-blue-400 transition-colors appearance-none"
             >
               {filteredHalls.length === 0 ? (
-                <option value="">No halls available</option>
+                <option value="">Keine Hallen verfügbar</option>
               ) : (
                 filteredHalls.map((h) => (
                   <option key={h.id} value={h.id}>
@@ -379,177 +354,159 @@ function PlanningPageContent() {
           </div>
         </div>
 
-        {/* Shift Type (Container-free toggle) */}
-        <div className="space-y-1.5 flex flex-col justify-center">
-          <label className="text-label-md font-bold text-outline uppercase tracking-wider text-[10px]">
-            Shift Type
+        {/* Shift Selection */}
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+            Schicht (Shift)
           </label>
-          <label className="flex items-center gap-2.5 cursor-pointer p-2 border border-outline-variant rounded-lg text-body-sm hover:bg-surface-container-low transition-colors bg-white select-none">
-            <input
-              type="checkbox"
-              checked={containerFree}
-              onChange={(e) => {
-                setContainerFree(e.target.checked);
-                if (e.target.checked) {
-                  setAssignedContainerIds([]);
-                }
-              }}
-              className="w-4.5 h-4.5 rounded text-secondary focus:ring-secondary border-outline-variant cursor-pointer"
-            />
-            <span className="font-bold text-on-surface text-xs uppercase tracking-wider">Container-free Shift</span>
+          <select
+            value={shift}
+            onChange={(e) => setShift(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 outline-none focus:border-blue-400 transition-colors"
+          >
+            <option value="Frühschicht">Frühschicht (Early Shift)</option>
+            <option value="Spätschicht">Spätschicht (Late Shift)</option>
+            <option value="Nachtschicht">Nachtschicht (Night Shift)</option>
+          </select>
+        </div>
+
+        {/* Notes TextArea */}
+        <div className="space-y-1.5 col-span-1 md:col-span-4">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+            Notizen / Anweisungen (Notes)
           </label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={2}
+            placeholder="Besondere Anweisungen oder Notizen für diese Schicht eintragen..."
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-xs text-slate-700 outline-none focus:border-blue-400 transition-colors resize-none"
+          />
         </div>
       </div>
 
-      {/* Main Assignment UI */}
-      <div className={`grid grid-cols-1 gap-stack-md transition-all duration-300 ${containerFree ? "" : "xl:grid-cols-2"}`}>
-        
-        {/* Employees Assignment */}
-        <div className="bg-surface-container-lowest border border-outline-variant rounded-lg flex flex-col h-[400px]">
-          <div className="p-stack-md border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
-            <h5 className="font-bold text-body-lg flex items-center gap-2">
-              <Users className="w-5 h-5 text-secondary" /> Assigned Employees
-            </h5>
-            <span className="font-mono text-label-md bg-secondary-container text-white px-2 py-0.5 rounded font-bold">
-              {assignedEmployeeIds.length} Selected
-            </span>
-          </div>
-
-          <div className="flex-1 overflow-y-auto divide-y divide-outline-variant p-2">
-            {employees.length === 0 ? (
-              <div className="text-center py-8 text-outline text-body-sm">
-                No active employee directory loaded.
-              </div>
-            ) : (
-              employees.map((emp) => {
-                const isAssigned = assignedEmployeeIds.includes(emp.id);
-                return (
-                  <div
-                    key={emp.id}
+      {/* Selected Employees Chips Bar */}
+      {assignedEmployeeIds.length > 0 && (
+        <div className="bg-white border border-slate-100 p-5 rounded-xl shadow-sm space-y-2.5">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            Eingeteilte Mitarbeiter ({assignedEmployeeIds.length})
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {assignedEmployeeIds.map((empId) => {
+              const emp = employees.find((e) => e.id === empId);
+              if (!emp) return null;
+              return (
+                <div
+                  key={emp.id}
+                  className="flex items-center gap-1.5 px-3 py-1 bg-[#1d4ed8] text-white rounded-full text-xs font-bold shadow-sm shadow-[#1d4ed8]/20 transition-all hover:bg-blue-700"
+                >
+                  <span>{emp.name}</span>
+                  <button
                     onClick={() => toggleEmployee(emp.id)}
-                    className={`p-3.5 flex justify-between items-center rounded-lg cursor-pointer transition-all hover:bg-surface-bright ${
-                      isAssigned ? "bg-secondary-container/10 border-l-4 border-secondary" : ""
-                    }`}
+                    className="text-blue-100 hover:text-white transition-colors p-0.5 rounded-full hover:bg-white/10 cursor-pointer"
                   >
-                    <div>
-                      <p className="font-semibold text-body-sm text-on-surface">{emp.name}</p>
-                      <p className="text-[12px] text-outline font-mono mt-0.5">{emp.phone}</p>
-                    </div>
-                    <span
-                      className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider font-mono ${
-                        emp.role === "TEAM_LEADER"
-                          ? "bg-amber-100 text-amber-800"
-                          : "bg-surface-container-high text-on-surface-variant"
-                      }`}
-                    >
-                      {emp.role.replace("_", " ")}
-                    </span>
-                  </div>
-                );
-              })
-            )}
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
+      )}
 
-        {/* Containers Assignment (hidden if containerFree is checked) */}
-        {!containerFree && (
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-lg flex flex-col h-[400px] animate-fadeIn">
-            <div className="p-stack-md border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
-              <h5 className="font-bold text-body-lg flex items-center gap-2">
-                <Package className="w-5 h-5 text-secondary" /> Container Inventory Allocation
-              </h5>
-              <span className="font-mono text-label-md bg-secondary-container text-white px-2 py-0.5 rounded font-bold">
-                {assignedContainerIds.length} Allocated
-              </span>
+      {/* Employees Directory List */}
+      <div className="bg-white border border-slate-100 rounded-xl flex flex-col shadow-sm">
+        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center rounded-t-xl">
+          <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+            <Users className="w-4 h-4 text-blue-600" /> Mitarbeiter-Zuweisung (Assign Employees)
+          </h5>
+          <span className="font-mono text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full font-bold">
+            {assignedEmployeeIds.length} ausgewählt
+          </span>
+        </div>
+
+        <div className="overflow-y-auto max-h-[500px] divide-y divide-slate-100 p-3 space-y-1">
+          {employees.length === 0 ? (
+            <div className="text-center py-12 text-slate-400 text-xs">
+              Keine Mitarbeiter in der Datenbank gefunden.
             </div>
-
-            <div className="flex-1 overflow-y-auto divide-y divide-outline-variant p-2">
-              {containers.length === 0 ? (
-                <div className="text-center py-8 text-outline text-body-sm">
-                  No container inventory found. Import container listings first.
+          ) : (
+            employees.map((emp) => {
+              const isAssigned = assignedEmployeeIds.includes(emp.id);
+              return (
+                <div
+                  key={emp.id}
+                  onClick={() => toggleEmployee(emp.id)}
+                  className={`p-3 flex justify-between items-center rounded-xl cursor-pointer transition-all border border-transparent ${
+                    isAssigned
+                      ? "bg-blue-50/40 border-blue-100 shadow-sm"
+                      : "hover:bg-slate-50"
+                  }`}
+                >
+                  <div>
+                    <p className={`text-xs font-bold ${isAssigned ? "text-blue-700" : "text-slate-800"}`}>
+                      {emp.name}
+                    </p>
+                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">{emp.phone || "Keine Telefonnummer"}</p>
+                  </div>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider font-mono ${
+                      emp.role === "TEAM_LEADER"
+                        ? "bg-amber-100 text-amber-800"
+                        : "bg-slate-100 text-slate-600"
+                    }`}
+                  >
+                    {emp.role === "TEAM_LEADER" ? "Vorarbeiter" : "Mitarbeiter"}
+                  </span>
                 </div>
-              ) : (
-                containers.map((c) => {
-                  const isAssigned = assignedContainerIds.includes(c.id);
-                  return (
-                    <div
-                      key={c.id}
-                      onClick={() => toggleContainer(c.id)}
-                      className={`p-3.5 flex justify-between items-center rounded-lg cursor-pointer transition-all hover:bg-surface-bright ${
-                        isAssigned ? "bg-secondary-container/10 border-l-4 border-secondary" : ""
-                      }`}
-                    >
-                      <div>
-                        <p className="font-bold text-body-sm font-mono text-on-surface">
-                          {c.containerNumber}
-                        </p>
-                        <p className="text-[11px] text-outline mt-0.5 flex items-center gap-1">
-                          <Info className="w-3 h-3" /> Click to select
-                        </p>
-                      </div>
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono ${
-                          c.status === "FULL"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-surface-container-high text-on-surface-variant"
-                        }`}
-                      >
-                        {c.status}
-                      </span>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        )}
+              );
+            })
+          )}
+        </div>
       </div>
 
       {/* Save Button Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white border border-outline-variant p-stack-md rounded-lg shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white border border-slate-100 p-5 rounded-xl shadow-sm">
         <div>
-          <p className="text-body-sm text-on-surface-variant font-medium">
-            {planId ? "Modifying existing daily plan record" : "No plan created yet for this slot"}
+          <p className="text-xs font-bold text-slate-700 leading-none">
+            {planId ? "Bestehender Schichtplan wird aktualisiert" : "Neuer Schichtplan-Entwurf"}
           </p>
-          <p className="text-[12px] text-outline">
-            {containerFree 
-              ? "Staffing-only shift. No containers will be allocated to this hall for the selected date."
-              : "Confirming changes will automatically alert assigned team leaders via SMS updates."
-            }
+          <p className="text-[10px] text-slate-400 mt-1">
+            Mitarbeiter können auch später hinzugefügt oder entfernt werden.
           </p>
         </div>
 
         <button
           onClick={handleSavePlan}
           disabled={isLoading}
-          className="bg-secondary hover:bg-secondary/90 disabled:opacity-50 text-white font-bold px-6 py-2.5 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer self-end sm:self-auto"
+          className="bg-[#1d4ed8] hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold px-6 py-2.5 rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-2 cursor-pointer"
         >
           {isLoading ? (
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            <div className="animate-spin rounded-full h-4.5 w-4.5 border-b-2 border-white"></div>
           ) : (
-            <Save className="w-5 h-5" />
+            <Save className="w-4 h-4" />
           )}
-          <span>Save Plan Assignments</span>
+          <span>Plan speichern</span>
         </button>
       </div>
 
       {/* Notification Toast */}
       {message.text && (
         <div
-          className={`p-4 rounded-lg flex items-start gap-2.5 text-body-sm shadow-md animate-slideUp max-w-xl ${
+          className={`p-4 rounded-xl flex items-start gap-3 text-xs shadow-md animate-slideUp max-w-xl ${
             message.type === "success"
-              ? "bg-emerald-100 border border-emerald-300 text-emerald-800"
-              : "bg-error-container border border-error/20 text-error"
+              ? "bg-emerald-50 border border-emerald-200 text-emerald-800"
+              : "bg-red-50 border border-red-200 text-red-800"
           }`}
         >
           {message.type === "success" ? (
             <CheckCircle className="w-5 h-5 shrink-0 mt-0.5 text-emerald-600" />
           ) : (
-            <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-error" />
+            <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-red-500" />
           )}
           <div>
-            <p className="font-bold">{message.type === "success" ? "Success" : "Error Occurred"}</p>
-            <p className="text-[13px] opacity-90">{message.text}</p>
+            <p className="font-bold">{message.type === "success" ? "Erfolgreich" : "Fehler aufgetreten"}</p>
+            <p className="text-[11px] opacity-90 mt-0.5">{message.text}</p>
           </div>
         </div>
       )}

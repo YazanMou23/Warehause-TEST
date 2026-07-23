@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsOptional, IsString, IsDateString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, IsDateString, IsNumber, IsArray } from 'class-validator';
 import { ContainerStatus } from '@prisma/client';
 
 export class CreateContainerDto {
@@ -21,4 +21,17 @@ export class CreateContainerDto {
   @IsOptional()
   @IsDateString()
   arrivalDate?: string;
+
+  @IsOptional()
+  @IsNumber()
+  workedHours?: number;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  assignedEmployeeIds?: string[];
 }

@@ -9,4 +9,8 @@ export class UpdateHallDto {
   @IsInt()
   @Min(1)
   capacity?: number;
+
+  @IsOptional()
+  @IsString()
+  color?: string;
 }

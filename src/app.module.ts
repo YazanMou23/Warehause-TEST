@@ -16,6 +16,7 @@ import { MessagingModule } from './messaging/messaging.module';
 import { ActionLogModule } from './action-log/action-log.module';
 import { TimesheetModule } from './timesheet/timesheet.module';
 import { ChatModule } from './chat/chat.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { ChatModule } from './chat/chat.module';
     ActionLogModule,
     TimesheetModule,
     ChatModule,
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [],

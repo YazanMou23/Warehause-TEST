@@ -10,6 +10,14 @@ export class UpdatePlanDto {
   description?: string;
 
   @IsOptional()
+  @IsString()
+  shift?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   assignedEmployeeIds?: string[];

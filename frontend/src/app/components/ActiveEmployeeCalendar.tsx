@@ -23,6 +23,7 @@ interface AttendanceRecord {
   hallName?: string;
   hall?: {
     name: string;
+    color?: string | null;
   };
   date: string;
 }
@@ -291,31 +292,35 @@ export default function ActiveEmployeeCalendar({ logs, loading, isOffline }: Act
                       const widthPercent = ((clippedEnd - clippedStart) / TOTAL_HOURS) * 100;
                       const isVisible = clippedEnd > clippedStart;
 
-                      const { bg: colorClass, accent } = getHashColor(empName);
+                      const hallColor = log.hall?.color || "#1d4ed8";
+                      const blockStyle: React.CSSProperties = {
+                        left: `${leftPercent}%`,
+                        width: `${Math.max(20, widthPercent)}%`,
+                        borderLeftColor: hallColor,
+                        backgroundColor: `${hallColor}15`,
+                        color: hallColor,
+                      };
 
                       return (
                         <div key={log.id} className="relative h-14 w-full first:pt-0 pt-2 z-10">
                           {isVisible && (
                             <div
-                              style={{
-                                left: `${leftPercent}%`,
-                                width: `${Math.max(20, widthPercent)}%`,
-                              }}
-                              className={`absolute top-2 h-10 min-w-[150px] rounded-xl border-l-4 p-2 flex items-center justify-between shadow-sm transition-all duration-300 ${colorClass}`}
+                              style={blockStyle}
+                              className="absolute top-2 h-10 min-w-[150px] rounded-xl border-l-4 p-2 flex items-center justify-between shadow-sm transition-all duration-300 border-y border-r border-slate-100"
                             >
                               <div className="flex items-center gap-2 min-w-0">
                                 {/* Avatar initials */}
                                 <div
-                                  style={{ backgroundColor: `${accent}15`, color: accent }}
+                                  style={{ backgroundColor: `${hallColor}30`, color: hallColor }}
                                   className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center font-bold text-[9px] border border-current"
                                 >
                                   {getInitials(empName)}
                                 </div>
                                 <div className="min-w-0">
-                                  <span className="block font-bold text-xs truncate leading-none">
+                                  <span className="block font-bold text-xs truncate leading-none text-slate-800">
                                     {empName}
                                   </span>
-                                  <span className="text-[9px] opacity-75 font-mono">
+                                  <span className="text-[9px] opacity-75 font-mono text-slate-500">
                                     {formatTime(log.clockIn).split(" ")[0]} – {log.clockOut ? formatTime(log.clockOut).split(" ")[0] : "Jetzt"}
                                   </span>
                                 </div>
@@ -329,7 +334,7 @@ export default function ActiveEmployeeCalendar({ logs, loading, isOffline }: Act
                                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                                   </span>
                                 ) : (
-                                  <Clock className="w-3.5 h-3.5 opacity-60" />
+                                  <Clock className="w-3.5 h-3.5 opacity-60" style={{ color: hallColor }} />
                                 )}
                               </div>
                             </div>
