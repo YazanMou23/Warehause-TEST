@@ -28,13 +28,6 @@ export class UsersService {
       throw new ConflictException('A user with this username already exists');
     }
 
-    const existingPhone = await this.prisma.user.findFirst({
-      where: { phone: createUserDto.phone },
-    });
-    if (existingPhone) {
-      throw new ConflictException('A user with this phone number already exists');
-    }
-
     if (createUserDto.email) {
       const existingEmail = await this.prisma.user.findFirst({
         where: { email: createUserDto.email },
@@ -222,16 +215,6 @@ export class UsersService {
       });
       if (existingUsername) {
         throw new ConflictException('A user with this username already exists');
-      }
-    }
-
-    // Phone check
-    if (updateUserDto.phone && updateUserDto.phone !== user.phone) {
-      const existingPhone = await this.prisma.user.findFirst({
-        where: { phone: updateUserDto.phone },
-      });
-      if (existingPhone) {
-        throw new ConflictException('A user with this phone number already exists');
       }
     }
 
@@ -931,24 +914,10 @@ export class UsersService {
         batchUsernames.add(username);
       }
 
-      // Validate Phone
+      // Validate Phone (optional, duplicate phone numbers allowed)
       let phone = rawPhone;
-      if (rawPhone) {
-        if (dbPhones.has(rawPhone.toLowerCase()) || batchPhones.has(rawPhone.toLowerCase())) {
-          issues.push({
-            column: 'Telefon',
-            value: rawPhone,
-            reason: `Phone number '${rawPhone}' already exists in database or import batch.`,
-            suggestedFix: 'Use a unique phone number or leave blank.',
-            type: 'error',
-          });
-        } else {
-          batchPhones.add(rawPhone.toLowerCase());
-        }
-      } else {
-        const fallback = `+49000${String(Date.now() + rowNumber).slice(-8)}`;
-        phone = fallback;
-        batchPhones.add(phone.toLowerCase());
+      if (!phone) {
+        phone = `+49000${String(Date.now() + rowNumber).slice(-8)}`;
       }
 
       // Validate Role
