@@ -242,7 +242,8 @@ function HallsPageContent() {
 
       if (!res.ok) {
         const errJson = await res.json();
-        throw new Error(errJson.message || "Failed to create hall");
+        const msg = Array.isArray(errJson.message) ? errJson.message.join(", ") : errJson.message;
+        throw new Error(msg || "Failed to create hall");
       }
 
       setNewHallName("");
@@ -250,7 +251,24 @@ function HallsPageContent() {
       setCreateModalOpen(false);
       await fetchHalls();
     } catch (err: any) {
-      setCreateError(err.message || "Network error occurred.");
+      if (isOffline) {
+        const createdMock: HallItem = {
+          id: `hall-mock-${Date.now()}`,
+          name: newHallName,
+          warehouseId: newHallWhId,
+          warehouse: warehouses.find((w) => w.id === newHallWhId) || { id: newHallWhId, name: "Warehouse Sector" },
+          capacity: parseInt(newHallCapacity, 10),
+          color: newHallColor,
+          containers: [],
+          users: [],
+        };
+        setHalls((prev) => [createdMock, ...prev]);
+        setNewHallName("");
+        setNewHallColor("#1d4ed8");
+        setCreateModalOpen(false);
+      } else {
+        setCreateError(err.message || "Network error occurred.");
+      }
     } finally {
       setCreateLoading(false);
     }
@@ -282,14 +300,34 @@ function HallsPageContent() {
 
       if (!res.ok) {
         const errJson = await res.json();
-        throw new Error(errJson.message || "Failed to update hall");
+        const msg = Array.isArray(errJson.message) ? errJson.message.join(", ") : errJson.message;
+        throw new Error(msg || "Failed to update hall");
       }
 
       setEditModalOpen(false);
       setEditingHall(null);
       await fetchHalls();
     } catch (err: any) {
-      setEditError(err.message || "Network error occurred.");
+      if (isOffline) {
+        setHalls((prev) =>
+          prev.map((h) =>
+            h.id === editingHall.id
+              ? {
+                  ...h,
+                  name: editHallName,
+                  warehouseId: editHallWhId,
+                  capacity: parseInt(editHallCapacity, 10),
+                  color: editHallColor,
+                  warehouse: warehouses.find((w) => w.id === editHallWhId) || h.warehouse,
+                }
+              : h
+          )
+        );
+        setEditModalOpen(false);
+        setEditingHall(null);
+      } else {
+        setEditError(err.message || "Network error occurred.");
+      }
     } finally {
       setEditLoading(false);
     }
@@ -488,15 +526,18 @@ function HallsPageContent() {
               statusBadge = "bg-neutral-100 text-neutral-800 dark:bg-neutral-900/30 dark:text-neutral-400";
             }
 
+            const hallColor = hall.color || '#1d4ed8';
+            const iconBg = hallColor.startsWith('#') && hallColor.length === 7 ? `${hallColor}18` : undefined;
+
              return (
               <div
                 key={hall.id}
                 className="bg-white border border-outline-variant rounded-xl p-stack-md shadow-sm hover:shadow-md hover:border-secondary/40 transition-all flex flex-col justify-between"
-                style={{ borderTop: `4px solid ${hall.color || '#1d4ed8'}` }}
+                style={{ borderTop: `4px solid ${hallColor}` }}
               >
                 <div>
                   <div className="flex justify-between items-start mb-3">
-                    <div className="w-10 h-10 bg-secondary/10 text-secondary flex items-center justify-center rounded-lg" style={{ color: hall.color || undefined, backgroundColor: `${hall.color}15` || undefined }}>
+                    <div className="w-10 h-10 bg-secondary/10 text-secondary flex items-center justify-center rounded-lg" style={{ color: hallColor, backgroundColor: iconBg }}>
                       <GridIcon className="w-5 h-5 animate-pulse" />
                     </div>
                     <div className="flex items-center gap-1.5">

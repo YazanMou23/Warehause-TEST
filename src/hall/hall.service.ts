@@ -148,9 +148,27 @@ export class HallService {
       throw new NotFoundException(`Hall with ID ${id} not found`);
     }
 
+    if (updateHallDto.warehouseId) {
+      const warehouse = await this.prisma.warehouse.findFirst({
+        where: { id: updateHallDto.warehouseId, deletedAt: null },
+      });
+      if (!warehouse) {
+        throw new NotFoundException(`Warehouse with ID ${updateHallDto.warehouseId} not found`);
+      }
+    }
+
     const updated = await this.prisma.hall.update({
       where: { id },
       data: updateHallDto,
+      include: {
+        warehouse: true,
+        containers: {
+          where: { deletedAt: null },
+        },
+        users: {
+          where: { deletedAt: null, isActive: true },
+        },
+      },
     });
 
     await this.prisma.actionLog.create({

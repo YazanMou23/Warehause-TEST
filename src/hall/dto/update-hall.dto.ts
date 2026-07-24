@@ -6,6 +6,10 @@ export class UpdateHallDto {
   name?: string;
 
   @IsOptional()
+  @IsString()
+  warehouseId?: string;
+
+  @IsOptional()
   @IsInt()
   @Min(1)
   capacity?: number;
@@ -14,3 +18,4 @@ export class UpdateHallDto {
   @IsString()
   color?: string;
 }
+
