@@ -929,13 +929,6 @@ export class UsersService {
         }
         username = candidate;
         batchUsernames.add(username);
-        issues.push({
-          column: 'Benutzername',
-          value: '',
-          reason: 'Username not provided.',
-          suggestedFix: `Username '${username}' will be auto-generated.`,
-          type: 'warning',
-        });
       }
 
       // Validate Phone
@@ -956,13 +949,6 @@ export class UsersService {
         const fallback = `+49000${String(Date.now() + rowNumber).slice(-8)}`;
         phone = fallback;
         batchPhones.add(phone.toLowerCase());
-        issues.push({
-          column: 'Telefon',
-          value: '',
-          reason: 'Phone number not provided.',
-          suggestedFix: 'Default placeholder phone will be assigned.',
-          type: 'warning',
-        });
       }
 
       // Validate Role
@@ -1050,20 +1036,7 @@ export class UsersService {
             suggestedFix: 'Use YYYY-MM-DD or DD.MM.YYYY.',
             type: 'error',
           });
-        } else {
-          employmentStart = parsedDate;
         }
-      }
-
-      // Password Warning
-      if (!rawPassword) {
-        issues.push({
-          column: 'Passwort',
-          value: '',
-          reason: 'Password not provided.',
-          suggestedFix: "Default password 'employeepassword' will be assigned.",
-          type: 'warning',
-        });
       }
 
       const hasError = issues.some((i) => i.type === 'error');

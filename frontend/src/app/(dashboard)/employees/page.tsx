@@ -934,8 +934,8 @@ export default function EmployeesPage() {
                     </button>
                   </th>
                 )}
-                <th className="px-4 py-3">{t("firstNameColumn")}</th>
-                <th className="px-4 py-3">{t("lastNameColumn")}</th>
+                <th className="px-4 py-3">{language === "de" ? "Vorname / Firstname" : "First Name"}</th>
+                <th className="px-4 py-3">{language === "de" ? "Nachname / Lastname" : "Last Name"}</th>
                 <th className="px-4 py-3">{t("usernameLabel")}</th>
                 <th className="px-4 py-3">{t("phone")}</th>
                 <th className="px-4 py-3">{t("email")}</th>
