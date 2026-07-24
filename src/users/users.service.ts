@@ -686,7 +686,7 @@ export class UsersService {
     return String(cell.value).trim();
   }
 
-  async importEmployeesFromExcel(fileBuffer: Buffer, actorId?: string, actorRole?: Role) {
+  async previewEmployeesImportFromExcel(fileBuffer: Buffer, actorRole?: Role) {
     if (!fileBuffer || fileBuffer.length === 0) {
       throw new BadRequestException('Uploaded Excel file is empty.');
     }
@@ -739,7 +739,6 @@ export class UsersService {
       }
     });
 
-    // If no columns were mapped (or if only 1 column exists and it wasn't mapped), map Column 1 as name or phone fallback
     if (Object.keys(colMap).length === 0 && worksheet.columnCount >= 1) {
       const firstDataCell = worksheet.getRow(2).getCell(1);
       const val = this.getCellValueString(firstDataCell).trim();
@@ -750,27 +749,58 @@ export class UsersService {
       }
     }
 
-    // NOTE: Even if standard header columns are missing, we do NOT block/cancel the import process!
-    // We proceed to process all rows with available data and default missing values.
-
     const warehouses = await this.prisma.warehouse.findMany({ where: { deletedAt: null } });
     const halls = await this.prisma.hall.findMany({ where: { deletedAt: null } });
-
-    const createdUsers: any[] = [];
-    const errors: Array<{ row: number; name?: string; phone?: string; reason: string }> = [];
-
-    // Pre-load all existing phone numbers from the DB into a Set for O(1) uniqueness checks.
-    // This also tracks every phone we assign during this import session to prevent within-batch collisions.
-    const allExistingPhones = await this.prisma.user.findMany({
+    const existingUsers = await this.prisma.user.findMany({
       where: { deletedAt: null },
-      select: { phone: true },
+      select: { email: true, username: true, phone: true },
     });
-    const usedPhones = new Set<string>(allExistingPhones.map((u) => u.phone?.toLowerCase() ?? '').filter(Boolean));
 
-    // Counter for guaranteed-unique fallback phone suffix
-    let fallbackPhoneCounter = Date.now();
+    const dbEmails = new Set(existingUsers.map((u) => u.email?.toLowerCase()).filter(Boolean));
+    const dbUsernames = new Set(existingUsers.map((u) => u.username?.toLowerCase()).filter(Boolean));
+    const dbPhones = new Set(existingUsers.map((u) => u.phone?.toLowerCase()).filter(Boolean));
 
-    // Process data rows starting from row 2
+    const batchEmails = new Set<string>();
+    const batchUsernames = new Set<string>();
+    const batchPhones = new Set<string>();
+
+    const rowResults: Array<{
+      row: number;
+      name: string;
+      username: string;
+      email: string | null;
+      phone: string;
+      role: string;
+      warehouse: string;
+      hall: string;
+      address: string;
+      password?: string;
+      telegramId?: string;
+      employmentStart?: string;
+      status: 'READY' | 'WARNING' | 'ERROR';
+      issues: Array<{
+        column: string;
+        value: string;
+        reason: string;
+        suggestedFix: string;
+        type: 'error' | 'warning';
+      }>;
+      resolvedData?: {
+        name: string;
+        username: string;
+        email: string | null;
+        phone: string;
+        address: string | null;
+        passwordHash?: string;
+        rawPassword?: string;
+        role: Role;
+        warehouseId: string | null;
+        hallId: string | null;
+        telegramId: string | null;
+        employmentStart: Date;
+      };
+    }> = [];
+
     for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
       const row = worksheet.getRow(rowNumber);
 
@@ -789,37 +819,6 @@ export class UsersService {
       const rawAddress = colMap['address'] ? this.getCellValueString(row.getCell(colMap['address'])) : '';
       const rawUsername = colMap['username'] ? this.getCellValueString(row.getCell(colMap['username'])) : '';
       const rawEmail = colMap['email'] ? this.getCellValueString(row.getCell(colMap['email'])) : '';
-
-      // Check if row has ANY content across cells (unmapped columns as well)
-      let rowHasAnyData = false;
-      row.eachCell((cell) => {
-        if (this.getCellValueString(cell).trim().length > 0) {
-          rowHasAnyData = true;
-        }
-      });
-
-      if (!rowHasAnyData && !rawName && !rawPhone && !rawUsername && !rawEmail) {
-        continue;
-      }
-
-      // Auto-fallback Name if missing due to absent name column
-      if (!rawName) {
-        if (rawUsername) {
-          rawName = rawUsername
-            .replace(/[._-]/g, ' ')
-            .replace(/\b\w/g, (c) => c.toUpperCase());
-        } else if (rawEmail) {
-          const prefix = rawEmail.split('@')[0];
-          rawName = prefix
-            .replace(/[._-]/g, ' ')
-            .replace(/\b\w/g, (c) => c.toUpperCase());
-        } else if (rawPhone) {
-          rawName = `Mitarbeiter ${rawPhone}`;
-        } else {
-          rawName = `Mitarbeiter ${rowNumber}`;
-        }
-      }
-
       const rawPassword = colMap['password'] ? this.getCellValueString(row.getCell(colMap['password'])) : '';
       const rawRole = colMap['role'] ? this.getCellValueString(row.getCell(colMap['role'])) : '';
       const rawWarehouse = colMap['warehouse'] ? this.getCellValueString(row.getCell(colMap['warehouse'])) : '';
@@ -827,70 +826,178 @@ export class UsersService {
       const rawTelegramId = colMap['telegramId'] ? this.getCellValueString(row.getCell(colMap['telegramId'])) : '';
       const rawStart = colMap['employmentStart'] ? this.getCellValueString(row.getCell(colMap['employmentStart'])) : '';
 
-      // Ensure phone is unique across the database AND within the current import batch.
-      // If the phone from the Excel sheet already exists or is blank, generate a guaranteed-unique fallback.
-      let phone = rawPhone;
-      if (phone && usedPhones.has(phone.toLowerCase())) {
-        phone = ''; // duplicate — treat as missing so we generate a unique placeholder
+      // Skip blank rows
+      let rowHasData = false;
+      row.eachCell((cell) => {
+        if (this.getCellValueString(cell).trim().length > 0) {
+          rowHasData = true;
+        }
+      });
+      if (!rowHasData && !rawName && !rawPhone && !rawUsername && !rawEmail) {
+        continue;
       }
 
-      if (!phone) {
-        let candidatePhone: string;
-        do {
-          fallbackPhoneCounter++;
-          candidatePhone = `+49000${String(fallbackPhoneCounter).slice(-8)}`;
-        } while (usedPhones.has(candidatePhone));
-        phone = candidatePhone;
+      const issues: Array<{
+        column: string;
+        value: string;
+        reason: string;
+        suggestedFix: string;
+        type: 'error' | 'warning';
+      }> = [];
+
+      // Validate Name
+      let name = rawName;
+      if (!name) {
+        if (rawUsername) {
+          name = rawUsername.replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+          issues.push({
+            column: 'Name/Vorname',
+            value: '',
+            reason: 'Name is missing.',
+            suggestedFix: `Derived name '${name}' from username.`,
+            type: 'warning',
+          });
+        } else if (rawEmail) {
+          const prefix = rawEmail.split('@')[0];
+          name = prefix.replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+          issues.push({
+            column: 'Name/Vorname',
+            value: '',
+            reason: 'Name is missing.',
+            suggestedFix: `Derived name '${name}' from email.`,
+            type: 'warning',
+          });
+        } else if (rawPhone) {
+          name = `Mitarbeiter ${rawPhone}`;
+        } else {
+          issues.push({
+            column: 'Vorname/Nachname',
+            value: '',
+            reason: 'First name and Last name are missing.',
+            suggestedFix: 'Provide a valid employee name.',
+            type: 'error',
+          });
+        }
       }
 
-      // Register this phone in the session set immediately so no later row can claim the same number
-      usedPhones.add(phone.toLowerCase());
+      // Validate Email
+      let email: string | null = rawEmail || null;
+      if (rawEmail) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(rawEmail)) {
+          issues.push({
+            column: 'E-Mail',
+            value: rawEmail,
+            reason: `Invalid email format '${rawEmail}'.`,
+            suggestedFix: 'Provide a valid email address (e.g. user@domain.de).',
+            type: 'error',
+          });
+        } else if (dbEmails.has(rawEmail.toLowerCase()) || batchEmails.has(rawEmail.toLowerCase())) {
+          issues.push({
+            column: 'E-Mail',
+            value: rawEmail,
+            reason: `Email address '${rawEmail}' already exists in database or import file.`,
+            suggestedFix: 'Use a unique email address or leave blank.',
+            type: 'error',
+          });
+        } else {
+          batchEmails.add(rawEmail.toLowerCase());
+        }
+      }
 
-      // Auto-generate username if not provided or if duplicate
+      // Validate Username
       let username = rawUsername;
-      if (!username) {
-        const cleanName = rawName.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
-        const baseUsername = cleanName || `employee_${rowNumber}`;
-
-        let candidate = baseUsername;
+      if (rawUsername) {
+        if (dbUsernames.has(rawUsername.toLowerCase()) || batchUsernames.has(rawUsername.toLowerCase())) {
+          issues.push({
+            column: 'Benutzername',
+            value: rawUsername,
+            reason: `Username '${rawUsername}' already exists.`,
+            suggestedFix: 'Choose a unique username.',
+            type: 'error',
+          });
+        } else {
+          batchUsernames.add(rawUsername.toLowerCase());
+        }
+      } else if (name) {
+        const baseUser = name.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+        let candidate = baseUser || `user_${rowNumber}`;
         let counter = 1;
-        while (await this.prisma.user.findFirst({ where: { username: candidate } }) || createdUsers.some((u) => u.username === candidate)) {
-          candidate = `${baseUsername}_${counter}`;
+        while (dbUsernames.has(candidate) || batchUsernames.has(candidate)) {
+          candidate = `${baseUser}_${counter}`;
           counter++;
         }
         username = candidate;
-      } else {
-        let candidate = username;
-        let counter = 1;
-        while (await this.prisma.user.findFirst({ where: { username: candidate } }) || createdUsers.some((u) => u.username === candidate)) {
-          candidate = `${username}_${counter}`;
-          counter++;
-        }
-        username = candidate;
+        batchUsernames.add(username);
+        issues.push({
+          column: 'Benutzername',
+          value: '',
+          reason: 'Username not provided.',
+          suggestedFix: `Username '${username}' will be auto-generated.`,
+          type: 'warning',
+        });
       }
 
-      // Default password if missing
-      const password = rawPassword || 'employeepassword';
+      // Validate Phone
+      let phone = rawPhone;
+      if (rawPhone) {
+        if (dbPhones.has(rawPhone.toLowerCase()) || batchPhones.has(rawPhone.toLowerCase())) {
+          issues.push({
+            column: 'Telefon',
+            value: rawPhone,
+            reason: `Phone number '${rawPhone}' already exists in database or import batch.`,
+            suggestedFix: 'Use a unique phone number or leave blank.',
+            type: 'error',
+          });
+        } else {
+          batchPhones.add(rawPhone.toLowerCase());
+        }
+      } else {
+        const fallback = `+49000${String(Date.now() + rowNumber).slice(-8)}`;
+        phone = fallback;
+        batchPhones.add(phone.toLowerCase());
+        issues.push({
+          column: 'Telefon',
+          value: '',
+          reason: 'Phone number not provided.',
+          suggestedFix: 'Default placeholder phone will be assigned.',
+          type: 'warning',
+        });
+      }
 
-      // Parse Role
+      // Validate Role
       let role: Role = Role.EMPLOYEE;
       if (rawRole) {
-        const upperRole = rawRole.toUpperCase();
-        if (upperRole.includes('ADMIN')) {
+        const upper = rawRole.toUpperCase();
+        if (upper === 'ADMIN' || upper.includes('ADMIN')) {
           role = Role.ADMIN;
-        } else if (upperRole.includes('MANAGER') || upperRole.includes('LEITER')) {
+        } else if (upper === 'MANAGER' || upper.includes('MANAGER') || upper.includes('LEITER')) {
           role = Role.MANAGER;
-        } else {
+        } else if (upper === 'EMPLOYEE' || upper.includes('EMPLOYEE') || upper.includes('MITARBEITER')) {
           role = Role.EMPLOYEE;
+        } else {
+          issues.push({
+            column: 'Rolle',
+            value: rawRole,
+            reason: `Role '${rawRole}' does not exist.`,
+            suggestedFix: "Use a valid role: 'Employee', 'Manager', or 'Admin'.",
+            type: 'error',
+          });
         }
       }
 
-      // Admin role restrictions
       if (actorRole === Role.ADMIN && (role === Role.ADMIN || role === Role.MANAGER)) {
+        issues.push({
+          column: 'Rolle',
+          value: rawRole || role,
+          reason: 'Admin users are restricted from assigning Manager or Admin roles.',
+          suggestedFix: 'Role will be set to Employee.',
+          type: 'warning',
+        });
         role = Role.EMPLOYEE;
       }
 
-      // Resolve Warehouse ID
+      // Validate Warehouse
       let warehouseId: string | null = null;
       if (rawWarehouse) {
         const matchedWh = warehouses.find(
@@ -898,10 +1005,18 @@ export class UsersService {
         );
         if (matchedWh) {
           warehouseId = matchedWh.id;
+        } else {
+          issues.push({
+            column: 'Lager',
+            value: rawWarehouse,
+            reason: `Warehouse '${rawWarehouse}' does not exist in database.`,
+            suggestedFix: 'Verify warehouse name or create it before importing.',
+            type: 'error',
+          });
         }
       }
 
-      // Resolve Hall ID
+      // Validate Hall
       let hallId: string | null = null;
       if (rawHall) {
         const matchedHall = halls.find(
@@ -912,45 +1027,143 @@ export class UsersService {
         );
         if (matchedHall) {
           hallId = matchedHall.id;
+        } else {
+          issues.push({
+            column: 'Halle',
+            value: rawHall,
+            reason: `Hall '${rawHall}' does not exist in database.`,
+            suggestedFix: 'Verify hall name or create it before importing.',
+            type: 'error',
+          });
         }
       }
 
-      // Parse employmentStart date
+      // Validate Employment Start Date
       let employmentStart: Date = new Date();
       if (rawStart) {
         const parsedDate = new Date(rawStart);
-        if (!isNaN(parsedDate.getTime())) {
+        if (isNaN(parsedDate.getTime())) {
+          issues.push({
+            column: 'Eintrittsdatum',
+            value: rawStart,
+            reason: `Invalid date format '${rawStart}'.`,
+            suggestedFix: 'Use YYYY-MM-DD or DD.MM.YYYY.',
+            type: 'error',
+          });
+        } else {
           employmentStart = parsedDate;
         }
       }
 
-      // If email provided and already exists, clear duplicate email so unique constraint doesn't throw
-      let email = rawEmail || null;
-      if (email) {
-        const existingEmail = await this.prisma.user.findFirst({
-          where: { email: { equals: email, mode: Prisma.QueryMode.insensitive }, deletedAt: null },
+      // Password Warning
+      if (!rawPassword) {
+        issues.push({
+          column: 'Passwort',
+          value: '',
+          reason: 'Password not provided.',
+          suggestedFix: "Default password 'employeepassword' will be assigned.",
+          type: 'warning',
         });
-        if (existingEmail || createdUsers.some((u) => u.email?.toLowerCase() === email?.toLowerCase())) {
-          email = null;
-        }
       }
 
-      // Hash password and create user
+      const hasError = issues.some((i) => i.type === 'error');
+      const hasWarning = issues.some((i) => i.type === 'warning');
+      const status = hasError ? 'ERROR' : hasWarning ? 'WARNING' : 'READY';
+
+      rowResults.push({
+        row: rowNumber,
+        name: name || rawName || `Row ${rowNumber}`,
+        username,
+        email,
+        phone,
+        role,
+        warehouse: rawWarehouse,
+        hall: rawHall,
+        address: rawAddress,
+        password: rawPassword || 'employeepassword',
+        telegramId: rawTelegramId,
+        employmentStart: employmentStart.toISOString().split('T')[0],
+        status,
+        issues,
+        resolvedData: !hasError
+          ? {
+              name,
+              username,
+              email,
+              phone,
+              address: rawAddress || null,
+              rawPassword: rawPassword || 'employeepassword',
+              role,
+              warehouseId,
+              hallId,
+              telegramId: rawTelegramId || null,
+              employmentStart,
+            }
+          : undefined,
+      });
+    }
+
+    const totalRows = rowResults.length;
+    const readyCount = rowResults.filter((r) => r.status === 'READY').length;
+    const warningCount = rowResults.filter((r) => r.status === 'WARNING').length;
+    const errorCount = rowResults.filter((r) => r.status === 'ERROR').length;
+
+    return {
+      summary: {
+        totalRows,
+        validCount: readyCount + warningCount,
+        readyCount,
+        warningCount,
+        errorCount,
+      },
+      rows: rowResults,
+    };
+  }
+
+  async importEmployeesFromExcel(fileBuffer: Buffer, actorId?: string, actorRole?: Role) {
+    const preview = await this.previewEmployeesImportFromExcel(fileBuffer, actorRole);
+    const validRows = preview.rows.filter((r) => r.status !== 'ERROR' && r.resolvedData);
+
+    const createdUsers: any[] = [];
+    const errors: Array<{ row: number; name?: string; column?: string; reason: string; suggestedFix?: string }> = [];
+
+    // Record pre-import error row details for the summary report
+    for (const row of preview.rows) {
+      if (rStatus(row.status)) {
+        for (const issue of row.issues.filter((i) => i.type === 'error')) {
+          errors.push({
+            row: row.row,
+            name: row.name,
+            column: issue.column,
+            reason: issue.reason,
+            suggestedFix: issue.suggestedFix,
+          });
+        }
+      }
+    }
+
+    function rStatus(status: string) {
+      return status === 'ERROR';
+    }
+
+    // Process valid rows row-by-row independently
+    for (const rowItem of validRows) {
+      const data = rowItem.resolvedData!;
       try {
-        const passwordHash = await bcrypt.hash(password, 10);
+        const passwordHash = await bcrypt.hash(data.rawPassword || 'employeepassword', 10);
         const newUser = await this.prisma.user.create({
           data: {
-            username,
-            name: rawName,
-            phone,
-            email,
-            address: rawAddress || null,
+            username: data.username,
+            name: data.name,
+            phone: data.phone,
+            email: data.email,
+            address: data.address,
             passwordHash,
-            role,
-            warehouseId,
-            hallId,
-            telegramId: rawTelegramId || null,
-            employmentStart,
+            role: data.role,
+            warehouseId: data.warehouseId,
+            hallId: data.hallId,
+            telegramId: data.telegramId,
+            employmentStart: data.employmentStart,
           },
           select: {
             id: true,
@@ -974,27 +1187,32 @@ export class UsersService {
           this.emailService.sendWelcomeEmail(newUser.email, newUser.name).catch(() => {});
         }
       } catch (err: any) {
-        errors.push({ row: rowNumber, name: rawName, phone: rawPhone, reason: err.message || 'Database creation failed' });
+        errors.push({
+          row: rowItem.row,
+          name: rowItem.name,
+          reason: err.message || 'Database insert failed',
+        });
       }
     }
 
-    if (createdUsers.length > 0) {
+    if (createdUsers.length > 0 || errors.length > 0) {
       await this.prisma.actionLog.create({
         data: {
           userId: actorId || null,
           action: 'IMPORT_EMPLOYEES_EXCEL',
-          details: `Imported ${createdUsers.length} employees from Excel file (${errors.length} skipped/failed)`,
+          details: `Import complete: ${createdUsers.length} employee(s) imported, ${errors.length} error issue(s) skipped`,
         },
       });
     }
 
     return {
       success: true,
-      message: `Import complete: ${createdUsers.length} employee(s) created, ${errors.length} row(s) skipped/failed.`,
+      message: `Import complete: ${createdUsers.length} employee(s) created, ${preview.summary.errorCount} row(s) skipped due to errors.`,
       summary: {
-        totalProcessed: createdUsers.length + errors.length,
+        totalProcessed: preview.summary.totalRows,
         createdCount: createdUsers.length,
-        failedCount: errors.length,
+        skippedCount: preview.summary.errorCount,
+        failedCount: preview.summary.errorCount,
         errors,
       },
       createdUsers,

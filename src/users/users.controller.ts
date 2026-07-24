@@ -102,6 +102,27 @@ export class UsersController {
     return res.send(buffer);
   }
 
+  @Post('import-excel/preview')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  @UseInterceptors(FileInterceptor('file', {
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (!file.originalname.match(/\.(xlsx|xls)$/i)) {
+        return cb(new BadRequestException('Only Excel files (.xlsx, .xls) are allowed!'), false);
+      }
+      cb(null, true);
+    },
+  }))
+  async previewImportExcel(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() currentUser: any,
+  ) {
+    if (!file || !file.buffer) {
+      throw new BadRequestException('No Excel file uploaded. Please select an .xlsx file.');
+    }
+    return this.usersService.previewEmployeesImportFromExcel(file.buffer, currentUser.role);
+  }
+
   @Post('import-excel')
   @Roles(Role.MANAGER, Role.ADMIN)
   @UseInterceptors(FileInterceptor('file', {

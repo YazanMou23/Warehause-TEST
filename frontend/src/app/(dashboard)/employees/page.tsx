@@ -105,6 +105,10 @@ export default function EmployeesPage() {
   const [importLoading, setImportLoading] = useState(false);
   const [importResult, setImportResult] = useState<any>(null);
   const [importError, setImportError] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [importStage, setImportStage] = useState<"PREVIEW" | "EXECUTING" | "DONE">("PREVIEW");
+  const [previewData, setPreviewData] = useState<any>(null);
+  const [executeLoading, setExecuteLoading] = useState(false);
 
   const router = useRouter();
 
@@ -690,17 +694,49 @@ export default function EmployeesPage() {
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // Reset input so same file can be re-selected
     e.target.value = "";
 
+    setSelectedFile(file);
+    setImportStage("PREVIEW");
     setImportLoading(true);
     setImportError("");
     setImportResult(null);
+    setPreviewData(null);
     setImportModalOpen(true);
 
     const token = localStorage.getItem("accessToken");
     const formData = new FormData();
     formData.append("file", file);
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/import-excel/preview`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPreviewData(data);
+      } else {
+        setImportError(Array.isArray(data.message) ? data.message.join(", ") : data.message || "Failed to analyze Excel file");
+      }
+    } catch (err: any) {
+      setImportError(err.message || "Network error");
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleExecuteImport = async () => {
+    if (!selectedFile) return;
+
+    setExecuteLoading(true);
+    setImportStage("EXECUTING");
+    setImportError("");
+
+    const token = localStorage.getItem("accessToken");
+    const formData = new FormData();
+    formData.append("file", selectedFile);
 
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/import-excel`, {
@@ -711,14 +747,17 @@ export default function EmployeesPage() {
       const data = await res.json();
       if (res.ok) {
         setImportResult(data);
+        setImportStage("DONE");
         if (data.summary?.createdCount > 0) loadEmployees();
       } else {
-        setImportError(Array.isArray(data.message) ? data.message.join(", ") : data.message || "Import failed");
+        setImportError(Array.isArray(data.message) ? data.message.join(", ") : data.message || "Import execution failed");
+        setImportStage("PREVIEW");
       }
     } catch (err: any) {
-      setImportError(err.message || "Network error");
+      setImportError(err.message || "Network error during import execution");
+      setImportStage("PREVIEW");
     } finally {
-      setImportLoading(false);
+      setExecuteLoading(false);
     }
   };
 
@@ -1084,74 +1123,203 @@ export default function EmployeesPage() {
         </div>
       </div>
 
-      {/* ── Excel Import Result Modal ── */}
+      {/* ── Excel Import Result & Preview Modal ── */}
       {importModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fadeIn">
-          <div className="bg-white border border-slate-100 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-scaleIn">
-            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-              <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                <FileSpreadsheet className="w-4.5 h-4.5 text-blue-500" />
-                Excel Import
-              </h4>
-              {!importLoading && (
-                <button onClick={() => setImportModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer">
-                  <X className="w-4 h-4" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-md animate-fadeIn">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden animate-scaleIn flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center shrink-0">
+              <div>
+                <h4 className="font-bold text-slate-800 text-base flex items-center gap-2">
+                  <FileSpreadsheet className="w-5 h-5 text-blue-600" />
+                  Mitarbeiter Excel Import Verification
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {selectedFile ? selectedFile.name : "Import file analysis and row-by-row validation report"}
+                </p>
+              </div>
+              {!importLoading && !executeLoading && (
+                <button
+                  onClick={() => setImportModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-200/60 rounded-lg transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
                 </button>
               )}
             </div>
 
-            <div className="p-6 space-y-4">
-              {/* Loading */}
-              {importLoading && (
-                <div className="flex flex-col items-center gap-3 py-6">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-                  <p className="text-slate-600 text-xs">Processing Excel file...</p>
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-6 flex-1">
+              {/* Analyzing / Executing Progress */}
+              {(importLoading || executeLoading) && (
+                <div className="flex flex-col items-center justify-center gap-3 py-12">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
+                  <p className="text-slate-700 font-semibold text-sm">
+                    {executeLoading ? "Importing valid employees into database..." : "Analyzing and validating Excel rows..."}
+                  </p>
+                  <p className="text-slate-400 text-xs font-mono">Fault-tolerant row-by-row resolution active</p>
                 </div>
               )}
 
-              {/* Error */}
-              {!importLoading && importError && (
-                <div className="p-4 bg-red-50 border border-red-100 rounded-lg flex items-start gap-3">
+              {/* Error Banner */}
+              {!importLoading && !executeLoading && importError && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
                   <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-                  <p className="text-red-800 text-xs">{importError}</p>
+                  <div>
+                    <h5 className="font-bold text-red-900 text-xs">Import Analysis Failed</h5>
+                    <p className="text-red-800 text-xs mt-0.5">{importError}</p>
+                  </div>
                 </div>
               )}
 
-              {/* Success Result */}
-              {!importLoading && importResult && (
-                <div className="space-y-4 text-xs">
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="bg-slate-50 rounded-lg p-3 text-center border border-slate-100">
-                      <p className="text-xl font-bold text-slate-800 font-mono">{importResult.summary?.totalProcessed ?? 0}</p>
-                      <p className="text-[9px] text-slate-400 uppercase tracking-wider font-semibold mt-1">Processed</p>
+              {/* Stage 1: PREVIEW MODE */}
+              {!importLoading && !executeLoading && importStage === "PREVIEW" && previewData && (
+                <div className="space-y-5">
+                  {/* Summary Metric Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
+                      <span className="text-2xl font-black text-slate-800 font-mono">{previewData.summary?.totalRows ?? 0}</span>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mt-1">Total Rows</span>
                     </div>
-                    <div className="bg-emerald-50 rounded-lg p-3 text-center border border-emerald-100">
-                      <p className="text-xl font-bold text-emerald-700 font-mono">{importResult.summary?.createdCount ?? 0}</p>
-                      <p className="text-[9px] text-emerald-550 uppercase tracking-wider font-semibold mt-1">Created</p>
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
+                      <span className="text-2xl font-black text-emerald-700 font-mono">{previewData.summary?.readyCount ?? 0}</span>
+                      <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider block mt-1">🟢 Ready</span>
                     </div>
-                    <div className="bg-rose-50 rounded-lg p-3 text-center border border-rose-100">
-                      <p className="text-xl font-bold text-rose-700 font-mono">{importResult.summary?.failedCount ?? 0}</p>
-                      <p className="text-[9px] text-rose-550 uppercase tracking-wider font-semibold mt-1">Skipped</p>
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
+                      <span className="text-2xl font-black text-amber-700 font-mono">{previewData.summary?.warningCount ?? 0}</span>
+                      <span className="text-[10px] text-amber-600 font-bold uppercase tracking-wider block mt-1">🟡 Warnings</span>
+                    </div>
+                    <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-center">
+                      <span className="text-2xl font-black text-rose-700 font-mono">{previewData.summary?.errorCount ?? 0}</span>
+                      <span className="text-[10px] text-rose-600 font-bold uppercase tracking-wider block mt-1">🔴 Errors (Skipped)</span>
                     </div>
                   </div>
 
-                  {importResult.summary?.createdCount > 0 && (
-                    <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-100 rounded-lg">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <p className="text-emerald-800 text-xs">{importResult.message}</p>
-                    </div>
-                  )}
+                  {/* Info Banner */}
+                  <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-between text-xs text-blue-900 font-medium">
+                    <span>
+                      Fault-tolerant import ready: <strong>{previewData.summary?.validCount ?? 0} valid rows</strong> will be imported into the database. Invalid rows will be safely skipped.
+                    </span>
+                  </div>
 
-                  {/* Errors list */}
+                  {/* Rows Validation Table */}
+                  <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm max-h-72 overflow-y-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100 text-slate-600 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200 sticky top-0 z-10">
+                        <tr>
+                          <th className="p-2.5 w-12 text-center">Row</th>
+                          <th className="p-2.5">Mitarbeiter Name</th>
+                          <th className="p-2.5">Benutzername</th>
+                          <th className="p-2.5">Rolle</th>
+                          <th className="p-2.5">Lager / Halle</th>
+                          <th className="p-2.5">Status</th>
+                          <th className="p-2.5">Diagnose & Details</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {previewData.rows?.map((row: any) => {
+                          let badgeBg = "bg-emerald-100 text-emerald-800 border-emerald-200";
+                          let statusIcon = "🟢 Ready";
+                          if (row.status === "WARNING") {
+                            badgeBg = "bg-amber-100 text-amber-800 border-amber-200";
+                            statusIcon = "🟡 Warning";
+                          } else if (row.status === "ERROR") {
+                            badgeBg = "bg-rose-100 text-rose-800 border-rose-200";
+                            statusIcon = "🔴 Error";
+                          }
+
+                          return (
+                            <tr key={row.row} className={row.status === "ERROR" ? "bg-rose-50/40" : "hover:bg-slate-50/80"}>
+                              <td className="p-2.5 font-mono text-center font-bold text-slate-500">{row.row}</td>
+                              <td className="p-2.5 font-bold text-slate-800">{row.name}</td>
+                              <td className="p-2.5 font-mono text-slate-600">{row.username || "—"}</td>
+                              <td className="p-2.5">
+                                <span className="px-2 py-0.5 rounded font-mono text-[10px] font-semibold bg-slate-100 text-slate-700">
+                                  {row.role}
+                                </span>
+                              </td>
+                              <td className="p-2.5 text-slate-600">
+                                {row.warehouse || "—"} {row.hall ? `/ ${row.hall}` : ""}
+                              </td>
+                              <td className="p-2.5">
+                                <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold tracking-wider inline-block ${badgeBg}`}>
+                                  {statusIcon}
+                                </span>
+                              </td>
+                              <td className="p-2.5">
+                                {row.issues && row.issues.length > 0 ? (
+                                  <div className="space-y-1">
+                                    {row.issues.map((iss: any, idx: number) => (
+                                      <div
+                                        key={idx}
+                                        className={`text-[11px] p-1.5 rounded border ${
+                                          iss.type === "error"
+                                            ? "bg-rose-50 text-rose-800 border-rose-200"
+                                            : "bg-amber-50 text-amber-800 border-amber-200"
+                                        }`}
+                                      >
+                                        <span className="font-bold uppercase tracking-wider text-[9px] mr-1">[{iss.column}]:</span>
+                                        <span>{iss.reason}</span>
+                                        {iss.suggestedFix && (
+                                          <span className="block text-[10px] font-medium opacity-90 mt-0.5">
+                                            💡 {iss.suggestedFix}
+                                          </span>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-400 text-[11px]">Valid</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Stage 2: DONE EXECUTION SUMMARY */}
+              {!importLoading && !executeLoading && importStage === "DONE" && importResult && (
+                <div className="space-y-5">
+                  <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                    <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
+                    <div>
+                      <h5 className="font-bold text-emerald-950 text-sm">Import Successfully Executed</h5>
+                      <p className="text-emerald-800 text-xs mt-0.5">{importResult.message}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
+                      <span className="text-2xl font-black text-slate-800 font-mono">{importResult.summary?.totalProcessed ?? 0}</span>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mt-1">Total Processed</span>
+                    </div>
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
+                      <span className="text-2xl font-black text-emerald-700 font-mono">{importResult.summary?.createdCount ?? 0}</span>
+                      <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider block mt-1">Imported</span>
+                    </div>
+                    <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-center">
+                      <span className="text-2xl font-black text-rose-700 font-mono">{importResult.summary?.skippedCount ?? 0}</span>
+                      <span className="text-[10px] text-rose-600 font-bold uppercase tracking-wider block mt-1">Skipped (Errors)</span>
+                    </div>
+                  </div>
+
+                  {/* Errors / Skipped List */}
                   {importResult.summary?.errors?.length > 0 && (
-                    <div className="space-y-1.5">
-                      <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Skipped Rows</p>
-                      <div className="max-h-40 overflow-y-auto space-y-1.5">
+                    <div className="space-y-2">
+                      <h6 className="text-xs font-bold uppercase text-slate-500 tracking-wider">Skipped Rows Report</h6>
+                      <div className="max-h-48 overflow-y-auto space-y-2">
                         {importResult.summary.errors.map((err: any, i: number) => (
-                          <div key={i} className="flex items-start gap-2 p-2 bg-slate-50 rounded border border-slate-100">
-                            <span className="text-slate-400 shrink-0">Row {err.row}:</span>
-                            <span className="text-slate-700 font-semibold">{err.name || err.phone || "—"}</span>
-                            <span className="text-rose-600 ml-auto text-right font-medium">{err.reason}</span>
+                          <div key={i} className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs space-y-1">
+                            <div className="flex items-center justify-between font-bold text-rose-900">
+                              <span>Row {err.row}: {err.name || "Unknown"}</span>
+                              {err.column && <span className="bg-rose-200 text-rose-800 text-[10px] px-1.5 py-0.5 rounded font-mono">{err.column}</span>}
+                            </div>
+                            <p className="text-rose-800 text-[11px]">{err.reason}</p>
+                            {err.suggestedFix && <p className="text-rose-700 text-[10px] font-semibold">Suggested Fix: {err.suggestedFix}</p>}
                           </div>
                         ))}
                       </div>
@@ -1161,14 +1329,39 @@ export default function EmployeesPage() {
               )}
             </div>
 
-            {!importLoading && (
-              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
-                <button
-                  onClick={() => setImportModalOpen(false)}
-                  className="btn-secondary py-1.5 px-4 cursor-pointer text-xs"
-                >
-                  Close
-                </button>
+            {/* Modal Footer */}
+            {!importLoading && !executeLoading && (
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-3 shrink-0">
+                {importStage === "PREVIEW" && (
+                  <>
+                    <button
+                      onClick={() => setImportModalOpen(false)}
+                      className="px-4 py-2 border border-slate-300 hover:bg-slate-200/60 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleExecuteImport}
+                      disabled={!previewData || (previewData.summary?.validCount ?? 0) === 0}
+                      className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm disabled:opacity-50 cursor-pointer flex items-center gap-2"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      Import {previewData?.summary?.validCount ?? 0} Valid Employee(s)
+                    </button>
+                  </>
+                )}
+
+                {importStage === "DONE" && (
+                  <button
+                    onClick={() => {
+                      setImportModalOpen(false);
+                      loadEmployees();
+                    }}
+                    className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Close & View Employees
+                  </button>
+                )}
               </div>
             )}
           </div>
