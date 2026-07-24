@@ -735,7 +735,6 @@ export class UsersService {
     const warehouses = await this.prisma.warehouse.findMany({ where: { deletedAt: null } });
     const halls = await this.prisma.hall.findMany({ where: { deletedAt: null } });
     const existingUsers = await this.prisma.user.findMany({
-      where: { deletedAt: null },
       select: { email: true, username: true, phone: true },
     });
 
@@ -904,10 +903,10 @@ export class UsersService {
         }
       } else if (name) {
         const baseUser = name.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
-        let candidate = baseUser || `user_${rowNumber}`;
+        let candidate = (baseUser || `user_${rowNumber}`).toLowerCase();
         let counter = 1;
         while (dbUsernames.has(candidate) || batchUsernames.has(candidate)) {
-          candidate = `${baseUser}_${counter}`;
+          candidate = `${baseUser}_${counter}`.toLowerCase();
           counter++;
         }
         username = candidate;
@@ -1093,40 +1092,57 @@ export class UsersService {
       const data = rowItem.resolvedData!;
       try {
         const passwordHash = await bcrypt.hash(data.rawPassword || 'employeepassword', 10);
-        const newUser = await this.prisma.user.create({
-          data: {
-            username: data.username,
-            name: data.name,
-            phone: data.phone,
-            email: data.email,
-            address: data.address,
-            passwordHash,
-            role: data.role,
-            warehouseId: data.warehouseId,
-            hallId: data.hallId,
-            telegramId: data.telegramId,
-            employmentStart: data.employmentStart,
-          },
-          select: {
-            id: true,
-            username: true,
-            name: true,
-            phone: true,
-            email: true,
-            address: true,
-            role: true,
-            warehouseId: true,
-            hallId: true,
-            telegramId: true,
-            employmentStart: true,
-            createdAt: true,
-          },
-        });
+        let candidateUsername = data.username;
+        let newUser: any = null;
+        let attempt = 0;
 
-        createdUsers.push(newUser);
+        while (!newUser && attempt < 10) {
+          try {
+            newUser = await this.prisma.user.create({
+              data: {
+                username: candidateUsername,
+                name: data.name,
+                phone: data.phone,
+                email: data.email,
+                address: data.address,
+                passwordHash,
+                role: data.role,
+                warehouseId: data.warehouseId,
+                hallId: data.hallId,
+                telegramId: data.telegramId,
+                employmentStart: data.employmentStart,
+              },
+              select: {
+                id: true,
+                username: true,
+                name: true,
+                phone: true,
+                email: true,
+                address: true,
+                role: true,
+                warehouseId: true,
+                hallId: true,
+                telegramId: true,
+                employmentStart: true,
+                createdAt: true,
+              },
+            });
+          } catch (createErr: any) {
+            // Handle username unique constraint error gracefully by auto-resolving suffix
+            if (createErr?.code === 'P2002' || (createErr?.message && createErr.message.toLowerCase().includes('username'))) {
+              attempt++;
+              candidateUsername = `${data.username}_${attempt}_${Math.floor(100 + Math.random() * 900)}`;
+            } else {
+              throw createErr;
+            }
+          }
+        }
 
-        if (newUser.email) {
-          this.emailService.sendWelcomeEmail(newUser.email, newUser.name).catch(() => {});
+        if (newUser) {
+          createdUsers.push(newUser);
+          if (newUser.email) {
+            this.emailService.sendWelcomeEmail(newUser.email, newUser.name).catch(() => {});
+          }
         }
       } catch (err: any) {
         errors.push({
