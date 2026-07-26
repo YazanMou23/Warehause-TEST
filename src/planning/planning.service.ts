@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { UpdatePlanDto } from './dto/update-plan.dto';
 import { EmailService } from '../email/email.service';
+import { MessagingService } from '../messaging/messaging.service';
 
 @Injectable()
 export class PlanningService {
@@ -11,6 +12,7 @@ export class PlanningService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
+    private readonly messagingService: MessagingService,
   ) {}
 
   private normalizeDate(dateStr: string): Date {
@@ -133,27 +135,29 @@ export class PlanningService {
 
     const fullPlan = await this.findOne(plan.id);
 
-    // Trigger Notification & Emails for assigned employees
+    // Trigger Notification, Emails & WhatsApp for assigned employees
     if (fullPlan.assignedEmployees && fullPlan.assignedEmployees.length > 0) {
       for (const employee of fullPlan.assignedEmployees) {
+        const formattedDate = normalizedDate.toLocaleDateString('de-DE');
+
         // App Notification
         await this.prisma.notification.create({
           data: {
             userId: employee.id,
             title: 'Neuer Schichtplan erstellt',
-            message: `Sie wurden einer neuen Schicht am ${normalizedDate.toLocaleDateString('de-DE')} in Halle ${hall.name} zugewiesen.`,
+            message: `Sie wurden einer neuen Schicht am ${formattedDate} in Halle ${hall.name} zugewiesen.`,
             type: 'PLAN_CREATED',
           },
         }).catch(() => {});
 
         // Email Notification
         if (employee.email) {
-          const emailSubject = `Neue Schichtzuweisung - ${normalizedDate.toLocaleDateString('de-DE')}`;
+          const emailSubject = `Neue Schichtzuweisung - ${formattedDate}`;
           const emailHtml = `
             <h3>Hallo ${employee.name},</h3>
             <p>Sie wurden für eine Schicht eingeteilt:</p>
             <ul>
-              <li><strong>Datum:</strong> ${normalizedDate.toLocaleDateString('de-DE')}</li>
+              <li><strong>Datum:</strong> ${formattedDate}</li>
               <li><strong>Halle:</strong> ${hall.name}</li>
               <li><strong>Schicht:</strong> ${fullPlan.shift || 'Standard'}</li>
               <li><strong>Notizen:</strong> ${fullPlan.notes || 'Keine'}</li>
@@ -169,12 +173,33 @@ export class PlanningService {
                   action: sent ? 'EMAIL_NOTIFICATION' : 'EMAIL_NOTIFICATION_FAILED',
                   details: sent
                     ? `Plan notification email sent to ${employee.name} (${employee.email})`
-                    : `Failed to send plan notification to ${employee.name} (${employee.email})`,
+                    : `Failed to send plan notification email to ${employee.name} (${employee.email})`,
                 },
               }).catch(() => {});
             })
             .catch((err: any) => {
               this.logger.error(`Email error for ${employee.email}: ${err.message}`);
+            });
+        }
+
+        // WhatsApp Notification
+        if (employee.phone) {
+          const waMessage = `Hallo ${employee.name},\nSie wurden für eine neue Schicht eingeteilt:\n\n📅 Datum: ${formattedDate}\n📍 Halle: ${hall.name}\n🕒 Schicht: ${fullPlan.shift || 'Standard'}\n📝 Notizen: ${fullPlan.notes || 'Keine'}\n\nBitte loggen Sie sich in das Dashboard ein für weitere Details.`;
+
+          this.messagingService.sendWhatsAppDirect(employee.phone, waMessage)
+            .then((res) => {
+              this.prisma.actionLog.create({
+                data: {
+                  userId: actorId || null,
+                  action: res.success ? 'WHATSAPP_NOTIFICATION' : 'WHATSAPP_NOTIFICATION_FAILED',
+                  details: res.success
+                    ? `Plan notification WhatsApp sent to ${employee.name} (${employee.phone})`
+                    : `Failed to send plan WhatsApp to ${employee.name} (${employee.phone}): ${res.error || 'Unknown error'}`,
+                },
+              }).catch(() => {});
+            })
+            .catch((err: any) => {
+              this.logger.error(`WhatsApp error for ${employee.phone}: ${err.message}`);
             });
         }
       }
