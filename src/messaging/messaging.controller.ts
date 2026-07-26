@@ -17,6 +17,12 @@ export class MessagingController {
     return { link };
   }
 
+  @Post('whatsapp/send')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  async sendWhatsAppDirect(@Body() body: { phone: string; message: string }) {
+    return this.messagingService.sendWhatsAppDirect(body.phone, body.message);
+  }
+
   @Post('sms')
   @Roles(Role.MANAGER, Role.ADMIN)
   async sendSMS(@Body() body: { phone: string; message: string }) {
