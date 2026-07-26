@@ -51,7 +51,7 @@ export class UsersController {
     @CurrentUser('role') actorRole?: Role,
   ) {
     const p = page ? parseInt(page, 10) : 1;
-    const l = limit ? parseInt(limit, 10) : 10;
+    const l = limit ? parseInt(limit, 10) : 100;
     return this.usersService.findAll(p, l, actorRole, role);
   }
 

@@ -82,7 +82,7 @@ export class UsersService {
     return user;
   }
 
-  async findAll(page = 1, limit = 10, actorRole?: Role, targetRole?: Role) {
+  async findAll(page = 1, limit = 100, actorRole?: Role, targetRole?: Role) {
     const skip = (page - 1) * limit;
     
     // Admin cannot see Manager accounts

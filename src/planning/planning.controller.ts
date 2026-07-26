@@ -52,7 +52,7 @@ export class PlanningController {
     @Query('warehouseId') warehouseId?: string,
   ) {
     const p = page ? parseInt(page, 10) : 1;
-    const l = limit ? parseInt(limit, 10) : 10;
+    const l = limit ? parseInt(limit, 10) : 100;
     return this.planningService.findAll(p, l, startDate, endDate, warehouseId);
   }
 

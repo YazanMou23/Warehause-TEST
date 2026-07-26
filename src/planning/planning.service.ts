@@ -461,7 +461,7 @@ export class PlanningService {
     return { message: 'Daily plan deactivated successfully' };
   }
 
-  async findAll(page = 1, limit = 10, startDateStr?: string, endDateStr?: string, warehouseId?: string) {
+  async findAll(page = 1, limit = 100, startDateStr?: string, endDateStr?: string, warehouseId?: string) {
     const skip = (page - 1) * limit;
     const where: any = {
       deletedAt: null,
