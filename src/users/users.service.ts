@@ -20,26 +20,45 @@ export class UsersService {
       throw new ForbiddenException('Admins can only create Employee accounts');
     }
 
-    // Check username uniqueness
-    const existingUsername = await this.prisma.user.findFirst({
-      where: { username: createUserDto.username },
-    });
-    if (existingUsername) {
-      throw new ConflictException('A user with this username already exists');
+    // Check username uniqueness (excluding soft-deleted)
+    if (createUserDto.username) {
+      const existingUsername = await this.prisma.user.findFirst({
+        where: { username: createUserDto.username, deletedAt: null },
+      });
+      if (existingUsername) {
+        throw new ConflictException('A user with this username already exists');
+      }
     }
 
-    if (createUserDto.email) {
-      const existingEmail = await this.prisma.user.findFirst({
-        where: { email: createUserDto.email },
-      });
-      if (existingEmail) {
-        throw new ConflictException('A user with this email address already exists');
+    if (createUserDto.email !== undefined && createUserDto.email !== null) {
+      const emailClean = createUserDto.email.trim();
+      if (emailClean) {
+        const activeEmailUser = await this.prisma.user.findFirst({
+          where: {
+            email: { equals: emailClean, mode: 'insensitive' },
+            deletedAt: null,
+          },
+        });
+        if (activeEmailUser) {
+          throw new ConflictException('A user with this email address already exists');
+        }
+
+        // Release soft-deleted user's email if any to avoid DB unique constraint conflict
+        await this.prisma.user.updateMany({
+          where: {
+            email: { equals: emailClean, mode: 'insensitive' },
+            deletedAt: { not: null },
+          },
+          data: { email: null },
+        });
+
+        createUserDto.email = emailClean;
       }
     }
 
     if (createUserDto.telegramId) {
       const existingTg = await this.prisma.user.findFirst({
-        where: { telegramId: createUserDto.telegramId },
+        where: { telegramId: createUserDto.telegramId, deletedAt: null },
       });
       if (existingTg) {
         throw new ConflictException('A user with this Telegram ID already exists');
@@ -208,27 +227,49 @@ export class UsersService {
       }
     }
 
-    // Username check
+    // Username check (excluding soft-deleted)
     if (updateUserDto.username && updateUserDto.username !== user.username) {
       const existingUsername = await this.prisma.user.findFirst({
-        where: { username: updateUserDto.username },
+        where: { username: updateUserDto.username, deletedAt: null, id: { not: id } },
       });
       if (existingUsername) {
         throw new ConflictException('A user with this username already exists');
       }
     }
 
-    // Email check
-    if (updateUserDto.email && updateUserDto.email !== user.email) {
-      const existingEmail = await this.prisma.user.findFirst({
-        where: { email: updateUserDto.email },
-      });
-      if (existingEmail) {
-        throw new ConflictException('A user with this email address already exists');
+    // Email check (excluding soft-deleted)
+    if (updateUserDto.email !== undefined) {
+      const rawEmail = updateUserDto.email ? updateUserDto.email.trim() : null;
+      if (rawEmail) {
+        if (rawEmail.toLowerCase() !== user.email?.toLowerCase()) {
+          const activeEmailUser = await this.prisma.user.findFirst({
+            where: {
+              email: { equals: rawEmail, mode: 'insensitive' },
+              deletedAt: null,
+              id: { not: id },
+            },
+          });
+          if (activeEmailUser) {
+            throw new ConflictException('A user with this email address already exists');
+          }
+
+          // Release soft-deleted user's email if any to prevent DB unique constraint error
+          await this.prisma.user.updateMany({
+            where: {
+              email: { equals: rawEmail, mode: 'insensitive' },
+              deletedAt: { not: null },
+              id: { not: id },
+            },
+            data: { email: null },
+          });
+        }
       }
     }
 
     const data: any = { ...updateUserDto };
+    if (updateUserDto.email !== undefined) {
+      data.email = updateUserDto.email ? updateUserDto.email.trim() : null;
+    }
 
     if (updateUserDto.password) {
       data.passwordHash = await bcrypt.hash(updateUserDto.password, 10);
