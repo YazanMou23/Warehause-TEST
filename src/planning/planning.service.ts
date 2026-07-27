@@ -136,76 +136,101 @@ export class PlanningService {
     const fullPlan = await this.findOne(plan.id);
 
     // Trigger Notification, Emails & WhatsApp for assigned employees
-    if (fullPlan.assignedEmployees && fullPlan.assignedEmployees.length > 0) {
-      for (const employee of fullPlan.assignedEmployees) {
-        const formattedDate = normalizedDate.toLocaleDateString('de-DE');
-
-        // App Notification
-        await this.prisma.notification.create({
-          data: {
-            userId: employee.id,
-            title: 'Neuer Schichtplan erstellt',
-            message: `Sie wurden einer neuen Schicht am ${formattedDate} in Halle ${hall.name} zugewiesen.`,
-            type: 'PLAN_CREATED',
-          },
-        }).catch(() => {});
-
-        // Email Notification
-        if (employee.email) {
-          const emailSubject = `Neue Schichtzuweisung - ${formattedDate}`;
-          const emailHtml = `
-            <h3>Hallo ${employee.name},</h3>
-            <p>Sie wurden für eine Schicht eingeteilt:</p>
-            <ul>
-              <li><strong>Datum:</strong> ${formattedDate}</li>
-              <li><strong>Halle:</strong> ${hall.name}</li>
-              <li><strong>Schicht:</strong> ${fullPlan.shift || 'Standard'}</li>
-              <li><strong>Notizen:</strong> ${fullPlan.notes || 'Keine'}</li>
-            </ul>
-            <p>Bitte loggen Sie sich in das Dashboard ein, um weitere Details zu sehen.</p>
-          `;
-
-          this.emailService.sendEmail(employee.email, emailSubject, emailHtml)
-            .then((sent: any) => {
-              this.prisma.actionLog.create({
-                data: {
-                  userId: actorId || null,
-                  action: sent ? 'EMAIL_NOTIFICATION' : 'EMAIL_NOTIFICATION_FAILED',
-                  details: sent
-                    ? `Plan notification email sent to ${employee.name} (${employee.email})`
-                    : `Failed to send plan notification email to ${employee.name} (${employee.email})`,
-                },
-              }).catch(() => {});
-            })
-            .catch((err: any) => {
-              this.logger.error(`Email error for ${employee.email}: ${err.message}`);
-            });
-        }
-
-        // WhatsApp Notification
-        if (employee.phone) {
-          const waMessage = `Hallo ${employee.name},\nSie wurden für eine neue Schicht eingeteilt:\n\n📅 Datum: ${formattedDate}\n📍 Halle: ${hall.name}\n🕒 Schicht: ${fullPlan.shift || 'Standard'}\n📝 Notizen: ${fullPlan.notes || 'Keine'}\n\nBitte loggen Sie sich in das Dashboard ein für weitere Details.`;
-
-          this.messagingService.sendWhatsAppDirect(employee.phone, waMessage)
-            .then((res) => {
-              this.prisma.actionLog.create({
-                data: {
-                  userId: actorId || null,
-                  action: res.success ? 'WHATSAPP_NOTIFICATION' : 'WHATSAPP_NOTIFICATION_FAILED',
-                  details: res.success
-                    ? `Plan notification WhatsApp sent to ${employee.name} (${employee.phone})`
-                    : `Failed to send plan WhatsApp to ${employee.name} (${employee.phone}): ${res.error || 'Unknown error'}`,
-                },
-              }).catch(() => {});
-            })
-            .catch((err: any) => {
-              this.logger.error(`WhatsApp error for ${employee.phone}: ${err.message}`);
-            });
-        }
-      }
-    }
+    await this.notifyAssignedEmployees(fullPlan, fullPlan.assignedEmployees, false, actorId);
 
     return fullPlan;
+  }
+
+  private async notifyAssignedEmployees(
+    plan: {
+      id: string;
+      date: Date;
+      warehouseName: string;
+      hallName: string;
+      shift?: string | null;
+      notes?: string | null;
+      title?: string | null;
+    },
+    employees: Array<{ id: string; name: string; email?: string | null; phone?: string | null }>,
+    isUpdate = false,
+    actorId?: string,
+  ) {
+    if (!employees || employees.length === 0) return;
+
+    const formattedDate = new Date(plan.date).toLocaleDateString('de-DE');
+    const headerTitle = isUpdate ? 'Schichtplan aktualisiert' : 'Neue Schichtzuweisung';
+
+    for (const employee of employees) {
+      // 1. App Notification
+      await this.prisma.notification.create({
+        data: {
+          userId: employee.id,
+          title: headerTitle,
+          message: isUpdate
+            ? `Ihr Schichtplan am ${formattedDate} in Halle ${plan.hallName} wurde aktualisiert.`
+            : `Sie wurden einer Schicht am ${formattedDate} in Halle ${plan.hallName} zugewiesen.`,
+          type: isUpdate ? 'PLAN_UPDATED' : 'PLAN_CREATED',
+        },
+      }).catch((err) => {
+        this.logger.error(`Notification DB error for user ${employee.id}: ${err.message}`);
+      });
+
+      // 2. Email Notification
+      if (employee.email) {
+        const emailSubject = `${headerTitle} - ${formattedDate}`;
+        const emailHtml = `
+          <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f8fafc; border-radius: 8px;">
+            <h3 style="color: #1e293b;">Hallo ${employee.name},</h3>
+            <p style="color: #334155;">${isUpdate ? 'Ihr Schichtplan wurde aktualisiert:' : 'Sie wurden für eine neue Schicht eingeteilt:'}</p>
+            <ul style="color: #334155; line-height: 1.6;">
+              <li><strong>Datum:</strong> ${formattedDate}</li>
+              <li><strong>Lager:</strong> ${plan.warehouseName}</li>
+              <li><strong>Halle:</strong> ${plan.hallName}</li>
+              <li><strong>Schicht:</strong> ${plan.shift || 'Standard'}</li>
+              ${plan.notes ? `<li><strong>Notizen:</strong> ${plan.notes}</li>` : ''}
+            </ul>
+            <p style="color: #64748b; font-size: 13px;">Bitte loggen Sie sich in das Portal ein, um weitere Details einzusehen.</p>
+          </div>
+        `;
+
+        this.emailService.sendEmail(employee.email, emailSubject, emailHtml)
+          .then((sent: any) => {
+            this.prisma.actionLog.create({
+              data: {
+                userId: actorId || null,
+                action: sent ? 'EMAIL_NOTIFICATION' : 'EMAIL_NOTIFICATION_FAILED',
+                details: sent
+                  ? `Plan notification email sent to ${employee.name} (${employee.email})`
+                  : `Failed to send plan notification email to ${employee.name} (${employee.email})`,
+              },
+            }).catch(() => {});
+          })
+          .catch((err: any) => {
+            this.logger.error(`Email error for ${employee.email}: ${err.message}`);
+          });
+      }
+
+      // 3. WhatsApp Notification
+      if (employee.phone) {
+        const waMessage = `Hallo ${employee.name},\n${isUpdate ? 'Ihr Schichtplan wurde aktualisiert:' : 'Sie wurden für eine neue Schicht eingeteilt:'}\n\n📅 Datum: ${formattedDate}\n🏢 Lager: ${plan.warehouseName}\n📍 Halle: ${plan.hallName}\n🕒 Schicht: ${plan.shift || 'Standard'}${plan.notes ? `\n📝 Notizen: ${plan.notes}` : ''}\n\nBitte loggen Sie sich in das Portal ein für weitere Details.`;
+
+        this.messagingService.sendWhatsAppDirect(employee.phone, waMessage)
+          .then((res) => {
+            this.prisma.actionLog.create({
+              data: {
+                userId: actorId || null,
+                action: res.success ? 'WHATSAPP_NOTIFICATION' : 'WHATSAPP_NOTIFICATION_FAILED',
+                details: res.success
+                  ? `Plan notification WhatsApp sent to ${employee.name} (${employee.phone})`
+                  : `Failed WhatsApp notification to ${employee.name} (${employee.phone}): ${res.error || 'Unknown error'}`,
+              },
+            }).catch(() => {});
+          })
+          .catch((err: any) => {
+            this.logger.error(`WhatsApp error for ${employee.phone}: ${err.message}`);
+          });
+      }
+    }
   }
 
   async update(id: string, updatePlanDto: UpdatePlanDto, actorId?: string) {
@@ -314,21 +339,9 @@ export class PlanningService {
 
     const updatedPlan = await this.findOne(id);
 
-    // Notify Employees of updates or assignments
+    // Notify Employees of updates or assignments via App, Email & WhatsApp
     if (updatePlanDto.assignedEmployeeIds !== undefined) {
-      for (const empId of updatePlanDto.assignedEmployeeIds) {
-        const isNew = !prevEmployeeIds.includes(empId);
-        await this.prisma.notification.create({
-          data: {
-            userId: empId,
-            title: isNew ? 'Neue Schichtzuweisung' : 'Schichtplan aktualisiert',
-            message: isNew 
-              ? `Sie wurden am ${updatedPlan.date.toLocaleDateString('de-DE')} einer Schicht in Halle ${updatedPlan.hallName} zugewiesen.`
-              : `Ihr Schichtplan für den ${updatedPlan.date.toLocaleDateString('de-DE')} in Halle ${updatedPlan.hallName} wurde aktualisiert.`,
-            type: isNew ? 'EMPLOYEE_ASSIGNED' : 'PLAN_UPDATED',
-          },
-        }).catch(() => {});
-      }
+      await this.notifyAssignedEmployees(updatedPlan, updatedPlan.assignedEmployees, true, actorId);
     }
 
     return updatedPlan;
@@ -719,6 +732,9 @@ export class PlanningService {
           });
         }
       });
+
+      const updatedPlan = await this.findOne(plan.id);
+      await this.notifyAssignedEmployees(updatedPlan, updatedPlan.assignedEmployees, true, actorId);
     }
 
     await this.prisma.actionLog.create({
