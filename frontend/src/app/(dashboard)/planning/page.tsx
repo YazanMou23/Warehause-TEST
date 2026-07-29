@@ -16,6 +16,7 @@ import {
   Package,
   Clock,
   CheckCircle2,
+  MapPin,
 } from "lucide-react";
 import CustomAlertModal, { CustomAlertOptions } from "../../components/CustomAlertModal";
 
@@ -35,6 +36,8 @@ interface Employee {
   name: string;
   phone: string;
   role: string;
+  treffpunkt?: string | null;
+  treffpunktTime?: string | null;
 }
 
 function PlanningPageContent() {
@@ -185,10 +188,6 @@ function PlanningPageContent() {
       if (!token || isOffline) return;
 
       setIsLoading(true);
-      setPlanId(null);
-      setAssignedEmployeeIds([]);
-      setShift("Frühschicht");
-      setNotes("");
 
       try {
         const res = await fetch(
@@ -209,6 +208,8 @@ function PlanningPageContent() {
             setNotes(hallPlan.notes || "");
             setAssignedContainerNumbers(hallPlan.assignedContainers?.map((c: any) => c.containerNumber) || []);
           } else {
+            // Keep selected employees, shift, notes for new hall planning!
+            setPlanId(null);
             setAssignedContainerNumbers([]);
           }
         }
@@ -591,7 +592,18 @@ function PlanningPageContent() {
                     <p className={`text-xs font-bold ${isAssigned ? "text-blue-700" : "text-slate-800"}`}>
                       {emp.name}
                     </p>
-                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">{emp.phone || "Keine Telefonnummer"}</p>
+                    <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                      <p className="text-[10px] text-slate-400 font-mono">{emp.phone || "Keine Telefonnummer"}</p>
+                      {(emp.treffpunkt || emp.treffpunktTime) && (
+                        <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-medium flex items-center gap-1">
+                          <MapPin className="w-2.5 h-2.5 text-blue-500 shrink-0" />
+                          <span>{emp.treffpunkt || "—"}</span>
+                          {emp.treffpunktTime && (
+                            <span className="font-mono text-blue-600 font-bold ml-1">⏰ {emp.treffpunktTime}</span>
+                          )}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <span
                     className={`px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider font-mono ${

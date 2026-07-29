@@ -160,15 +160,26 @@ export class PlanningService {
     const formattedDate = new Date(plan.date).toLocaleDateString('de-DE');
     const headerTitle = isUpdate ? 'Schichtplan aktualisiert' : 'Neue Schichtzuweisung';
 
+    // Fetch employee Treffpunkt details
+    const userRecords = await this.prisma.user.findMany({
+      where: { id: { in: employees.map((e) => e.id) } },
+      select: { id: true, treffpunkt: true, treffpunktTime: true, address: true },
+    }).catch(() => []);
+    const userMap = new Map(userRecords.map((u) => [u.id, u]));
+
     for (const employee of employees) {
+      const uInfo = userMap.get(employee.id);
+      const tpOrt = uInfo?.treffpunkt || uInfo?.address || 'Kein Treffpunkt angegeben';
+      const tpZeit = uInfo?.treffpunktTime || 'Keine Uhrzeit angegeben';
+
       // 1. App Notification
       await this.prisma.notification.create({
         data: {
           userId: employee.id,
           title: headerTitle,
           message: isUpdate
-            ? `Ihr Schichtplan am ${formattedDate} in Halle ${plan.hallName} wurde aktualisiert.`
-            : `Sie wurden einer Schicht am ${formattedDate} in Halle ${plan.hallName} zugewiesen.`,
+            ? `Ihr Schichtplan am ${formattedDate} in Halle ${plan.hallName} wurde aktualisiert. Treffpunkt: ${tpOrt} (${tpZeit})`
+            : `Sie wurden einer Schicht am ${formattedDate} in Halle ${plan.hallName} zugewiesen. Treffpunkt: ${tpOrt} (${tpZeit})`,
           type: isUpdate ? 'PLAN_UPDATED' : 'PLAN_CREATED',
         },
       }).catch((err) => {
@@ -187,6 +198,8 @@ export class PlanningService {
               <li><strong>Lager:</strong> ${plan.warehouseName}</li>
               <li><strong>Halle:</strong> ${plan.hallName}</li>
               <li><strong>Schicht:</strong> ${plan.shift || 'Standard'}</li>
+              <li><strong>📍 Treffpunkt (Ort):</strong> ${tpOrt}</li>
+              <li><strong>⏰ Treffpunkt-Uhrzeit:</strong> ${tpZeit}</li>
               ${plan.notes ? `<li><strong>Notizen:</strong> ${plan.notes}</li>` : ''}
             </ul>
             <p style="color: #64748b; font-size: 13px;">Bitte loggen Sie sich in das Portal ein, um weitere Details einzusehen.</p>
@@ -212,7 +225,7 @@ export class PlanningService {
 
       // 3. WhatsApp Notification
       if (employee.phone) {
-        const waMessage = `Hallo ${employee.name},\n${isUpdate ? 'Ihr Schichtplan wurde aktualisiert:' : 'Sie wurden für eine neue Schicht eingeteilt:'}\n\n📅 Datum: ${formattedDate}\n🏢 Lager: ${plan.warehouseName}\n📍 Halle: ${plan.hallName}\n🕒 Schicht: ${plan.shift || 'Standard'}${plan.notes ? `\n📝 Notizen: ${plan.notes}` : ''}\n\nBitte loggen Sie sich in das Portal ein für weitere Details.`;
+        const waMessage = `Hallo ${employee.name},\n${isUpdate ? 'Ihr Schichtplan wurde aktualisiert:' : 'Sie wurden für eine neue Schicht eingeteilt:'}\n\n📅 Datum: ${formattedDate}\n🏢 Lager: ${plan.warehouseName}\n📍 Halle: ${plan.hallName}\n🕒 Schicht: ${plan.shift || 'Standard'}\n📍 Treffpunkt: ${tpOrt}\n⏰ Treffpunkt-Uhrzeit: ${tpZeit}${plan.notes ? `\n📝 Notizen: ${plan.notes}` : ''}\n\nBitte loggen Sie sich in das Portal ein für weitere Details.`;
 
         this.messagingService.sendWhatsAppDirect(employee.phone, waMessage)
           .then((res) => {
