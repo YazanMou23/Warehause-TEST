@@ -48,6 +48,10 @@ export class UpdateUserDto {
 
   @IsOptional()
   @IsString()
+  treffpunkt?: string;
+
+  @IsOptional()
+  @IsString()
   employmentStart?: string;
 
   @IsOptional()

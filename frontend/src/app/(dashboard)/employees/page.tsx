@@ -23,8 +23,10 @@ import {
   Download,
   FileSpreadsheet,
   CheckCircle2,
+  MapPin,
 } from "lucide-react";
 import { useTranslation } from "../../i18n/LanguageContext";
+import CustomAlertModal, { CustomAlertOptions } from "../../components/CustomAlertModal";
 
 interface Employee {
   id: string;
@@ -33,6 +35,7 @@ interface Employee {
   phone: string;
   email?: string | null;
   address?: string | null;
+  treffpunkt?: string | null;
   role: string;
   isActive: boolean;
   telegramId: string | null;
@@ -65,6 +68,16 @@ export default function EmployeesPage() {
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [halls, setHalls] = useState<any[]>([]);
 
+  // Alert Modal State
+  const [alertConfig, setAlertConfig] = useState<CustomAlertOptions>({
+    isOpen: false,
+    message: "",
+  });
+
+  const showAlert = (options: Omit<CustomAlertOptions, "isOpen">) => {
+    setAlertConfig({ ...options, isOpen: true });
+  };
+
   // Modals state
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -76,6 +89,7 @@ export default function EmployeesPage() {
   const [formNachname, setFormNachname] = useState("");
   const [formPhone, setFormPhone] = useState("");
   const [formEmail, setFormEmail] = useState("");
+  const [formTreffpunkt, setFormTreffpunkt] = useState("");
   const [formUsername, setFormUsername] = useState("");
   const [formPassword, setFormPassword] = useState("");
   const [formWarehouse, setFormWarehouse] = useState("");
@@ -186,6 +200,7 @@ export default function EmployeesPage() {
     setFormNachname("");
     setFormPhone("");
     setFormEmail("");
+    setFormTreffpunkt("");
     setFormUsername("");
     setFormPassword("");
     setFormWarehouse("");
@@ -205,6 +220,7 @@ export default function EmployeesPage() {
     setFormNachname(getLastName(emp.name) === "—" ? "" : getLastName(emp.name));
     setFormPhone(emp.phone);
     setFormEmail(emp.email || "");
+    setFormTreffpunkt(emp.treffpunkt || emp.address || "");
     setFormUsername(emp.username);
     setFormPassword("");
     setFormWarehouse(emp.warehouseId || "");
@@ -235,6 +251,7 @@ export default function EmployeesPage() {
           name: submittedName,
           phone: formPhone,
           email: formEmail || null,
+          treffpunkt: formTreffpunkt || null,
           role: "EMPLOYEE",
           isActive: true,
           telegramId: formTelegram || null,
@@ -259,6 +276,8 @@ export default function EmployeesPage() {
           name: submittedName,
           phone: formPhone,
           email: formEmail || undefined,
+          treffpunkt: formTreffpunkt || undefined,
+          address: formTreffpunkt || undefined,
           passwordHash: formPassword,
           role: "EMPLOYEE", // Enforced for standard worker creations
           warehouseId: formWarehouse || undefined,
@@ -302,6 +321,7 @@ export default function EmployeesPage() {
           name: submittedName,
           phone: formPhone,
           email: formEmail || null,
+          treffpunkt: formTreffpunkt || null,
           role: userRole === "MANAGER" ? formRole : emp.role,
           telegramId: formTelegram || null,
           warehouseId: formWarehouse || null,
@@ -318,6 +338,8 @@ export default function EmployeesPage() {
         name: submittedName,
         phone: formPhone,
         email: formEmail || null,
+        treffpunkt: formTreffpunkt || null,
+        address: formTreffpunkt || null,
         warehouseId: formWarehouse || null,
         hallId: formHall || null,
         telegramId: formTelegram || null,
@@ -376,11 +398,11 @@ export default function EmployeesPage() {
       if (res.ok) {
         loadEmployees();
       } else {
-        alert(language === "de" ? "Mitarbeiter konnte nicht gelöscht werden" : "Failed to delete employee");
+        showAlert({ title: "Fehler", message: language === "de" ? "Mitarbeiter konnte nicht gelöscht werden" : "Failed to delete employee", type: "error" });
       }
     } catch (e) {
       console.error(e);
-      alert("Error occurred");
+      showAlert({ title: "Fehler", message: "Error occurred", type: "error" });
     }
   };
 
@@ -411,11 +433,11 @@ export default function EmployeesPage() {
         setSelectedEmpIds([]);
         loadEmployees();
       } else {
-        alert(language === "de" ? "Mitarbeiter konnten nicht gelöscht werden" : "Failed to delete employees");
+        showAlert({ title: "Fehler", message: language === "de" ? "Mitarbeiter konnten nicht gelöscht werden" : "Failed to delete employees", type: "error" });
       }
     } catch (e) {
       console.error(e);
-      alert("Error occurred");
+      showAlert({ title: "Fehler", message: "Error occurred", type: "error" });
     }
   };
 
@@ -428,7 +450,7 @@ export default function EmployeesPage() {
     const token = localStorage.getItem("accessToken");
     try {
       if (isOffline) {
-        alert("Mock: bulk activate");
+        showAlert({ title: "Offline-Modus", message: "Bulk activate simulated", type: "info" });
         setSelectedEmpIds([]);
         return;
       }
@@ -446,7 +468,7 @@ export default function EmployeesPage() {
         setSelectedEmpIds([]);
         loadEmployees();
       } else {
-        alert("Failed to activate employees");
+        showAlert({ title: "Fehler", message: "Failed to activate employees", type: "error" });
       }
     } catch (e) {
       console.error(e);
@@ -459,7 +481,7 @@ export default function EmployeesPage() {
     const token = localStorage.getItem("accessToken");
     try {
       if (isOffline) {
-        alert("Mock: bulk assign hall");
+        showAlert({ title: "Offline-Modus", message: "Bulk assign hall simulated", type: "info" });
         setSelectedEmpIds([]);
         return;
       }
@@ -477,7 +499,7 @@ export default function EmployeesPage() {
         setSelectedEmpIds([]);
         loadEmployees();
       } else {
-        alert("Failed to assign hall");
+        showAlert({ title: "Fehler", message: "Failed to assign hall", type: "error" });
       }
     } catch (e) {
       console.error(e);
@@ -490,7 +512,7 @@ export default function EmployeesPage() {
     const token = localStorage.getItem("accessToken");
     try {
       if (isOffline) {
-        alert("Mock: bulk assign role");
+        showAlert({ title: "Offline-Modus", message: "Bulk assign role simulated", type: "info" });
         setSelectedEmpIds([]);
         return;
       }
@@ -508,7 +530,7 @@ export default function EmployeesPage() {
         setSelectedEmpIds([]);
         loadEmployees();
       } else {
-        alert("Failed to assign role");
+        showAlert({ title: "Fehler", message: "Failed to assign role", type: "error" });
       }
     } catch (e) {
       console.error(e);
@@ -660,11 +682,15 @@ export default function EmployeesPage() {
     }
   };
 
-  const filteredEmployees = employees.filter((emp) =>
-    emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.phone.includes(searchTerm) ||
-    emp.username.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredEmployees = employees
+    .filter((emp) =>
+      emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      emp.phone.includes(searchTerm) ||
+      emp.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (emp.treffpunkt && emp.treffpunkt.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (emp.address && emp.address.toLowerCase().includes(searchTerm.toLowerCase()))
+    )
+    .sort((a, b) => a.name.localeCompare(b.name, "de", { sensitivity: "base" }));
 
   const itemsPerPage = 50;
   const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage) || 1;
@@ -939,6 +965,7 @@ export default function EmployeesPage() {
                 <th className="px-4 py-3">{t("usernameLabel")}</th>
                 <th className="px-4 py-3">{t("phone")}</th>
                 <th className="px-4 py-3">{t("email")}</th>
+                <th className="px-4 py-3">{language === "de" ? "Treffpunkt" : "Treffpunkt / Transport"}</th>
                 <th className="px-4 py-3">{language === "de" ? "Vertrag ab (from)" : "Contract From"}</th>
                 <th className="px-4 py-3">{language === "de" ? "Vertrag bis (to)" : "Contract To"}</th>
                 <th className="px-4 py-3">{t("telegramId")}</th>
@@ -1023,6 +1050,16 @@ export default function EmployeesPage() {
                         </a>
                       ) : (
                         <span className="text-slate-400 italic text-[11px]">— no email</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-xs font-medium text-slate-700 max-w-[180px] truncate" title={emp.treffpunkt || emp.address || ""}>
+                      {emp.treffpunkt || emp.address ? (
+                        <span className="flex items-center gap-1 text-slate-700 font-semibold">
+                          <MapPin className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                          <span className="truncate">{emp.treffpunkt || emp.address}</span>
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 italic text-[11px]">—</span>
                       )}
                     </td>
                     <td suppressHydrationWarning className="px-4 py-3 font-mono text-xs text-slate-500">
@@ -1461,6 +1498,18 @@ export default function EmployeesPage() {
                     className="input-premium"
                   />
                 </div>
+                <div className="space-y-1.5">
+                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
+                    {language === "de" ? "Treffpunkt (Abholadresse)" : "Meeting Point / Pick-up Address"}
+                  </label>
+                  <input
+                    type="text"
+                    value={formTreffpunkt}
+                    onChange={(e) => setFormTreffpunkt(e.target.value)}
+                    placeholder="z.B. Hauptbahnhof Duisburg, Gleis 3"
+                    className="input-premium"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
@@ -1634,6 +1683,19 @@ export default function EmployeesPage() {
                     className="input-premium"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-1.5 text-xs">
+                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
+                  {language === "de" ? "Treffpunkt (Abholadresse)" : "Meeting Point / Pick-up Address"}
+                </label>
+                <input
+                  type="text"
+                  value={formTreffpunkt}
+                  onChange={(e) => setFormTreffpunkt(e.target.value)}
+                  placeholder="z.B. Hauptbahnhof Duisburg, Gleis 3"
+                  className="input-premium"
+                />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
@@ -1844,6 +1906,12 @@ export default function EmployeesPage() {
           </div>
         </div>
       )}
+
+      {/* Custom Alert Modal */}
+      <CustomAlertModal
+        {...alertConfig}
+        onClose={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

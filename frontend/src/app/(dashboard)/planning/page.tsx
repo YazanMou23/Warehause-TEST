@@ -11,7 +11,13 @@ import {
   CheckCircle,
   AlertTriangle,
   X,
+  Search,
+  Edit2,
+  Package,
+  Clock,
+  CheckCircle2,
 } from "lucide-react";
+import CustomAlertModal, { CustomAlertOptions } from "../../components/CustomAlertModal";
 
 interface Warehouse {
   id: string;
@@ -41,6 +47,7 @@ function PlanningPageContent() {
   const [hasInitializedFromQuery, setHasInitializedFromQuery] = useState(false);
 
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employeeSearchTerm, setEmployeeSearchTerm] = useState("");
 
   // Selection states for planning
   const [assignedEmployeeIds, setAssignedEmployeeIds] = useState<string[]>([]);
@@ -50,9 +57,21 @@ function PlanningPageContent() {
   const [typedContainerNumber, setTypedContainerNumber] = useState("");
 
   const [planId, setPlanId] = useState<string | null>(null);
+  const [allCreatedPlans, setAllCreatedPlans] = useState<any[]>([]);
   const [isOffline, setIsOffline] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState({ text: "", type: "" });
+
+  // Centered Alert Modal State
+  const [alertConfig, setAlertConfig] = useState<CustomAlertOptions>({
+    isOpen: false,
+    message: "",
+  });
+
+  const showAlert = (options: Omit<CustomAlertOptions, "isOpen">) => {
+    setAlertConfig({ ...options, isOpen: true });
+  };
+
   const router = useRouter();
 
   useEffect(() => {
@@ -181,6 +200,7 @@ function PlanningPageContent() {
 
         if (res.ok) {
           const plans = await res.json();
+          setAllCreatedPlans(plans);
           const hallPlan = plans.find((p: any) => p.hallId === selectedHallId);
           if (hallPlan) {
             setPlanId(hallPlan.id);
@@ -202,6 +222,21 @@ function PlanningPageContent() {
     fetchExistingPlan();
   }, [date, selectedWarehouseId, selectedHallId, isOffline]);
 
+  const fetchExistingPlanManual = async () => {
+    const token = localStorage.getItem("accessToken");
+    if (!token || isOffline) return;
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/query?date=${date}&warehouseId=${selectedWarehouseId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.ok) {
+        const plans = await res.json();
+        setAllCreatedPlans(plans);
+      }
+    } catch (e) {}
+  };
+
   const toggleEmployee = (empId: string) => {
     setAssignedEmployeeIds((prev) =>
       prev.includes(empId) ? prev.filter((id) => id !== empId) : [...prev, empId]
@@ -213,12 +248,15 @@ function PlanningPageContent() {
     if (!token) return;
 
     setIsLoading(true);
-    setMessage({ text: "", type: "" });
 
     if (isOffline) {
       setTimeout(() => {
         setPlanId("mock-plan-id");
-        setMessage({ text: "Daily plan saved successfully in mock mode!", type: "success" });
+        showAlert({
+          title: "Schichtplan gespeichert",
+          message: "Tagesplan wurde im Offline-Modus erfolgreich simuliert!",
+          type: "success",
+        });
         setIsLoading(false);
       }, 500);
       return;
@@ -267,9 +305,18 @@ function PlanningPageContent() {
       }
 
       setPlanId(data.id);
-      setMessage({ text: "Schichtplan erfolgreich gespeichert! Mitarbeiter wurden benachrichtigt.", type: "success" });
+      showAlert({
+        title: "Schichtplan erfolgreich erstellt!",
+        message: `Der Schichtplan für ${shift} wurde erfolgreich gespeichert. ${assignedEmployeeIds.length} Mitarbeiter wurden benachrichtigt.`,
+        type: "success",
+      });
+      fetchExistingPlanManual();
     } catch (err: any) {
-      setMessage({ text: err.message || "Fehler beim Speichern des Plans.", type: "error" });
+      showAlert({
+        title: "Fehler beim Speichern",
+        message: err.message || "Fehler beim Speichern des Schichtplans.",
+        type: "error",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -496,13 +543,39 @@ function PlanningPageContent() {
           </span>
         </div>
 
-        <div className="overflow-y-auto max-h-[500px] divide-y divide-slate-100 p-3 space-y-1">
-          {employees.length === 0 ? (
-            <div className="text-center py-12 text-slate-400 text-xs">
-              Keine Mitarbeiter in der Datenbank gefunden.
-            </div>
-          ) : (
-            employees.map((emp) => {
+        {/* Search Bar for Mitarbeiter */}
+        <div className="p-3 border-b border-slate-100 bg-white">
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Mitarbeiter direkt suchen (Name, Telefon)..."
+              value={employeeSearchTerm}
+              onChange={(e) => setEmployeeSearchTerm(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-700 outline-none focus:border-blue-400 transition-colors"
+            />
+          </div>
+        </div>
+
+        <div className="overflow-y-auto max-h-[400px] divide-y divide-slate-100 p-3 space-y-1">
+          {(() => {
+            const sortedFiltered = employees
+              .filter((emp) =>
+                emp.name.toLowerCase().includes(employeeSearchTerm.toLowerCase()) ||
+                (emp.phone && emp.phone.includes(employeeSearchTerm)) ||
+                emp.role.toLowerCase().includes(employeeSearchTerm.toLowerCase())
+              )
+              .sort((a, b) => a.name.localeCompare(b.name, "de", { sensitivity: "base" }));
+
+            if (sortedFiltered.length === 0) {
+              return (
+                <div className="text-center py-8 text-slate-400 text-xs italic">
+                  Keine Mitarbeiter für "{employeeSearchTerm}" gefunden.
+                </div>
+              );
+            }
+
+            return sortedFiltered.map((emp) => {
               const isAssigned = assignedEmployeeIds.includes(emp.id);
               return (
                 <div
@@ -531,8 +604,8 @@ function PlanningPageContent() {
                   </span>
                 </div>
               );
-            })
-          )}
+            });
+          })()}
         </div>
       </div>
 
@@ -561,26 +634,115 @@ function PlanningPageContent() {
         </button>
       </div>
 
-      {/* Notification Toast */}
-      {message.text && (
-        <div
-          className={`p-4 rounded-xl flex items-start gap-3 text-xs shadow-md animate-slideUp max-w-xl ${
-            message.type === "success"
-              ? "bg-emerald-50 border border-emerald-200 text-emerald-800"
-              : "bg-red-50 border border-red-200 text-red-800"
-          }`}
-        >
-          {message.type === "success" ? (
-            <CheckCircle className="w-5 h-5 shrink-0 mt-0.5 text-emerald-600" />
-          ) : (
-            <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-red-500" />
-          )}
+      {/* ── Created Plans Section ── */}
+      <div className="bg-white border border-slate-100 rounded-xl p-5 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
           <div>
-            <p className="font-bold">{message.type === "success" ? "Erfolgreich" : "Fehler aufgetreten"}</p>
-            <p className="text-[11px] opacity-90 mt-0.5">{message.text}</p>
+            <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-blue-600" />
+              Erstellte Schichtpläne ({allCreatedPlans.length})
+            </h4>
+            <p className="text-slate-400 text-xs mt-0.5">
+              Übersicht der bereits angelegten Schichtpläne für das ausgewählte Datum & Lager
+            </p>
           </div>
         </div>
-      )}
+
+        {allCreatedPlans.length === 0 ? (
+          <div className="p-6 text-center text-slate-400 text-xs italic bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+            Noch keine Schichtpläne für dieses Datum / Lager erstellt.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {allCreatedPlans.map((plan: any) => {
+              const hName = halls.find((h) => h.id === plan.hallId)?.name || "Halle";
+              const isSelected = plan.id === planId;
+              return (
+                <div
+                  key={plan.id}
+                  className={`p-4 rounded-xl border transition-all ${
+                    isSelected
+                      ? "bg-blue-50/30 border-blue-300 shadow-sm ring-1 ring-blue-300"
+                      : "bg-white border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                        {hName}
+                      </span>
+                      <h5 className="font-bold text-slate-800 text-xs mt-1.5 flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        {plan.shift || "Schicht"}
+                      </h5>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedHallId(plan.hallId);
+                        setPlanId(plan.id);
+                        setAssignedEmployeeIds(plan.assignedEmployees?.map((e: any) => e.id) || []);
+                        setShift(plan.shift || "Frühschicht");
+                        setNotes(plan.notes || "");
+                        setAssignedContainerNumbers(plan.assignedContainers?.map((c: any) => c.containerNumber) || []);
+                      }}
+                      className="px-3 py-1 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm cursor-pointer"
+                    >
+                      <Edit2 className="w-3 h-3" /> Bearbeiten
+                    </button>
+                  </div>
+
+                  {/* Employees */}
+                  <div className="mt-3 text-xs space-y-1">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Eingeteilte Mitarbeiter ({plan.assignedEmployees?.length || 0}):
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {plan.assignedEmployees && plan.assignedEmployees.length > 0 ? (
+                        plan.assignedEmployees.map((emp: any) => (
+                          <span key={emp.id} className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-semibold">
+                            {emp.name}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-slate-400 italic text-[11px]">Keine zugewiesen</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Containers */}
+                  {plan.assignedContainers && plan.assignedContainers.length > 0 && (
+                    <div className="mt-2 text-xs space-y-1">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Container ({plan.assignedContainers.length}):
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {plan.assignedContainers.map((cont: any) => (
+                          <span key={cont.id || cont.containerNumber} className="px-2 py-0.5 bg-blue-50 text-blue-800 border border-blue-100 font-mono text-[10px] font-bold rounded">
+                            {cont.containerNumber}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Notes */}
+                  {plan.notes && (
+                    <p className="mt-2 text-[11px] text-slate-500 italic bg-slate-50 p-2 rounded border border-slate-100">
+                      "{plan.notes}"
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Centered Popup Alert Modal */}
+      <CustomAlertModal
+        {...alertConfig}
+        onClose={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

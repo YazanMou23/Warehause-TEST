@@ -29,6 +29,7 @@ model User {
   phone        String
   email        String?       @unique
   address      String?
+  treffpunkt   String?
   profilePhoto String?
   passwordHash String
   role         Role          @default(EMPLOYEE)

@@ -44,6 +44,10 @@ export class CreateUserDto {
 
   @IsOptional()
   @IsString()
+  treffpunkt?: string;
+
+  @IsOptional()
+  @IsString()
   employmentStart?: string;
 
   @IsOptional()
