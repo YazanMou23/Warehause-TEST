@@ -54,10 +54,45 @@ function PlanningPageContent() {
 
   // Selection states for planning
   const [assignedEmployeeIds, setAssignedEmployeeIds] = useState<string[]>([]);
-  const [shift, setShift] = useState("Frühschicht");
+  const [shiftPreset, setShiftPreset] = useState("Frühschicht");
+  const [startTime, setStartTime] = useState("06:00");
+  const [endTime, setEndTime] = useState("14:00");
   const [notes, setNotes] = useState("");
   const [assignedContainerNumbers, setAssignedContainerNumbers] = useState<string[]>([]);
   const [typedContainerNumber, setTypedContainerNumber] = useState("");
+
+  // Helper to parse shift string into start/end time and preset
+  const applyShiftString = (rawShift: string) => {
+    if (!rawShift) {
+      setStartTime("06:00");
+      setEndTime("14:00");
+      setShiftPreset("Frühschicht");
+      return;
+    }
+
+    const timeMatch = rawShift.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
+    if (timeMatch) {
+      setStartTime(timeMatch[1].padStart(5, '0'));
+      setEndTime(timeMatch[2].padStart(5, '0'));
+    } else {
+      if (rawShift.includes("Früh")) { setStartTime("06:00"); setEndTime("14:00"); }
+      else if (rawShift.includes("Spät")) { setStartTime("14:00"); setEndTime("22:00"); }
+      else if (rawShift.includes("Nacht")) { setStartTime("22:00"); setEndTime("06:00"); }
+    }
+
+    if (rawShift.includes("Frühschicht")) setShiftPreset("Frühschicht");
+    else if (rawShift.includes("Spätschicht")) setShiftPreset("Spätschicht");
+    else if (rawShift.includes("Nachtschicht")) setShiftPreset("Nachtschicht");
+    else setShiftPreset("Benutzerdefiniert");
+  };
+
+  // Helper to build formatted shift string
+  const getFormattedShift = () => {
+    if (shiftPreset !== "Benutzerdefiniert") {
+      return `${startTime} - ${endTime} (${shiftPreset})`;
+    }
+    return `${startTime} - ${endTime}`;
+  };
 
   const [planId, setPlanId] = useState<string | null>(null);
   const [lastSavedPlanId, setLastSavedPlanId] = useState<string | null>(null);
@@ -211,7 +246,7 @@ function PlanningPageContent() {
           if (hallPlan) {
             setPlanId(hallPlan.id);
             setAssignedEmployeeIds(hallPlan.assignedEmployees.map((e: any) => e.id));
-            setShift(hallPlan.shift || "Frühschicht");
+            applyShiftString(hallPlan.shift || "Frühschicht");
             setNotes(hallPlan.notes || "");
             setAssignedContainerNumbers(hallPlan.assignedContainers?.map((c: any) => c.containerNumber) || []);
           } else {
@@ -257,6 +292,8 @@ function PlanningPageContent() {
 
     setIsLoading(true);
 
+    const formattedShift = getFormattedShift();
+
     if (isOffline) {
       setTimeout(() => {
         setPlanId("mock-plan-id");
@@ -283,7 +320,7 @@ function PlanningPageContent() {
           body: JSON.stringify({
             assignedEmployeeIds,
             assignedContainerNumbers,
-            shift,
+            shift: formattedShift,
             notes,
           }),
         });
@@ -301,7 +338,7 @@ function PlanningPageContent() {
             hallId: selectedHallId,
             assignedEmployeeIds,
             assignedContainerNumbers,
-            shift,
+            shift: formattedShift,
             notes,
           }),
         });
@@ -315,7 +352,7 @@ function PlanningPageContent() {
       // Sync form fields from the saved response (source of truth)
       setPlanId(data.id);
       setLastSavedPlanId(data.id);
-      setShift(data.shift || shift);
+      applyShiftString(data.shift || formattedShift);
       setNotes(data.notes || "");
       setAssignedEmployeeIds(data.assignedEmployees?.map((e: any) => e.id) || assignedEmployeeIds);
       setAssignedContainerNumbers(data.assignedContainers?.map((c: any) => c.containerNumber) || assignedContainerNumbers);
@@ -325,7 +362,7 @@ function PlanningPageContent() {
 
       showAlert({
         title: "Schichtplan erfolgreich gespeichert!",
-        message: `Der Schichtplan für ${data.shift || shift} wurde erfolgreich gespeichert. ${(data.assignedEmployees?.length || assignedEmployeeIds.length)} Mitarbeiter wurden benachrichtigt.`,
+        message: `Der Schichtplan (${data.shift || formattedShift}) wurde erfolgreich gespeichert. ${(data.assignedEmployees?.length || assignedEmployeeIds.length)} Mitarbeiter wurden benachrichtigt.`,
         type: "success",
       });
       await fetchExistingPlanManual();
@@ -352,7 +389,7 @@ function PlanningPageContent() {
       <div>
         <h3 className="text-2xl font-extrabold text-slate-800 tracking-tight">Schichtplanung (Shift Planning)</h3>
         <p className="text-slate-500 text-xs mt-1">
-          Erstellen und verwalten Sie die täglichen Personaleinsatzpläne für Hallen und Schichten.
+          Erstellen und verwalten Sie die täglichen Personaleinsatzpläne mit exakter Arbeitszeit.
         </p>
       </div>
 
@@ -428,20 +465,71 @@ function PlanningPageContent() {
           </div>
         </div>
 
-        {/* Shift Selection */}
+        {/* Shift Preset & Exact Time Section */}
         <div className="space-y-1.5">
           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-            Schicht (Shift)
+            Schichtvorlage (Preset)
           </label>
           <select
-            value={shift}
-            onChange={(e) => setShift(e.target.value)}
+            value={shiftPreset}
+            onChange={(e) => {
+              const val = e.target.value;
+              setShiftPreset(val);
+              if (val === "Frühschicht") { setStartTime("06:00"); setEndTime("14:00"); }
+              else if (val === "Spätschicht") { setStartTime("14:00"); setEndTime("22:00"); }
+              else if (val === "Nachtschicht") { setStartTime("22:00"); setEndTime("06:00"); }
+            }}
             className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 outline-none focus:border-blue-400 transition-colors"
           >
-            <option value="Frühschicht">Frühschicht (Early Shift)</option>
-            <option value="Spätschicht">Spätschicht (Late Shift)</option>
-            <option value="Nachtschicht">Nachtschicht (Night Shift)</option>
+            <option value="Frühschicht">Frühschicht (06:00 - 14:00)</option>
+            <option value="Spätschicht">Spätschicht (14:00 - 22:00)</option>
+            <option value="Nachtschicht">Nachtschicht (22:00 - 06:00)</option>
+            <option value="Benutzerdefiniert">Benutzerdefinierte Arbeitszeit</option>
           </select>
+        </div>
+
+        {/* Exact Start & End Time Inputs */}
+        <div className="space-y-1.5 col-span-1 md:col-span-4 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/80">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-blue-600 shrink-0" />
+              <span className="text-xs font-bold text-slate-800">Exakte Arbeitszeit (Exact Shift Time):</span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold text-slate-500">Von:</span>
+                <input
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => {
+                    setStartTime(e.target.value);
+                    setShiftPreset("Benutzerdefiniert");
+                  }}
+                  className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-sm"
+                />
+              </div>
+
+              <span className="text-slate-400 font-bold text-xs">–</span>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold text-slate-500">Bis:</span>
+                <input
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => {
+                    setEndTime(e.target.value);
+                    setShiftPreset("Benutzerdefiniert");
+                  }}
+                  className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-sm"
+                />
+              </div>
+
+              <span className="text-xs font-mono font-bold bg-blue-100 text-blue-800 px-3 py-1 rounded-full border border-blue-200">
+                ⏰ {getFormattedShift()}
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* Notes TextArea */}
@@ -719,7 +807,7 @@ function PlanningPageContent() {
                         setSelectedHallId(plan.hallId);
                         setPlanId(plan.id);
                         setAssignedEmployeeIds(plan.assignedEmployees?.map((e: any) => e.id) || []);
-                        setShift(plan.shift || "Frühschicht");
+                        applyShiftString(plan.shift || "Frühschicht");
                         setNotes(plan.notes || "");
                         setAssignedContainerNumbers(plan.assignedContainers?.map((c: any) => c.containerNumber) || []);
                         // Scroll to top of page so user can edit the form
