@@ -9,8 +9,12 @@ export class MessagingService {
 
   formatPhoneNumber(phone: string): string {
     let digits = phone.replace(/\D/g, '');
-    if (digits.startsWith('0')) {
-      digits = '49' + digits.substring(1);
+    if (digits.startsWith('0049')) {
+      return digits.substring(2);
+    } else if (digits.startsWith('0')) {
+      return '49' + digits.substring(1);
+    } else if (!digits.startsWith('49')) {
+      return '49' + digits;
     }
     return digits;
   }
@@ -33,7 +37,7 @@ export class MessagingService {
     const ultraToken = process.env.ULTRAMSG_TOKEN;
 
     if (phoneNumberId && accessToken) {
-      const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
+      const url = `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`;
 
       try {
         const response = await fetch(url, {
@@ -57,7 +61,8 @@ export class MessagingService {
           this.logger.log(`WhatsApp message successfully sent via Meta API to +${cleanedPhone}`);
           return { success: true, data: resData, waLink };
         } else {
-          this.logger.warn(`Meta WhatsApp API returned error: ${JSON.stringify(resData)}`);
+          this.logger.error(`Meta WhatsApp API returned error: ${JSON.stringify(resData)}`);
+          return { success: false, data: resData, error: 'Meta API rejected request', waLink };
         }
       } catch (err: any) {
         this.logger.error(`Error sending via Meta WhatsApp API: ${err.message}`);
@@ -81,7 +86,7 @@ export class MessagingService {
           this.logger.log(`WhatsApp message successfully sent via UltraMsg to +${cleanedPhone}`);
           return { success: true, data: resData, waLink };
         } else {
-          this.logger.warn(`UltraMsg API error: ${JSON.stringify(resData)}`);
+          this.logger.error(`UltraMsg API error: ${JSON.stringify(resData)}`);
         }
       } catch (err: any) {
         this.logger.error(`UltraMsg error: ${err.message}`);

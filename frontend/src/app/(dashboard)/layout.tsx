@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -177,6 +177,37 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     localStorage.removeItem("accessToken");
     window.location.href = "/login";
   };
+
+  // ── Auto-logout after 1 minute when user closes / hides the tab ──
+  const logoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const LOGOUT_DELAY_MS = 60_000; // 1 minute
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        // Tab was closed or backgrounded — start the countdown
+        logoutTimerRef.current = setTimeout(() => {
+          handleLogout();
+        }, LOGOUT_DELAY_MS);
+      } else {
+        // User returned to the tab — cancel the countdown
+        if (logoutTimerRef.current !== null) {
+          clearTimeout(logoutTimerRef.current);
+          logoutTimerRef.current = null;
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (logoutTimerRef.current !== null) {
+        clearTimeout(logoutTimerRef.current);
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const getTranslationKey = (name: string): any => {
     const map: Record<string, string> = {

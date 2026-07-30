@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Calendar,
@@ -60,10 +60,12 @@ function PlanningPageContent() {
   const [typedContainerNumber, setTypedContainerNumber] = useState("");
 
   const [planId, setPlanId] = useState<string | null>(null);
+  const [lastSavedPlanId, setLastSavedPlanId] = useState<string | null>(null);
   const [allCreatedPlans, setAllCreatedPlans] = useState<any[]>([]);
   const [isOffline, setIsOffline] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState({ text: "", type: "" });
+  const createdPlansSectionRef = useRef<HTMLDivElement>(null);
 
   // Centered Alert Modal State
   const [alertConfig, setAlertConfig] = useState<CustomAlertOptions>({
@@ -306,12 +308,17 @@ function PlanningPageContent() {
       }
 
       setPlanId(data.id);
+      setLastSavedPlanId(data.id);
       showAlert({
-        title: "Schichtplan erfolgreich erstellt!",
+        title: "Schichtplan erfolgreich gespeichert!",
         message: `Der Schichtplan für ${shift} wurde erfolgreich gespeichert. ${assignedEmployeeIds.length} Mitarbeiter wurden benachrichtigt.`,
         type: "success",
       });
-      fetchExistingPlanManual();
+      await fetchExistingPlanManual();
+      // Scroll to the created-plans section so the user sees the saved plan
+      setTimeout(() => {
+        createdPlansSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 300);
     } catch (err: any) {
       showAlert({
         title: "Fehler beim Speichern",
@@ -647,7 +654,7 @@ function PlanningPageContent() {
       </div>
 
       {/* ── Created Plans Section ── */}
-      <div className="bg-white border border-slate-100 rounded-xl p-5 shadow-sm space-y-4">
+      <div ref={createdPlansSectionRef} className="bg-white border border-slate-100 rounded-xl p-5 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
@@ -673,7 +680,9 @@ function PlanningPageContent() {
                 <div
                   key={plan.id}
                   className={`p-4 rounded-xl border transition-all ${
-                    isSelected
+                    plan.id === lastSavedPlanId
+                      ? "bg-green-50/40 border-green-300 shadow-md ring-2 ring-green-400 animate-pulse-once"
+                      : isSelected
                       ? "bg-blue-50/30 border-blue-300 shadow-sm ring-1 ring-blue-300"
                       : "bg-white border-slate-200 hover:border-slate-300"
                   }`}
