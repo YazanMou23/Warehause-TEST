@@ -8,6 +8,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { EmailService } from '../email/email.service';
+import { MessagingService } from '../messaging/messaging.service';
 
 @Controller('planning')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -15,6 +16,7 @@ export class PlanningController {
   constructor(
     private readonly planningService: PlanningService,
     private readonly emailService: EmailService,
+    private readonly messagingService: MessagingService,
   ) {}
 
   @Post()
@@ -32,7 +34,7 @@ export class PlanningController {
       to,
       'LogiFlow — SMTP Test',
       `<div style="font-family:sans-serif;padding:24px;">
-        <h2 style="color:#2563eb;">✓ SMTP Connection Successful</h2>
+        <h2 style="color:#2563eb;">&#10003; SMTP Connection Successful</h2>
         <p>This is a test email from your LogiFlow server.</p>
         <p style="color:#64748b;font-size:12px;">Sent at: ${new Date().toISOString()}</p>
       </div>`,
@@ -40,6 +42,28 @@ export class PlanningController {
     return { 
       success: sent === true, 
       message: sent === true ? 'Test email sent successfully.' : `Email failed: ${sent}` 
+    };
+  }
+
+  /** Test WhatsApp delivery to a given phone number — Manager only */
+  @Post('test-whatsapp')
+  @Roles(Role.MANAGER)
+  async testWhatsApp(
+    @Body('phone') phone: string,
+    @Body('message') message?: string,
+  ) {
+    if (!phone) throw new BadRequestException('Required: { "phone": "+49...", "message": "optional" }');
+    const text = message || `LogiFlow — WhatsApp Test \ud83d\udce6\nGesendet am: ${new Date().toLocaleString('de-DE')}\nWenn Sie diese Nachricht sehen, funktioniert die WhatsApp-Benachrichtigung korrekt.`;
+    const result = await this.messagingService.sendWhatsAppDirect(phone, text);
+    return {
+      ...result,
+      formattedPhone: this.messagingService.formatPhoneNumber(phone),
+      sentAt: new Date().toISOString(),
+      hint: result.success && !result.error
+        ? 'Message delivered via API'
+        : result.waLink
+        ? `API not available. Open this link to send manually: ${result.waLink}`
+        : 'Check WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN in .env',
     };
   }
 

@@ -66,6 +66,8 @@ function PlanningPageContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState({ text: "", type: "" });
   const createdPlansSectionRef = useRef<HTMLDivElement>(null);
+  // Guard: while user is editing a plan card, block the auto-fetch from overwriting the form
+  const isEditingRef = useRef(false);
 
   // Centered Alert Modal State
   const [alertConfig, setAlertConfig] = useState<CustomAlertOptions>({
@@ -182,8 +184,11 @@ function PlanningPageContent() {
   }, [selectedWarehouseId, halls, hasInitializedFromQuery]);
 
   // Fetch plan when date, warehouse, or hall changes
+  // Guarded by isEditingRef — won't overwrite the form while the user is actively editing a plan
   useEffect(() => {
     if (!selectedWarehouseId || !selectedHallId || !date) return;
+    // If the user clicked "Bearbeiten", skip this auto-fetch to avoid overwriting their edit
+    if (isEditingRef.current) return;
 
     const fetchExistingPlan = async () => {
       const token = localStorage.getItem("accessToken");
@@ -307,11 +312,20 @@ function PlanningPageContent() {
         throw new Error(data.message || "Failed to save plan");
       }
 
+      // Sync form fields from the saved response (source of truth)
       setPlanId(data.id);
       setLastSavedPlanId(data.id);
+      setShift(data.shift || shift);
+      setNotes(data.notes || "");
+      setAssignedEmployeeIds(data.assignedEmployees?.map((e: any) => e.id) || assignedEmployeeIds);
+      setAssignedContainerNumbers(data.assignedContainers?.map((c: any) => c.containerNumber) || assignedContainerNumbers);
+
+      // Release the editing lock now that save is complete
+      isEditingRef.current = false;
+
       showAlert({
         title: "Schichtplan erfolgreich gespeichert!",
-        message: `Der Schichtplan für ${shift} wurde erfolgreich gespeichert. ${assignedEmployeeIds.length} Mitarbeiter wurden benachrichtigt.`,
+        message: `Der Schichtplan für ${data.shift || shift} wurde erfolgreich gespeichert. ${(data.assignedEmployees?.length || assignedEmployeeIds.length)} Mitarbeiter wurden benachrichtigt.`,
         type: "success",
       });
       await fetchExistingPlanManual();
@@ -699,12 +713,17 @@ function PlanningPageContent() {
                     </div>
                     <button
                       onClick={() => {
+                        // Lock the editing guard BEFORE changing selectedHallId
+                        // This prevents the useEffect from firing and overwriting the form
+                        isEditingRef.current = true;
                         setSelectedHallId(plan.hallId);
                         setPlanId(plan.id);
                         setAssignedEmployeeIds(plan.assignedEmployees?.map((e: any) => e.id) || []);
                         setShift(plan.shift || "Frühschicht");
                         setNotes(plan.notes || "");
                         setAssignedContainerNumbers(plan.assignedContainers?.map((c: any) => c.containerNumber) || []);
+                        // Scroll to top of page so user can edit the form
+                        window.scrollTo({ top: 0, behavior: "smooth" });
                       }}
                       className="px-3 py-1 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm cursor-pointer"
                     >
