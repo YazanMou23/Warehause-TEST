@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "../i18n/LanguageContext";
 import ActiveEmployeeCalendar from "../components/ActiveEmployeeCalendar";
+import CustomAlertModal, { CustomAlertOptions } from "../components/CustomAlertModal";
 
 interface Metrics {
   employeesCount: number;
@@ -72,6 +73,10 @@ export default function DashboardPage() {
   const [showAllPlans, setShowAllPlans] = useState(false);
   const [plansLoading, setPlansLoading] = useState(false);
   const [selectedPlanIds, setSelectedPlanIds] = useState<string[]>([]);
+  const [alertConfig, setAlertConfig] = useState<CustomAlertOptions>({
+    isOpen: false,
+    message: "",
+  });
   const [userRole, setUserRole] = useState("");
   const [isOffline, setIsOffline] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -92,6 +97,10 @@ export default function DashboardPage() {
   const [dashboardEmployees, setDashboardEmployees] = useState<any[]>([]);
   const [bulkAssignEmployeesModalOpen, setBulkAssignEmployeesModalOpen] = useState(false);
   const [bulkSelectedEmployeeIds, setBulkSelectedEmployeeIds] = useState<string[]>([]);
+
+  const showAlert = (options: Omit<CustomAlertOptions, "isOpen">) => {
+    setAlertConfig({ ...options, isOpen: true });
+  };
 
   const handleExportCSV = (plan: PlanItem) => {
     if (!plan) return;
@@ -222,11 +231,11 @@ export default function DashboardPage() {
         setSelectedPlanIds([]);
         fetchPlans(selectedDate, showAllPlans);
       } else {
-        alert("Failed to delete plans");
+        showAlert({ title: "Fehler", message: "Schichtpläne konnten nicht gelöscht werden.", type: "error" });
       }
     } catch (e) {
       console.error(e);
-      alert("Error deleting plans");
+      showAlert({ title: "Fehler", message: "Fehler beim Löschen der Schichtpläne.", type: "error" });
     }
   };
 
@@ -239,7 +248,7 @@ export default function DashboardPage() {
     const token = localStorage.getItem("accessToken");
     try {
       if (isOffline) {
-        alert("Mock: duplicated plans successfully!");
+        showAlert({ title: "Simuliert", message: "Schichtpläne im Offline-Modus dupliziert!", type: "info" });
         setSelectedPlanIds([]);
         return;
       }
@@ -256,13 +265,13 @@ export default function DashboardPage() {
       if (res.ok) {
         setSelectedPlanIds([]);
         fetchPlans(selectedDate, showAllPlans);
-        alert("Pläne erfolgreich dupliziert.");
+        showAlert({ title: "Erfolg", message: "Pläne erfolgreich dupliziert.", type: "success" });
       } else {
-        alert("Failed to duplicate plans");
+        showAlert({ title: "Fehler", message: "Duplizieren der Pläne fehlgeschlagen.", type: "error" });
       }
     } catch (e) {
       console.error(e);
-      alert("Error duplicating plans");
+      showAlert({ title: "Fehler", message: "Fehler beim Duplizieren der Pläne.", type: "error" });
     }
   };
 
@@ -272,7 +281,7 @@ export default function DashboardPage() {
     const token = localStorage.getItem("accessToken");
     try {
       if (isOffline) {
-        alert("Mock: changed hall successfully!");
+        showAlert({ title: "Simuliert", message: "Halle im Offline-Modus geändert!", type: "info" });
         setSelectedPlanIds([]);
         return;
       }
@@ -289,13 +298,13 @@ export default function DashboardPage() {
       if (res.ok) {
         setSelectedPlanIds([]);
         fetchPlans(selectedDate, showAllPlans);
-        alert("Halle für ausgewählte Pläne erfolgreich geändert.");
+        showAlert({ title: "Erfolg", message: "Halle für ausgewählte Pläne erfolgreich geändert.", type: "success" });
       } else {
-        alert("Failed to change hall");
+        showAlert({ title: "Fehler", message: "Hallenänderung fehlgeschlagen.", type: "error" });
       }
     } catch (e) {
       console.error(e);
-      alert("Error changing hall");
+      showAlert({ title: "Fehler", message: "Fehler beim Ändern der Halle.", type: "error" });
     }
   };
 
@@ -305,7 +314,7 @@ export default function DashboardPage() {
     const token = localStorage.getItem("accessToken");
     try {
       if (isOffline) {
-        alert("Mock: changed shift successfully!");
+        showAlert({ title: "Simuliert", message: "Schicht im Offline-Modus geändert!", type: "info" });
         setSelectedPlanIds([]);
         return;
       }
@@ -322,13 +331,13 @@ export default function DashboardPage() {
       if (res.ok) {
         setSelectedPlanIds([]);
         fetchPlans(selectedDate, showAllPlans);
-        alert("Schicht für ausgewählte Pläne erfolgreich geändert.");
+        showAlert({ title: "Erfolg", message: "Schicht für ausgewählte Pläne erfolgreich geändert.", type: "success" });
       } else {
-        alert("Failed to change shift");
+        showAlert({ title: "Fehler", message: "Schichtänderung fehlgeschlagen.", type: "error" });
       }
     } catch (e) {
       console.error(e);
-      alert("Error changing shift");
+      showAlert({ title: "Fehler", message: "Fehler beim Ändern der Schicht.", type: "error" });
     }
   };
 
@@ -338,7 +347,7 @@ export default function DashboardPage() {
     const token = localStorage.getItem("accessToken");
     try {
       if (isOffline) {
-        alert("Mock: assigned employees successfully!");
+        showAlert({ title: "Simuliert", message: "Mitarbeiter im Offline-Modus zugewiesen!", type: "info" });
         setSelectedPlanIds([]);
         return;
       }
@@ -355,13 +364,13 @@ export default function DashboardPage() {
       if (res.ok) {
         setSelectedPlanIds([]);
         fetchPlans(selectedDate, showAllPlans);
-        alert("Mitarbeiter erfolgreich für ausgewählte Pläne zugewiesen.");
+        showAlert({ title: "Erfolg", message: "Mitarbeiter erfolgreich für ausgewählte Pläne zugewiesen.", type: "success" });
       } else {
-        alert("Failed to assign employees");
+        showAlert({ title: "Fehler", message: "Mitarbeiterzuweisung fehlgeschlagen.", type: "error" });
       }
     } catch (e) {
       console.error(e);
-      alert("Error assigning employees");
+      showAlert({ title: "Fehler", message: "Fehler beim Zuweisen der Mitarbeiter.", type: "error" });
     }
   };
 
@@ -383,16 +392,15 @@ export default function DashboardPage() {
           body: JSON.stringify({ employeeId: employeeInfo.id }),
         });
         if (res.ok) {
-          alert("Successfully clocked out!");
-          window.location.reload();
+          showAlert({ title: "Ausgestempelt", message: "Erfolgreich ausgestempelt!", type: "success", onConfirm: () => window.location.reload() });
         } else {
           const data = await res.json();
-          alert(data.message || "Failed to clock out");
+          showAlert({ title: "Fehler", message: data.message || "Ausstempeln fehlgeschlagen.", type: "error" });
         }
       } else {
         // Clock In
         if (!clockInWarehouseId || !clockInHallId) {
-          alert("Please select a warehouse and hall to clock in.");
+          showAlert({ title: "Hinweis", message: "Bitte wählen Sie ein Lager und eine Halle zum Einstempeln aus.", type: "warning" });
           setClockLoading(false);
           return;
         }
@@ -406,16 +414,15 @@ export default function DashboardPage() {
           }),
         });
         if (res.ok) {
-          alert("Successfully clocked in!");
-          window.location.reload();
+          showAlert({ title: "Eingestempelt", message: "Erfolgreich eingestempelt!", type: "success", onConfirm: () => window.location.reload() });
         } else {
           const data = await res.json();
-          alert(data.message || "Failed to clock in");
+          showAlert({ title: "Fehler", message: data.message || "Einstempeln fehlgeschlagen.", type: "error" });
         }
       }
     } catch (e) {
       console.error(e);
-      alert("An error occurred during clock action");
+      showAlert({ title: "Fehler", message: "Ein Fehler ist bei der Zeiterfassung aufgetreten.", type: "error" });
     } finally {
       setClockLoading(false);
     }
@@ -1722,6 +1729,11 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Custom Popup Alert Modal */}
+      <CustomAlertModal
+        {...alertConfig}
+        onClose={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

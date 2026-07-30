@@ -721,7 +721,7 @@ export default function EmployeesPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert("Failed to download template. Make sure you are logged in.");
+      showAlert({ title: "Fehler", message: "Vorlage konnte nicht heruntergeladen werden. Stellen Sie sicher, dass Sie eingeloggt sind.", type: "error" });
     }
   };
 
@@ -1905,7 +1905,7 @@ export default function EmployeesPage() {
         </div>
       )}
 
-      {/* Custom Alert Modal */}
+      {/* Custom Popup Alert Modal */}
       <CustomAlertModal
         {...alertConfig}
         onClose={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}

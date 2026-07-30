@@ -22,6 +22,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { useTranslation } from "../../i18n/LanguageContext";
+import CustomAlertModal, { CustomAlertOptions } from "../../components/CustomAlertModal";
 
 interface Admin {
   id: string;
@@ -40,6 +41,15 @@ interface Admin {
 export default function AdminsPage() {
   const { t, language } = useTranslation();
   const [admins, setAdmins] = useState<Admin[]>([]);
+  const [selectedAdminIds, setSelectedAdminIds] = useState<string[]>([]);
+  const [alertConfig, setAlertConfig] = useState<CustomAlertOptions>({
+    isOpen: false,
+    message: "",
+  });
+
+  const showAlert = (options: Omit<CustomAlertOptions, "isOpen">) => {
+    setAlertConfig({ ...options, isOpen: true });
+  };
   const [searchTerm, setSearchTerm] = useState("");
   const [isOffline, setIsOffline] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -313,12 +323,13 @@ export default function AdminsPage() {
 
       if (res.ok) {
         loadAdmins();
+        showAlert({ title: "Deaktiviert", message: "Administrator wurde erfolgreich deaktiviert.", type: "success" });
       } else {
-        alert("Failed to deactivate administrator");
+        showAlert({ title: "Fehler", message: "Deaktivierung des Administrators fehlgeschlagen.", type: "error" });
       }
     } catch (e) {
       console.error(e);
-      alert("Error occurred");
+      showAlert({ title: "Fehler", message: "Fehler bei der Deaktivierung.", type: "error" });
     }
   };
 
@@ -348,12 +359,13 @@ export default function AdminsPage() {
       if (res.ok) {
         setSelectedAdminIds([]);
         loadAdmins();
+        showAlert({ title: "Deaktiviert", message: "Ausgewählte Administratoren wurden erfolgreich deaktiviert.", type: "success" });
       } else {
-        alert("Failed to deactivate admins");
+        showAlert({ title: "Fehler", message: "Deaktivierung der Administratoren fehlgeschlagen.", type: "error" });
       }
     } catch (e) {
       console.error(e);
-      alert("Error occurred");
+      showAlert({ title: "Fehler", message: "Fehler bei der Deaktivierung.", type: "error" });
     }
   };
 
@@ -893,6 +905,11 @@ export default function AdminsPage() {
           </div>
         </div>
       )}
+      {/* Custom Popup Alert Modal */}
+      <CustomAlertModal
+        {...alertConfig}
+        onClose={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

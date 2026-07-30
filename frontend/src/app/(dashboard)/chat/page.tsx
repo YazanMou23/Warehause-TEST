@@ -16,7 +16,9 @@ import {
   ChevronRight,
   Inbox,
   UserCheck,
+  CheckCheck,
 } from "lucide-react";
+import CustomAlertModal, { CustomAlertOptions } from "../components/CustomAlertModal";
 
 interface Conversation {
   id: string; // Partner's user ID
@@ -57,6 +59,14 @@ export default function ChatPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [alertConfig, setAlertConfig] = useState<CustomAlertOptions>({
+    isOpen: false,
+    message: "",
+  });
+
+  const showAlert = (options: Omit<CustomAlertOptions, "isOpen">) => {
+    setAlertConfig({ ...options, isOpen: true });
+  };
   const [searchQuery, setSearchQuery] = useState("");
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -435,7 +445,11 @@ export default function ChatPage() {
         }
         // Save global mock blocked state for employee's perspective
         localStorage.setItem(`mock_blocked_${employeeId}`, String(nextBlockStatus));
-        alert(`Mitarbeiter erfolgreich ${nextBlockStatus ? "blockiert" : "entsperrt"} (Simuliert).`);
+        showAlert({
+          title: nextBlockStatus ? "Mitarbeiter blockiert" : "Mitarbeiter entsperrt",
+          message: `Mitarbeiter wurde erfolgreich ${nextBlockStatus ? "blockiert" : "entsperrt"}.`,
+          type: nextBlockStatus ? "warning" : "success",
+        });
         return;
       }
 
@@ -454,9 +468,17 @@ export default function ChatPage() {
       }
 
       fetchConversations(true);
-      alert(`Mitarbeiter erfolgreich ${nextBlockStatus ? "blockiert" : "entsperrt"}.`);
+      showAlert({
+        title: nextBlockStatus ? "Mitarbeiter blockiert" : "Mitarbeiter entsperrt",
+        message: `Mitarbeiter wurde erfolgreich ${nextBlockStatus ? "blockiert" : "entsperrt"}.`,
+        type: nextBlockStatus ? "warning" : "success",
+      });
     } catch (err: any) {
-      alert(err.message || "Fehler bei der Blockierung.");
+      showAlert({
+        title: "Fehler",
+        message: err.message || "Fehler bei der Blockierung.",
+        type: "error",
+      });
     }
   };
 
@@ -701,6 +723,11 @@ export default function ChatPage() {
         )}
       </div>
 
+      {/* Custom Popup Alert Modal */}
+      <CustomAlertModal
+        {...alertConfig}
+        onClose={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }
