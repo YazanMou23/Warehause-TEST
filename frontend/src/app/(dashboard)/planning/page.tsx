@@ -57,6 +57,8 @@ function PlanningPageContent() {
   const [shiftPreset, setShiftPreset] = useState("Frühschicht");
   const [startTime, setStartTime] = useState("06:00");
   const [endTime, setEndTime] = useState("14:00");
+  const [treffpunktTime, setTreffpunktTime] = useState("05:30");
+  const [treffpunkt, setTreffpunkt] = useState("");
   const [notes, setNotes] = useState("");
   const [assignedContainerNumbers, setAssignedContainerNumbers] = useState<string[]>([]);
   const [typedContainerNumber, setTypedContainerNumber] = useState("");
@@ -247,6 +249,8 @@ function PlanningPageContent() {
             setPlanId(hallPlan.id);
             setAssignedEmployeeIds(hallPlan.assignedEmployees.map((e: any) => e.id));
             applyShiftString(hallPlan.shift || "Frühschicht");
+            setTreffpunktTime(hallPlan.treffpunktTime || "05:30");
+            setTreffpunkt(hallPlan.treffpunkt || "");
             setNotes(hallPlan.notes || "");
             setAssignedContainerNumbers(hallPlan.assignedContainers?.map((c: any) => c.containerNumber) || []);
           } else {
@@ -321,6 +325,8 @@ function PlanningPageContent() {
             assignedEmployeeIds,
             assignedContainerNumbers,
             shift: formattedShift,
+            treffpunkt,
+            treffpunktTime,
             notes,
           }),
         });
@@ -339,6 +345,8 @@ function PlanningPageContent() {
             assignedEmployeeIds,
             assignedContainerNumbers,
             shift: formattedShift,
+            treffpunkt,
+            treffpunktTime,
             notes,
           }),
         });
@@ -353,6 +361,8 @@ function PlanningPageContent() {
       setPlanId(data.id);
       setLastSavedPlanId(data.id);
       applyShiftString(data.shift || formattedShift);
+      setTreffpunktTime(data.treffpunktTime || treffpunktTime);
+      setTreffpunkt(data.treffpunkt || treffpunkt);
       setNotes(data.notes || "");
       setAssignedEmployeeIds(data.assignedEmployees?.map((e: any) => e.id) || assignedEmployeeIds);
       setAssignedContainerNumbers(data.assignedContainers?.map((c: any) => c.containerNumber) || assignedContainerNumbers);
@@ -532,6 +542,45 @@ function PlanningPageContent() {
           </div>
         </div>
 
+        {/* Daily Treffzeit & Treffpunkt Section */}
+        <div className="space-y-1.5 col-span-1 md:col-span-4 bg-amber-50/60 p-3.5 rounded-xl border border-amber-200/70">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-amber-600 shrink-0" />
+              <span className="text-xs font-bold text-amber-950">Tägliche Treffzeit & Treffpunkt (Daily Pick-up Time & Location):</span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold text-amber-800">Treffzeit:</span>
+                <input
+                  type="time"
+                  value={treffpunktTime}
+                  onChange={(e) => setTreffpunktTime(e.target.value)}
+                  className="bg-white border border-amber-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 outline-none focus:border-amber-500 shadow-sm"
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold text-amber-800">Treffpunkt:</span>
+                <input
+                  type="text"
+                  placeholder="z.B. Hauptbahnhof Duisburg, Halle Eingang"
+                  value={treffpunkt}
+                  onChange={(e) => setTreffpunkt(e.target.value)}
+                  className="bg-white border border-amber-300 rounded-lg px-3 py-1 text-xs text-slate-800 outline-none focus:border-amber-500 shadow-sm min-w-[220px]"
+                />
+              </div>
+
+              {treffpunktTime && (
+                <span className="text-xs font-mono font-bold bg-amber-100 text-amber-900 px-3 py-1 rounded-full border border-amber-300">
+                  📍 {treffpunkt || "Treffpunkt"} um ⏰ {treffpunktTime} Uhr
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Notes TextArea */}
         <div className="space-y-1.5 col-span-1 md:col-span-4">
           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
@@ -703,15 +752,6 @@ function PlanningPageContent() {
                     </p>
                     <div className="flex flex-wrap items-center gap-2 mt-0.5">
                       <p className="text-[10px] text-slate-400 font-mono">{emp.phone || "Keine Telefonnummer"}</p>
-                      {(emp.treffpunkt || emp.treffpunktTime) && (
-                        <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-medium flex items-center gap-1">
-                          <MapPin className="w-2.5 h-2.5 text-blue-500 shrink-0" />
-                          <span>{emp.treffpunkt || "—"}</span>
-                          {emp.treffpunktTime && (
-                            <span className="font-mono text-blue-600 font-bold ml-1">⏰ {emp.treffpunktTime}</span>
-                          )}
-                        </span>
-                      )}
                     </div>
                   </div>
                   <span
@@ -798,6 +838,21 @@ function PlanningPageContent() {
                         <Clock className="w-3.5 h-3.5 text-slate-400" />
                         {plan.shift || "Schicht"}
                       </h5>
+                      {(plan.treffpunktTime || plan.treffpunkt) && (
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+                          {plan.treffpunktTime && (
+                            <span className="px-2 py-0.5 bg-amber-100 text-amber-900 font-mono font-bold rounded border border-amber-200">
+                              ⏰ Treffzeit: {plan.treffpunktTime} Uhr
+                            </span>
+                          )}
+                          {plan.treffpunkt && (
+                            <span className="px-2 py-0.5 bg-slate-100 text-slate-700 font-medium rounded border border-slate-200 flex items-center gap-1">
+                              <MapPin className="w-3 h-3 text-amber-600 shrink-0" />
+                              {plan.treffpunkt}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <button
                       onClick={() => {
@@ -808,6 +863,8 @@ function PlanningPageContent() {
                         setPlanId(plan.id);
                         setAssignedEmployeeIds(plan.assignedEmployees?.map((e: any) => e.id) || []);
                         applyShiftString(plan.shift || "Frühschicht");
+                        setTreffpunktTime(plan.treffpunktTime || "05:30");
+                        setTreffpunkt(plan.treffpunkt || "");
                         setNotes(plan.notes || "");
                         setAssignedContainerNumbers(plan.assignedContainers?.map((c: any) => c.containerNumber) || []);
                         // Scroll to top of page so user can edit the form

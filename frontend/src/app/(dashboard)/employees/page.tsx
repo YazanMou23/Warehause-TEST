@@ -1060,19 +1060,12 @@ export default function EmployeesPage() {
                         <span className="text-slate-400 italic text-[11px]">— no email</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-xs font-medium text-slate-700 max-w-[200px]" title={`${emp.treffpunkt || emp.address || ''} ${emp.treffpunktTime ? `(${emp.treffpunktTime})` : ''}`}>
-                      {emp.treffpunkt || emp.address || emp.treffpunktTime ? (
-                        <div className="flex flex-col space-y-0.5">
-                          <span className="flex items-center gap-1 text-slate-800 font-semibold leading-tight">
-                            <MapPin className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                            <span className="truncate">{emp.treffpunkt || emp.address || "—"}</span>
-                          </span>
-                          {emp.treffpunktTime && (
-                            <span className="text-[10px] text-blue-600 font-mono font-bold pl-4">
-                              ⏰ {emp.treffpunktTime}
-                            </span>
-                          )}
-                        </div>
+                    <td className="px-4 py-3 text-xs font-medium text-slate-700 max-w-[200px]" title={emp.address || emp.treffpunkt || ''}>
+                      {emp.address || emp.treffpunkt ? (
+                        <span className="flex items-center gap-1 text-slate-800 font-medium leading-tight">
+                          <MapPin className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                          <span className="truncate">{emp.address || emp.treffpunkt}</span>
+                        </span>
                       ) : (
                         <span className="text-slate-400 italic text-[11px]">—</span>
                       )}
@@ -1502,7 +1495,7 @@ export default function EmployeesPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div className="grid grid-cols-1 gap-4 text-xs">
                 <div className="space-y-1.5">
                   <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("email")}</label>
                   <input
@@ -1513,32 +1506,6 @@ export default function EmployeesPage() {
                     className="input-premium"
                   />
                 </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
-                    {language === "de" ? "Treffpunkt (Abholadresse)" : "Meeting Point / Pick-up Address"}
-                  </label>
-                  <input
-                    type="text"
-                    value={formTreffpunkt}
-                    onChange={(e) => setFormTreffpunkt(e.target.value)}
-                    placeholder="z.B. Hauptbahnhof Duisburg, Gleis 3"
-                    className="input-premium"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
-                    {language === "de" ? "Treffpunkt Uhrzeit" : "Pick-up Time"}
-                  </label>
-                  <input
-                    type="text"
-                    value={formTreffpunktTime}
-                    onChange={(e) => setFormTreffpunktTime(e.target.value)}
-                    placeholder="z.B. 06:30 Uhr"
-                    className="input-premium"
-                  />
-                </div>
-              </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
@@ -1714,28 +1681,16 @@ export default function EmployeesPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div className="grid grid-cols-1 gap-4 text-xs">
                 <div className="space-y-1.5">
                   <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
-                    {language === "de" ? "Treffpunkt (Abholadresse)" : "Meeting Point / Pick-up Address"}
+                    {language === "de" ? "Adresse (Wohnort)" : "Address"}
                   </label>
                   <input
                     type="text"
                     value={formTreffpunkt}
                     onChange={(e) => setFormTreffpunkt(e.target.value)}
-                    placeholder="z.B. Hauptbahnhof Duisburg, Gleis 3"
-                    className="input-premium"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
-                    {language === "de" ? "Treffpunkt Uhrzeit" : "Pick-up Time"}
-                  </label>
-                  <input
-                    type="text"
-                    value={formTreffpunktTime}
-                    onChange={(e) => setFormTreffpunktTime(e.target.value)}
-                    placeholder="z.B. 06:30 Uhr"
+                    placeholder="z.B. Duisburg, Musterstr. 12"
                     className="input-premium"
                   />
                 </div>

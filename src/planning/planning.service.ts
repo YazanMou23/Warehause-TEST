@@ -65,6 +65,8 @@ export class PlanningService {
           title: createPlanDto.title || null,
           description: createPlanDto.description || null,
           shift: createPlanDto.shift || null,
+          treffpunkt: createPlanDto.treffpunkt || null,
+          treffpunktTime: createPlanDto.treffpunktTime || null,
           notes: createPlanDto.notes || null,
         },
       });
@@ -148,6 +150,8 @@ export class PlanningService {
       warehouseName: string;
       hallName: string;
       shift?: string | null;
+      treffpunkt?: string | null;
+      treffpunktTime?: string | null;
       notes?: string | null;
       title?: string | null;
     },
@@ -160,7 +164,7 @@ export class PlanningService {
     const formattedDate = new Date(plan.date).toLocaleDateString('de-DE');
     const headerTitle = isUpdate ? 'Schichtplan aktualisiert' : 'Neue Schichtzuweisung';
 
-    // Fetch employee Treffpunkt details
+    // Fetch employee Treffpunkt details fallback
     const userRecords = await this.prisma.user.findMany({
       where: { id: { in: employees.map((e) => e.id) } },
       select: { id: true, treffpunkt: true, treffpunktTime: true, address: true },
@@ -169,8 +173,8 @@ export class PlanningService {
 
     for (const employee of employees) {
       const uInfo = userMap.get(employee.id);
-      const tpOrt = uInfo?.treffpunkt || uInfo?.address || 'Kein Treffpunkt angegeben';
-      const tpZeit = uInfo?.treffpunktTime || 'Keine Uhrzeit angegeben';
+      const tpOrt = plan.treffpunkt || uInfo?.treffpunkt || uInfo?.address || 'Kein Treffpunkt angegeben';
+      const tpZeit = plan.treffpunktTime || uInfo?.treffpunktTime || 'Keine Treffzeit angegeben';
 
       // 1. App Notification
       await this.prisma.notification.create({
@@ -267,6 +271,8 @@ export class PlanningService {
       if (updatePlanDto.title !== undefined) updateData.title = updatePlanDto.title;
       if (updatePlanDto.description !== undefined) updateData.description = updatePlanDto.description;
       if (updatePlanDto.shift !== undefined) updateData.shift = updatePlanDto.shift;
+      if (updatePlanDto.treffpunkt !== undefined) updateData.treffpunkt = updatePlanDto.treffpunkt;
+      if (updatePlanDto.treffpunktTime !== undefined) updateData.treffpunktTime = updatePlanDto.treffpunktTime;
       if (updatePlanDto.notes !== undefined) updateData.notes = updatePlanDto.notes;
 
       if (Object.keys(updateData).length > 0) {
@@ -400,6 +406,8 @@ export class PlanningService {
       hallId: plan.hallId,
       hallName: plan.hall.name,
       shift: plan.shift,
+      treffpunkt: plan.treffpunkt,
+      treffpunktTime: plan.treffpunktTime,
       notes: plan.notes,
       assignedEmployees: plan.assignedEmployees.map((ae) => ae.employee),
       assignedContainers: plan.assignedContainers.map((ac) => ac.container),
@@ -454,6 +462,8 @@ export class PlanningService {
       hallId: plan.hallId,
       hallName: plan.hall.name,
       shift: plan.shift,
+      treffpunkt: plan.treffpunkt,
+      treffpunktTime: plan.treffpunktTime,
       notes: plan.notes,
       assignedEmployees: plan.assignedEmployees.map((ae) => ae.employee),
       assignedContainers: plan.assignedContainers.map((ac) => ac.container),
@@ -549,6 +559,8 @@ export class PlanningService {
       hallId: plan.hallId,
       hallName: plan.hall.name,
       shift: plan.shift,
+      treffpunkt: plan.treffpunkt,
+      treffpunktTime: plan.treffpunktTime,
       notes: plan.notes,
       assignedEmployees: plan.assignedEmployees.map((ae) => ae.employee),
       assignedContainers: plan.assignedContainers.map((ac) => ac.container),

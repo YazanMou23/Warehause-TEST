@@ -15,6 +15,14 @@ export class UpdatePlanDto {
 
   @IsOptional()
   @IsString()
+  treffpunkt?: string;
+
+  @IsOptional()
+  @IsString()
+  treffpunktTime?: string;
+
+  @IsOptional()
+  @IsString()
   notes?: string;
 
   @IsOptional()
