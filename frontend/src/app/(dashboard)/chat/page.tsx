@@ -18,7 +18,7 @@ import {
   UserCheck,
   CheckCheck,
 } from "lucide-react";
-import CustomAlertModal, { CustomAlertOptions } from "../components/CustomAlertModal";
+import CustomAlertModal, { CustomAlertOptions } from "../../components/CustomAlertModal";
 
 interface Conversation {
   id: string; // Partner's user ID

@@ -75,10 +75,6 @@ export default function AdminsPage() {
   const [formEmploymentStart, setFormEmploymentStart] = useState("");
   const [formError, setFormError] = useState("");
   const [formLoading, setFormLoading] = useState(false);
-
-  // Bulk Selection
-  const [selectedAdminIds, setSelectedAdminIds] = useState<string[]>([]);
-
   const router = useRouter();
 
   const loadAdmins = async () => {
