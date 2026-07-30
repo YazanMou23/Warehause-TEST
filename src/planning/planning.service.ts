@@ -352,10 +352,8 @@ export class PlanningService {
 
     const updatedPlan = await this.findOne(id);
 
-    // Notify Employees of updates or assignments via App, Email & WhatsApp
-    if (updatePlanDto.assignedEmployeeIds !== undefined) {
-      await this.notifyAssignedEmployees(updatedPlan, updatedPlan.assignedEmployees, true, actorId);
-    }
+    // Notify Employees of plan updates via App, Email & WhatsApp
+    await this.notifyAssignedEmployees(updatedPlan, updatedPlan.assignedEmployees, true, actorId);
 
     return updatedPlan;
   }

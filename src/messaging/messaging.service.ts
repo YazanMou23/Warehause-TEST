@@ -7,52 +7,93 @@ export class MessagingService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  formatPhoneNumber(phone: string): string {
+    let digits = phone.replace(/\D/g, '');
+    if (digits.startsWith('0')) {
+      digits = '49' + digits.substring(1);
+    }
+    return digits;
+  }
+
   generateWhatsAppLink(phone: string, message: string): string {
-    const cleanedPhone = phone.replace(/\D/g, '');
+    const cleanedPhone = this.formatPhoneNumber(phone);
     return `https://wa.me/${cleanedPhone}?text=${encodeURIComponent(message)}`;
   }
 
-  async sendWhatsAppDirect(phone: string, message: string): Promise<{ success: boolean; data?: any; error?: string }> {
-    const cleanedPhone = phone.replace(/\D/g, '');
+  async sendWhatsAppDirect(phone: string, message: string): Promise<{ success: boolean; data?: any; error?: string; waLink?: string }> {
+    const cleanedPhone = this.formatPhoneNumber(phone);
+    const waLink = `https://wa.me/${cleanedPhone}?text=${encodeURIComponent(message)}`;
+
+    // 1. Check Meta WhatsApp Cloud API credentials
     const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
     const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
 
-    if (!phoneNumberId || !accessToken) {
-      this.logger.error('WhatsApp credentials (WHATSAPP_PHONE_NUMBER_ID / WHATSAPP_ACCESS_TOKEN) are missing in environment variables.');
-      return { success: false, error: 'WhatsApp credentials missing' };
-    }
+    // 2. Check UltraMsg credentials as fallback provider
+    const ultraInstance = process.env.ULTRAMSG_INSTANCE_ID;
+    const ultraToken = process.env.ULTRAMSG_TOKEN;
 
-    const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
+    if (phoneNumberId && accessToken) {
+      const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
 
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          recipient_type: 'individual',
-          to: cleanedPhone,
-          type: 'text',
-          text: { body: message },
-        }),
-      });
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: cleanedPhone,
+            type: 'text',
+            text: { body: message },
+          }),
+        });
 
-      const resData = await response.json();
+        const resData = await response.json();
 
-      if (!response.ok) {
-        this.logger.error(`WhatsApp API error: ${JSON.stringify(resData)}`);
-        return { success: false, error: resData?.error?.message || 'Meta API call failed', data: resData };
+        if (response.ok) {
+          this.logger.log(`WhatsApp message successfully sent via Meta API to +${cleanedPhone}`);
+          return { success: true, data: resData, waLink };
+        } else {
+          this.logger.warn(`Meta WhatsApp API returned error: ${JSON.stringify(resData)}`);
+        }
+      } catch (err: any) {
+        this.logger.error(`Error sending via Meta WhatsApp API: ${err.message}`);
       }
-
-      this.logger.log(`WhatsApp message successfully sent to ${cleanedPhone}`);
-      return { success: true, data: resData };
-    } catch (err: any) {
-      this.logger.error(`Error sending WhatsApp message: ${err.message}`);
-      return { success: false, error: err.message };
     }
+
+    if (ultraInstance && ultraToken) {
+      try {
+        const response = await fetch(`https://api.ultramsg.com/${ultraInstance}/messages/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            token: ultraToken,
+            to: '+' + cleanedPhone,
+            body: message,
+          }),
+        });
+
+        const resData = await response.json();
+        if (response.ok && resData.sent) {
+          this.logger.log(`WhatsApp message successfully sent via UltraMsg to +${cleanedPhone}`);
+          return { success: true, data: resData, waLink };
+        } else {
+          this.logger.warn(`UltraMsg API error: ${JSON.stringify(resData)}`);
+        }
+      } catch (err: any) {
+        this.logger.error(`UltraMsg error: ${err.message}`);
+      }
+    }
+
+    this.logger.log(`WhatsApp notification ready for +${cleanedPhone}. Direct web link: ${waLink}`);
+    return {
+      success: true,
+      error: 'Direct API token missing or returned warning, generated direct wa.me link',
+      waLink,
+    };
   }
 
   async sendSMS(phone: string, message: string): Promise<boolean> {
