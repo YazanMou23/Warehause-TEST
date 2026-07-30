@@ -18,6 +18,7 @@ import {
   Clock,
   User,
 } from "lucide-react";
+import CustomAlertModal, { CustomAlertOptions } from "../../components/CustomAlertModal";
 
 interface EmployeeRef {
   employee: {
@@ -102,6 +103,14 @@ export default function ContainersPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState({ text: "", type: "" });
+  const [alertConfig, setAlertConfig] = useState<CustomAlertOptions>({
+    isOpen: false,
+    message: "",
+  });
+
+  const showAlert = (options: Omit<CustomAlertOptions, "isOpen">) => {
+    setAlertConfig({ ...options, isOpen: true });
+  };
   const router = useRouter();
 
   const handleMoveWarehouseChange = (whId: string) => {
@@ -440,34 +449,41 @@ export default function ContainersPage() {
     setInlineHallName("");
   };
 
-  const handleDeleteContainer = async (id: string) => {
-    if (!confirm("Möchten Sie diesen Container wirklich aus dem System löschen?")) return;
+  const handleDeleteContainer = (id: string) => {
+    showAlert({
+      title: "Container löschen",
+      message: "Möchten Sie diesen Container wirklich aus dem System löschen?",
+      type: "warning",
+      confirmText: "Löschen",
+      cancelText: "Abbrechen",
+      onConfirm: async () => {
+        const token = localStorage.getItem("accessToken");
+        if (!token) return;
 
-    const token = localStorage.getItem("accessToken");
-    if (!token) return;
+        if (isOffline) {
+          setContainers((prev) => prev.filter((c) => c.id !== id));
+          setMessage({ text: "Container gelöscht (Offline mock).", type: "success" });
+          return;
+        }
 
-    if (isOffline) {
-      setContainers((prev) => prev.filter((c) => c.id !== id));
-      setMessage({ text: "Container gelöscht (Offline mock).", type: "success" });
-      return;
-    }
+        try {
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/containers/${id}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          });
 
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/containers/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+          if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.message || "Failed to delete container");
+          }
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || "Failed to delete container");
-      }
-
-      setMessage({ text: "Container erfolgreich ausgetragen.", type: "success" });
-      loadData();
-    } catch (err: any) {
-      setMessage({ text: err.message || "Fehler beim Löschen des Containers.", type: "error" });
-    }
+          setMessage({ text: "Container erfolgreich ausgetragen.", type: "success" });
+          loadData();
+        } catch (err: any) {
+          setMessage({ text: err.message || "Fehler beim Löschen des Containers.", type: "error" });
+        }
+      },
+    });
   };
 
   // Fetch Container History / Audit Log
@@ -1143,6 +1159,12 @@ export default function ContainersPage() {
           </button>
         </div>
       )}
+
+      {/* Custom Popup Alert Modal */}
+      <CustomAlertModal
+        {...alertConfig}
+        onClose={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

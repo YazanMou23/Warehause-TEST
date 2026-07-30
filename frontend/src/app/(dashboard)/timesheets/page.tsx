@@ -26,6 +26,7 @@ import {
   Filter,
 } from 'lucide-react';
 import { API_URL } from '../../../config/api';
+import CustomAlertModal, { CustomAlertOptions } from '../../components/CustomAlertModal';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -751,6 +752,14 @@ function TimesheetList() {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [downloading, setDownloading] = useState<{ id: string; fmt: string } | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [alertConfig, setAlertConfig] = useState<CustomAlertOptions>({
+    isOpen: false,
+    message: "",
+  });
+
+  const showAlert = (options: Omit<CustomAlertOptions, "isOpen">) => {
+    setAlertConfig({ ...options, isOpen: true });
+  };
 
   const loadList = async () => {
     setLoading(true);
@@ -788,18 +797,27 @@ function TimesheetList() {
     }
   };
 
-  const deleteItem = async (id: string) => {
-    if (!confirm('Diesen Stundenzettel wirklich löschen?')) return;
-    setDeleting(id);
-    try {
-      await fetch(`${API_URL}/timesheets/${id}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders(),
-      });
-      setItems((prev) => prev.filter((i) => i.id !== id));
-    } finally {
-      setDeleting(null);
-    }
+  const deleteItem = (id: string) => {
+    showAlert({
+      title: "Stundenzettel löschen",
+      message: "Diesen Stundenzettel wirklich löschen?",
+      type: "warning",
+      confirmText: "Löschen",
+      cancelText: "Abbrechen",
+      onConfirm: async () => {
+        setDeleting(id);
+        try {
+          await fetch(`${API_URL}/timesheets/${id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(),
+          });
+          setItems((prev) => prev.filter((i) => i.id !== id));
+          showAlert({ title: "Erfolg", message: "Stundenzettel wurde gelöscht.", type: "success" });
+        } finally {
+          setDeleting(null);
+        }
+      },
+    });
   };
 
   const filtered = items.filter((item) => {
@@ -923,6 +941,12 @@ function TimesheetList() {
           ))}
         </div>
       )}
+
+      {/* Custom Popup Alert Modal */}
+      <CustomAlertModal
+        {...alertConfig}
+        onClose={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

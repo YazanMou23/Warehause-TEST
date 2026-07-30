@@ -300,69 +300,79 @@ export default function AdminsPage() {
     }
   };
 
-  const handleDeactivate = async (id: string, name: string) => {
-    if (!window.confirm(language === "de" ? `Sind Sie sicher, dass Sie den Administrator ${name} deactivieren möchten?` : `Are you sure you want to deactivate admin ${name}?`)) {
-      return;
-    }
+  const handleDeactivate = (id: string, name: string) => {
+    showAlert({
+      title: "Administrator deaktivieren",
+      message: language === "de" ? `Sind Sie sicher, dass Sie den Administrator ${name} deaktivieren möchten?` : `Are you sure you want to deactivate admin ${name}?`,
+      type: "warning",
+      confirmText: language === "de" ? "Deaktivieren" : "Deactivate",
+      cancelText: language === "de" ? "Abbrechen" : "Cancel",
+      onConfirm: async () => {
+        const token = localStorage.getItem("accessToken");
+        try {
+          if (isOffline) {
+            setAdmins(prev => prev.filter(a => a.id !== id));
+            return;
+          }
 
-    const token = localStorage.getItem("accessToken");
-    try {
-      if (isOffline) {
-        setAdmins(prev => prev.filter(a => a.id !== id));
-        return;
-      }
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${id}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          });
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (res.ok) {
-        loadAdmins();
-        showAlert({ title: "Deaktiviert", message: "Administrator wurde erfolgreich deaktiviert.", type: "success" });
-      } else {
-        showAlert({ title: "Fehler", message: "Deaktivierung des Administrators fehlgeschlagen.", type: "error" });
-      }
-    } catch (e) {
-      console.error(e);
-      showAlert({ title: "Fehler", message: "Fehler bei der Deaktivierung.", type: "error" });
-    }
+          if (res.ok) {
+            loadAdmins();
+            showAlert({ title: "Deaktiviert", message: "Administrator wurde erfolgreich deaktiviert.", type: "success" });
+          } else {
+            showAlert({ title: "Fehler", message: "Deaktivierung des Administrators fehlgeschlagen.", type: "error" });
+          }
+        } catch (e) {
+          console.error(e);
+          showAlert({ title: "Fehler", message: "Fehler bei der Deaktivierung.", type: "error" });
+        }
+      },
+    });
   };
 
-  const handleBulkDeactivate = async () => {
+  const handleBulkDeactivate = () => {
     if (selectedAdminIds.length === 0) return;
-    if (!window.confirm(language === "de" ? `Sind Sie sicher, dass Sie die ${selectedAdminIds.length} ausgewählten Administratoren deactivieren möchten?` : `Are you sure you want to deactivate the ${selectedAdminIds.length} selected admin(s)?`)) {
-      return;
-    }
+    showAlert({
+      title: "Administratoren deaktivieren",
+      message: language === "de" ? `Sind Sie sicher, dass Sie die ${selectedAdminIds.length} ausgewählten Administratoren deaktivieren möchten?` : `Are you sure you want to deactivate the ${selectedAdminIds.length} selected admin(s)?`,
+      type: "warning",
+      confirmText: language === "de" ? "Deaktivieren" : "Deactivate",
+      cancelText: language === "de" ? "Abbrechen" : "Cancel",
+      onConfirm: async () => {
+        const token = localStorage.getItem("accessToken");
+        try {
+          if (isOffline) {
+            setAdmins(prev => prev.filter(a => !selectedAdminIds.includes(a.id)));
+            setSelectedAdminIds([]);
+            return;
+          }
 
-    const token = localStorage.getItem("accessToken");
-    try {
-      if (isOffline) {
-        setAdmins(prev => prev.filter(a => !selectedAdminIds.includes(a.id)));
-        setSelectedAdminIds([]);
-        return;
-      }
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/bulk`, {
+            method: "DELETE",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ ids: selectedAdminIds }),
+          });
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/bulk`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ ids: selectedAdminIds }),
-      });
-
-      if (res.ok) {
-        setSelectedAdminIds([]);
-        loadAdmins();
-        showAlert({ title: "Deaktiviert", message: "Ausgewählte Administratoren wurden erfolgreich deaktiviert.", type: "success" });
-      } else {
-        showAlert({ title: "Fehler", message: "Deaktivierung der Administratoren fehlgeschlagen.", type: "error" });
-      }
-    } catch (e) {
-      console.error(e);
-      showAlert({ title: "Fehler", message: "Fehler bei der Deaktivierung.", type: "error" });
-    }
+          if (res.ok) {
+            setSelectedAdminIds([]);
+            loadAdmins();
+            showAlert({ title: "Deaktiviert", message: "Ausgewählte Administratoren wurden erfolgreich deaktiviert.", type: "success" });
+          } else {
+            showAlert({ title: "Fehler", message: "Deaktivierung der Administratoren fehlgeschlagen.", type: "error" });
+          }
+        } catch (e) {
+          console.error(e);
+          showAlert({ title: "Fehler", message: "Fehler bei der Deaktivierung.", type: "error" });
+        }
+      },
+    });
   };
 
   const filteredAdmins = admins.filter((a) =>

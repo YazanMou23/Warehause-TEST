@@ -425,61 +425,63 @@ export default function ChatPage() {
     }
   };
 
-  // Block/Unblock Employee (Admins and Managers only)
-  const handleBlockToggle = async (employeeId: string, currentBlockStatus: boolean) => {
+  const handleBlockToggle = (employeeId: string, currentBlockStatus: boolean) => {
     const actionLabel = currentBlockStatus ? "entsperren" : "blockieren";
-    if (!window.confirm(`Möchten Sie diesen Mitarbeiter wirklich ${actionLabel}?`)) return;
+    showAlert({
+      title: currentBlockStatus ? "Mitarbeiter entsperren" : "Mitarbeiter blockieren",
+      message: `Möchten Sie diesen Mitarbeiter wirklich ${actionLabel}?`,
+      type: "warning",
+      confirmText: currentBlockStatus ? "Entsperren" : "Blockieren",
+      cancelText: "Abbrechen",
+      onConfirm: async () => {
+        const token = localStorage.getItem("accessToken");
+        const nextBlockStatus = !currentBlockStatus;
 
-    const token = localStorage.getItem("accessToken");
-    const nextBlockStatus = !currentBlockStatus;
+        try {
+          if (isOffline) {
+            // Offline block simulation
+            const storedConvs = localStorage.getItem(`mock_convs_${actorId}`);
+            if (storedConvs) {
+              const convList = JSON.parse(storedConvs) as Conversation[];
+              const updated = convList.map(c => c.id === employeeId ? { ...c, isChatBlocked: nextBlockStatus } : c);
+              localStorage.setItem(`mock_convs_${actorId}`, JSON.stringify(updated));
+              setConversations(updated);
+            }
+            // Save global mock blocked state for employee's perspective
+            localStorage.setItem(`mock_blocked_${employeeId}`, String(nextBlockStatus));
+            showAlert({
+              title: nextBlockStatus ? "Mitarbeiter blockiert" : "Mitarbeiter entsperrt",
+              message: `Mitarbeiter wurde erfolgreich ${nextBlockStatus ? "blockiert" : "entsperrt"}.`,
+              type: "success"
+            });
+            return;
+          }
 
-    try {
-      if (isOffline) {
-        // Offline block simulation
-        const storedConvs = localStorage.getItem(`mock_convs_${actorId}`);
-        if (storedConvs) {
-          const convList = JSON.parse(storedConvs) as Conversation[];
-          const updated = convList.map(c => c.id === employeeId ? { ...c, isChatBlocked: nextBlockStatus } : c);
-          localStorage.setItem(`mock_convs_${actorId}`, JSON.stringify(updated));
-          setConversations(updated);
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/users/${employeeId}/chat-block`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ isChatBlocked: nextBlockStatus }),
+          });
+
+          if (res.ok) {
+            setConversations(prev => prev.map(c => c.id === employeeId ? { ...c, isChatBlocked: nextBlockStatus } : c));
+            showAlert({
+              title: nextBlockStatus ? "Mitarbeiter blockiert" : "Mitarbeiter entsperrt",
+              message: `Mitarbeiter wurde erfolgreich ${nextBlockStatus ? "blockiert" : "entsperrt"}.`,
+              type: "success"
+            });
+          } else {
+            showAlert({ title: "Fehler", message: `Aktion "${actionLabel}" fehlgeschlagen.`, type: "error" });
+          }
+        } catch (err: any) {
+          console.error(err);
+          showAlert({ title: "Fehler", message: "Fehler beim Ausführen der Aktion.", type: "error" });
         }
-        // Save global mock blocked state for employee's perspective
-        localStorage.setItem(`mock_blocked_${employeeId}`, String(nextBlockStatus));
-        showAlert({
-          title: nextBlockStatus ? "Mitarbeiter blockiert" : "Mitarbeiter entsperrt",
-          message: `Mitarbeiter wurde erfolgreich ${nextBlockStatus ? "blockiert" : "entsperrt"}.`,
-          type: nextBlockStatus ? "warning" : "success",
-        });
-        return;
-      }
-
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/chat/block`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ employeeId, block: nextBlockStatus }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || "Aktion fehlgeschlagen.");
-      }
-
-      fetchConversations(true);
-      showAlert({
-        title: nextBlockStatus ? "Mitarbeiter blockiert" : "Mitarbeiter entsperrt",
-        message: `Mitarbeiter wurde erfolgreich ${nextBlockStatus ? "blockiert" : "entsperrt"}.`,
-        type: nextBlockStatus ? "warning" : "success",
-      });
-    } catch (err: any) {
-      showAlert({
-        title: "Fehler",
-        message: err.message || "Fehler bei der Blockierung.",
-        type: "error",
-      });
-    }
+      },
+    });
   };
 
   // Search filter

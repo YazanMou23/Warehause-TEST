@@ -386,101 +386,120 @@ export default function EmployeesPage() {
     }
   };
 
-  const handleDeactivate = async (id: string, name: string) => {
-    if (!window.confirm(language === "de" ? `Sind Sie sicher, dass Sie den Mitarbeiter ${name} löschen möchten?` : `Are you sure you want to delete employee ${name}?`)) {
-      return;
-    }
+  const handleDeactivate = (id: string, name: string) => {
+    showAlert({
+      title: language === "de" ? "Mitarbeiter löschen" : "Delete Employee",
+      message: language === "de" ? `Sind Sie sicher, dass Sie den Mitarbeiter ${name} löschen möchten?` : `Are you sure you want to delete employee ${name}?`,
+      type: "warning",
+      confirmText: language === "de" ? "Löschen" : "Delete",
+      cancelText: language === "de" ? "Abbrechen" : "Cancel",
+      onConfirm: async () => {
+        const token = localStorage.getItem("accessToken");
+        try {
+          if (isOffline) {
+            setEmployees(prev => prev.filter(emp => emp.id !== id));
+            return;
+          }
 
-    const token = localStorage.getItem("accessToken");
-    try {
-      if (isOffline) {
-        setEmployees(prev => prev.filter(emp => emp.id !== id));
-        return;
-      }
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${id}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          });
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (res.ok) {
-        loadEmployees();
-      } else {
-        showAlert({ title: "Fehler", message: language === "de" ? "Mitarbeiter konnte nicht gelöscht werden" : "Failed to delete employee", type: "error" });
-      }
-    } catch (e) {
-      console.error(e);
-      showAlert({ title: "Fehler", message: "Error occurred", type: "error" });
-    }
+          if (res.ok) {
+            loadEmployees();
+            showAlert({ title: "Erfolg", message: language === "de" ? "Mitarbeiter wurde gelöscht" : "Employee deleted successfully", type: "success" });
+          } else {
+            showAlert({ title: "Fehler", message: language === "de" ? "Mitarbeiter konnte nicht gelöscht werden" : "Failed to delete employee", type: "error" });
+          }
+        } catch (e) {
+          console.error(e);
+          showAlert({ title: "Fehler", message: "Error occurred", type: "error" });
+        }
+      },
+    });
   };
 
-  const handleBulkDeactivate = async () => {
+  const handleBulkDeactivate = () => {
     if (selectedEmpIds.length === 0) return;
-    if (!window.confirm(language === "de" ? `Sind Sie sicher, dass Sie die ${selectedEmpIds.length} ausgewählten Mitarbeiter löschen möchten?` : `Are you sure you want to delete the ${selectedEmpIds.length} selected employee(s)?`)) {
-      return;
-    }
+    showAlert({
+      title: language === "de" ? "Mitarbeiter löschen" : "Delete Employees",
+      message: language === "de" ? `Sind Sie sicher, dass Sie die ${selectedEmpIds.length} ausgewählten Mitarbeiter löschen möchten?` : `Are you sure you want to delete the ${selectedEmpIds.length} selected employee(s)?`,
+      type: "warning",
+      confirmText: language === "de" ? "Löschen" : "Delete",
+      cancelText: language === "de" ? "Abbrechen" : "Cancel",
+      onConfirm: async () => {
+        const token = localStorage.getItem("accessToken");
+        try {
+          if (isOffline) {
+            setEmployees(prev => prev.filter(emp => !selectedEmpIds.includes(emp.id)));
+            setSelectedEmpIds([]);
+            return;
+          }
 
-    const token = localStorage.getItem("accessToken");
-    try {
-      if (isOffline) {
-        setEmployees(prev => prev.filter(emp => !selectedEmpIds.includes(emp.id)));
-        setSelectedEmpIds([]);
-        return;
-      }
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/bulk-deactivate`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ ids: selectedEmpIds }),
+          });
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/bulk-deactivate`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ ids: selectedEmpIds }),
-      });
-
-      if (res.ok) {
-        setSelectedEmpIds([]);
-        loadEmployees();
-      } else {
-        showAlert({ title: "Fehler", message: language === "de" ? "Mitarbeiter konnten nicht gelöscht werden" : "Failed to delete employees", type: "error" });
-      }
-    } catch (e) {
-      console.error(e);
-      showAlert({ title: "Fehler", message: "Error occurred", type: "error" });
-    }
+          if (res.ok) {
+            setSelectedEmpIds([]);
+            loadEmployees();
+            showAlert({ title: "Erfolg", message: language === "de" ? "Ausgewählte Mitarbeiter wurden gelöscht" : "Selected employees deleted", type: "success" });
+          } else {
+            showAlert({ title: "Fehler", message: language === "de" ? "Mitarbeiter konnten nicht gelöscht werden" : "Failed to delete employees", type: "error" });
+          }
+        } catch (e) {
+          console.error(e);
+          showAlert({ title: "Fehler", message: "Error occurred", type: "error" });
+        }
+      },
+    });
   };
 
-  const handleBulkActivate = async () => {
+  const handleBulkActivate = () => {
     if (selectedEmpIds.length === 0) return;
-    if (!window.confirm(language === "de" ? `Ausgewählte ${selectedEmpIds.length} Mitarbeiter aktivieren?` : `Activate the ${selectedEmpIds.length} selected employee(s)?`)) {
-      return;
-    }
+    showAlert({
+      title: language === "de" ? "Mitarbeiter aktivieren" : "Activate Employees",
+      message: language === "de" ? `Ausgewählte ${selectedEmpIds.length} Mitarbeiter aktivieren?` : `Activate the ${selectedEmpIds.length} selected employee(s)?`,
+      type: "info",
+      confirmText: language === "de" ? "Aktivieren" : "Activate",
+      cancelText: language === "de" ? "Abbrechen" : "Cancel",
+      onConfirm: async () => {
+        const token = localStorage.getItem("accessToken");
+        try {
+          if (isOffline) {
+            showAlert({ title: "Offline-Modus", message: "Bulk activate simulated", type: "info" });
+            setSelectedEmpIds([]);
+            return;
+          }
 
-    const token = localStorage.getItem("accessToken");
-    try {
-      if (isOffline) {
-        showAlert({ title: "Offline-Modus", message: "Bulk activate simulated", type: "info" });
-        setSelectedEmpIds([]);
-        return;
-      }
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/bulk-activate`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ ids: selectedEmpIds }),
+          });
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/bulk-activate`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ ids: selectedEmpIds }),
-      });
-
-      if (res.ok) {
-        setSelectedEmpIds([]);
-        loadEmployees();
-      } else {
-        showAlert({ title: "Fehler", message: "Failed to activate employees", type: "error" });
-      }
-    } catch (e) {
-      console.error(e);
-    }
+          if (res.ok) {
+            setSelectedEmpIds([]);
+            loadEmployees();
+            showAlert({ title: "Erfolg", message: language === "de" ? "Mitarbeiter aktiviert" : "Employees activated", type: "success" });
+          } else {
+            showAlert({ title: "Fehler", message: language === "de" ? "Aktivierung fehlgeschlagen" : "Failed to activate employees", type: "error" });
+          }
+        } catch (e) {
+          console.error(e);
+          showAlert({ title: "Fehler", message: "Error occurred", type: "error" });
+        }
+      },
+    });
   };
 
   const handleBulkAssignHall = async (hallId: string) => {

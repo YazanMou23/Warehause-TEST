@@ -204,75 +204,86 @@ export default function DashboardPage() {
     }
   };
 
-  const handleBulkDeletePlans = async () => {
+  const handleBulkDeletePlans = () => {
     if (selectedPlanIds.length === 0) return;
-    if (!window.confirm(`Are you sure you want to delete the ${selectedPlanIds.length} selected plan(s)?`)) {
-      return;
-    }
+    showAlert({
+      title: "Schichtpläne löschen",
+      message: `Sind Sie sicher, dass Sie die ${selectedPlanIds.length} ausgewählten Schichtpläne löschen möchten?`,
+      type: "warning",
+      confirmText: "Löschen",
+      cancelText: "Abbrechen",
+      onConfirm: async () => {
+        const token = localStorage.getItem("accessToken");
+        try {
+          if (isOffline) {
+            setPlans(prev => prev.filter(p => !selectedPlanIds.includes(p.id)));
+            setSelectedPlanIds([]);
+            return;
+          }
 
-    const token = localStorage.getItem("accessToken");
-    try {
-      if (isOffline) {
-        setPlans(prev => prev.filter(p => !selectedPlanIds.includes(p.id)));
-        setSelectedPlanIds([]);
-        return;
-      }
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/bulk`, {
+            method: "DELETE",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ ids: selectedPlanIds }),
+          });
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/bulk`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ ids: selectedPlanIds }),
-      });
-
-      if (res.ok) {
-        setSelectedPlanIds([]);
-        fetchPlans(selectedDate, showAllPlans);
-      } else {
-        showAlert({ title: "Fehler", message: "Schichtpläne konnten nicht gelöscht werden.", type: "error" });
-      }
-    } catch (e) {
-      console.error(e);
-      showAlert({ title: "Fehler", message: "Fehler beim Löschen der Schichtpläne.", type: "error" });
-    }
+          if (res.ok) {
+            setSelectedPlanIds([]);
+            fetchPlans(selectedDate, showAllPlans);
+            showAlert({ title: "Erfolg", message: "Ausgewählte Schichtpläne wurden gelöscht.", type: "success" });
+          } else {
+            showAlert({ title: "Fehler", message: "Schichtpläne konnten nicht gelöscht werden.", type: "error" });
+          }
+        } catch (e) {
+          console.error(e);
+          showAlert({ title: "Fehler", message: "Fehler beim Löschen der Schichtpläne.", type: "error" });
+        }
+      },
+    });
   };
 
-  const handleBulkDuplicatePlans = async () => {
+  const handleBulkDuplicatePlans = () => {
     if (selectedPlanIds.length === 0) return;
-    if (!window.confirm(`Are you sure you want to duplicate the ${selectedPlanIds.length} selected plan(s)?`)) {
-      return;
-    }
+    showAlert({
+      title: "Schichtpläne duplizieren",
+      message: `Sind Sie sicher, dass Sie die ${selectedPlanIds.length} ausgewählten Schichtpläne duplizieren möchten?`,
+      type: "info",
+      confirmText: "Duplizieren",
+      cancelText: "Abbrechen",
+      onConfirm: async () => {
+        const token = localStorage.getItem("accessToken");
+        try {
+          if (isOffline) {
+            showAlert({ title: "Simuliert", message: "Schichtpläne im Offline-Modus dupliziert!", type: "info" });
+            setSelectedPlanIds([]);
+            return;
+          }
 
-    const token = localStorage.getItem("accessToken");
-    try {
-      if (isOffline) {
-        showAlert({ title: "Simuliert", message: "Schichtpläne im Offline-Modus dupliziert!", type: "info" });
-        setSelectedPlanIds([]);
-        return;
-      }
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/bulk-duplicate`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ ids: selectedPlanIds }),
+          });
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/bulk-duplicate`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ ids: selectedPlanIds }),
-      });
-
-      if (res.ok) {
-        setSelectedPlanIds([]);
-        fetchPlans(selectedDate, showAllPlans);
-        showAlert({ title: "Erfolg", message: "Pläne erfolgreich dupliziert.", type: "success" });
-      } else {
-        showAlert({ title: "Fehler", message: "Duplizieren der Pläne fehlgeschlagen.", type: "error" });
-      }
-    } catch (e) {
-      console.error(e);
-      showAlert({ title: "Fehler", message: "Fehler beim Duplizieren der Pläne.", type: "error" });
-    }
+          if (res.ok) {
+            setSelectedPlanIds([]);
+            fetchPlans(selectedDate, showAllPlans);
+            showAlert({ title: "Erfolg", message: "Schichtpläne wurden erfolgreich dupliziert.", type: "success" });
+          } else {
+            showAlert({ title: "Fehler", message: "Schichtpläne konnten nicht dupliziert werden.", type: "error" });
+          }
+        } catch (e) {
+          console.error(e);
+          showAlert({ title: "Fehler", message: "Fehler beim Duplizieren der Schichtpläne.", type: "error" });
+        }
+      },
+    });
   };
 
   const handleBulkChangeHallPlans = async (hallId: string) => {
