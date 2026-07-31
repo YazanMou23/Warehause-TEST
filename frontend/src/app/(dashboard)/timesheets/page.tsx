@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Upload,
@@ -24,6 +24,10 @@ import {
   Eye,
   Search,
   Filter,
+  Printer,
+  Settings,
+  RefreshCw,
+  Hash,
 } from 'lucide-react';
 import { API_URL } from '../../../config/api';
 import CustomAlertModal, { CustomAlertOptions } from '../../components/CustomAlertModal';
@@ -71,13 +75,20 @@ interface TimesheetListItem {
   createdAt: string;
 }
 
+interface DbEmployee {
+  id: string;
+  name: string;
+  username: string;
+  role?: string;
+}
+
 type ViewMode = 'upload' | 'scanning' | 'review' | 'saved';
 type ActiveTab = 'scanner' | 'list';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getAuthHeaders(): HeadersInit {
-  const token = localStorage.getItem('accessToken');
+  const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
   return { Authorization: `Bearer ${token}` };
 }
 
@@ -157,28 +168,37 @@ function ConfidenceBadge({ confidence }: { confidence: 'exact' | 'fuzzy' | 'none
 function StatusBadge({ status }: { status: string }) {
   if (status === 'CONFIRMED') {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-        <CheckCircle size={10} /> Bestätigt
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+        <CheckCircle size={11} /> Bestätigt
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30">
-      <Clock size={10} /> Ausstehend
+    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30">
+      <Clock size={11} /> Ausstehend
     </span>
   );
 }
 
-// ─── Upload Zone ─────────────────────────────────────────────────────────────
+// ─── Upload Zone & Direct Scanner ─────────────────────────────────────────────
 
 function UploadZone({
   onFileSelect,
+  onPrinterScan,
   isLoading,
 }: {
   onFileSelect: (file: File) => void;
+  onPrinterScan: (settings: { scannerIp?: string; scannerPort?: number; dpi?: number }) => void;
   isLoading: boolean;
 }) {
   const [isDragOver, setIsDragOver] = useState(false);
+  const [showPrinterSettings, setShowPrinterSettings] = useState(false);
+  const [scannerIp, setScannerIp] = useState('');
+  const [scannerPort, setScannerPort] = useState(80);
+  const [scannerDpi, setScannerDpi] = useState(300);
+  const [checkingStatus, setCheckingStatus] = useState(false);
+  const [statusResult, setStatusResult] = useState<{ online?: boolean; state?: string; error?: string } | null>(null);
+
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleDrop = useCallback(
@@ -191,72 +211,218 @@ function UploadZone({
     [onFileSelect],
   );
 
+  const checkScannerStatus = async () => {
+    setCheckingStatus(true);
+    setStatusResult(null);
+    try {
+      const params = new URLSearchParams();
+      if (scannerIp) params.set('ip', scannerIp);
+      if (scannerPort) params.set('port', String(scannerPort));
+
+      const res = await fetch(`${API_URL}/scanner/status?${params}`, {
+        headers: getAuthHeaders(),
+      });
+      const data = await res.json();
+      setStatusResult(data);
+    } catch (err: any) {
+      setStatusResult({ online: false, error: err.message || 'Verbindung fehlgeschlagen' });
+    } finally {
+      setCheckingStatus(false);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex flex-col items-center justify-center"
+      className="flex flex-col gap-6 items-center w-full"
     >
-      <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setIsDragOver(true);
-        }}
-        onDragLeave={() => setIsDragOver(false)}
-        onDrop={handleDrop}
-        onClick={() => !isLoading && inputRef.current?.click()}
-        className={`
-          relative w-full max-w-xl cursor-pointer rounded-2xl border-2 border-dashed
-          transition-all duration-300 p-14 flex flex-col items-center gap-5
-          ${isDragOver
-            ? 'border-blue-400 bg-blue-500/10 scale-[1.02]'
-            : 'border-white/20 bg-white/5 hover:border-blue-400/60 hover:bg-white/8'
-          }
-        `}
-      >
-        <div className={`p-5 rounded-2xl transition-colors ${isDragOver ? 'bg-blue-500/20' : 'bg-white/10'}`}>
-          <ScanLine size={48} className={isDragOver ? 'text-blue-400' : 'text-slate-400'} />
-        </div>
+      {/* Action Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl">
+        
+        {/* 1. Direct Printer Scanner Action Card (PROMINENT FEATURE) */}
+        <div className="relative rounded-2xl border border-blue-500/30 bg-gradient-to-b from-blue-900/30 to-blue-950/40 p-6 flex flex-col justify-between items-center text-center shadow-xl hover:border-blue-400/60 transition-all group">
+          <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/20 text-blue-300 text-xs font-semibold border border-blue-400/30">
+            <Printer size={12} /> Direkt-Scan
+          </div>
 
-        <div className="text-center">
-          <p className="text-white font-semibold text-lg">
-            {isDragOver ? 'Datei hier ablegen' : 'Stundenzettel hochladen'}
-          </p>
-          <p className="text-slate-400 text-sm mt-1">
-            JPG oder PNG per Drag & Drop oder Klick auswählen
-          </p>
-          <p className="text-slate-500 text-xs mt-1">Maximale Dateigröße: 15 MB</p>
-        </div>
+          <div className="p-4 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-400/30 mt-2 mb-4 group-hover:scale-105 transition-transform">
+            <Printer size={44} />
+          </div>
 
-        <div className="flex gap-3">
-          {['JPG', 'PNG'].map((fmt) => (
-            <span
-              key={fmt}
-              className="px-3 py-1 rounded-lg text-xs font-mono bg-white/10 text-slate-300 border border-white/10"
+          <div>
+            <h3 className="text-white font-bold text-lg mb-1">Vom Drucker scannen</h3>
+            <p className="text-slate-300 text-xs leading-relaxed max-w-xs mb-4">
+              Stundenzettel direkt am Netzwerkschreibdrucker einlegen und mit 1-Klick per AirScan / eSCL erfassen.
+            </p>
+          </div>
+
+          <div className="w-full space-y-2">
+            <button
+              onClick={() => onPrinterScan({ scannerIp, scannerPort, dpi: scannerDpi })}
+              disabled={isLoading}
+              className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-lg hover:shadow-blue-500/20 transition-all text-sm disabled:opacity-50 cursor-pointer"
             >
-              {fmt}
-            </span>
-          ))}
+              {isLoading ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <Printer size={18} />
+              )}
+              <span>Jetzt vom Drucker scannen</span>
+            </button>
+
+            <button
+              onClick={() => setShowPrinterSettings(!showPrinterSettings)}
+              className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs text-slate-400 hover:text-white transition-colors"
+            >
+              <Settings size={12} />
+              <span>Drucker-IP & Einstellungen {showPrinterSettings ? 'ausblenden' : 'anpassen'}</span>
+            </button>
+          </div>
         </div>
 
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) onFileSelect(file);
+        {/* 2. File Upload Dropzone Card */}
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragOver(true);
           }}
-        />
+          onDragLeave={() => setIsDragOver(false)}
+          onDrop={handleDrop}
+          onClick={() => !isLoading && inputRef.current?.click()}
+          className={`
+            relative cursor-pointer rounded-2xl border-2 border-dashed
+            transition-all duration-300 p-6 flex flex-col justify-between items-center text-center
+            ${isDragOver
+              ? 'border-blue-400 bg-blue-500/10 scale-[1.01]'
+              : 'border-white/20 bg-white/5 hover:border-white/30 hover:bg-white/8'
+            }
+          `}
+        >
+          <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 text-slate-300 text-xs font-semibold border border-white/10">
+            <Upload size={12} /> Datei-Upload
+          </div>
+
+          <div className={`p-4 rounded-2xl transition-colors mt-2 mb-4 ${isDragOver ? 'bg-blue-500/20' : 'bg-white/10'}`}>
+            <ScanLine size={44} className={isDragOver ? 'text-blue-400' : 'text-slate-400'} />
+          </div>
+
+          <div>
+            <h3 className="text-white font-bold text-lg mb-1">
+              {isDragOver ? 'Datei hier ablegen' : 'Foto / Bild hochladen'}
+            </h3>
+            <p className="text-slate-400 text-xs max-w-xs mb-4">
+              JPG oder PNG per Drag & Drop ziehen oder Durchsuchen klicken.
+            </p>
+          </div>
+
+          <div className="w-full">
+            <div className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-medium text-sm border border-white/10 transition-all flex items-center justify-center gap-2">
+              <Upload size={16} />
+              <span>Datei auswählen</span>
+            </div>
+            <p className="text-slate-500 text-[11px] mt-2">Max. 15 MB (JPG, PNG)</p>
+          </div>
+
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onFileSelect(file);
+            }}
+          />
+        </div>
+
       </div>
+
+      {/* Expandable Printer Settings Panel */}
+      <AnimatePresence>
+        {showPrinterSettings && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="w-full max-w-4xl bg-white/5 border border-white/10 rounded-2xl p-5 overflow-hidden"
+          >
+            <h4 className="text-white font-semibold text-sm mb-3 flex items-center gap-2">
+              <Settings size={15} className="text-blue-400" />
+              Netzwerkdrucker / Scanner Konfiguration (AirScan / eSCL)
+            </h4>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Drucker IP-Adresse</label>
+                <input
+                  type="text"
+                  placeholder="z.B. 192.168.1.100 (Standard: .env)"
+                  value={scannerIp}
+                  onChange={(e) => setScannerIp(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-white/8 border border-white/15 rounded-xl text-white text-xs focus:outline-none focus:border-blue-400"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Port</label>
+                <input
+                  type="number"
+                  placeholder="80 (HP: 8080)"
+                  value={scannerPort}
+                  onChange={(e) => setScannerPort(parseInt(e.target.value) || 80)}
+                  className="w-full px-3 py-1.5 bg-white/8 border border-white/15 rounded-xl text-white text-xs focus:outline-none focus:border-blue-400"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Scan Auflösung (DPI)</label>
+                <select
+                  value={scannerDpi}
+                  onChange={(e) => setScannerDpi(parseInt(e.target.value))}
+                  className="w-full px-3 py-1.5 bg-white/8 border border-white/15 rounded-xl text-white text-xs focus:outline-none focus:border-blue-400"
+                >
+                  <option value={150} className="bg-slate-800">150 DPI (Schnell)</option>
+                  <option value={300} className="bg-slate-800">300 DPI (Empfohlen)</option>
+                  <option value={600} className="bg-slate-800">600 DPI (Hohe Qualität)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-white/10">
+              <button
+                onClick={checkScannerStatus}
+                disabled={checkingStatus}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-medium transition-colors"
+              >
+                {checkingStatus ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                Drucker-Verbindung testen
+              </button>
+
+              {statusResult && (
+                <div className="text-xs">
+                  {statusResult.online ? (
+                    <span className="text-emerald-400 font-medium flex items-center gap-1">
+                      <CheckCircle size={12} /> Drucker online ({statusResult.state})
+                    </span>
+                  ) : (
+                    <span className="text-red-400 font-medium flex items-center gap-1">
+                      <AlertCircle size={12} /> Nicht erreichbar ({statusResult.error})
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
 
 // ─── Scanning Animation ───────────────────────────────────────────────────────
 
-function ScanningView({ fileName }: { fileName: string }) {
+function ScanningView({ fileName, isPrinterScan }: { fileName: string; isPrinterScan?: boolean }) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
@@ -265,7 +431,11 @@ function ScanningView({ fileName }: { fileName: string }) {
     >
       <div className="relative">
         <div className="w-24 h-24 rounded-2xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center">
-          <FileText size={36} className="text-blue-400" />
+          {isPrinterScan ? (
+            <Printer size={40} className="text-blue-400 animate-pulse" />
+          ) : (
+            <FileText size={36} className="text-blue-400" />
+          )}
         </div>
         <motion.div
           animate={{ y: ['0%', '100%', '0%'] }}
@@ -278,30 +448,34 @@ function ScanningView({ fileName }: { fileName: string }) {
       <div className="text-center">
         <div className="flex items-center gap-2 justify-center mb-2">
           <Loader2 size={18} className="text-blue-400 animate-spin" />
-          <p className="text-white font-semibold">KI analysiert Stundenzettel...</p>
+          <p className="text-white font-semibold">
+            {isPrinterScan ? 'Verbindung zum Drucker hergestellt. Scanne Dokument...' : 'KI analysiert Stundenzettel...'}
+          </p>
         </div>
         <p className="text-slate-400 text-sm">{fileName}</p>
       </div>
 
       <div className="flex flex-col gap-2 w-72">
-        {['Bild wird verarbeitet', 'Handschrift wird erkannt', 'Mitarbeiter wird gesucht'].map(
-          (step, i) => (
+        {[
+          isPrinterScan ? 'Empfange Bild vom Netzwerkschreibdrucker' : 'Bild wird verarbeitet',
+          'Handschrift & Zeiten werden erkannt',
+          'Mitarbeiter wird in Datenbank gesucht',
+        ].map((step, i) => (
+          <motion.div
+            key={step}
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: i * 0.5 + 0.3 }}
+            className="flex items-center gap-2 text-sm text-slate-400"
+          >
             <motion.div
-              key={step}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.5 + 0.3 }}
-              className="flex items-center gap-2 text-sm text-slate-400"
-            >
-              <motion.div
-                animate={{ opacity: [0.3, 1, 0.3] }}
-                transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.5 }}
-                className="w-1.5 h-1.5 rounded-full bg-blue-400"
-              />
-              {step}
-            </motion.div>
-          ),
-        )}
+              animate={{ opacity: [0.3, 1, 0.3] }}
+              transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.5 }}
+              className="w-1.5 h-1.5 rounded-full bg-blue-400"
+            />
+            {step}
+          </motion.div>
+        ))}
       </div>
     </motion.div>
   );
@@ -337,7 +511,34 @@ function ReviewView({
     password: 'changeme123',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [showAllRows, setShowAllRows] = useState(false);
+  
+  // Searchable DB Employee selector state
+  const [dbEmployees, setDbEmployees] = useState<DbEmployee[]>([]);
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      try {
+        const res = await fetch(`${API_URL}/employees?limit=100`, { headers: getAuthHeaders() });
+        if (res.ok) {
+          const json = await res.json();
+          const list = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+          setDbEmployees(list);
+        }
+      } catch (e) {
+        console.error('Fehler beim Laden der Mitarbeiterliste', e);
+      }
+    };
+    fetchEmployees();
+  }, []);
+
+  const filteredEmployees = dbEmployees.filter((emp) =>
+    emp.name.toLowerCase().includes(employeeSearch.toLowerCase()) ||
+    emp.username?.toLowerCase().includes(employeeSearch.toLowerCase())
+  );
+
+  const selectedEmployeeObj = dbEmployees.find((e) => e.id === employeeId);
 
   const updateEntry = (idx: number, field: keyof TimesheetEntry, value: string | number) => {
     setEntries((prev) => {
@@ -393,7 +594,7 @@ function ReviewView({
       };
     } else {
       if (!employeeId) {
-        setErrors({ general: 'Bitte einen Mitarbeiter auswählen' });
+        setErrors({ general: 'Bitte einen Mitarbeiter aus der Datenbank auswählen' });
         return;
       }
       payload.employeeId = employeeId;
@@ -421,7 +622,7 @@ function ReviewView({
         <div className="flex items-start gap-3 p-4 rounded-xl bg-blue-500/10 border border-blue-500/30">
           <AlertCircle size={18} className="text-blue-400 flex-shrink-0 mt-0.5" />
           <p className="text-blue-300 text-sm">
-            <strong>Demo-Modus:</strong> Diese Daten sind Beispieldaten, da kein OpenAI-API-Key konfiguriert ist.
+            <strong>Demo-Modus:</strong> Diese Daten sind Beispieldaten.
           </p>
         </div>
       )}
@@ -451,7 +652,7 @@ function ReviewView({
             <div className="flex items-center gap-2">
               <CheckCircle size={16} className="text-emerald-400" />
               <span className="text-emerald-300 text-sm">
-                Mitarbeiter gefunden: <strong>{scanResult.employeeMatch.matchedName}</strong>
+                Mitarbeiter zugeordnet: <strong>{selectedEmployeeObj?.name || scanResult.employeeMatch.matchedName}</strong>
               </span>
             </div>
             <button
@@ -489,13 +690,69 @@ function ReviewView({
             </div>
 
             {!createNew ? (
-              <input
-                type="text"
-                placeholder="Mitarbeiter-ID eingeben..."
-                value={employeeId}
-                onChange={(e) => setEmployeeId(e.target.value)}
-                className="w-full px-3 py-2 bg-white/8 border border-white/15 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-400/60"
-              />
+              /* Searchable Mitarbeiter Dropdown with Numeric Index 1,2,3... */
+              <div className="relative">
+                <div
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className="w-full px-3 py-2.5 bg-white/8 border border-white/15 rounded-xl text-white text-sm flex items-center justify-between cursor-pointer hover:border-blue-400/50 transition-colors"
+                >
+                  {selectedEmployeeObj ? (
+                    <span className="flex items-center gap-2">
+                      <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono text-xs font-bold">
+                        #{dbEmployees.findIndex(e => e.id === selectedEmployeeObj.id) + 1}
+                      </span>
+                      <span className="font-medium">{selectedEmployeeObj.name}</span>
+                    </span>
+                  ) : (
+                    <span className="text-slate-400">Mitarbeiter suchen oder wählen...</span>
+                  )}
+                  <ChevronDown size={16} className="text-slate-400" />
+                </div>
+
+                {isDropdownOpen && (
+                  <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-slate-900 border border-white/15 rounded-xl shadow-2xl overflow-hidden p-2">
+                    <div className="relative mb-2">
+                      <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Name suchen..."
+                        value={employeeSearch}
+                        onChange={(e) => setEmployeeSearch(e.target.value)}
+                        className="w-full pl-8 pr-3 py-1.5 bg-white/10 border border-white/10 rounded-lg text-xs text-white placeholder-slate-400 focus:outline-none focus:border-blue-400"
+                        autoFocus
+                      />
+                    </div>
+
+                    <div className="max-h-48 overflow-y-auto space-y-1">
+                      {filteredEmployees.length === 0 ? (
+                        <p className="text-xs text-slate-500 text-center py-3">Kein Mitarbeiter gefunden</p>
+                      ) : (
+                        filteredEmployees.map((emp, index) => (
+                          <div
+                            key={emp.id}
+                            onClick={() => {
+                              setEmployeeId(emp.id);
+                              setEmployeeName(emp.name);
+                              setIsDropdownOpen(false);
+                            }}
+                            className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs cursor-pointer transition-colors ${
+                              employeeId === emp.id ? 'bg-blue-600 text-white font-semibold' : 'text-slate-300 hover:bg-white/10'
+                            }`}
+                          >
+                            <span className="flex items-center gap-2">
+                              <span className="px-1.5 py-0.5 rounded bg-white/10 font-mono font-bold text-[10px]">
+                                #{index + 1}
+                              </span>
+                              <span>{emp.name}</span>
+                            </span>
+                            <span className="text-[10px] opacity-60">@{emp.username}</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 {[
@@ -543,7 +800,8 @@ function ReviewView({
         </div>
 
         {/* Table Header */}
-        <div className="grid grid-cols-[120px_100px_72px_72px_80px_80px_1fr] gap-2 px-4 py-2 bg-white/5 border-b border-white/8 text-xs font-medium text-slate-400">
+        <div className="grid grid-cols-[40px_120px_100px_72px_72px_80px_80px_1fr] gap-2 px-4 py-2.5 bg-white/5 border-b border-white/8 text-xs font-medium text-slate-400">
+          <div className="font-mono text-center">#</div>
           <div className="flex items-center gap-1"><Clock size={10} />Wochentag</div>
           <div>Datum</div>
           <div>Von</div>
@@ -553,7 +811,7 @@ function ReviewView({
           <div><MapPin size={10} className="inline mr-0.5" />Ort</div>
         </div>
 
-        {/* Table Rows */}
+        {/* Table Rows with Numeric Index 1, 2, 3... */}
         {entries.map((entry, idx) => {
           const hasData = entry.startTime !== '' || entry.endTime !== '';
           const isWeekend = idx >= 5;
@@ -561,10 +819,15 @@ function ReviewView({
           return (
             <div
               key={entry.weekday}
-              className={`grid grid-cols-[120px_100px_72px_72px_80px_80px_1fr] gap-2 px-4 py-2 border-b border-white/5 transition-colors ${
+              className={`grid grid-cols-[40px_120px_100px_72px_72px_80px_80px_1fr] gap-2 px-4 py-2 border-b border-white/5 transition-colors items-center ${
                 isWeekend ? 'bg-white/3' : 'hover:bg-white/4'
               } ${!hasData && !isWeekend ? 'opacity-60' : ''}`}
             >
+              {/* Numeric Index Badge 1,2,3... */}
+              <div className="font-mono text-xs font-bold text-slate-400 text-center bg-white/5 py-0.5 rounded border border-white/10">
+                {idx + 1}
+              </div>
+
               <div className="flex items-center gap-1.5">
                 <span
                   className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
@@ -646,7 +909,7 @@ function ReviewView({
         <button
           onClick={handleConfirm}
           disabled={isLoading}
-          className="flex-1 flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium transition-all text-sm disabled:opacity-60"
+          className="flex-1 flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium transition-all text-sm disabled:opacity-60 cursor-pointer"
         >
           {isLoading ? (
             <Loader2 size={16} className="animate-spin" />
@@ -742,12 +1005,11 @@ function SavedView({
   );
 }
 
-// ─── Timesheet List ───────────────────────────────────────────────────────────
+// ─── Timesheet List (Auto-loads on mount, includes search & numeric index 1,2,3) ───
 
-function TimesheetList() {
+function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
   const [items, setItems] = useState<TimesheetListItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [loaded, setLoaded] = useState(false);
   const [filter, setFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [downloading, setDownloading] = useState<{ id: string; fmt: string } | null>(null);
@@ -761,23 +1023,29 @@ function TimesheetList() {
     setAlertConfig({ ...options, isOpen: true });
   };
 
-  const loadList = async () => {
+  const loadList = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ limit: '50' });
+      const params = new URLSearchParams({ limit: '100' });
       if (statusFilter) params.set('status', statusFilter);
+      if (filter.trim()) params.set('search', filter.trim());
+
       const res = await fetch(`${API_URL}/timesheets?${params}`, {
         headers: getAuthHeaders(),
       });
       const json = await res.json();
       setItems(json.data ?? []);
-      setLoaded(true);
     } catch {
-      console.error('Failed to load timesheets');
+      console.error('Fehler beim Laden der Stundenzettel');
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter, filter]);
+
+  // Auto-load on component mount and whenever filters change
+  useEffect(() => {
+    loadList();
+  }, [loadList, refreshTrigger]);
 
   const downloadFile = async (id: string, format: 'pdf' | 'xlsx') => {
     setDownloading({ id, fmt: format });
@@ -825,104 +1093,128 @@ function TimesheetList() {
     return !filter || name.includes(filter.toLowerCase());
   });
 
-  if (!loaded) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 gap-4">
-        <FileText size={40} className="text-slate-600" />
-        <p className="text-slate-400">Liste der gescannten Stundenzettel</p>
-        <button
-          onClick={loadList}
-          disabled={loading}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium transition-all text-sm"
-        >
-          {loading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-          {loading ? 'Lädt...' : 'Stundenzettel laden'}
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col gap-4">
-      {/* Filters */}
-      <div className="flex gap-3">
-        <div className="relative flex-1">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+      {/* Search Bar & Filters Header */}
+      <div className="flex flex-wrap gap-3 items-center justify-between bg-white/5 p-4 rounded-2xl border border-white/10">
+        
+        {/* Mitarbeiter Search Bar */}
+        <div className="relative flex-1 min-w-[240px]">
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-blue-400" />
           <input
             type="text"
-            placeholder="Nach Mitarbeiter suchen..."
+            placeholder="Mitarbeiter-Name in Stundenzetteln suchen..."
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="w-full pl-8 pr-3 py-2 bg-white/8 border border-white/15 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-400/60"
+            className="w-full pl-10 pr-4 py-2.5 bg-white/8 border border-white/15 rounded-xl text-white placeholder-slate-400 text-sm focus:outline-none focus:border-blue-400/60 transition-colors"
           />
+          {filter && (
+            <button
+              onClick={() => setFilter('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 bg-white/8 border border-white/15 rounded-xl text-white text-sm focus:outline-none focus:border-blue-400/60"
-        >
-          <option value="">Alle Status</option>
-          <option value="PENDING_REVIEW">Ausstehend</option>
-          <option value="CONFIRMED">Bestätigt</option>
-        </select>
-        <button
-          onClick={loadList}
-          className="flex items-center gap-1.5 px-3 py-2 bg-white/8 border border-white/15 rounded-xl text-slate-300 hover:text-white text-sm transition-colors"
-        >
-          <Filter size={14} />
-          Aktualisieren
-        </button>
+
+        {/* Status Filter Dropdown */}
+        <div className="flex items-center gap-2">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3.5 py-2.5 bg-white/8 border border-white/15 rounded-xl text-white text-sm focus:outline-none focus:border-blue-400/60"
+          >
+            <option value="" className="bg-slate-900">Alle Status (Gesamt)</option>
+            <option value="PENDING_REVIEW" className="bg-slate-900">Ausstehend (PENDING_REVIEW)</option>
+            <option value="CONFIRMED" className="bg-slate-900">Bestätigt (CONFIRMED)</option>
+          </select>
+
+          <button
+            onClick={loadList}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white/8 border border-white/15 rounded-xl text-slate-300 hover:text-white text-sm font-medium transition-colors hover:bg-white/12"
+            title="Liste neu laden"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin text-blue-400' : ''} />
+            <span>Aktualisieren</span>
+          </button>
+        </div>
       </div>
 
-      {filtered.length === 0 ? (
-        <div className="text-center py-12 text-slate-500">
-          <FileText size={32} className="mx-auto mb-3 opacity-50" />
-          <p>Keine Stundenzettel gefunden</p>
+      {/* List Content */}
+      {loading && items.length === 0 ? (
+        <div className="flex items-center justify-center py-16 gap-3 text-slate-400">
+          <Loader2 size={24} className="animate-spin text-blue-400" />
+          <span>Stundenzettel werden geladen...</span>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 text-slate-500 bg-white/3 border border-white/10 rounded-2xl">
+          <FileText size={36} className="mx-auto mb-3 opacity-40 text-blue-400" />
+          <p className="text-slate-300 font-medium mb-1">Keine Stundenzettel gefunden</p>
+          <p className="text-slate-500 text-xs">
+            {filter ? `Keine Ergebnisse für "${filter}"` : 'Lade einen Stundenzettel per Scanner oder Foto hoch.'}
+          </p>
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
-          {filtered.map((item) => (
+        <div className="flex flex-col gap-2.5">
+          <div className="text-xs text-slate-400 px-1 font-mono flex items-center justify-between">
+            <span>{filtered.length} Stundenzettel gefunden</span>
+            <span>Sortiert nach Erstelldatum (neueste zuerst)</span>
+          </div>
+
+          {filtered.map((item, index) => (
             <motion.div
               key={item.id}
               layout
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-4 p-4 bg-white/5 border border-white/10 rounded-xl hover:border-white/20 transition-colors group"
+              className="flex items-center gap-4 p-4 bg-white/5 border border-white/10 rounded-2xl hover:border-blue-400/40 transition-colors group"
             >
+              {/* Numeric Index Badge (#1, #2, #3...) */}
+              <div className="w-8 h-8 rounded-xl bg-blue-500/15 border border-blue-400/30 text-blue-300 font-mono font-bold text-xs flex items-center justify-center shrink-0">
+                #{index + 1}
+              </div>
+
+              {/* Timesheet Employee info */}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <p className="text-white font-medium text-sm truncate">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-white font-semibold text-sm truncate">
                     {item.employee?.name ?? item.employeeName}
                   </p>
                   <StatusBadge status={item.status} />
                 </div>
-                <p className="text-slate-400 text-xs">
-                  {getWeekRange(item.weekStartDate)} · {item.entryCount} Tage · {item.totalHours.toFixed(2)} h
+                <p className="text-slate-400 text-xs flex items-center gap-3">
+                  <span>📅 {getWeekRange(item.weekStartDate)}</span>
+                  <span>⏱️ {item.entryCount} Tage ({item.totalHours.toFixed(2)} h)</span>
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
                 {item.status === 'CONFIRMED' && (
                   <>
                     <button
                       onClick={() => downloadFile(item.id, 'pdf')}
                       disabled={downloading?.id === item.id}
-                      className="p-1.5 rounded-lg bg-red-500/15 text-red-300 hover:bg-red-500/25 transition-colors"
-                      title="PDF"
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-500/15 text-red-300 hover:bg-red-500/25 border border-red-500/30 transition-colors text-xs"
+                      title="PDF Herunterladen"
                     >
                       {downloading?.id === item.id && downloading.fmt === 'pdf'
-                        ? <Loader2 size={14} className="animate-spin" />
-                        : <FileText size={14} />}
+                        ? <Loader2 size={13} className="animate-spin" />
+                        : <FileText size={13} />}
+                      <span>PDF</span>
                     </button>
                     <button
                       onClick={() => downloadFile(item.id, 'xlsx')}
                       disabled={downloading?.id === item.id}
-                      className="p-1.5 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 transition-colors"
-                      title="Excel"
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/30 transition-colors text-xs"
+                      title="Excel Herunterladen"
                     >
                       {downloading?.id === item.id && downloading.fmt === 'xlsx'
-                        ? <Loader2 size={14} className="animate-spin" />
-                        : <FileSpreadsheet size={14} />}
+                        ? <Loader2 size={13} className="animate-spin" />
+                        : <FileSpreadsheet size={13} />}
+                      <span>Excel</span>
                     </button>
                   </>
                 )}
@@ -930,7 +1222,7 @@ function TimesheetList() {
                   <button
                     onClick={() => deleteItem(item.id)}
                     disabled={deleting === item.id}
-                    className="p-1.5 rounded-lg bg-red-500/15 text-red-300 hover:bg-red-500/25 transition-colors"
+                    className="p-1.5 rounded-lg bg-red-500/15 text-red-300 hover:bg-red-500/25 border border-red-500/30 transition-colors"
                     title="Löschen"
                   >
                     {deleting === item.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
@@ -960,11 +1252,15 @@ export default function TimesheetsPage() {
   const [savedId, setSavedId] = useState<string | null>(null);
   const [savedName, setSavedName] = useState<string>('');
   const [currentFileName, setCurrentFileName] = useState('');
+  const [isPrinterScan, setIsPrinterScan] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [refreshListKey, setRefreshListKey] = useState(0);
 
+  // File-upload Handler
   const handleFileSelect = async (file: File) => {
     setCurrentFileName(file.name);
+    setIsPrinterScan(false);
     setError(null);
     setViewMode('scanning');
 
@@ -992,6 +1288,40 @@ export default function TimesheetsPage() {
     }
   };
 
+  // Direct Printer Scanner Handler
+  const handlePrinterScan = async (settings: { scannerIp?: string; scannerPort?: number; dpi?: number }) => {
+    setCurrentFileName('Direkt-Scan vom Netzwerkdrucker');
+    setIsPrinterScan(true);
+    setError(null);
+    setViewMode('scanning');
+    setIsLoading(true);
+
+    try {
+      const res = await fetch(`${API_URL}/scanner/scan-to-timesheet`, {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(settings),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message ?? 'Fehler beim Netzwerkdrucker-Scan. Prüfe die IP/Verbindung.');
+      }
+
+      const result: ScanResult = await res.json();
+      setScanResult(result);
+      setViewMode('review');
+    } catch (e: any) {
+      setError(e.message ?? 'Drucker-Verbindung fehlgeschlagen.');
+      setViewMode('upload');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleConfirm = async (payload: any) => {
     if (!scanResult) return;
     setIsLoading(true);
@@ -1016,6 +1346,7 @@ export default function TimesheetsPage() {
       setSavedId(confirmed.id);
       setSavedName(confirmed.employee?.name ?? confirmed.employeeName);
       setViewMode('saved');
+      setRefreshListKey((prev) => prev + 1); // Trigger auto-refresh of overview list
     } catch (e: any) {
       setError(e.message ?? 'Unbekannter Fehler');
     } finally {
@@ -1028,44 +1359,63 @@ export default function TimesheetsPage() {
     setSavedId(null);
     setSavedName('');
     setCurrentFileName('');
+    setIsPrinterScan(false);
     setError(null);
     setViewMode('upload');
   };
 
   return (
     <div className="min-h-screen bg-[#0f1623] text-white">
-      <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="max-w-5xl mx-auto px-4 py-8">
         {/* Page Header */}
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2.5 rounded-xl bg-blue-500/20 border border-blue-400/30">
-              <ScanLine size={22} className="text-blue-400" />
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-blue-500/20 border border-blue-400/30">
+                <ScanLine size={24} className="text-blue-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+                  Zeiterfassung & Stundenzettel-Scanner
+                </h1>
+                <p className="text-slate-400 text-sm">
+                  Wochenstundenzettel per Fotos oder direkt vom Netzwerkdrucker erfassen & verwalten
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">Stundenzettel-Scanner</h1>
-              <p className="text-slate-400 text-sm">
-                Handgeschriebene Wochenzettel per Foto hochladen und automatisch auswerten
-              </p>
-            </div>
+
+            {/* Quick Direct Scan Button in Page Header */}
+            {viewMode === 'upload' && activeTab === 'scanner' && (
+              <button
+                onClick={() => handlePrinterScan({})}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-400/40 text-sm font-semibold transition-all shadow-md cursor-pointer"
+              >
+                <Printer size={16} />
+                <span>Direkt vom Drucker scannen</span>
+              </button>
+            )}
           </div>
         </div>
 
         {/* Tab Navigation */}
         <div className="flex gap-1 p-1 bg-white/5 rounded-xl border border-white/10 mb-6 w-fit">
           {([
-            { key: 'scanner', label: 'Scanner', icon: ScanLine },
-            { key: 'list', label: 'Übersicht', icon: FileText },
+            { key: 'scanner', label: 'Stundenzettel Scannen', icon: ScanLine },
+            { key: 'list', label: 'Zeiterfassungen Übersicht', icon: FileText },
           ] as const).map(({ key, label, icon: Icon }) => (
             <button
               key={key}
-              onClick={() => setActiveTab(key)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              onClick={() => {
+                setActiveTab(key);
+                if (key === 'list') setRefreshListKey((prev) => prev + 1);
+              }}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
                 activeTab === key
-                  ? 'bg-blue-600 text-white shadow-lg'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-blue-600 text-white shadow-lg font-bold'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5'
               }`}
             >
-              <Icon size={14} />
+              <Icon size={16} />
               {label}
             </button>
           ))}
@@ -1094,10 +1444,10 @@ export default function TimesheetsPage() {
                 </div>
               )}
 
-              {/* Step Indicator (only for upload + review) */}
+              {/* Step Indicator */}
               {(viewMode === 'upload' || viewMode === 'review') && (
                 <div className="flex items-center gap-2 mb-6 text-xs text-slate-500">
-                  {['Hochladen', 'KI-Analyse', 'Prüfen & Speichern'].map((step, i) => {
+                  {['Erfassen (Upload / Drucker)', 'KI-Analyse', 'Prüfen & Speichern'].map((step, i) => {
                     const stepIndex = viewMode === 'upload' ? 0 : viewMode === 'review' ? 2 : 1;
                     const isActive = i === stepIndex;
                     const isDone = i < stepIndex;
@@ -1105,7 +1455,7 @@ export default function TimesheetsPage() {
                       <div key={step} className="flex items-center gap-2">
                         <div
                           className={`flex items-center gap-1.5 ${
-                            isActive ? 'text-blue-300' : isDone ? 'text-emerald-400' : 'text-slate-600'
+                            isActive ? 'text-blue-300 font-semibold' : isDone ? 'text-emerald-400' : 'text-slate-600'
                           }`}
                         >
                           {isDone ? <CheckCircle size={12} /> : <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-blue-400' : 'bg-slate-600'}`} />}
@@ -1120,10 +1470,14 @@ export default function TimesheetsPage() {
 
               {/* View States */}
               {viewMode === 'upload' && (
-                <UploadZone onFileSelect={handleFileSelect} isLoading={isLoading} />
+                <UploadZone
+                  onFileSelect={handleFileSelect}
+                  onPrinterScan={handlePrinterScan}
+                  isLoading={isLoading}
+                />
               )}
               {viewMode === 'scanning' && (
-                <ScanningView fileName={currentFileName} />
+                <ScanningView fileName={currentFileName} isPrinterScan={isPrinterScan} />
               )}
               {viewMode === 'review' && scanResult && (
                 <ReviewView
@@ -1148,7 +1502,7 @@ export default function TimesheetsPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              <TimesheetList />
+              <TimesheetList refreshTrigger={refreshListKey} />
             </motion.div>
           )}
         </AnimatePresence>

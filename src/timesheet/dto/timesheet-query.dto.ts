@@ -23,6 +23,10 @@ export class TimesheetQueryDto {
   page?: string;
 
   @IsOptional()
+  @IsString()
+  search?: string;
+
+  @IsOptional()
   @IsNumberString()
   limit?: string;
 }

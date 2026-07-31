@@ -329,6 +329,14 @@ export class TimesheetService {
     if (query.status) where.status = query.status;
     if (query.employeeId) where.employeeId = query.employeeId;
 
+    if (query.search?.trim()) {
+      const term = query.search.trim();
+      where.OR = [
+        { employeeName: { contains: term, mode: 'insensitive' } },
+        { employee: { name: { contains: term, mode: 'insensitive' } } },
+      ];
+    }
+
     if (query.dateFrom || query.dateTo) {
       where.weekStartDate = {};
       if (query.dateFrom) where.weekStartDate.gte = new Date(query.dateFrom);

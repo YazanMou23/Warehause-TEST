@@ -14,17 +14,27 @@ import {
   Grid,
   Loader2,
   Check,
+  Printer,
+  Settings,
+  RefreshCw,
 } from "lucide-react";
 
 interface ParsedContainer {
   containerNumber: string;
   status: "FULL" | "EMPTY";
+  arrivalDate?: string;
+  hall?: string;
+  notes?: string;
 }
 
 interface ParsedTimesheet {
   employeeName: string;
   startTime: string;
   endTime: string;
+  weekday?: string;
+  date?: string;
+  breakMinutes?: number;
+  totalHours?: number;
 }
 
 interface WarehouseData {
@@ -57,6 +67,11 @@ export default function OcrPage() {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editContainerNumber, setEditContainerNumber] = useState("");
   const [editStatus, setEditStatus] = useState<"FULL" | "EMPTY">("EMPTY");
+
+  // Printer Direct Scan state
+  const [printerScanning, setPrinterScanning] = useState(false);
+  const [scannerIp, setScannerIp] = useState("");
+  const [showScannerConfig, setShowScannerConfig] = useState(false);
 
   const [isOffline, setIsOffline] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -91,7 +106,6 @@ export default function OcrPage() {
         setIsOffline(false);
       } catch (err) {
         setIsOffline(true);
-        // Fallback mock metadata
         const mockWH = [{ id: "wh-1", name: "Duisburg Port Hub" }];
         const mockHalls = [
           { id: "hall-a", name: "Hall A - Cold Storage", warehouseId: "wh-1" },
@@ -106,7 +120,6 @@ export default function OcrPage() {
     fetchMetadata();
   }, [router]);
 
-  // Set default hall when warehouse changes
   useEffect(() => {
     const filtered = halls.filter((h) => h.warehouseId === selectedWarehouseId);
     if (filtered.length > 0) {
@@ -139,7 +152,6 @@ export default function OcrPage() {
     const token = localStorage.getItem("accessToken");
 
     if (isOffline) {
-      // Mock OCR process
       setTimeout(() => {
         if (extractionType === "CONTAINERS") {
           setExtractedContainers([
@@ -191,6 +203,62 @@ export default function OcrPage() {
       setMessage({ text: err.message || "OCR service error.", type: "error" });
     } finally {
       setUploading(false);
+    }
+  };
+
+  // Direct Printer Scan Handler
+  const handleDirectPrinterScan = async () => {
+    setPrinterScanning(true);
+    setMessage({ text: "", type: "" });
+    setExtractedContainers([]);
+    setExtractedTimesheets([]);
+    setOcrWarning("");
+
+    const token = localStorage.getItem("accessToken");
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+
+    try {
+      const payload: any = {};
+      if (scannerIp) payload.scannerIp = scannerIp;
+
+      const res = await fetch(`${apiUrl}/scanner/scan-and-extract`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Direct printer scan failed. Please check printer IP connection.");
+      }
+
+      if (data.warning) {
+        setOcrWarning(data.warning);
+      }
+
+      if (extractionType === "TIMESHEETS") {
+        const entries = data.entries || data.data || [];
+        setExtractedTimesheets(entries.map((e: any) => ({
+          employeeName: data.employeeName || e.employeeName || "Extracted Worker",
+          startTime: e.startTime || "08:00",
+          endTime: e.endTime || "17:00",
+          weekday: e.weekday,
+          date: e.date,
+          breakMinutes: e.breakMinutes,
+          totalHours: e.totalHours,
+        })));
+        setMessage({ text: `Direct printer scan successful! Extracted shift entries for ${data.employeeName || 'worker'}.`, type: "success" });
+      } else {
+        setExtractedContainers(data.data || []);
+        setMessage({ text: "Direct printer scan successful! Extracted container list.", type: "success" });
+      }
+    } catch (err: any) {
+      setMessage({ text: err.message || "Printer scanner connection failed.", type: "error" });
+    } finally {
+      setPrinterScanning(false);
     }
   };
 
@@ -279,12 +347,28 @@ export default function OcrPage() {
 
   return (
     <div className="space-y-stack-lg animate-fadeIn">
-      {/* Title */}
-      <div>
-        <h3 className="font-headline-lg font-bold text-on-surface">OCR Document Parser</h3>
-        <p className="text-on-surface-variant font-body-sm">
-          Upload shipping manifests or timesheets to automatically extract container list data.
-        </p>
+      {/* Title & Direct Printer Scan Action Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h3 className="font-headline-lg font-bold text-on-surface">OCR Document & Printer Scanner</h3>
+          <p className="text-on-surface-variant font-body-sm">
+            Upload shipping manifests, container lists, or scan directly from network printers (AirScan/eSCL).
+          </p>
+        </div>
+
+        {/* Direct Printer Scan Button */}
+        <button
+          onClick={handleDirectPrinterScan}
+          disabled={printerScanning || uploading}
+          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold px-4 py-2.5 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer text-sm"
+        >
+          {printerScanning ? (
+            <Loader2 className="w-4 h-4 animate-spin text-white" />
+          ) : (
+            <Printer className="w-4 h-4 text-white" />
+          )}
+          <span>Direkt vom Drucker scannen</span>
+        </button>
       </div>
 
       {isOffline && (
@@ -382,19 +466,48 @@ export default function OcrPage() {
               </div>
             </>
           )}
+
+          {/* Printer Scanner IP Toggle */}
+          <div className="pt-2 border-t border-outline-variant">
+            <button
+              type="button"
+              onClick={() => setShowScannerConfig(!showScannerConfig)}
+              className="text-xs font-semibold text-secondary hover:underline flex items-center gap-1"
+            >
+              <Settings className="w-3.5 h-3.5" />
+              Printer Scanner IP Config
+            </button>
+
+            {showScannerConfig && (
+              <div className="mt-2 space-y-1">
+                <input
+                  type="text"
+                  placeholder="Scanner IP (e.g. 192.168.1.100)"
+                  value={scannerIp}
+                  onChange={(e) => setScannerIp(e.target.value)}
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg px-3 py-1.5 text-xs outline-none"
+                />
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Upload Form */}
+        {/* Upload & Printer Scan Form */}
         <div className="bg-white border border-outline-variant p-stack-md rounded-lg shadow-sm lg:col-span-2 flex flex-col justify-between">
           <form onSubmit={handleUploadOCR} className="space-y-4 h-full flex flex-col justify-between">
             <div className="space-y-2">
-              <h5 className="font-bold text-body-lg">Upload Document Image</h5>
+              <div className="flex justify-between items-center">
+                <h5 className="font-bold text-body-lg">Upload Document Image or Direct Scan</h5>
+                <span className="text-xs text-secondary font-semibold flex items-center gap-1">
+                  <Printer className="w-3.5 h-3.5" /> Direct eSCL AirScan Supported
+                </span>
+              </div>
               
               {/* Drag/Drop Zone */}
               <div className="border-2 border-dashed border-outline-variant rounded-xl p-8 text-center bg-surface-container-low hover:bg-surface-container-low/50 transition-colors relative cursor-pointer">
                 <input
                   type="file"
-                   accept="image/*,application/pdf"
+                  accept="image/*,application/pdf"
                   onChange={handleFileChange}
                   className="absolute inset-0 opacity-0 cursor-pointer"
                 />
@@ -411,28 +524,50 @@ export default function OcrPage() {
                       <span>Drag and drop your file here, or click to browse</span>
                     )}
                   </div>
-                  <p className="text-[11px] text-outline">Supports JPG, PNG up to 5MB</p>
+                  <p className="text-[11px] text-outline">Supports JPG, PNG up to 15MB</p>
                 </div>
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={uploading || !file}
-              className="w-full bg-secondary hover:bg-secondary/90 disabled:opacity-50 text-white font-bold py-2.5 px-4 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer mt-4"
-            >
-              {uploading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Processing document Vision API...</span>
-                </>
-              ) : (
-                <>
-                  <FileScan className="w-5 h-5" />
-                  <span>Scan & Parse Document</span>
-                </>
-              )}
-            </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+              <button
+                type="submit"
+                disabled={uploading || !file || printerScanning}
+                className="w-full bg-secondary hover:bg-secondary/90 disabled:opacity-50 text-white font-bold py-2.5 px-4 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer text-sm"
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Processing Vision API...</span>
+                  </>
+                ) : (
+                  <>
+                    <FileScan className="w-4 h-4" />
+                    <span>Datei auswerten</span>
+                  </>
+                )}
+              </button>
+
+              {/* Prominent Printer Scan Button */}
+              <button
+                type="button"
+                onClick={handleDirectPrinterScan}
+                disabled={printerScanning || uploading}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-2.5 px-4 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer text-sm"
+              >
+                {printerScanning ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Drucker scannt...</span>
+                  </>
+                ) : (
+                  <>
+                    <Printer className="w-4 h-4 text-white" />
+                    <span>Direkt vom Drucker scannen</span>
+                  </>
+                )}
+              </button>
+            </div>
           </form>
         </div>
       </div>
@@ -448,14 +583,14 @@ export default function OcrPage() {
         </div>
       )}
 
-      {/* Review Tables */}
+      {/* Review Tables with Numeric Index 1, 2, 3... */}
 
       {/* Containers Review Table */}
       {extractedContainers.length > 0 && (
         <div className="space-y-4 animate-fadeIn">
           <div className="flex justify-between items-center bg-surface-container-low border border-outline-variant p-stack-md rounded-lg">
             <div>
-              <h5 className="font-bold text-body-lg">Review Parsed Containers</h5>
+              <h5 className="font-bold text-body-lg">Review Parsed Containers ({extractedContainers.length})</h5>
               <p className="text-[12px] text-outline">
                 Review and correct parsed numbers before confirming bulk import to chosen location.
               </p>
@@ -478,6 +613,7 @@ export default function OcrPage() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-surface-container-low border-b border-outline-variant text-[11px] font-bold text-outline uppercase tracking-wider">
+                  <th className="w-12 px-3 py-3 text-center">#</th>
                   <th className="px-container-margin py-3">Parsed Container Number</th>
                   <th className="px-4 py-3">Parsed Status</th>
                   <th className="px-container-margin py-3 text-right">Actions</th>
@@ -488,6 +624,10 @@ export default function OcrPage() {
                   const isEditing = editingIndex === idx;
                   return (
                     <tr key={idx} className="hover:bg-surface-bright transition-colors">
+                      {/* Numeric Index #1, #2, #3... */}
+                      <td className="w-12 px-3 py-3 font-mono font-bold text-xs text-center text-outline bg-surface-container-low/50">
+                        #{idx + 1}
+                      </td>
                       <td className="px-container-margin py-3 font-mono font-bold">
                         {isEditing ? (
                           <input
@@ -559,9 +699,9 @@ export default function OcrPage() {
         <div className="space-y-4 animate-fadeIn">
           <div className="flex justify-between items-center bg-surface-container-low border border-outline-variant p-stack-md rounded-lg">
             <div>
-              <h5 className="font-bold text-body-lg">Review Parsed Timesheet Records</h5>
+              <h5 className="font-bold text-body-lg">Review Parsed Timesheet Records ({extractedTimesheets.length})</h5>
               <p className="text-[12px] text-outline">
-                Verify employee clock-in hours. In mock sandbox mode, imports are logged.
+                Verify employee clock-in hours extracted via OCR / printer scanner.
               </p>
             </div>
             <button
@@ -583,6 +723,7 @@ export default function OcrPage() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-surface-container-low border-b border-outline-variant text-[11px] font-bold text-outline uppercase tracking-wider">
+                  <th className="w-12 px-3 py-3 text-center">#</th>
                   <th className="px-container-margin py-3">Employee Name</th>
                   <th className="px-4 py-3">Start Time</th>
                   <th className="px-4 py-3">End Time</th>
@@ -591,6 +732,10 @@ export default function OcrPage() {
               <tbody className="divide-y divide-outline-variant text-body-sm text-on-surface">
                 {extractedTimesheets.map((ts, idx) => (
                   <tr key={idx} className="hover:bg-surface-bright transition-colors">
+                    {/* Numeric Index #1, #2, #3... */}
+                    <td className="w-12 px-3 py-3.5 font-mono font-bold text-xs text-center text-outline bg-surface-container-low/50">
+                      #{idx + 1}
+                    </td>
                     <td className="px-container-margin py-3.5 font-semibold text-on-surface">
                       {ts.employeeName}
                     </td>
