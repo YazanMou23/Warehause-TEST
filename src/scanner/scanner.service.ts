@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TimesheetService } from '../timesheet/timesheet.service';
+import { TimesheetOcrService } from '../timesheet/timesheet-ocr.service';
+import { TimesheetMatcherService } from '../timesheet/timesheet-matcher.service';
 import { ScanSettingsDto, ColorMode, ScanFormat } from './dto/scan-settings.dto';
 
 /** eSCL XML namespaces */
@@ -58,6 +60,8 @@ export class ScannerService {
   constructor(
     private readonly config: ConfigService,
     private readonly timesheetService: TimesheetService,
+    private readonly timesheetOcrService: TimesheetOcrService,
+    private readonly matcherService: TimesheetMatcherService,
   ) {}
 
   // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -284,10 +288,8 @@ export class ScannerService {
    * Returns the same shape as POST /timesheets/scan (upload flow).
    */
   async scanToTimesheet(settings: ScanSettingsDto, actorId: string) {
-    // 1. Scan the document
     const { buffer, mimeType } = await this.triggerScan(settings);
 
-    // 2. Build a Multer-compatible File object so we can reuse TimesheetService.scanAndCreate()
     const fakeFile: Express.Multer.File = {
       buffer,
       mimetype:     mimeType,
@@ -301,7 +303,45 @@ export class ScannerService {
       stream:       null as any,
     };
 
-    // 3. Run OCR + create timesheet (identical to the file-upload path)
     return this.timesheetService.scanAndCreate(fakeFile, actorId);
+  }
+
+  /**
+   * Preview pipeline: trigger scanner → OCR extract → DB name match.
+   * Returns the raw OCR result + employee match WITHOUT creating any DB record.
+   * Use this to preview the scan before calling scan-to-timesheet.
+   */
+  async scanAndExtract(settings: ScanSettingsDto) {
+    const { buffer, mimeType } = await this.triggerScan(settings);
+
+    const fakeFile: Express.Multer.File = {
+      buffer,
+      mimetype:     mimeType,
+      originalname: `scanner-preview-${Date.now()}.${settings.format ?? 'jpeg'}`,
+      fieldname:    'file',
+      encoding:     '7bit',
+      size:         buffer.length,
+      destination:  '',
+      filename:     '',
+      path:         '',
+      stream:       null as any,
+    };
+
+    // Run OCR (no DB write)
+    const ocrResult = await this.timesheetOcrService.extractFromFile(fakeFile);
+
+    // Match name against DB (no DB write)
+    const matchResult = await this.matcherService.findBestMatch(ocrResult.employeeName);
+
+    return {
+      ...ocrResult,
+      employeeMatch: {
+        found:       matchResult.found,
+        confidence:  matchResult.confidence,
+        score:       matchResult.score,
+        employeeId:  matchResult.employeeId,
+        matchedName: matchResult.matchedName,
+      },
+    };
   }
 }

@@ -87,4 +87,20 @@ export class ScannerController {
   ) {
     return this.scannerService.scanToTimesheet(settings, currentUser.id);
   }
+
+  /**
+   * POST /scanner/scan-and-extract
+   * Preview pipeline — NO database write:
+   *   1. Trigger scan from printer/scanner
+   *   2. Run OCR (OpenAI Vision)
+   *   3. Match employee name against DB
+   *   4. Return extracted data + match result for review
+   *
+   * Use this BEFORE scan-to-timesheet to let the user review and confirm data.
+   * Body (all optional): { scannerIp, scannerPort, colorMode, dpi, format, inputSource }
+   */
+  @Post('scan-and-extract')
+  scanAndExtract(@Body() settings: ScanSettingsDto) {
+    return this.scannerService.scanAndExtract(settings);
+  }
 }
