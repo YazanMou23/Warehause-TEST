@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Put,
+  Patch,
   Delete,
   Param,
   Body,
@@ -19,6 +20,8 @@ import { TimesheetService } from './timesheet.service';
 import { TimesheetExportService } from './timesheet-export.service';
 import { ConfirmTimesheetDto } from './dto/confirm-timesheet.dto';
 import { TimesheetQueryDto } from './dto/timesheet-query.dto';
+import { UpdateTimesheetDto } from './dto/update-timesheet.dto';
+import { UpdateTimesheetEntryDto } from './dto/update-timesheet-entry.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -113,6 +116,34 @@ export class TimesheetController {
     @CurrentUser() currentUser: any,
   ) {
     return this.timesheetService.confirmTimesheet(id, dto, currentUser.id);
+  }
+
+  /**
+   * PATCH /timesheets/:id
+   * Update header fields (employeeName, weekStartDate) while PENDING_REVIEW
+   */
+  @Patch(':id')
+  updatePending(
+    @Param('id') id: string,
+    @Body() dto: UpdateTimesheetDto,
+    @CurrentUser() currentUser: any,
+  ) {
+    return this.timesheetService.updatePending(id, dto, currentUser.id);
+  }
+
+  /**
+   * PATCH /timesheets/:timesheetId/entries/:entryId
+   * Update a single timesheet entry (date, times, break, location).
+   * totalHours is auto-recalculated when startTime/endTime change.
+   */
+  @Patch(':timesheetId/entries/:entryId')
+  updateEntry(
+    @Param('timesheetId') timesheetId: string,
+    @Param('entryId') entryId: string,
+    @Body() dto: UpdateTimesheetEntryDto,
+    @CurrentUser() currentUser: any,
+  ) {
+    return this.timesheetService.updateEntry(timesheetId, entryId, dto, currentUser.id);
   }
 
   /**

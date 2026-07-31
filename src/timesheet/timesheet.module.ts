@@ -21,6 +21,6 @@ import { TimesheetExportService } from './timesheet-export.service';
     TimesheetMatcherService,
     TimesheetExportService,
   ],
-  exports: [TimesheetService],
+  exports: [TimesheetService, TimesheetOcrService],
 })
 export class TimesheetModule {}

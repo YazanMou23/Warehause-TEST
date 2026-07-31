@@ -9,6 +9,8 @@ import { TimesheetOcrService } from './timesheet-ocr.service';
 import { TimesheetMatcherService } from './timesheet-matcher.service';
 import { ConfirmTimesheetDto } from './dto/confirm-timesheet.dto';
 import { TimesheetQueryDto } from './dto/timesheet-query.dto';
+import { UpdateTimesheetDto } from './dto/update-timesheet.dto';
+import { UpdateTimesheetEntryDto } from './dto/update-timesheet-entry.dto';
 import { TimesheetStatus, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
@@ -376,6 +378,113 @@ export class TimesheetService {
     }
 
     return timesheet;
+  }
+
+  // ─── UPDATE PENDING (patch header) ────────────────────────────────────────
+
+  /**
+   * PATCH /timesheets/:id
+   * Update header fields (employeeName, weekStartDate) while PENDING_REVIEW.
+   */
+  async updatePending(id: string, dto: UpdateTimesheetDto, actorId: string) {
+    const timesheet = await this.prisma.timesheet.findUnique({
+      where: { id },
+      include: { entries: { orderBy: { date: 'asc' } }, employee: { select: { id: true, name: true } } },
+    });
+
+    if (!timesheet) {
+      throw new NotFoundException(`Stundenzettel mit ID ${id} nicht gefunden`);
+    }
+
+    if (timesheet.status !== TimesheetStatus.PENDING_REVIEW) {
+      throw new BadRequestException(
+        'Nur Stundenzettel im Status PENDING_REVIEW können bearbeitet werden',
+      );
+    }
+
+    const updateData: any = {};
+    if (dto.employeeName !== undefined) updateData.employeeName = dto.employeeName;
+    if (dto.weekStartDate !== undefined) updateData.weekStartDate = new Date(dto.weekStartDate);
+
+    const updated = await this.prisma.timesheet.update({
+      where: { id },
+      data: updateData,
+      include: {
+        entries: { orderBy: { date: 'asc' } },
+        employee: { select: { id: true, name: true } },
+      },
+    });
+
+    await this.prisma.actionLog.create({
+      data: {
+        userId: actorId,
+        action: 'TIMESHEET_UPDATE_PENDING',
+        details: `Stundenzettel "${id}" aktualisiert: ${Object.keys(updateData).join(', ')}`,
+      },
+    });
+
+    return updated;
+  }
+
+  // ─── UPDATE ENTRY ──────────────────────────────────────────────────────────
+
+  /**
+   * PATCH /timesheets/:timesheetId/entries/:entryId
+   * Patch a single entry row. Auto-recalculates totalHours if times change.
+   */
+  async updateEntry(
+    timesheetId: string,
+    entryId: string,
+    dto: UpdateTimesheetEntryDto,
+    actorId: string,
+  ) {
+    const timesheet = await this.prisma.timesheet.findUnique({ where: { id: timesheetId } });
+    if (!timesheet) {
+      throw new NotFoundException(`Stundenzettel mit ID ${timesheetId} nicht gefunden`);
+    }
+
+    const entry = await this.prisma.timesheetEntry.findFirst({
+      where: { id: entryId, timesheetId },
+    });
+    if (!entry) {
+      throw new NotFoundException(`Eintrag mit ID ${entryId} nicht gefunden`);
+    }
+
+    const updateData: any = {};
+    if (dto.weekday !== undefined) updateData.weekday = dto.weekday;
+    if (dto.date !== undefined) updateData.date = new Date(dto.date);
+    if (dto.startTime !== undefined) updateData.startTime = dto.startTime.trim();
+    if (dto.endTime !== undefined) updateData.endTime = dto.endTime.trim();
+    if (dto.breakMinutes !== undefined) updateData.breakMinutes = dto.breakMinutes;
+    if (dto.location !== undefined) updateData.location = dto.location.trim() || null;
+
+    // Auto-recalculate totalHours when times change and totalHours not explicitly sent
+    if (dto.totalHours !== undefined) {
+      updateData.totalHours = dto.totalHours;
+    } else if (dto.startTime !== undefined || dto.endTime !== undefined || dto.breakMinutes !== undefined) {
+      const start = dto.startTime ?? entry.startTime;
+      const end = dto.endTime ?? entry.endTime;
+      const brk = dto.breakMinutes ?? entry.breakMinutes;
+      const [sH, sM] = start.split(':').map(Number);
+      const [eH, eM] = end.split(':').map(Number);
+      const netMin = (eH * 60 + eM) - (sH * 60 + sM) - brk;
+      updateData.totalHours = Math.max(0, Math.round((netMin / 60) * 100) / 100);
+    }
+
+    const updated = await this.prisma.timesheetEntry.update({
+      where: { id: entryId },
+      data: updateData,
+    });
+
+    await this.prisma.actionLog.create({
+      data: {
+        userId: actorId,
+        action: 'TIMESHEET_ENTRY_UPDATE',
+        details: `Eintrag "${entryId}" (Stundenzettel "${timesheetId}") aktualisiert: ${Object.keys(updateData).join(', ')}`,
+      },
+    });
+
+    return updated;
   }
 
   // ─── DELETE ────────────────────────────────────────────────────────────────

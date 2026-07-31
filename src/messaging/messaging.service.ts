@@ -106,6 +106,28 @@ export class MessagingService {
     return true;
   }
 
+  /**
+   * Send a WhatsApp message to multiple phone numbers.
+   * Calls sendWhatsAppDirect sequentially for each number and returns
+   * an aggregated results array with per-number success/error/waLink.
+   */
+  async sendWhatsAppBulk(
+    phones: string[],
+    message: string,
+  ): Promise<{ success: boolean; results: Array<{ phone: string; success: boolean; waLink?: string; error?: string; data?: any }> }> {
+    const results: Array<{ phone: string; success: boolean; waLink?: string; error?: string; data?: any }> = [];
+
+    for (const phone of phones) {
+      const res = await this.sendWhatsAppDirect(phone, message);
+      results.push({ phone, ...res });
+    }
+
+    return {
+      success: results.every((r) => r.success),
+      results,
+    };
+  }
+
   async broadcastMessage(type: 'sms' | 'whatsapp', userIds: string[], message: string): Promise<{ success: boolean; links?: string[]; results?: any }> {
     const users = await this.prisma.user.findMany({
       where: {
@@ -122,12 +144,8 @@ export class MessagingService {
       }
       return { success: allSuccess };
     } else {
-      const results = [];
-      for (const user of users) {
-        const res = await this.sendWhatsAppDirect(user.phone, message);
-        results.push({ user: user.phone, ...res });
-      }
-      return { success: results.every(r => r.success), results };
+      const phones = users.map((u) => u.phone);
+      return this.sendWhatsAppBulk(phones, message);
     }
   }
 }

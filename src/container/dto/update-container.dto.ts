@@ -1,10 +1,14 @@
-import { IsEnum, IsOptional, IsString, IsNumber, IsArray } from 'class-validator';
+import { IsEnum, IsOptional, IsString, IsNumber, IsArray, IsDateString } from 'class-validator';
 import { ContainerStatus } from '@prisma/client';
 
 export class UpdateContainerDto {
   @IsOptional()
   @IsString()
   containerNumber?: string;
+
+  @IsOptional()
+  @IsDateString()
+  arrivalDate?: string;
 
   @IsOptional()
   @IsEnum(ContainerStatus)

@@ -23,6 +23,18 @@ export class MessagingController {
     return this.messagingService.sendWhatsAppDirect(body.phone, body.message);
   }
 
+  /**
+   * POST /messaging/whatsapp/bulk
+   * Send a WhatsApp message to multiple phone numbers at once.
+   * Body: { phones: string[], message: string }
+   * Returns per-number success, waLink, and any errors.
+   */
+  @Post('whatsapp/bulk')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  async sendWhatsAppBulk(@Body() body: { phones: string[]; message: string }) {
+    return this.messagingService.sendWhatsAppBulk(body.phones, body.message);
+  }
+
   @Post('sms')
   @Roles(Role.MANAGER, Role.ADMIN)
   async sendSMS(@Body() body: { phone: string; message: string }) {

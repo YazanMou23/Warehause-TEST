@@ -210,13 +210,15 @@ export class ContainerService {
       }
     }
 
-    const { assignedEmployeeIds, ...directData } = updateContainerDto;
+    const { assignedEmployeeIds, arrivalDate, ...directData } = updateContainerDto;
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const containerObj = await tx.container.update({
         where: { id },
         data: {
           ...directData,
+          // Convert arrivalDate string to Date if provided
+          ...(arrivalDate !== undefined && { arrivalDate: new Date(arrivalDate) }),
           updatedById: actorId || null,
         },
       });
