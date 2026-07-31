@@ -220,67 +220,75 @@ export class ScannerService {
 
     this.logger.log(`Triggering scan: ${base} | ${dpi}DPI | ${colorMode} | ${format} | source:${inputSource}`);
 
-    // ── Step 1: Create scan job ──────────────────────────────────────────
-    const jobsUrl = this.eSclUrl(base, 'ScanJobs');
-    const xmlBody = this.buildScanJobXml({ dpi, colorMode, format, inputSource });
+    try {
+      // ── Step 1: Create scan job ──────────────────────────────────────────
+      const jobsUrl = this.eSclUrl(base, 'ScanJobs');
+      const xmlBody = this.buildScanJobXml({ dpi, colorMode, format, inputSource });
 
-    const jobResponse = await fetch(jobsUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/xml; charset=utf-8' },
-      body: xmlBody,
-      signal: AbortSignal.timeout(15000),
-    });
-
-    if (!jobResponse.ok) {
-      const errBody = await jobResponse.text().catch(() => '');
-      throw new ServiceUnavailableException(
-        `Scanner hat den Scan-Job abgelehnt (HTTP ${jobResponse.status}): ${errBody}`,
-      );
-    }
-
-    // The scanner returns Location: /eSCL/ScanJobs/{jobId}
-    const locationHeader = jobResponse.headers.get('location');
-    if (!locationHeader) {
-      throw new ServiceUnavailableException(
-        'Scanner hat keinen Job-Speicherort zurückgegeben (kein Location-Header)',
-      );
-    }
-
-    // ── Step 2: Download the scanned document ────────────────────────────
-    // locationHeader is an absolute path, e.g. /eSCL/ScanJobs/1
-    const docUrl = `${base}${locationHeader}/NextDocument`;
-
-    this.logger.log(`Fetching scanned document from: ${docUrl}`);
-
-    // Retry up to 5 times (scanner may need a moment to prepare the document)
-    let imageResponse: Response | null = null;
-    for (let attempt = 1; attempt <= 5; attempt++) {
-      await new Promise((r) => setTimeout(r, attempt * 800)); // progressive back-off
-
-      const resp = await fetch(docUrl, {
-        signal: AbortSignal.timeout(30000),
+      const jobResponse = await fetch(jobsUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/xml; charset=utf-8' },
+        body: xmlBody,
+        signal: AbortSignal.timeout(10000),
       });
 
-      if (resp.ok) {
-        imageResponse = resp;
-        break;
+      if (!jobResponse.ok) {
+        const errBody = await jobResponse.text().catch(() => '');
+        throw new ServiceUnavailableException(
+          `Scanner hat den Scan-Job abgelehnt (HTTP ${jobResponse.status}): ${errBody}`,
+        );
       }
 
-      this.logger.warn(`Attempt ${attempt}: scanner returned HTTP ${resp.status} for NextDocument`);
-    }
+      // The scanner returns Location: /eSCL/ScanJobs/{jobId}
+      const locationHeader = jobResponse.headers.get('location');
+      if (!locationHeader) {
+        throw new ServiceUnavailableException(
+          'Scanner hat keinen Job-Speicherort zurückgegeben (kein Location-Header)',
+        );
+      }
 
-    if (!imageResponse) {
+      // ── Step 2: Download the scanned document ────────────────────────────
+      const docUrl = `${base}${locationHeader}/NextDocument`;
+
+      this.logger.log(`Fetching scanned document from: ${docUrl}`);
+
+      let imageResponse: Response | null = null;
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        await new Promise((r) => setTimeout(r, attempt * 800));
+
+        const resp = await fetch(docUrl, {
+          signal: AbortSignal.timeout(15000),
+        });
+
+        if (resp.ok) {
+          imageResponse = resp;
+          break;
+        }
+
+        this.logger.warn(`Attempt ${attempt}: scanner returned HTTP ${resp.status} for NextDocument`);
+      }
+
+      if (!imageResponse) {
+        throw new ServiceUnavailableException(
+          'Scanner hat das Dokument nicht bereitgestellt. Ist das Gerät bereit und liegt ein Dokument im Einzug / Glast?',
+        );
+      }
+
+      const arrayBuf = await imageResponse.arrayBuffer();
+      const buffer   = Buffer.from(arrayBuf);
+      const mime     = this.mimeType(format);
+
+      this.logger.log(`Scan complete — received ${buffer.length} bytes (${mime})`);
+      return { buffer, mimeType: mime };
+    } catch (err: any) {
+      if (err instanceof ServiceUnavailableException || err instanceof BadRequestException) {
+        throw err;
+      }
+      this.logger.error(`Netzwerkdrucker Scan-Fehler (${base}): ${err.message}`);
       throw new ServiceUnavailableException(
-        'Scanner hat das Dokument nicht bereitgestellt. Ist das Gerät bereit und liegt ein Dokument auf dem Glast?',
+        `Der Netzwerkschreibdrucker unter "${base}" ist im lokalen Netzwerk nicht erreichbar (${err.message}). Bitte IP-Adresse, Strom und WLAN/LAN-Verbindung des Druckers prüfen.`,
       );
     }
-
-    const arrayBuf = await imageResponse.arrayBuffer();
-    const buffer   = Buffer.from(arrayBuf);
-    const mime     = this.mimeType(format);
-
-    this.logger.log(`Scan complete — received ${buffer.length} bytes (${mime})`);
-    return { buffer, mimeType: mime };
   }
 
   /**

@@ -29,6 +29,8 @@ import {
   RefreshCw,
   Hash,
   Users,
+  Edit,
+  Plus,
 } from 'lucide-react';
 import { API_URL } from '../../../config/api';
 import CustomAlertModal, { CustomAlertOptions } from '../../components/CustomAlertModal';
@@ -36,6 +38,7 @@ import CustomAlertModal, { CustomAlertOptions } from '../../components/CustomAle
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface TimesheetEntry {
+  id?: string;
   weekday: string;
   date: string;
   startTime: string;
@@ -68,12 +71,14 @@ interface ScanResult {
 interface TimesheetListItem {
   id: string;
   employeeName: string;
+  employeeId?: string | null;
   employee?: { id: string; name: string };
   weekStartDate: string;
   status: 'PENDING_REVIEW' | 'CONFIRMED';
   totalHours: number;
   entryCount: number;
   createdAt: string;
+  entries?: TimesheetEntry[];
 }
 
 interface DbEmployee {
@@ -1022,13 +1027,17 @@ function SavedView({
   );
 }
 
-// ─── Timesheet List ───────────────────────────────────────────────────────────
+// ─── Timesheet List (With Expandable Daily Entries & Edit Modal) ───────────────
 
 function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
   const [items, setItems] = useState<TimesheetListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [editingItem, setEditingItem] = useState<TimesheetListItem | null>(null);
+  const [editEmployeeName, setEditEmployeeName] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
   const [downloading, setDownloading] = useState<{ id: string; fmt: string } | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [alertConfig, setAlertConfig] = useState<CustomAlertOptions>({
@@ -1062,6 +1071,32 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
   useEffect(() => {
     loadList();
   }, [loadList, refreshTrigger]);
+
+  const saveEdit = async () => {
+    if (!editingItem) return;
+    setSavingEdit(true);
+    try {
+      const res = await fetch(`${API_URL}/timesheets/${editingItem.id}`, {
+        method: 'PATCH',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ employeeName: editEmployeeName }),
+      });
+
+      if (res.ok) {
+        showAlert({ title: "Erfolg", message: "Stundenzettel-Mitarbeiter wurde aktualisiert.", type: "success" });
+        setEditingItem(null);
+        loadList();
+      } else {
+        const err = await res.json();
+        showAlert({ title: "Fehler", message: err.message || "Aktualisierung fehlgeschlagen", type: "error" });
+      }
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const downloadFile = async (id: string, format: 'pdf' | 'xlsx') => {
     setDownloading({ id, fmt: format });
@@ -1173,80 +1208,199 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
           </p>
         </div>
       ) : (
-        <div className="flex flex-col gap-2.5">
+        <div className="flex flex-col gap-3">
           <div className="text-xs text-slate-400 px-1 font-mono flex items-center justify-between">
             <span>{filtered.length} Stundenzettel gefunden</span>
-            <span>Sortiert nach Erstelldatum (neueste zuerst)</span>
+            <span>Klicke auf den Pfeil zum Aufklappen der Tagesstunden</span>
           </div>
 
-          {filtered.map((item, index) => (
-            <motion.div
-              key={item.id}
-              layout
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-4 p-4 bg-white/5 border border-white/10 rounded-2xl hover:border-blue-400/40 transition-colors group"
-            >
-              {/* Numeric Index Badge (#1, #2, #3...) */}
-              <div className="w-8 h-8 rounded-xl bg-blue-500/15 border border-blue-400/30 text-blue-300 font-mono font-bold text-xs flex items-center justify-center shrink-0">
-                #{index + 1}
-              </div>
+          {filtered.map((item, index) => {
+            const isExpanded = expandedId === item.id;
+            return (
+              <motion.div
+                key={item.id}
+                layout
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex flex-col bg-white/5 border border-white/10 rounded-2xl hover:border-blue-400/40 transition-colors overflow-hidden group"
+              >
+                {/* Header Row */}
+                <div className="flex items-center gap-4 p-4">
+                  {/* Numeric Index Badge (#1, #2, #3...) */}
+                  <div className="w-8 h-8 rounded-xl bg-blue-500/15 border border-blue-400/30 text-blue-300 font-mono font-bold text-xs flex items-center justify-center shrink-0">
+                    #{index + 1}
+                  </div>
 
-              {/* Timesheet Employee info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <p className="text-white font-semibold text-sm truncate">
-                    {item.employee?.name ?? item.employeeName}
-                  </p>
-                  <StatusBadge status={item.status} />
+                  {/* Timesheet Employee info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-white font-semibold text-sm truncate">
+                        {item.employee?.name ?? item.employeeName}
+                      </p>
+                      <StatusBadge status={item.status} />
+                    </div>
+                    <p className="text-slate-400 text-xs flex items-center gap-3">
+                      <span>📅 {getWeekRange(item.weekStartDate)}</span>
+                      <span>⏱️ {item.entryCount} Tage ({item.totalHours.toFixed(2)} h)</span>
+                    </p>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-2">
+                    {/* Expand Details Button */}
+                    <button
+                      onClick={() => setExpandedId(isExpanded ? null : item.id)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/8 hover:bg-white/15 text-slate-300 transition-colors text-xs font-medium"
+                    >
+                      <span>Tageszeiten</span>
+                      {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </button>
+
+                    {/* Edit Header / Employee Button */}
+                    <button
+                      onClick={() => {
+                        setEditingItem(item);
+                        setEditEmployeeName(item.employee?.name ?? item.employeeName);
+                      }}
+                      className="p-1.5 rounded-lg bg-blue-500/15 text-blue-300 hover:bg-blue-500/25 border border-blue-500/30 transition-colors"
+                      title="Name / Daten bearbeiten"
+                    >
+                      <Edit size={14} />
+                    </button>
+
+                    {item.status === 'CONFIRMED' && (
+                      <>
+                        <button
+                          onClick={() => downloadFile(item.id, 'pdf')}
+                          disabled={downloading?.id === item.id}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-500/15 text-red-300 hover:bg-red-500/25 border border-red-500/30 transition-colors text-xs"
+                          title="PDF Herunterladen"
+                        >
+                          {downloading?.id === item.id && downloading.fmt === 'pdf'
+                            ? <Loader2 size={13} className="animate-spin" />
+                            : <FileText size={13} />}
+                          <span>PDF</span>
+                        </button>
+                        <button
+                          onClick={() => downloadFile(item.id, 'xlsx')}
+                          disabled={downloading?.id === item.id}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/30 transition-colors text-xs"
+                          title="Excel Herunterladen"
+                        >
+                          {downloading?.id === item.id && downloading.fmt === 'xlsx'
+                            ? <Loader2 size={13} className="animate-spin" />
+                            : <FileSpreadsheet size={13} />}
+                          <span>Excel</span>
+                        </button>
+                      </>
+                    )}
+
+                    {item.status === 'PENDING_REVIEW' && (
+                      <button
+                        onClick={() => deleteItem(item.id)}
+                        disabled={deleting === item.id}
+                        className="p-1.5 rounded-lg bg-red-500/15 text-red-300 hover:bg-red-500/25 border border-red-500/30 transition-colors"
+                        title="Löschen"
+                      >
+                        {deleting === item.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <p className="text-slate-400 text-xs flex items-center gap-3">
-                  <span>📅 {getWeekRange(item.weekStartDate)}</span>
-                  <span>⏱️ {item.entryCount} Tage ({item.totalHours.toFixed(2)} h)</span>
-                </p>
+
+                {/* Expandable Daily Entries Sub-Table */}
+                <AnimatePresence>
+                  {isExpanded && item.entries && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="bg-black/30 border-t border-white/10 p-4"
+                    >
+                      <h4 className="text-xs font-bold text-blue-300 mb-2 flex items-center gap-1.5">
+                        <Clock size={12} /> Detaillierte Tagesstunden für {item.employee?.name ?? item.employeeName}:
+                      </h4>
+
+                      <div className="grid grid-cols-[40px_100px_90px_70px_70px_70px_70px_1fr] gap-2 py-1.5 px-3 bg-white/5 rounded-lg text-xs font-semibold text-slate-400">
+                        <div>#</div>
+                        <div>Tag</div>
+                        <div>Datum</div>
+                        <div>Von</div>
+                        <div>Bis</div>
+                        <div>Pause</div>
+                        <div>Stunden</div>
+                        <div>Ort</div>
+                      </div>
+
+                      <div className="divide-y divide-white/5">
+                        {item.entries.map((entry, eIdx) => (
+                          <div
+                            key={entry.id || eIdx}
+                            className="grid grid-cols-[40px_100px_90px_70px_70px_70px_70px_1fr] gap-2 py-2 px-3 text-xs items-center text-slate-300 hover:bg-white/5 transition-colors font-mono"
+                          >
+                            <div className="font-bold text-blue-400">#{eIdx + 1}</div>
+                            <div className="font-sans font-medium text-white">{entry.weekday}</div>
+                            <div>{formatDate(entry.date)}</div>
+                            <div className="text-emerald-300 font-semibold">{entry.startTime || '—'}</div>
+                            <div className="text-slate-300">{entry.endTime || '—'}</div>
+                            <div>{entry.breakMinutes ? `${entry.breakMinutes}m` : '0m'}</div>
+                            <div className="font-bold text-blue-300">{entry.totalHours ? `${entry.totalHours.toFixed(2)}h` : '0h'}</div>
+                            <div className="font-sans text-slate-400 truncate">{entry.location || 'Standard-Lager'}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Edit Employee Name Modal */}
+      {editingItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-slate-900 border border-white/15 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <h3 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
+              <Edit size={18} className="text-blue-400" />
+              Mitarbeiter-Name im Stundenzettel bearbeiten
+            </h3>
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Mitarbeiter Name</label>
+                <input
+                  type="text"
+                  value={editEmployeeName}
+                  onChange={(e) => setEditEmployeeName(e.target.value)}
+                  className="w-full px-3 py-2 bg-white/10 border border-white/15 rounded-xl text-white text-sm focus:outline-none focus:border-blue-400"
+                />
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
-                {item.status === 'CONFIRMED' && (
-                  <>
-                    <button
-                      onClick={() => downloadFile(item.id, 'pdf')}
-                      disabled={downloading?.id === item.id}
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-500/15 text-red-300 hover:bg-red-500/25 border border-red-500/30 transition-colors text-xs"
-                      title="PDF Herunterladen"
-                    >
-                      {downloading?.id === item.id && downloading.fmt === 'pdf'
-                        ? <Loader2 size={13} className="animate-spin" />
-                        : <FileText size={13} />}
-                      <span>PDF</span>
-                    </button>
-                    <button
-                      onClick={() => downloadFile(item.id, 'xlsx')}
-                      disabled={downloading?.id === item.id}
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/30 transition-colors text-xs"
-                      title="Excel Herunterladen"
-                    >
-                      {downloading?.id === item.id && downloading.fmt === 'xlsx'
-                        ? <Loader2 size={13} className="animate-spin" />
-                        : <FileSpreadsheet size={13} />}
-                      <span>Excel</span>
-                    </button>
-                  </>
-                )}
-                {item.status === 'PENDING_REVIEW' && (
-                  <button
-                    onClick={() => deleteItem(item.id)}
-                    disabled={deleting === item.id}
-                    className="p-1.5 rounded-lg bg-red-500/15 text-red-300 hover:bg-red-500/25 border border-red-500/30 transition-colors"
-                    title="Löschen"
-                  >
-                    {deleting === item.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                  </button>
-                )}
+              <div className="p-3 bg-white/5 rounded-xl text-xs text-slate-400">
+                <p><strong>Stundenzettel KW:</strong> {getKw(editingItem.weekStartDate)}</p>
+                <p><strong>Status:</strong> {editingItem.status}</p>
               </div>
-            </motion.div>
-          ))}
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setEditingItem(null)}
+                className="px-4 py-2 rounded-xl bg-white/10 text-slate-300 hover:text-white text-sm"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={saveEdit}
+                disabled={savingEdit}
+                className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm"
+              >
+                {savingEdit ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                <span>Speichern</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1258,13 +1412,22 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
   );
 }
 
-// ─── Daily Attendance View (ALL employees who worked on a specific day) ──────
+// ─── Daily Attendance View (With Manual Shift Add Modal) ──────────────────────
 
 function DailyAttendanceView() {
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [records, setRecords] = useState<DailyAttendanceRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
+
+  // Manual Shift Modal State
+  const [showManualModal, setShowManualModal] = useState(false);
+  const [manualEmpId, setManualEmpId] = useState('');
+  const [manualStartTime, setManualStartTime] = useState('08:00');
+  const [manualEndTime, setManualEndTime] = useState('16:30');
+  const [manualBreak, setManualBreak] = useState(30);
+  const [submittingManual, setSubmittingManual] = useState(false);
+  const [dbEmployees, setDbEmployees] = useState<DbEmployee[]>([]);
 
   const loadDailyAttendance = useCallback(async () => {
     setLoading(true);
@@ -1286,6 +1449,53 @@ function DailyAttendanceView() {
   useEffect(() => {
     loadDailyAttendance();
   }, [loadDailyAttendance]);
+
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      try {
+        const res = await fetch(`${API_URL}/employees?limit=100`, { headers: getAuthHeaders() });
+        if (res.ok) {
+          const json = await res.json();
+          setDbEmployees(Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []));
+        }
+      } catch (e) {
+        console.error('Fehler beim Laden der Mitarbeiter', e);
+      }
+    };
+    fetchEmployees();
+  }, []);
+
+  const handleCreateManualShift = async () => {
+    if (!manualEmpId) return;
+    setSubmittingManual(true);
+    try {
+      const clockInIso = `${selectedDate}T${manualStartTime}:00.000Z`;
+      const clockOutIso = `${selectedDate}T${manualEndTime}:00.000Z`;
+      const hrs = calculateHours(manualStartTime, manualEndTime, manualBreak);
+
+      const res = await fetch(`${API_URL}/attendance/manual`, {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          employeeId: manualEmpId,
+          clockIn: clockInIso,
+          clockOut: clockOutIso,
+          breakMinutes: manualBreak,
+          totalHours: hrs,
+        }),
+      });
+
+      if (res.ok) {
+        setShowManualModal(false);
+        loadDailyAttendance();
+      }
+    } finally {
+      setSubmittingManual(false);
+    }
+  };
 
   const filteredRecords = records.filter((r) => {
     const name = (r.employee?.name || '').toLowerCase();
@@ -1320,15 +1530,25 @@ function DailyAttendanceView() {
           </button>
         </div>
 
-        <div className="flex items-center gap-4 text-xs font-mono">
-          <div className="px-3 py-1.5 rounded-xl bg-blue-500/15 border border-blue-400/30 text-blue-300">
-            <Users size={12} className="inline mr-1.5" />
-            Mitarbeiter am Tag: <strong className="text-white">{records.length}</strong>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4 text-xs font-mono">
+            <div className="px-3 py-1.5 rounded-xl bg-blue-500/15 border border-blue-400/30 text-blue-300">
+              <Users size={12} className="inline mr-1.5" />
+              Mitarbeiter am Tag: <strong className="text-white">{records.length}</strong>
+            </div>
+            <div className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-400/30 text-emerald-300">
+              <Clock size={12} className="inline mr-1.5" />
+              Gesamte Schichtstunden: <strong className="text-white">{totalShiftHours.toFixed(2)} h</strong>
+            </div>
           </div>
-          <div className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-400/30 text-emerald-300">
-            <Clock size={12} className="inline mr-1.5" />
-            Gesamte Schichtstunden: <strong className="text-white">{totalShiftHours.toFixed(2)} h</strong>
-          </div>
+
+          <button
+            onClick={() => setShowManualModal(true)}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-md transition-colors"
+          >
+            <Plus size={14} />
+            <span>Manuelle Schicht eintragen</span>
+          </button>
         </div>
       </div>
 
@@ -1426,6 +1646,84 @@ function DailyAttendanceView() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Manual Shift Modal */}
+      {showManualModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-slate-900 border border-white/15 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <h3 className="text-white font-bold text-base flex items-center gap-2">
+              <Plus size={16} className="text-blue-400" />
+              Manuelle Schicht eintragen ({formatDate(selectedDate)})
+            </h3>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Mitarbeiter wählen</label>
+                <select
+                  value={manualEmpId}
+                  onChange={(e) => setManualEmpId(e.target.value)}
+                  className="w-full px-3 py-2 bg-white/10 border border-white/15 rounded-xl text-white text-xs outline-none"
+                >
+                  <option value="" className="bg-slate-900">Mitarbeiter wählen...</option>
+                  {dbEmployees.map((e, idx) => (
+                    <option key={e.id} value={e.id} className="bg-slate-900">
+                      #{idx + 1} {e.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">Von (Uhrzeit)</label>
+                  <input
+                    type="time"
+                    value={manualStartTime}
+                    onChange={(e) => setManualStartTime(e.target.value)}
+                    className="w-full px-3 py-2 bg-white/10 border border-white/15 rounded-xl text-white text-xs outline-none font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">Bis (Uhrzeit)</label>
+                  <input
+                    type="time"
+                    value={manualEndTime}
+                    onChange={(e) => setManualEndTime(e.target.value)}
+                    className="w-full px-3 py-2 bg-white/10 border border-white/15 rounded-xl text-white text-xs outline-none font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Pause (Minuten)</label>
+                <input
+                  type="number"
+                  value={manualBreak}
+                  onChange={(e) => setManualBreak(parseInt(e.target.value) || 0)}
+                  className="w-full px-3 py-2 bg-white/10 border border-white/15 rounded-xl text-white text-xs outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end pt-2">
+              <button
+                onClick={() => setShowManualModal(false)}
+                className="px-4 py-2 rounded-xl bg-white/10 text-slate-300 text-xs"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleCreateManualShift}
+                disabled={submittingManual || !manualEmpId}
+                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {submittingManual ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />}
+                Eintragen
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

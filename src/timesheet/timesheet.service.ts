@@ -351,8 +351,8 @@ export class TimesheetService {
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
-          employee: { select: { id: true, name: true } },
-          entries: { select: { totalHours: true } },
+          employee: { select: { id: true, name: true, phone: true } },
+          entries: { orderBy: { date: 'asc' } },
         },
       }),
     ]);
@@ -361,7 +361,7 @@ export class TimesheetService {
       ...ts,
       totalHours: ts.entries.reduce((sum, e) => sum + e.totalHours, 0),
       entryCount: ts.entries.length,
-      entries: undefined, // Don't send full entries in list
+      entries: ts.entries,
     }));
 
     return {
@@ -392,7 +392,7 @@ export class TimesheetService {
 
   /**
    * PATCH /timesheets/:id
-   * Update header fields (employeeName, weekStartDate) while PENDING_REVIEW.
+   * Update header fields (employeeName, weekStartDate, employeeId) for PENDING_REVIEW or CONFIRMED timesheets.
    */
   async updatePending(id: string, dto: UpdateTimesheetDto, actorId: string) {
     const timesheet = await this.prisma.timesheet.findUnique({
@@ -402,12 +402,6 @@ export class TimesheetService {
 
     if (!timesheet) {
       throw new NotFoundException(`Stundenzettel mit ID ${id} nicht gefunden`);
-    }
-
-    if (timesheet.status !== TimesheetStatus.PENDING_REVIEW) {
-      throw new BadRequestException(
-        'Nur Stundenzettel im Status PENDING_REVIEW können bearbeitet werden',
-      );
     }
 
     const updateData: any = {};
@@ -423,10 +417,34 @@ export class TimesheetService {
       },
     });
 
+    // If confirmed, update linked attendance employeeName/date references if needed
+    if (timesheet.status === TimesheetStatus.CONFIRMED && timesheet.employeeId) {
+      if (dto.weekStartDate) {
+        // Shift attendance dates
+        const diffDays = Math.round((new Date(dto.weekStartDate).getTime() - timesheet.weekStartDate.getTime()) / 86400000);
+        if (diffDays !== 0) {
+          const attendances = await this.prisma.attendance.findMany({ where: { timesheetId: id } });
+          for (const att of attendances) {
+            const newDate = new Date(att.date);
+            newDate.setDate(newDate.getDate() + diffDays);
+            const newClockIn = new Date(att.clockIn);
+            newClockIn.setDate(newClockIn.getDate() + diffDays);
+            const newClockOut = att.clockOut ? new Date(att.clockOut) : null;
+            if (newClockOut) newClockOut.setDate(newClockOut.getDate() + diffDays);
+
+            await this.prisma.attendance.update({
+              where: { id: att.id },
+              data: { date: newDate, clockIn: newClockIn, clockOut: newClockOut },
+            });
+          }
+        }
+      }
+    }
+
     await this.prisma.actionLog.create({
       data: {
         userId: actorId,
-        action: 'TIMESHEET_UPDATE_PENDING',
+        action: 'TIMESHEET_UPDATE_HEADER',
         details: `Stundenzettel "${id}" aktualisiert: ${Object.keys(updateData).join(', ')}`,
       },
     });
