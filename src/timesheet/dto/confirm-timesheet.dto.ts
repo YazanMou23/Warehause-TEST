@@ -61,7 +61,7 @@ export class TimesheetEntryInputDto {
 
 export class ConfirmTimesheetDto {
   @IsOptional()
-  @IsUUID()
+  @IsString()
   employeeId?: string;
 
   @IsOptional()
@@ -74,9 +74,8 @@ export class ConfirmTimesheetDto {
 
   /**
    * If set, a new Employee user will be created and linked to this timesheet.
-   * Either employeeId or createNewEmployee must be provided.
    */
-  @ValidateIf((o) => !o.employeeId)
+  @IsOptional()
   @ValidateNested()
   @Type(() => NewEmployeeDto)
   createNewEmployee?: NewEmployeeDto;

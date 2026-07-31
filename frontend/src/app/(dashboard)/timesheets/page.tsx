@@ -28,6 +28,7 @@ import {
   Settings,
   RefreshCw,
   Hash,
+  Users,
 } from 'lucide-react';
 import { API_URL } from '../../../config/api';
 import CustomAlertModal, { CustomAlertOptions } from '../../components/CustomAlertModal';
@@ -82,8 +83,22 @@ interface DbEmployee {
   role?: string;
 }
 
+interface DailyAttendanceRecord {
+  id: string;
+  employeeId: string;
+  employee?: { id: string; name: string; phone?: string };
+  warehouse?: { name: string };
+  hall?: { name: string; color?: string };
+  clockIn: string;
+  clockOut: string | null;
+  totalHours?: number;
+  breakMinutes?: number;
+  source?: string;
+  date: string;
+}
+
 type ViewMode = 'upload' | 'scanning' | 'review' | 'saved';
-type ActiveTab = 'scanner' | 'list';
+type ActiveTab = 'scanner' | 'list' | 'daily';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -592,12 +607,14 @@ function ReviewView({
         ...newEmployee,
         name: employeeName,
       };
+      delete payload.employeeId; // Ensure employeeId is not sent when createNew is active
     } else {
       if (!employeeId) {
         setErrors({ general: 'Bitte einen Mitarbeiter aus der Datenbank auswählen' });
         return;
       }
       payload.employeeId = employeeId;
+      delete payload.createNewEmployee; // Ensure createNewEmployee is not sent when employeeId is set
     }
 
     setErrors({});
@@ -1005,7 +1022,7 @@ function SavedView({
   );
 }
 
-// ─── Timesheet List (Auto-loads on mount, includes search & numeric index 1,2,3) ───
+// ─── Timesheet List ───────────────────────────────────────────────────────────
 
 function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
   const [items, setItems] = useState<TimesheetListItem[]>([]);
@@ -1042,7 +1059,6 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
     }
   }, [statusFilter, filter]);
 
-  // Auto-load on component mount and whenever filters change
   useEffect(() => {
     loadList();
   }, [loadList, refreshTrigger]);
@@ -1234,11 +1250,184 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
         </div>
       )}
 
-      {/* Custom Popup Alert Modal */}
       <CustomAlertModal
         {...alertConfig}
         onClose={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
       />
+    </div>
+  );
+}
+
+// ─── Daily Attendance View (ALL employees who worked on a specific day) ──────
+
+function DailyAttendanceView() {
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [records, setRecords] = useState<DailyAttendanceRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searchFilter, setSearchFilter] = useState('');
+
+  const loadDailyAttendance = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/attendance/daily?date=${selectedDate}`, {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setRecords(Array.isArray(json) ? json : []);
+      }
+    } catch (e) {
+      console.error('Fehler beim Laden der Tages-Anwesenheiten', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedDate]);
+
+  useEffect(() => {
+    loadDailyAttendance();
+  }, [loadDailyAttendance]);
+
+  const filteredRecords = records.filter((r) => {
+    const name = (r.employee?.name || '').toLowerCase();
+    const wh = (r.warehouse?.name || '').toLowerCase();
+    const hall = (r.hall?.name || '').toLowerCase();
+    const term = searchFilter.toLowerCase();
+    return !term || name.includes(term) || wh.includes(term) || hall.includes(term);
+  });
+
+  const totalShiftHours = records.reduce((s, r) => s + (r.totalHours || 0), 0);
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Date selector and stats bar */}
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-white/5 p-4 rounded-2xl border border-white/10">
+        <div className="flex items-center gap-3">
+          <Calendar size={18} className="text-blue-400" />
+          <span className="text-white font-semibold text-sm">Datum wählen:</span>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="px-3 py-1.5 bg-white/8 border border-white/15 rounded-xl text-white text-sm focus:outline-none focus:border-blue-400 font-mono"
+          />
+          <button
+            onClick={loadDailyAttendance}
+            disabled={loading}
+            className="p-2 rounded-xl bg-white/8 hover:bg-white/12 text-slate-300 transition-colors"
+            title="Aktualisieren"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin text-blue-400' : ''} />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-4 text-xs font-mono">
+          <div className="px-3 py-1.5 rounded-xl bg-blue-500/15 border border-blue-400/30 text-blue-300">
+            <Users size={12} className="inline mr-1.5" />
+            Mitarbeiter am Tag: <strong className="text-white">{records.length}</strong>
+          </div>
+          <div className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-400/30 text-emerald-300">
+            <Clock size={12} className="inline mr-1.5" />
+            Gesamte Schichtstunden: <strong className="text-white">{totalShiftHours.toFixed(2)} h</strong>
+          </div>
+        </div>
+      </div>
+
+      {/* Filter search bar for daily workers */}
+      <div className="relative">
+        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input
+          type="text"
+          placeholder="Mitarbeiter oder Lager an diesem Tag filtern..."
+          value={searchFilter}
+          onChange={(e) => setSearchFilter(e.target.value)}
+          className="w-full pl-10 pr-4 py-2 bg-white/8 border border-white/15 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-400"
+        />
+      </div>
+
+      {/* Daily Shift Table */}
+      {loading ? (
+        <div className="flex items-center justify-center py-16 gap-3 text-slate-400">
+          <Loader2 size={24} className="animate-spin text-blue-400" />
+          <span>Tages-Anwesenheiten werden geladen...</span>
+        </div>
+      ) : filteredRecords.length === 0 ? (
+        <div className="text-center py-16 text-slate-500 bg-white/3 border border-white/10 rounded-2xl">
+          <Users size={36} className="mx-auto mb-3 opacity-40 text-blue-400" />
+          <p className="text-slate-300 font-medium mb-1">Keine Arbeitszeiten für den {formatDate(selectedDate)} eingetragen</p>
+          <p className="text-slate-500 text-xs">Wähle ein anderes Datum oder erstelle/bestätige Stundenzettel für diesen Tag.</p>
+        </div>
+      ) : (
+        <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden shadow-lg">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-white/8 border-b border-white/10 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                <th className="w-12 px-4 py-3 text-center">#</th>
+                <th className="px-4 py-3">Mitarbeiter Name</th>
+                <th className="px-4 py-3">Einsatzort (Lager / Halle)</th>
+                <th className="px-4 py-3">Beginn (Clock In)</th>
+                <th className="px-4 py-3">Ende (Clock Out)</th>
+                <th className="px-4 py-3">Stunden</th>
+                <th className="px-4 py-3 text-right">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5 text-sm text-slate-200">
+              {filteredRecords.map((rec, idx) => {
+                const clockInTime = rec.clockIn ? new Date(rec.clockIn).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '—';
+                const clockOutTime = rec.clockOut ? new Date(rec.clockOut).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '—';
+                const isWorkingNow = !rec.clockOut;
+
+                return (
+                  <tr key={rec.id} className="hover:bg-white/4 transition-colors">
+                    {/* Numeric Index Badge #1, #2, #3... */}
+                    <td className="px-4 py-3 font-mono font-bold text-xs text-center text-blue-300">
+                      #{idx + 1}
+                    </td>
+
+                    <td className="px-4 py-3 font-semibold text-white">
+                      {rec.employee?.name || 'Mitarbeiter'}
+                    </td>
+
+                    <td className="px-4 py-3 text-xs text-slate-300">
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-white/8 border border-white/10">
+                        <MapPin size={11} className="text-blue-400" />
+                        {rec.warehouse?.name || 'Lager'} — {rec.hall?.name || 'Halle'}
+                      </span>
+                    </td>
+
+                    <td className="px-4 py-3 font-mono text-xs text-emerald-300">
+                      {clockInTime} Uhr
+                    </td>
+
+                    <td className="px-4 py-3 font-mono text-xs text-slate-300">
+                      {isWorkingNow ? (
+                        <span className="text-amber-400 font-medium">Aktiv (Arbeitet...)</span>
+                      ) : (
+                        `${clockOutTime} Uhr`
+                      )}
+                    </td>
+
+                    <td className="px-4 py-3 font-mono text-xs font-bold text-blue-300">
+                      {rec.totalHours ? `${rec.totalHours.toFixed(2)} h` : '—'}
+                    </td>
+
+                    <td className="px-4 py-3 text-right">
+                      {isWorkingNow ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          <Clock size={10} /> Aktiv
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          <CheckCircle size={10} /> Beendet
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -1346,7 +1535,7 @@ export default function TimesheetsPage() {
       setSavedId(confirmed.id);
       setSavedName(confirmed.employee?.name ?? confirmed.employeeName);
       setViewMode('saved');
-      setRefreshListKey((prev) => prev + 1); // Trigger auto-refresh of overview list
+      setRefreshListKey((prev) => prev + 1);
     } catch (e: any) {
       setError(e.message ?? 'Unbekannter Fehler');
     } finally {
@@ -1398,18 +1587,19 @@ export default function TimesheetsPage() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex gap-1 p-1 bg-white/5 rounded-xl border border-white/10 mb-6 w-fit">
-          {([
+        <div className="flex flex-wrap gap-1 p-1 bg-white/5 rounded-xl border border-white/10 mb-6 w-fit">
+          {[
             { key: 'scanner', label: 'Stundenzettel Scannen', icon: ScanLine },
-            { key: 'list', label: 'Zeiterfassungen Übersicht', icon: FileText },
-          ] as const).map(({ key, label, icon: Icon }) => (
+            { key: 'list', label: 'Wochenzettel Übersicht', icon: FileText },
+            { key: 'daily', label: 'Tages-Übersicht (Alle Mitarbeiter)', icon: Users },
+          ].map(({ key, label, icon: Icon }) => (
             <button
               key={key}
               onClick={() => {
-                setActiveTab(key);
+                setActiveTab(key as ActiveTab);
                 if (key === 'list') setRefreshListKey((prev) => prev + 1);
               }}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer ${
                 activeTab === key
                   ? 'bg-blue-600 text-white shadow-lg font-bold'
                   : 'text-slate-400 hover:text-white hover:bg-white/5'
@@ -1423,7 +1613,7 @@ export default function TimesheetsPage() {
 
         {/* Content */}
         <AnimatePresence mode="wait">
-          {activeTab === 'scanner' ? (
+          {activeTab === 'scanner' && (
             <motion.div
               key="scanner"
               initial={{ opacity: 0 }}
@@ -1495,7 +1685,9 @@ export default function TimesheetsPage() {
                 />
               )}
             </motion.div>
-          ) : (
+          )}
+
+          {activeTab === 'list' && (
             <motion.div
               key="list"
               initial={{ opacity: 0 }}
@@ -1503,6 +1695,17 @@ export default function TimesheetsPage() {
               exit={{ opacity: 0 }}
             >
               <TimesheetList refreshTrigger={refreshListKey} />
+            </motion.div>
+          )}
+
+          {activeTab === 'daily' && (
+            <motion.div
+              key="daily"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <DailyAttendanceView />
             </motion.div>
           )}
         </AnimatePresence>

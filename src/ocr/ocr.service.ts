@@ -17,12 +17,12 @@ export class OcrService {
   async processFile(file: Express.Multer.File, type: OcrExtractionType) {
     if (!file) throw new BadRequestException('No file provided');
 
-    const isImage = file.mimetype.startsWith('image/');
-    const isPdf   = file.mimetype === 'application/pdf';
+    const isImage = file.mimetype?.startsWith('image/') || /\.(jpg|jpeg|png|webp|bmp|tiff)$/i.test(file.originalname);
+    const isPdf   = file.mimetype === 'application/pdf' || /\.pdf$/i.test(file.originalname);
 
     if (!isImage && !isPdf) {
       throw new BadRequestException(
-        `Nicht unterstützter Dateityp: ${file.mimetype}. Bitte JPG, PNG oder PDF hochladen.`,
+        `Nicht unterstützter Dateityp (${file.mimetype || 'unbekannt'}). Bitte JPG, PNG oder PDF hochladen.`,
       );
     }
 
