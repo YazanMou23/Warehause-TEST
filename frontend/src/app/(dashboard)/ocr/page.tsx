@@ -17,6 +17,7 @@ import {
   Printer,
   Settings,
   RefreshCw,
+  Wifi,
 } from "lucide-react";
 import { API_URL } from "../../../config/api";
 
@@ -26,16 +27,6 @@ interface ParsedContainer {
   arrivalDate?: string;
   hall?: string;
   notes?: string;
-}
-
-interface ParsedTimesheet {
-  employeeName: string;
-  startTime: string;
-  endTime: string;
-  weekday?: string;
-  date?: string;
-  breakMinutes?: number;
-  totalHours?: number;
 }
 
 interface WarehouseData {
@@ -51,7 +42,6 @@ interface HallData {
 
 export default function OcrPage() {
   const [file, setFile] = useState<File | null>(null);
-  const [extractionType, setExtractionType] = useState<"CONTAINERS" | "TIMESHEETS">("CONTAINERS");
 
   // API Metadata
   const [warehouses, setWarehouses] = useState<WarehouseData[]>([]);
@@ -61,7 +51,6 @@ export default function OcrPage() {
 
   // Extracted data state for review
   const [extractedContainers, setExtractedContainers] = useState<ParsedContainer[]>([]);
-  const [extractedTimesheets, setExtractedTimesheets] = useState<ParsedTimesheet[]>([]);
   const [ocrWarning, setOcrWarning] = useState("");
 
   // Editing state
@@ -72,9 +61,11 @@ export default function OcrPage() {
   // Printer Direct Scan state
   const [printerScanning, setPrinterScanning] = useState(false);
   const [scannerIp, setScannerIp] = useState("");
-  const [showScannerConfig, setShowScannerConfig] = useState(false);
+  const [showScannerConfig, setShowScannerConfig] = useState(true);
   const [discovering, setDiscovering] = useState(false);
-  const [discoveredPrinters, setDiscoveredPrinters] = useState<Array<{ id: string; name: string; connectionType: string; ip?: string; port?: number; status: string }>>([]);
+  const [discoveredPrinters, setDiscoveredPrinters] = useState<
+    Array<{ id: string; name: string; connectionType: string; ip?: string; port?: number; status: string }>
+  >([]);
 
   const [isOffline, setIsOffline] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -121,6 +112,7 @@ export default function OcrPage() {
     };
 
     fetchMetadata();
+    discoverPrinters();
   }, [router]);
 
   useEffect(() => {
@@ -142,34 +134,25 @@ export default function OcrPage() {
   const handleUploadOCR = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file) {
-      setMessage({ text: "Please select a document image file.", type: "error" });
+      setMessage({ text: "Bitte wähle eine Dokumenten-Bilddatei aus.", type: "error" });
       return;
     }
 
     setUploading(true);
     setMessage({ text: "", type: "" });
     setExtractedContainers([]);
-    setExtractedTimesheets([]);
     setOcrWarning("");
 
     const token = localStorage.getItem("accessToken");
 
     if (isOffline) {
       setTimeout(() => {
-        if (extractionType === "CONTAINERS") {
-          setExtractedContainers([
-            { containerNumber: "MSCU1284920", status: "FULL" },
-            { containerNumber: "HLXU8472910", status: "EMPTY" },
-            { containerNumber: "TGBU7392014", status: "FULL" },
-          ]);
-          setOcrWarning("Sandbox API Mock mode active. Presets extracted.");
-        } else {
-          setExtractedTimesheets([
-            { employeeName: "Max Mustermann", startTime: "08:00", endTime: "16:30" },
-            { employeeName: "Sabine Schmitz", startTime: "07:45", endTime: "15:15" },
-          ]);
-          setOcrWarning("Sandbox API Mock mode active. Presets extracted.");
-        }
+        setExtractedContainers([
+          { containerNumber: "MSCU1284920", status: "FULL" },
+          { containerNumber: "HLXU8472910", status: "EMPTY" },
+          { containerNumber: "TGBU7392014", status: "FULL" },
+        ]);
+        setOcrWarning("Sandbox API Mock mode active. Demo Container-Daten geladen.");
         setUploading(false);
       }, 1200);
       return;
@@ -178,7 +161,7 @@ export default function OcrPage() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("type", extractionType);
+      formData.append("type", "CONTAINERS");
 
       const res = await fetch(`${API_URL}/ocr/upload`, {
         method: "POST",
@@ -190,20 +173,16 @@ export default function OcrPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.message || "OCR parsing failed.");
+        throw new Error(data.message || "OCR Parsing fehlgeschlagen.");
       }
 
       if (data.warning) {
         setOcrWarning(data.warning);
       }
 
-      if (data.type === "CONTAINERS") {
-        setExtractedContainers(data.data || []);
-      } else {
-        setExtractedTimesheets(data.data || []);
-      }
+      setExtractedContainers(data.data || []);
     } catch (err: any) {
-      setMessage({ text: err.message || "OCR service error.", type: "error" });
+      setMessage({ text: err.message || "OCR Service Fehler.", type: "error" });
     } finally {
       setUploading(false);
     }
@@ -214,7 +193,6 @@ export default function OcrPage() {
     setPrinterScanning(true);
     setMessage({ text: "", type: "" });
     setExtractedContainers([]);
-    setExtractedTimesheets([]);
     setOcrWarning("");
 
     const token = localStorage.getItem("accessToken");
@@ -235,31 +213,17 @@ export default function OcrPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.message || "Direct printer scan failed. Please check printer IP connection.");
+        throw new Error(data.message || "Direktscan vom Drucker fehlgeschlagen. Bitte Verbindung zum Drucker/Scanner prüfen.");
       }
 
       if (data.warning) {
         setOcrWarning(data.warning);
       }
 
-      if (extractionType === "TIMESHEETS") {
-        const entries = data.entries || data.data || [];
-        setExtractedTimesheets(entries.map((e: any) => ({
-          employeeName: data.employeeName || e.employeeName || "Extracted Worker",
-          startTime: e.startTime || "08:00",
-          endTime: e.endTime || "17:00",
-          weekday: e.weekday,
-          date: e.date,
-          breakMinutes: e.breakMinutes,
-          totalHours: e.totalHours,
-        })));
-        setMessage({ text: `Direct printer scan successful! Extracted shift entries for ${data.employeeName || 'worker'}.`, type: "success" });
-      } else {
-        setExtractedContainers(data.data || []);
-        setMessage({ text: "Direct printer scan successful! Extracted container list.", type: "success" });
-      }
+      setExtractedContainers(data.data || []);
+      setMessage({ text: "Direkter Scan erfolgreich! Container-Liste extrahiert.", type: "success" });
     } catch (err: any) {
-      setMessage({ text: err.message || "Printer scanner connection failed.", type: "error" });
+      setMessage({ text: err.message || "Drucker-Scanner Verbindung fehlgeschlagen.", type: "error" });
     } finally {
       setPrinterScanning(false);
     }
@@ -277,7 +241,6 @@ export default function OcrPage() {
         setDiscoveredPrinters(data || []);
         if (data && data.length > 0) {
           setScannerIp(data[0].ip || data[0].id);
-          setShowScannerConfig(true);
         }
       }
     } catch (err) {
@@ -311,7 +274,7 @@ export default function OcrPage() {
   const handleBulkImport = async () => {
     if (extractedContainers.length === 0) return;
     if (!selectedWarehouseId || !selectedHallId) {
-      setMessage({ text: "Please select destination warehouse and hall.", type: "error" });
+      setMessage({ text: "Bitte Ziel-Lager und Ziel-Halle auswählen.", type: "error" });
       return;
     }
 
@@ -323,7 +286,7 @@ export default function OcrPage() {
     if (isOffline) {
       setTimeout(() => {
         setMessage({
-          text: `Successfully imported ${extractedContainers.length} containers to chosen hall (Mock Mode).`,
+          text: `${extractedContainers.length} Container erfolgreich importiert (Mock Mode).`,
           type: "success",
         });
         setExtractedContainers([]);
@@ -353,16 +316,16 @@ export default function OcrPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.message || "Bulk import failed.");
+        throw new Error(data.message || "Bulk Import fehlgeschlagen.");
       }
 
       setMessage({
-        text: `Successfully bulk imported ${data.count || extractedContainers.length} containers!`,
+        text: `${data.count || extractedContainers.length} Container erfolgreich importiert!`,
         type: "success",
       });
       setExtractedContainers([]);
     } catch (err: any) {
-      setMessage({ text: err.message || "Failed to bulk import containers.", type: "error" });
+      setMessage({ text: err.message || "Fehler beim Container Import.", type: "error" });
     } finally {
       setImporting(false);
     }
@@ -375,9 +338,9 @@ export default function OcrPage() {
       {/* Title & Direct Printer Scan Action Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h3 className="font-headline-lg font-bold text-on-surface">OCR Document & Printer Scanner</h3>
+          <h3 className="font-headline-lg font-bold text-on-surface">Container Liste Scanner & Upload</h3>
           <p className="text-on-surface-variant font-body-sm">
-            Upload shipping manifests, container lists, or scan directly from network printers (AirScan/eSCL).
+            Lade Containerlisten oder Ladelisten hoch – oder scanne Dokumente direkt über verbundene WLAN & USB-Drucker.
           </p>
         </div>
 
@@ -399,100 +362,64 @@ export default function OcrPage() {
       {isOffline && (
         <div className="bg-tertiary-container text-on-tertiary-container border border-on-tertiary-container/20 px-3.5 py-2.5 rounded-lg flex items-center gap-2 text-label-md">
           <AlertTriangle className="w-5 h-5 shrink-0 text-amber-500" />
-          <span>Offline sandbox fallback active. Uploading files uses pre-configured mock OCR results.</span>
+          <span>Offline Sandbox Modus aktiv. Uploads nutzen vorbereitete Demo-Containerdaten.</span>
         </div>
       )}
 
       {/* Parser Configuration and Upload */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-stack-md">
-        
         {/* Settings Panel */}
         <div className="bg-white border border-outline-variant p-stack-md rounded-lg shadow-sm space-y-4">
           <h5 className="font-bold text-body-lg flex items-center gap-2">
-            <FileScan className="w-5 h-5 text-secondary" /> Parser Settings
+            <FileScan className="w-5 h-5 text-secondary" /> Ziel-Lager & Drucker
           </h5>
 
-          {/* Type Selector */}
+          {/* Destination Warehouse */}
           <div className="space-y-1.5">
             <label className="block text-[11px] font-bold text-outline uppercase tracking-wider">
-              Extraction Type
+              Ziel-Lager
             </label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setExtractionType("CONTAINERS")}
-                className={`flex-1 py-2 rounded-lg text-label-md font-bold transition-all border ${
-                  extractionType === "CONTAINERS"
-                    ? "bg-secondary border-secondary text-white"
-                    : "bg-surface-container-low border-outline-variant text-on-surface-variant hover:bg-surface-container-high"
-                }`}
+            <div className="relative">
+              <Warehouse className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+              <select
+                value={selectedWarehouseId}
+                onChange={(e) => setSelectedWarehouseId(e.target.value)}
+                className="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-3 py-2 text-body-sm outline-none appearance-none"
               >
-                Containers List
-              </button>
-              <button
-                type="button"
-                onClick={() => setExtractionType("TIMESHEETS")}
-                className={`flex-1 py-2 rounded-lg text-label-md font-bold transition-all border ${
-                  extractionType === "TIMESHEETS"
-                    ? "bg-secondary border-secondary text-white"
-                    : "bg-surface-container-low border-outline-variant text-on-surface-variant hover:bg-surface-container-high"
-                }`}
-              >
-                Timesheet Logs
-              </button>
+                {warehouses.map((wh) => (
+                  <option key={wh.id} value={wh.id}>
+                    {wh.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
-          {/* Destination Warehouse */}
-          {extractionType === "CONTAINERS" && (
-            <>
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-outline uppercase tracking-wider">
-                  Import Warehouse
-                </label>
-                <div className="relative">
-                  <Warehouse className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
-                  <select
-                    value={selectedWarehouseId}
-                    onChange={(e) => setSelectedWarehouseId(e.target.value)}
-                    className="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-3 py-2 text-body-sm outline-none appearance-none"
-                  >
-                    {warehouses.map((wh) => (
-                      <option key={wh.id} value={wh.id}>
-                        {wh.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-bold text-outline uppercase tracking-wider">
+              Ziel-Halle
+            </label>
+            <div className="relative">
+              <Grid className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+              <select
+                value={selectedHallId}
+                onChange={(e) => setSelectedHallId(e.target.value)}
+                className="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-3 py-2 text-body-sm outline-none appearance-none"
+              >
+                {filteredHalls.length === 0 ? (
+                  <option value="">Keine Hallen verfügbar</option>
+                ) : (
+                  filteredHalls.map((h) => (
+                    <option key={h.id} value={h.id}>
+                      {h.name}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+          </div>
 
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-outline uppercase tracking-wider">
-                  Import Hall
-                </label>
-                <div className="relative">
-                  <Grid className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
-                  <select
-                    value={selectedHallId}
-                    onChange={(e) => setSelectedHallId(e.target.value)}
-                    className="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-3 py-2 text-body-sm outline-none appearance-none"
-                  >
-                    {filteredHalls.length === 0 ? (
-                      <option value="">No halls available</option>
-                    ) : (
-                      filteredHalls.map((h) => (
-                        <option key={h.id} value={h.id}>
-                          {h.name}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* Printer Scanner IP Toggle */}
+          {/* Printer Scanner IP Toggle & WiFi Discovery */}
           <div className="pt-2 border-t border-outline-variant space-y-2">
             <div className="flex items-center justify-between">
               <button
@@ -501,13 +428,13 @@ export default function OcrPage() {
                 className="text-xs font-semibold text-secondary hover:underline flex items-center gap-1"
               >
                 <Settings className="w-3.5 h-3.5" />
-                Drucker-IP & Einstellungen
+                WLAN / USB Drucker Einstellungen
               </button>
               <button
                 type="button"
                 onClick={discoverPrinters}
                 disabled={discovering}
-                className="text-[11px] bg-blue-50 text-blue-600 hover:bg-blue-100 px-2.5 py-1 rounded-md font-semibold flex items-center gap-1 transition-all border border-blue-200"
+                className="text-[11px] bg-blue-50 text-blue-600 hover:bg-blue-100 px-2.5 py-1 rounded-md font-semibold flex items-center gap-1 transition-all border border-blue-200 cursor-pointer"
               >
                 {discovering ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
                 <span>Drucker suchen (WLAN & USB)</span>
@@ -516,9 +443,17 @@ export default function OcrPage() {
 
             {showScannerConfig && (
               <div className="mt-2 space-y-2">
+                {discovering && (
+                  <div className="text-xs p-2 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2 text-blue-700">
+                    <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                    <span>Suche verbundene WLAN & USB-Drucker...</span>
+                  </div>
+                )}
                 {discoveredPrinters.length > 0 && (
                   <div className="text-xs p-2 bg-blue-50/70 border border-blue-200 rounded-lg">
-                    <label className="block text-[11px] font-bold text-blue-800 mb-1">Erkannte Drucker / Scanner:</label>
+                    <label className="block text-[11px] font-bold text-blue-800 mb-1 flex items-center gap-1">
+                      <Wifi className="w-3.5 h-3.5 text-blue-600" /> Erkannte Netzwerker / USB-Drucker:
+                    </label>
                     <select
                       value={scannerIp}
                       onChange={(e) => setScannerIp(e.target.value)}
@@ -537,7 +472,7 @@ export default function OcrPage() {
                   <label className="block text-[11px] text-slate-500 font-semibold mb-0.5">Drucker IP oder USB-ID</label>
                   <input
                     type="text"
-                    placeholder="z.B. 192.168.1.100 oder WIA-Gerät"
+                    placeholder="z.B. 192.168.1.100 oder USB Scanner"
                     value={scannerIp}
                     onChange={(e) => setScannerIp(e.target.value)}
                     className="w-full bg-surface-container-low border border-outline-variant rounded-lg px-3 py-1.5 text-xs outline-none"
@@ -553,12 +488,12 @@ export default function OcrPage() {
           <form onSubmit={handleUploadOCR} className="space-y-4 h-full flex flex-col justify-between">
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <h5 className="font-bold text-body-lg">Upload Document Image or Direct Scan</h5>
+                <h5 className="font-bold text-body-lg">Containerliste Bild-Upload oder Direktscan</h5>
                 <span className="text-xs text-secondary font-semibold flex items-center gap-1">
-                  <Printer className="w-3.5 h-3.5" /> Direct eSCL AirScan Supported
+                  <Printer className="w-3.5 h-3.5" /> Direkt scan eSCL AirScan
                 </span>
               </div>
-              
+
               {/* Drag/Drop Zone */}
               <div className="border-2 border-dashed border-outline-variant rounded-xl p-8 text-center bg-surface-container-low hover:bg-surface-container-low/50 transition-colors relative cursor-pointer">
                 <input
@@ -577,10 +512,10 @@ export default function OcrPage() {
                         <FileText className="w-4 h-4" /> {file.name}
                       </span>
                     ) : (
-                      <span>Drag and drop your file here, or click to browse</span>
+                      <span>Datei hierher ziehen oder klicken zum Auswählen</span>
                     )}
                   </div>
-                  <p className="text-[11px] text-outline">Supports JPG, PNG up to 15MB</p>
+                  <p className="text-[11px] text-outline">Unterstützt JPG, PNG, PDF bis 15MB</p>
                 </div>
               </div>
             </div>
@@ -594,7 +529,7 @@ export default function OcrPage() {
                 {uploading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Processing Vision API...</span>
+                    <span>OCR Vision scannt...</span>
                   </>
                 ) : (
                   <>
@@ -633,22 +568,20 @@ export default function OcrPage() {
         <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3.5 rounded-lg flex items-start gap-2.5 text-body-sm">
           <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
           <div>
-            <p className="font-bold font-mono">OCR Warning</p>
+            <p className="font-bold font-mono">OCR Hinweis</p>
             <p className="text-[13px]">{ocrWarning}</p>
           </div>
         </div>
       )}
-
-      {/* Review Tables with Numeric Index 1, 2, 3... */}
 
       {/* Containers Review Table */}
       {extractedContainers.length > 0 && (
         <div className="space-y-4 animate-fadeIn">
           <div className="flex justify-between items-center bg-surface-container-low border border-outline-variant p-stack-md rounded-lg">
             <div>
-              <h5 className="font-bold text-body-lg">Review Parsed Containers ({extractedContainers.length})</h5>
+              <h5 className="font-bold text-body-lg">Extrahierter Container-Vorschau ({extractedContainers.length})</h5>
               <p className="text-[12px] text-outline">
-                Review and correct parsed numbers before confirming bulk import to chosen location.
+                Prüfe und korrigiere die Containernummern vor dem Import in das ausgewählte Lager.
               </p>
             </div>
             <button
@@ -661,7 +594,7 @@ export default function OcrPage() {
               ) : (
                 <CheckCircle className="w-5 h-5" />
               )}
-              <span>Import Reviewed Items</span>
+              <span>Geprüfte Container Importieren</span>
             </button>
           </div>
 
@@ -670,9 +603,9 @@ export default function OcrPage() {
               <thead>
                 <tr className="bg-surface-container-low border-b border-outline-variant text-[11px] font-bold text-outline uppercase tracking-wider">
                   <th className="w-12 px-3 py-3 text-center">#</th>
-                  <th className="px-container-margin py-3">Parsed Container Number</th>
-                  <th className="px-4 py-3">Parsed Status</th>
-                  <th className="px-container-margin py-3 text-right">Actions</th>
+                  <th className="px-container-margin py-3">Containernummer</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-container-margin py-3 text-right">Aktionen</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant text-body-sm text-on-surface">
@@ -680,7 +613,6 @@ export default function OcrPage() {
                   const isEditing = editingIndex === idx;
                   return (
                     <tr key={idx} className="hover:bg-surface-bright transition-colors">
-                      {/* Numeric Index #1, #2, #3... */}
                       <td className="w-12 px-3 py-3 font-mono font-bold text-xs text-center text-outline bg-surface-container-low/50">
                         #{idx + 1}
                       </td>
@@ -722,21 +654,21 @@ export default function OcrPage() {
                         {isEditing ? (
                           <button
                             onClick={() => saveEditContainer(idx)}
-                            className="text-emerald-700 hover:bg-emerald-50 p-1.5 rounded transition-colors inline-flex border border-emerald-200"
+                            className="text-emerald-700 hover:bg-emerald-50 p-1.5 rounded transition-colors inline-flex border border-emerald-200 cursor-pointer"
                           >
                             <Check className="w-4 h-4" />
                           </button>
                         ) : (
                           <button
                             onClick={() => startEditContainer(idx)}
-                            className="text-outline hover:text-secondary p-1.5 rounded hover:bg-surface-container-low transition-colors inline-flex"
+                            className="text-outline hover:text-secondary p-1.5 rounded hover:bg-surface-container-low transition-colors inline-flex cursor-pointer"
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
                         )}
                         <button
                           onClick={() => deleteContainer(idx)}
-                          className="text-outline hover:text-error p-1.5 rounded hover:bg-error-container transition-colors inline-flex"
+                          className="text-outline hover:text-error p-1.5 rounded hover:bg-error-container transition-colors inline-flex cursor-pointer"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -744,65 +676,6 @@ export default function OcrPage() {
                     </tr>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Timesheets Review Table */}
-      {extractedTimesheets.length > 0 && (
-        <div className="space-y-4 animate-fadeIn">
-          <div className="flex justify-between items-center bg-surface-container-low border border-outline-variant p-stack-md rounded-lg">
-            <div>
-              <h5 className="font-bold text-body-lg">Review Parsed Timesheet Records ({extractedTimesheets.length})</h5>
-              <p className="text-[12px] text-outline">
-                Verify employee clock-in hours extracted via OCR / printer scanner.
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                setMessage({
-                  text: `Imported ${extractedTimesheets.length} employee shift times to logs!`,
-                  type: "success",
-                });
-                setExtractedTimesheets([]);
-              }}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-2.5 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer"
-            >
-              <CheckCircle className="w-5 h-5" />
-              <span>Confirm Shift Log Import</span>
-            </button>
-          </div>
-
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden shadow-sm">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-surface-container-low border-b border-outline-variant text-[11px] font-bold text-outline uppercase tracking-wider">
-                  <th className="w-12 px-3 py-3 text-center">#</th>
-                  <th className="px-container-margin py-3">Employee Name</th>
-                  <th className="px-4 py-3">Start Time</th>
-                  <th className="px-4 py-3">End Time</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant text-body-sm text-on-surface">
-                {extractedTimesheets.map((ts, idx) => (
-                  <tr key={idx} className="hover:bg-surface-bright transition-colors">
-                    {/* Numeric Index #1, #2, #3... */}
-                    <td className="w-12 px-3 py-3.5 font-mono font-bold text-xs text-center text-outline bg-surface-container-low/50">
-                      #{idx + 1}
-                    </td>
-                    <td className="px-container-margin py-3.5 font-semibold text-on-surface">
-                      {ts.employeeName}
-                    </td>
-                    <td className="px-4 py-3.5 font-mono text-[13px] text-on-surface">
-                      {ts.startTime}
-                    </td>
-                    <td className="px-4 py-3.5 font-mono text-[13px] text-on-surface">
-                      {ts.endTime}
-                    </td>
-                  </tr>
-                ))}
               </tbody>
             </table>
           </div>
@@ -824,7 +697,7 @@ export default function OcrPage() {
             <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-error" />
           )}
           <div>
-            <p className="font-bold">{message.type === "success" ? "Success" : "Error Occurred"}</p>
+            <p className="font-bold">{message.type === "success" ? "Erfolg" : "Fehler aufgetreten"}</p>
             <p className="text-[13px] opacity-90">{message.text}</p>
           </div>
         </div>

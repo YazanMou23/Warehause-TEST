@@ -43,8 +43,9 @@ export class TimesheetEntryInputDto {
   @IsString()
   startTime: string; // HH:MM
 
+  @IsOptional()
   @IsString()
-  endTime: string; // HH:MM
+  endTime?: string; // HH:MM (optional if open shift)
 
   @IsNumber()
   @Min(0)

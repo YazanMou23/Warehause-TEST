@@ -98,7 +98,7 @@ export class TimesheetService {
 
     // ── Validate entries ────────────────────────────────────────────────────
     const validEntries = dto.entries.filter(
-      (e) => e.startTime?.trim() && e.endTime?.trim(),
+      (e) => e.startTime?.trim(),
     );
 
     if (validEntries.length === 0) {
@@ -184,7 +184,7 @@ export class TimesheetService {
     }
 
     // ── Persist in transaction ───────────────────────────────────────────────
-    const updated = await this.prisma.$transaction(async (tx) => {
+    const updated: any = await this.prisma.$transaction(async (tx) => {
       // 1. Delete old attendance entries linked to this timesheet
       await tx.attendance.deleteMany({
         where: { timesheetId: id },
@@ -244,24 +244,28 @@ export class TimesheetService {
           );
         }
 
-        // Parse startTime and endTime
+        // Parse startTime and optional endTime
         const [startH, startM] = e.startTime.split(':').map(Number);
-        const [endH, endM] = e.endTime.split(':').map(Number);
-
         const clockIn = new Date(e.date);
-        clockIn.setUTCHours(startH, startM, 0, 0);
+        clockIn.setUTCHours(startH || 0, startM || 0, 0, 0);
 
-        const clockOut = new Date(e.date);
-        clockOut.setUTCHours(endH, endM, 0, 0);
+        let clockOut: Date | null = null;
+        if (e.endTime?.trim()) {
+          const [endH, endM] = e.endTime.trim().split(':').map(Number);
+          clockOut = new Date(e.date);
+          clockOut.setUTCHours(endH || 0, endM || 0, 0, 0);
+        }
+
+        const trimmedEndTime = e.endTime?.trim() ? e.endTime.trim() : null;
 
         // Add to arrays
         entriesToCreate.push({
           weekday: e.weekday,
           date: new Date(e.date),
           startTime: e.startTime.trim(),
-          endTime: e.endTime.trim(),
-          breakMinutes: e.breakMinutes,
-          totalHours: e.totalHours,
+          endTime: trimmedEndTime,
+          breakMinutes: e.breakMinutes ?? 0,
+          totalHours: e.totalHours ?? 0,
           location: e.location?.trim() ?? null,
         });
 
@@ -271,8 +275,8 @@ export class TimesheetService {
           hallId: entryHallId,
           clockIn,
           clockOut,
-          totalHours: e.totalHours,
-          breakMinutes: e.breakMinutes,
+          totalHours: e.totalHours ?? 0,
+          breakMinutes: e.breakMinutes ?? 0,
           source: 'SCAN',
           date: new Date(e.date),
           timesheetId: id,
@@ -491,10 +495,14 @@ export class TimesheetService {
       const start = dto.startTime ?? entry.startTime;
       const end = dto.endTime ?? entry.endTime;
       const brk = dto.breakMinutes ?? entry.breakMinutes;
-      const [sH, sM] = start.split(':').map(Number);
-      const [eH, eM] = end.split(':').map(Number);
-      const netMin = (eH * 60 + eM) - (sH * 60 + sM) - brk;
-      updateData.totalHours = Math.max(0, Math.round((netMin / 60) * 100) / 100);
+      if (start && end) {
+        const [sH, sM] = start.split(':').map(Number);
+        const [eH, eM] = end.split(':').map(Number);
+        const netMin = (eH * 60 + eM) - (sH * 60 + sM) - brk;
+        updateData.totalHours = Math.max(0, Math.round((netMin / 60) * 100) / 100);
+      } else {
+        updateData.totalHours = 0;
+      }
     }
 
     const updated = await this.prisma.timesheetEntry.update({
@@ -515,14 +523,17 @@ export class TimesheetService {
         const targetDate = updateData.date ? new Date(updateData.date) : new Date(att.date);
         const start = updateData.startTime ?? entry.startTime;
         const end = updateData.endTime ?? entry.endTime;
-        const [sH, sM] = start.split(':').map(Number);
-        const [eH, eM] = end.split(':').map(Number);
+        const [sH, sM] = start ? start.split(':').map(Number) : [0, 0];
 
         const clockIn = new Date(targetDate);
         clockIn.setUTCHours(sH || 0, sM || 0, 0, 0);
 
-        const clockOut = new Date(targetDate);
-        clockOut.setUTCHours(eH || 0, eM || 0, 0, 0);
+        let clockOut: Date | null = null;
+        if (end) {
+          const [eH, eM] = end.split(':').map(Number);
+          clockOut = new Date(targetDate);
+          clockOut.setUTCHours(eH || 0, eM || 0, 0, 0);
+        }
 
         let newWhId = att.warehouseId;
         let newHallId = att.hallId;
@@ -600,12 +611,13 @@ export class TimesheetService {
 
   private validateEntry(entry: {
     startTime: string;
-    endTime: string;
+    endTime?: string;
     breakMinutes: number;
     totalHours: number;
   }) {
+    if (!entry.endTime?.trim()) return;
     const [startH, startM] = entry.startTime.split(':').map(Number);
-    const [endH, endM] = entry.endTime.split(':').map(Number);
+    const [endH, endM] = entry.endTime.trim().split(':').map(Number);
     const startMinutes = startH * 60 + startM;
     const endMinutes = endH * 60 + endM;
 

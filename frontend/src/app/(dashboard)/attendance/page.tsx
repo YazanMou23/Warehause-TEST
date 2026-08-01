@@ -23,6 +23,7 @@ import {
   MapPin,
   X,
   PlusCircle,
+  Trash2,
 } from "lucide-react";
 import { API_URL } from "../../../config/api";
 
@@ -399,6 +400,29 @@ export default function AttendancePage() {
     }
   };
 
+  const handleDeleteRecord = async (recordId: string) => {
+    if (!window.confirm("Möchten Sie diesen Zeiterfassungs-Eintrag wirklich löschen?")) {
+      return;
+    }
+    setSubmitting(true);
+    setMessage({ text: "", type: "" });
+    try {
+      const res = await fetch(`${API_URL}/attendance/${recordId}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || "Löschen fehlgeschlagen.");
+      setMessage({ text: "Zeiterfassungs-Eintrag erfolgreich gelöscht!", type: "success" });
+      setSelectedCell(null);
+      fetchLogs();
+    } catch (err: any) {
+      setMessage({ text: err.message || "Fehler beim Löschen.", type: "error" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // ─── EXPORT FILES ──────────────────────────────────────────────────────────
 
   const downloadTsFile = async (id: string, format: "pdf" | "xlsx") => {
@@ -652,26 +676,35 @@ export default function AttendancePage() {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right print:hidden">
-                          {record.timesheetId && (
-                            <div className="inline-flex gap-1.5" onClick={(e) => e.stopPropagation()}>
-                              <button
-                                onClick={() => downloadTsFile(record.timesheetId!, "pdf")}
-                                disabled={downloadingTs?.id === record.timesheetId}
-                                className="p-1 text-slate-400 hover:text-red-600 transition-colors"
-                                title="Original PDF laden"
-                              >
-                                <FileText size={14} />
-                              </button>
-                              <button
-                                onClick={() => downloadTsFile(record.timesheetId!, "xlsx")}
-                                disabled={downloadingTs?.id === record.timesheetId}
-                                className="p-1 text-slate-400 hover:text-emerald-600 transition-colors"
-                                title="Original Excel laden"
-                              >
-                                <FileSpreadsheet size={14} />
-                              </button>
-                            </div>
-                          )}
+                          <div className="inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                            {record.timesheetId && (
+                              <>
+                                <button
+                                  onClick={() => downloadTsFile(record.timesheetId!, "pdf")}
+                                  disabled={downloadingTs?.id === record.timesheetId}
+                                  className="p-1 text-slate-400 hover:text-red-600 transition-colors"
+                                  title="Original PDF laden"
+                                >
+                                  <FileText size={14} />
+                                </button>
+                                <button
+                                  onClick={() => downloadTsFile(record.timesheetId!, "xlsx")}
+                                  disabled={downloadingTs?.id === record.timesheetId}
+                                  className="p-1 text-slate-400 hover:text-emerald-600 transition-colors"
+                                  title="Original Excel laden"
+                                >
+                                  <FileSpreadsheet size={14} />
+                                </button>
+                              </>
+                            )}
+                            <button
+                              onClick={() => handleDeleteRecord(record.id)}
+                              className="p-1 text-slate-400 hover:text-red-600 transition-colors"
+                              title="Eintrag löschen"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1000,14 +1033,26 @@ export default function AttendancePage() {
           {/* Action buttons */}
           <div className="flex gap-3 pt-2">
             <button
+              type="button"
               onClick={() => setSelectedCell(null)}
               className="px-5 py-2.5 rounded-xl bg-white border border-outline-variant hover:bg-slate-50 text-slate-700 transition-all text-xs cursor-pointer"
             >
               Abbrechen
             </button>
+            {getLogForCell(selectedCell.employeeId, selectedCell.date) && (
+              <button
+                type="button"
+                onClick={() => handleDeleteRecord(getLogForCell(selectedCell.employeeId, selectedCell.date)!.id)}
+                disabled={submitting}
+                className="px-4 py-2.5 rounded-xl bg-red-50 border border-red-200 hover:bg-red-100 text-red-700 font-semibold transition-all text-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" /> Löschen
+              </button>
+            )}
             <button
+              type="button"
               onClick={handleSaveEntry}
-              disabled={submitting || !editStartTime || !editEndTime}
+              disabled={submitting || !editStartTime}
               className="flex-1 bg-secondary hover:bg-blue-700 disabled:opacity-60 text-white font-semibold py-2.5 px-5 rounded-xl shadow transition-all flex items-center justify-center gap-1.5 cursor-pointer text-xs"
             >
               {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}

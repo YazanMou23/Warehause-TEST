@@ -42,7 +42,7 @@ interface TimesheetEntry {
   weekday: string;
   date: string;
   startTime: string;
-  endTime: string;
+  endTime?: string;
   breakMinutes: number;
   totalHours: number;
   location: string;
@@ -636,7 +636,7 @@ function ReviewView({
       if (field === 'startTime' || field === 'endTime' || field === 'breakMinutes') {
         updated[idx].totalHours = calculateHours(
           updated[idx].startTime,
-          updated[idx].endTime,
+          updated[idx].endTime || '',
           Number(updated[idx].breakMinutes || 0)
         );
       }
@@ -652,12 +652,12 @@ function ReviewView({
       employeeName,
       weekStartDate,
       entries: entries
-        .filter((e) => e.startTime && e.endTime)
+        .filter((e) => e.startTime)
         .map((e) => ({
           weekday: e.weekday,
           date: e.date,
           startTime: e.startTime,
-          endTime: e.endTime,
+          endTime: e.endTime || undefined,
           breakMinutes: Number(e.breakMinutes),
           totalHours: Number(e.totalHours),
           location: e.location || '',

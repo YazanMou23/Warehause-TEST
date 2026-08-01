@@ -250,7 +250,7 @@ model TimesheetEntry {
   weekday      String    // "Montag", "Dienstag", etc.
   date         DateTime
   startTime    String    // "08:00" — HH:MM 24h Format
-  endTime      String    // "16:30"
+  endTime      String?   // "16:30" (optional, null if open shift)
   breakMinutes Int       @default(0)
   totalHours   Float     // Gesamt ohne Pause
   location     String?   // Lagername / Arbeitsort

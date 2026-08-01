@@ -398,6 +398,30 @@ export class AttendanceService {
     return manualEntry;
   }
 
+  async deleteAttendance(id: string, actorId: string) {
+    const record = await this.prisma.attendance.findUnique({
+      where: { id },
+      include: { employee: { select: { name: true } } },
+    });
+
+    if (!record) {
+      throw new NotFoundException(`Zeiterfassungseintrag mit ID ${id} nicht gefunden`);
+    }
+
+    await this.prisma.attendance.delete({
+      where: { id },
+    });
+
+    await this.prisma.actionLog.create({
+      data: {
+        userId: actorId,
+        action: 'ATTENDANCE_DELETE',
+        details: `Zeiterfassungseintrag "${id}" für Mitarbeiter "${record.employee?.name || record.employeeId}" gelöscht`,
+      },
+    }).catch(() => {});
+
+    return { message: 'Zeiterfassungseintrag erfolgreich gelöscht' };
+  }
 
   private getDateRangeOfWeek(week: number, year: number) {
     // Find the first Thursday of the year (ISO week standard)
@@ -418,3 +442,4 @@ export class AttendanceService {
     return { start, end };
   }
 }
+

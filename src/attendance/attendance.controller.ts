@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { AttendanceService } from './attendance.service';
 import { ClockInDto } from './dto/clock-in.dto';
 import { ClockOutDto } from './dto/clock-out.dto';
@@ -85,4 +85,11 @@ export class AttendanceController {
   async createManual(@Body() dto: any) {
     return this.attendanceService.createManualEntry(dto);
   }
+
+  @Delete(':id')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  async delete(@Param('id') id: string, @CurrentUser() currentUser: any) {
+    return this.attendanceService.deleteAttendance(id, currentUser.id);
+  }
 }
+
