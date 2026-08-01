@@ -8,12 +8,19 @@ export class MessagingService {
   constructor(private readonly prisma: PrismaService) {}
 
   formatPhoneNumber(phone: string): string {
-    let digits = phone.replace(/\D/g, '');
-    if (digits.startsWith('0049')) {
+    const trimmed = (phone || '').trim();
+    let digits = trimmed.replace(/\D/g, '');
+
+    if (trimmed.startsWith('+')) {
+      return digits;
+    }
+    if (digits.startsWith('00')) {
       return digits.substring(2);
-    } else if (digits.startsWith('0')) {
+    }
+    if (digits.startsWith('0')) {
       return '49' + digits.substring(1);
-    } else if (!digits.startsWith('49')) {
+    }
+    if (!digits.startsWith('49') && digits.length <= 11) {
       return '49' + digits;
     }
     return digits;
@@ -35,6 +42,8 @@ export class MessagingService {
     // 2. Check UltraMsg credentials as fallback provider
     const ultraInstance = process.env.ULTRAMSG_INSTANCE_ID;
     const ultraToken = process.env.ULTRAMSG_TOKEN;
+
+    let metaError: string | null = null;
 
     if (phoneNumberId && accessToken) {
       const url = `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`;
@@ -61,10 +70,11 @@ export class MessagingService {
           this.logger.log(`WhatsApp message successfully sent via Meta API to +${cleanedPhone}`);
           return { success: true, data: resData, waLink };
         } else {
-          this.logger.error(`Meta WhatsApp API returned error: ${JSON.stringify(resData)}`);
-          return { success: false, data: resData, error: 'Meta API rejected request', waLink };
+          metaError = resData.error?.message || 'Meta API rejected request (e.g. number not verified in test mode)';
+          this.logger.warn(`Meta WhatsApp API failed for +${cleanedPhone}: ${metaError}. Falling back...`);
         }
       } catch (err: any) {
+        metaError = err.message;
         this.logger.error(`Error sending via Meta WhatsApp API: ${err.message}`);
       }
     }
@@ -96,7 +106,7 @@ export class MessagingService {
     this.logger.log(`WhatsApp notification ready for +${cleanedPhone}. Direct web link: ${waLink}`);
     return {
       success: true,
-      error: 'Direct API token missing or returned warning, generated direct wa.me link',
+      error: metaError ? `Meta API Hinweis: ${metaError} -> Web-Link als Fallback erzeugt` : 'Direct API token missing or returned warning, generated direct wa.me link',
       waLink,
     };
   }

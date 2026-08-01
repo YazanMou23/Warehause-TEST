@@ -637,7 +637,17 @@ export default function EmployeesPage() {
   };
 
   const getWhatsAppLink = (phone: string, name: string) => {
-    const cleaned = phone.replace(/\D/g, "");
+    const trimmed = (phone || "").trim();
+    let cleaned = trimmed.replace(/\D/g, "");
+    if (trimmed.startsWith("+")) {
+      // keep digits as is (country code already present)
+    } else if (cleaned.startsWith("00")) {
+      cleaned = cleaned.substring(2);
+    } else if (cleaned.startsWith("0")) {
+      cleaned = "49" + cleaned.substring(1);
+    } else if (!cleaned.startsWith("49") && cleaned.length <= 11) {
+      cleaned = "49" + cleaned;
+    }
     const text = encodeURIComponent(`Hallo ${name}, dies ist eine Nachricht von LogiFlow Warehouse Management.`);
     return `https://wa.me/${cleaned}?text=${text}`;
   };

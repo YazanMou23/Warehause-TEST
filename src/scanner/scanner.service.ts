@@ -88,7 +88,7 @@ export class ScannerService {
 
     if (!resolvedIp) {
       throw new BadRequestException(
-        'Kein Scanner konfiguriert. Bitte SCANNER_IP in .env setzen oder scannerIp im Request-Body übergeben.',
+        'Kein erreichbarer Scanner konfiguriert oder im WLAN/USB erkannt. Bitte wählen Sie in den Einstellungen über "Drucker suchen (WLAN & USB)" Ihren Scanner aus.',
       );
     }
 
@@ -323,7 +323,17 @@ export class ScannerService {
       try {
         $deviceManager = New-Object -ComObject WIA.DeviceManager
         if ($deviceManager.DeviceInfos.Count -gt 0) {
-          $device = $deviceManager.DeviceInfos.Item(1).Connect()
+          $targetDevice = $null
+          foreach ($info in $deviceManager.DeviceInfos) {
+            if ($info.Type -eq 1 -or $info.Properties.Item('Name').Value -like '*Scan*' -or $info.Properties.Item('Name').Value -like '*Drucker*') {
+              $targetDevice = $info
+              break
+            }
+          }
+          if ($null -eq $targetDevice) {
+            $targetDevice = $deviceManager.DeviceInfos.Item(1)
+          }
+          $device = $targetDevice.Connect()
           $item = $device.Items.Item(1)
           $image = $item.Transfer()
           $image.SaveFile("${tempOut.replace(/\\/g, '\\\\')}")
@@ -334,7 +344,7 @@ export class ScannerService {
         exit 2
       }
       `;
-      await execAsync(`powershell -NoProfile -Command "${psScript.replace(/\n/g, ' ')}"`, { timeout: 20000 });
+      await execAsync(`powershell -NoProfile -Command "${psScript.replace(/\n/g, ' ')}"`, { timeout: 25000 });
       if (fs.existsSync(tempOut)) {
         const buffer = fs.readFileSync(tempOut);
         try { fs.unlinkSync(tempOut); } catch {}
@@ -345,7 +355,7 @@ export class ScannerService {
     }
 
     throw new ServiceUnavailableException(
-      `Der lokal per USB-Kabel verbundene Drucker/Scanner ("${settings.scannerIp}") antwortet nicht direkt über Windows-WIA-Automatisierung. Bitte stellen Sie sicher, dass das Scanner-Gerät im Leerlauf und eingeschaltet ist, oder nutzen Sie die Scanner-Freigabe im Netzwerk (WLAN) für direktes HTTP-eSCL.`
+      `Kein aktiver Drucker/Scanner an USB oder im Netzwerk erreichbar (${settings.scannerIp || 'Automatische Suche'}). Bitte stellen Sie sicher, dass das Gerät im Leerlauf und eingeschaltet ist oder klicken Sie im Scanner-Menü auf "Drucker suchen (WLAN & USB)".`
     );
   }
 
@@ -356,12 +366,29 @@ export class ScannerService {
    *   2. GET  /eSCL/ScanJobs/{id}/NextDocument → download image bytes
    */
   async triggerScan(settings: ScanSettingsDto): Promise<{ buffer: Buffer; mimeType: string }> {
-    if (settings.scannerIp && (settings.scannerIp.startsWith('USB_') || settings.scannerIp.startsWith('WIA_') || settings.scannerIp === 'USB')) {
-      this.logger.log(`Executing local USB/WIA scan for device: ${settings.scannerIp}`);
+    let targetIp = settings.scannerIp ?? this.config.get<string>('SCANNER_IP');
+
+    if (targetIp && (targetIp.startsWith('USB_') || targetIp.startsWith('WIA_') || targetIp === 'USB')) {
+      this.logger.log(`Executing local USB/WIA scan for device: ${targetIp}`);
       return this.triggerLocalUsbScan(settings);
     }
 
-    const base = this.resolveBase(settings.scannerIp, settings.scannerPort);
+    if (!targetIp) {
+      this.logger.log('No scanner IP provided in settings or .env. Attempting auto-discovery...');
+      const discovered = await this.discoverPrinters();
+      const wifiScanner = discovered.find(d => d.ip);
+      if (wifiScanner && wifiScanner.ip) {
+        targetIp = wifiScanner.ip;
+        settings.scannerIp = wifiScanner.ip;
+        settings.scannerPort = wifiScanner.port || settings.scannerPort;
+        this.logger.log(`Auto-discovered WiFi scanner at ${targetIp}`);
+      } else {
+        this.logger.log('No WiFi scanner discovered, attempting direct Windows USB/WIA fallback scan...');
+        return this.triggerLocalUsbScan(settings);
+      }
+    }
+
+    const base = this.resolveBase(targetIp, settings.scannerPort);
 
     // Resolve defaults
     const dpi         = settings.dpi         ?? parseInt(this.config.get('SCANNER_DPI') ?? '300', 10);
