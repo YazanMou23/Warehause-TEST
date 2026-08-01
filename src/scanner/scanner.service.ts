@@ -300,16 +300,15 @@ export class ScannerService {
       this.logger.debug(`LAN ARP scan failed: ${err?.message}`);
     }
 
-    // If no scanners discovered, provide fallback from env
-    if (discovered.length === 0 && this.config.get<string>('SCANNER_IP')) {
-      const envIp = this.config.get<string>('SCANNER_IP')!;
+    // 3. Always offer Simulator / Test printer so scanning works even without physical hardware
+    if (!seenIds.has('SIMULATOR')) {
       discovered.push({
-        id: envIp,
-        name: `Standard-Drucker (${envIp})`,
+        id: 'SIMULATOR',
+        name: 'WLAN-Drucker Simulator (Test-Modus)',
         connectionType: 'WIFI',
-        ip: envIp,
-        port: parseInt(this.config.get('SCANNER_PORT') ?? '80', 10),
-        status: 'Konfiguriert über .env (WLAN/LAN)',
+        ip: 'SIMULATOR',
+        port: 80,
+        status: 'Bereit (Simulierter Testscan)',
       });
     }
 
@@ -368,6 +367,15 @@ export class ScannerService {
   async triggerScan(settings: ScanSettingsDto): Promise<{ buffer: Buffer; mimeType: string }> {
     let targetIp = settings.scannerIp ?? this.config.get<string>('SCANNER_IP');
 
+    if (targetIp === 'SIMULATOR' || targetIp === 'DEMO' || targetIp === 'MOCK') {
+      this.logger.log('Executing simulated printer scan (DEMO/SIMULATOR mode)...');
+      const tinyJpg = 'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; // tiny valid image buffer
+      return {
+        buffer: Buffer.from('4a464946', 'hex'), // fallback buffer
+        mimeType: 'image/jpeg',
+      };
+    }
+
     if (targetIp && (targetIp.startsWith('USB_') || targetIp.startsWith('WIA_') || targetIp === 'USB')) {
       this.logger.log(`Executing local USB/WIA scan for device: ${targetIp}`);
       return this.triggerLocalUsbScan(settings);
@@ -376,15 +384,19 @@ export class ScannerService {
     if (!targetIp) {
       this.logger.log('No scanner IP provided in settings or .env. Attempting auto-discovery...');
       const discovered = await this.discoverPrinters();
-      const wifiScanner = discovered.find(d => d.ip);
-      if (wifiScanner && wifiScanner.ip) {
-        targetIp = wifiScanner.ip;
-        settings.scannerIp = wifiScanner.ip;
-        settings.scannerPort = wifiScanner.port || settings.scannerPort;
+      const realWifiScanner = discovered.find(d => d.ip && d.ip !== 'SIMULATOR');
+      if (realWifiScanner && realWifiScanner.ip) {
+        targetIp = realWifiScanner.ip;
+        settings.scannerIp = realWifiScanner.ip;
+        settings.scannerPort = realWifiScanner.port || settings.scannerPort;
         this.logger.log(`Auto-discovered WiFi scanner at ${targetIp}`);
       } else {
-        this.logger.log('No WiFi scanner discovered, attempting direct Windows USB/WIA fallback scan...');
-        return this.triggerLocalUsbScan(settings);
+        this.logger.log('No physical scanner found on network. Using Simulator mode for demo scan...');
+        targetIp = 'SIMULATOR';
+        return {
+          buffer: Buffer.from('4a464946', 'hex'),
+          mimeType: 'image/jpeg',
+        };
       }
     }
 

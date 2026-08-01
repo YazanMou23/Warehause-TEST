@@ -60,9 +60,11 @@ export default function OcrPage() {
 
   // Printer Direct Scan state
   const [printerScanning, setPrinterScanning] = useState(false);
-  const [scannerIp, setScannerIp] = useState("");
+  const [scannerIp, setScannerIp] = useState("SIMULATOR");
   const [showScannerConfig, setShowScannerConfig] = useState(true);
   const [discovering, setDiscovering] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<{ online?: boolean; state?: string; error?: string } | null>(null);
   const [discoveredPrinters, setDiscoveredPrinters] = useState<
     Array<{ id: string; name: string; connectionType: string; ip?: string; port?: number; status: string }>
   >([]);
@@ -240,13 +242,41 @@ export default function OcrPage() {
         const data = await res.json();
         setDiscoveredPrinters(data || []);
         if (data && data.length > 0) {
-          setScannerIp(data[0].ip || data[0].id);
+          // If current selection is SIMULATOR, prefer a real discovered scanner IP if available
+          const realScanner = data.find((d: any) => d.ip && d.ip !== "SIMULATOR");
+          if (realScanner) {
+            setScannerIp(realScanner.ip);
+          } else {
+            setScannerIp(data[0].ip || data[0].id);
+          }
         }
       }
     } catch (err) {
       console.error("Fehler bei Druckersuche:", err);
     } finally {
       setDiscovering(false);
+    }
+  };
+
+  const checkPrinterConnection = async () => {
+    setTestingConnection(true);
+    setConnectionStatus(null);
+    const token = localStorage.getItem("accessToken");
+    try {
+      const target = scannerIp || "SIMULATOR";
+      const res = await fetch(`${API_URL}/scanner/status?ip=${encodeURIComponent(target)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setConnectionStatus(data);
+      } else {
+        setConnectionStatus({ online: false, error: `HTTP ${res.status}` });
+      }
+    } catch (err: any) {
+      setConnectionStatus({ online: false, error: err.message || "Verbindung fehlgeschlagen" });
+    } finally {
+      setTestingConnection(false);
     }
   };
 
@@ -340,7 +370,7 @@ export default function OcrPage() {
         <div>
           <h3 className="font-headline-lg font-bold text-on-surface">Container Liste Scanner & Upload</h3>
           <p className="text-on-surface-variant font-body-sm">
-            Lade Containerlisten oder Ladelisten hoch – oder scanne Dokumente direkt über verbundene WLAN & USB-Drucker.
+            Lade Containerlisten hoch – oder scanne Dokumente direkt über verbundene WLAN & USB-Drucker.
           </p>
         </div>
 
@@ -420,7 +450,7 @@ export default function OcrPage() {
           </div>
 
           {/* Printer Scanner IP Toggle & WiFi Discovery */}
-          <div className="pt-2 border-t border-outline-variant space-y-2">
+          <div className="pt-2 border-t border-outline-variant space-y-3">
             <div className="flex items-center justify-between">
               <button
                 type="button"
@@ -442,24 +472,24 @@ export default function OcrPage() {
             </div>
 
             {showScannerConfig && (
-              <div className="mt-2 space-y-2">
+              <div className="mt-2 space-y-2.5 bg-slate-50 p-3 rounded-lg border border-slate-200">
                 {discovering && (
-                  <div className="text-xs p-2 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2 text-blue-700">
+                  <div className="text-xs p-2 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2 text-blue-700 font-medium">
                     <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                    <span>Suche verbundene WLAN & USB-Drucker...</span>
+                    <span>Suche verbundene WLAN & USB-Drucker im Netzwerk...</span>
                   </div>
                 )}
+
                 {discoveredPrinters.length > 0 && (
-                  <div className="text-xs p-2 bg-blue-50/70 border border-blue-200 rounded-lg">
-                    <label className="block text-[11px] font-bold text-blue-800 mb-1 flex items-center gap-1">
-                      <Wifi className="w-3.5 h-3.5 text-blue-600" /> Erkannte Netzwerker / USB-Drucker:
+                  <div className="text-xs space-y-1">
+                    <label className="block text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                      <Wifi className="w-3.5 h-3.5 text-blue-600" /> Erkannte Drucker & Scanner:
                     </label>
                     <select
                       value={scannerIp}
                       onChange={(e) => setScannerIp(e.target.value)}
-                      className="w-full bg-white border border-blue-300 rounded px-2 py-1 text-xs text-slate-800 outline-none font-medium"
+                      className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-800 outline-none font-medium"
                     >
-                      <option value="" disabled>-- Bitte wählen --</option>
                       {discoveredPrinters.map((p) => (
                         <option key={p.id} value={p.ip || p.id}>
                           [{p.connectionType}] {p.name} ({p.status})
@@ -468,16 +498,48 @@ export default function OcrPage() {
                     </select>
                   </div>
                 )}
-                <div>
-                  <label className="block text-[11px] text-slate-500 font-semibold mb-0.5">Drucker IP oder USB-ID</label>
-                  <input
-                    type="text"
-                    placeholder="z.B. 192.168.1.100 oder USB Scanner"
-                    value={scannerIp}
-                    onChange={(e) => setScannerIp(e.target.value)}
-                    className="w-full bg-surface-container-low border border-outline-variant rounded-lg px-3 py-1.5 text-xs outline-none"
-                  />
+
+                <div className="space-y-1">
+                  <label className="block text-[11px] text-slate-600 font-semibold">Manuelle Drucker-IP oder USB-ID</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="z.B. 192.168.178.50 oder SIMULATOR"
+                      value={scannerIp}
+                      onChange={(e) => setScannerIp(e.target.value)}
+                      className="flex-1 bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-800 font-mono outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={checkPrinterConnection}
+                      disabled={testingConnection}
+                      className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 text-[11px] font-bold rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      {testingConnection ? <Loader2 className="w-3 h-3 animate-spin" /> : "Testen"}
+                    </button>
+                  </div>
                 </div>
+
+                {/* Connection Status Badge */}
+                {connectionStatus && (
+                  <div className={`text-[11px] p-2 rounded-lg font-medium border flex items-center gap-1.5 ${
+                    connectionStatus.online
+                      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                      : "bg-red-50 text-red-800 border-red-200"
+                  }`}>
+                    {connectionStatus.online ? (
+                      <>
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>Drucker Online & Bereit (Status: {connectionStatus.state || 'Idle'})</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                        <span>Nicht erreichbar ({connectionStatus.error}). Tipp: Nutze den WLAN-Drucker Simulator für Demos.</span>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
