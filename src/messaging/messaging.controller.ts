@@ -47,4 +47,15 @@ export class MessagingController {
   async broadcast(@Body() body: { type: 'sms' | 'whatsapp'; userIds: string[]; message: string }) {
     return this.messagingService.broadcastMessage(body.type, body.userIds, body.message);
   }
+
+  /**
+   * POST /messaging/whatsapp/send-all
+   * Send WhatsApp notification to all active users/employees in the system.
+   * Body: { message: string }
+   */
+  @Post('whatsapp/send-all')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  async sendWhatsAppToAll(@Body() body: { message: string }) {
+    return this.messagingService.sendWhatsAppToAllUsers(body.message);
+  }
 }

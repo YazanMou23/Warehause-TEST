@@ -158,4 +158,26 @@ export class MessagingService {
       return this.sendWhatsAppBulk(phones, message);
     }
   }
+
+  /**
+   * Send WhatsApp notification to ALL active users registered in the database.
+   */
+  async sendWhatsAppToAllUsers(message: string): Promise<{ success: boolean; totalUsers: number; results: any }> {
+    const users = await this.prisma.user.findMany({
+      where: {
+        isActive: true,
+        deletedAt: null,
+      },
+      select: { id: true, name: true, phone: true },
+    });
+
+    const phones = users.map((u) => u.phone).filter(Boolean);
+    const result = await this.sendWhatsAppBulk(phones, message);
+
+    return {
+      success: result.success,
+      totalUsers: users.length,
+      results: result.results,
+    };
+  }
 }
