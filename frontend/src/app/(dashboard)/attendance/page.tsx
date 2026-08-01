@@ -87,6 +87,7 @@ export default function AttendancePage() {
   const [expandedWeek, setExpandedWeek] = useState<number | null>(null);
 
   // Edit Panel states
+  const [editDate, setEditDate] = useState("");
   const [editStartTime, setEditStartTime] = useState("08:00");
   const [editEndTime, setEditEndTime] = useState("16:30");
   const [editBreakMinutes, setEditBreakMinutes] = useState(30);
@@ -286,6 +287,7 @@ export default function AttendancePage() {
   const handleCellSelect = (empId: string, dateStr: string) => {
     const record = getLogForCell(empId, dateStr);
     setSelectedCell({ employeeId: empId, date: dateStr });
+    setEditDate(dateStr);
 
     if (record) {
       // Load current record values into form
@@ -336,16 +338,17 @@ export default function AttendancePage() {
     setMessage({ text: "", type: "" });
 
     const record = getLogForCell(selectedCell.employeeId, selectedCell.date);
+    const targetDateStr = editDate || selectedCell.date;
 
     // Build clockIn and clockOut ISO strings (based on UTC to prevent offset issues)
     const [startH, startM] = editStartTime.split(":").map(Number);
-    const clockIn = new Date(selectedCell.date);
+    const clockIn = new Date(targetDateStr);
     clockIn.setUTCHours(startH || 0, startM || 0, 0, 0);
 
     let clockOut = null;
     if (editEndTime) {
       const [endH, endM] = editEndTime.split(":").map(Number);
-      clockOut = new Date(selectedCell.date);
+      clockOut = new Date(targetDateStr);
       clockOut.setUTCHours(endH || 0, endM || 0, 0, 0);
     }
 
@@ -355,8 +358,9 @@ export default function AttendancePage() {
       clockOut: clockOut ? clockOut.toISOString() : null,
       breakMinutes: editBreakMinutes,
       totalHours: editTotalHours,
-      warehouseId: editWarehouseId,
-      hallId: editHallId,
+      warehouseId: editWarehouseId || (warehouses.length > 0 ? warehouses[0].id : undefined),
+      hallId: editHallId || (halls.length > 0 ? halls[0].id : undefined),
+      date: clockIn.toISOString(),
     };
 
     try {
@@ -908,7 +912,17 @@ export default function AttendancePage() {
           </div>
 
           {/* Form */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
+            <div className="space-y-1">
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Datum</label>
+              <input
+                type="date"
+                value={editDate}
+                onChange={(e) => setEditDate(e.target.value)}
+                className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-secondary"
+              />
+            </div>
+
             <div className="space-y-1">
               <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Startzeit</label>
               <input

@@ -9,6 +9,13 @@ import { TimesheetService } from '../timesheet/timesheet.service';
 import { TimesheetOcrService } from '../timesheet/timesheet-ocr.service';
 import { TimesheetMatcherService } from '../timesheet/timesheet-matcher.service';
 import { ScanSettingsDto, ColorMode, ScanFormat } from './dto/scan-settings.dto';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import * as os from 'os';
+import * as fs from 'fs';
+import * as path from 'path';
+
+const execAsync = promisify(exec);
 
 /** eSCL XML namespaces */
 const NS_SCAN = 'http://schemas.hp.com/imaging/escl/2011/05/03';
@@ -36,6 +43,15 @@ function extractAllXmlTags(xml: string, tag: string): string[] {
     results.push(m[1].trim());
   }
   return results;
+}
+
+export interface DiscoveredPrinter {
+  id: string;
+  name: string;
+  connectionType: 'WIFI' | 'USB' | 'LAN' | 'UNKNOWN';
+  ip?: string;
+  port?: number;
+  status: string;
 }
 
 export interface ScannerStatusResult {
@@ -204,12 +220,147 @@ export class ScannerService {
   }
 
   /**
+   * Discover WiFi/Network and USB cable scanners connected to the system or LAN.
+   */
+  async discoverPrinters(): Promise<DiscoveredPrinter[]> {
+    const discovered: DiscoveredPrinter[] = [];
+    const seenIds = new Set<string>();
+
+    // 1. Discover Windows installed printers & scanners (USB cable + Network)
+    try {
+      const cmd = `powershell -NoProfile -Command "Get-CimInstance Win32_PnPEntity | Where-Object { $_.PNPClass -eq 'Image' -or $_.PNPClass -eq 'Printer' -or $_.Name -like '*Scanner*' -or $_.Name -like '*Drucker*' -or $_.Service -eq 'stisvc' -or $_.Service -eq 'usbscan' } | Select-Object Name, PNPClass, Status, DeviceID | ConvertTo-Json"`;
+      const { stdout } = await execAsync(cmd, { timeout: 4500 }).catch(() => ({ stdout: '' }));
+      if (stdout && stdout.trim()) {
+        let items = [];
+        try {
+          const parsed = JSON.parse(stdout.trim());
+          items = Array.isArray(parsed) ? parsed : [parsed];
+        } catch { /* ignore parse error */ }
+
+        for (const item of items) {
+          if (!item.Name || item.Name.toLowerCase().includes('pdf') || item.Name.toLowerCase().includes('onenote') || item.Name.toLowerCase().includes('xps') || item.Name.toLowerCase().includes('root\\')) {
+            continue;
+          }
+          const isUsb = item.DeviceID && (item.DeviceID.toUpperCase().startsWith('USB') || item.DeviceID.toUpperCase().startsWith('WIA'));
+          const id = isUsb ? `USB_${item.Name.replace(/\s+/g, '_')}` : `WIA_${item.Name.replace(/\s+/g, '_')}`;
+          if (!seenIds.has(id)) {
+            seenIds.add(id);
+            discovered.push({
+              id,
+              name: item.Name,
+              connectionType: isUsb ? 'USB' : 'WIFI',
+              status: isUsb ? 'Bereit (USB-Kabel am PC verbunden)' : 'Bereit (In Windows konfiguriert)',
+            });
+          }
+        }
+      }
+    } catch (err: any) {
+      this.logger.debug(`Windows registry device query failed: ${err?.message}`);
+    }
+
+    // 2. Discover LAN / WiFi scanners via local network ARP table & eSCL probing
+    try {
+      const { stdout: arpOut } = await execAsync('arp -a', { timeout: 3000 }).catch(() => ({ stdout: '' }));
+      const ipRegex = /\b(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)\b/g;
+      const matchIps = [...new Set(arpOut.match(ipRegex) ?? [])];
+      
+      const envIp = this.config.get<string>('SCANNER_IP');
+      if (envIp && !matchIps.includes(envIp)) matchIps.unshift(envIp);
+
+      const probeIp = async (ip: string) => {
+        const ports = [80, 8080, 443];
+        for (const p of ports) {
+          try {
+            const url = `http://${ip}:${p}/eSCL/ScannerStatus`;
+            const res = await fetch(url, { signal: AbortSignal.timeout(800) });
+            if (res.ok) {
+              const xml = await res.text();
+              const model = extractXmlTag(xml, 'MakeAndModel') ?? extractXmlTag(xml, 'Model') ?? `Netzwerk Scanner (${ip})`;
+              if (!seenIds.has(ip)) {
+                seenIds.add(ip);
+                discovered.push({
+                  id: ip,
+                  name: model,
+                  connectionType: 'WIFI',
+                  ip,
+                  port: p,
+                  status: 'Online (WLAN/LAN eSCL bereit)',
+                });
+              }
+              return;
+            }
+          } catch {
+            // Continue probing
+          }
+        }
+      };
+
+      await Promise.all(matchIps.slice(0, 25).map((ip) => probeIp(ip)));
+    } catch (err: any) {
+      this.logger.debug(`LAN ARP scan failed: ${err?.message}`);
+    }
+
+    // If no scanners discovered, provide fallback from env
+    if (discovered.length === 0 && this.config.get<string>('SCANNER_IP')) {
+      const envIp = this.config.get<string>('SCANNER_IP')!;
+      discovered.push({
+        id: envIp,
+        name: `Standard-Drucker (${envIp})`,
+        connectionType: 'WIFI',
+        ip: envIp,
+        port: parseInt(this.config.get('SCANNER_PORT') ?? '80', 10),
+        status: 'Konfiguriert über .env (WLAN/LAN)',
+      });
+    }
+
+    return discovered;
+  }
+
+  private async triggerLocalUsbScan(settings: ScanSettingsDto): Promise<{ buffer: Buffer; mimeType: string }> {
+    const tempOut = path.join(os.tmpdir(), `usb_scan_${Date.now()}.jpg`);
+    try {
+      const psScript = `
+      try {
+        $deviceManager = New-Object -ComObject WIA.DeviceManager
+        if ($deviceManager.DeviceInfos.Count -gt 0) {
+          $device = $deviceManager.DeviceInfos.Item(1).Connect()
+          $item = $device.Items.Item(1)
+          $image = $item.Transfer()
+          $image.SaveFile("${tempOut.replace(/\\/g, '\\\\')}")
+        } else {
+          exit 1
+        }
+      } catch {
+        exit 2
+      }
+      `;
+      await execAsync(`powershell -NoProfile -Command "${psScript.replace(/\n/g, ' ')}"`, { timeout: 20000 });
+      if (fs.existsSync(tempOut)) {
+        const buffer = fs.readFileSync(tempOut);
+        try { fs.unlinkSync(tempOut); } catch {}
+        return { buffer, mimeType: 'image/jpeg' };
+      }
+    } catch (err: any) {
+      this.logger.warn(`Local WIA USB scan failed: ${err.message}`);
+    }
+
+    throw new ServiceUnavailableException(
+      `Der lokal per USB-Kabel verbundene Drucker/Scanner ("${settings.scannerIp}") antwortet nicht direkt über Windows-WIA-Automatisierung. Bitte stellen Sie sicher, dass das Scanner-Gerät im Leerlauf und eingeschaltet ist, oder nutzen Sie die Scanner-Freigabe im Netzwerk (WLAN) für direktes HTTP-eSCL.`
+    );
+  }
+
+  /**
    * Trigger a scan job via eSCL and return the raw image as a Buffer.
    * Steps:
    *   1. POST /eSCL/ScanJobs        → scanner queues job, returns Location header
    *   2. GET  /eSCL/ScanJobs/{id}/NextDocument → download image bytes
    */
   async triggerScan(settings: ScanSettingsDto): Promise<{ buffer: Buffer; mimeType: string }> {
+    if (settings.scannerIp && (settings.scannerIp.startsWith('USB_') || settings.scannerIp.startsWith('WIA_') || settings.scannerIp === 'USB')) {
+      this.logger.log(`Executing local USB/WIA scan for device: ${settings.scannerIp}`);
+      return this.triggerLocalUsbScan(settings);
+    }
+
     const base = this.resolveBase(settings.scannerIp, settings.scannerPort);
 
     // Resolve defaults

@@ -235,8 +235,23 @@ export class AttendanceService {
 
     const clockIn = new Date(dto.clockIn);
     const clockOut = dto.clockOut ? new Date(dto.clockOut) : null;
+    const targetDate = new Date(dto.date ?? dto.clockIn);
 
     return this.prisma.$transaction(async (tx) => {
+      let whId = dto.warehouseId || attendance.warehouseId;
+      let hlId = dto.hallId || attendance.hallId;
+
+      // Ensure hall belongs to warehouse if warehouse changed
+      if (dto.warehouseId && !dto.hallId && dto.warehouseId !== attendance.warehouseId) {
+        const wh = await tx.warehouse.findUnique({
+          where: { id: dto.warehouseId },
+          include: { halls: { where: { deletedAt: null }, take: 1 } },
+        });
+        if (wh && wh.halls && wh.halls.length > 0) {
+          hlId = wh.halls[0].id;
+        }
+      }
+
       const updated = await tx.attendance.update({
         where: { id },
         data: {
@@ -244,9 +259,9 @@ export class AttendanceService {
           clockOut,
           breakMinutes: dto.breakMinutes,
           totalHours: dto.totalHours,
-          warehouseId: dto.warehouseId || attendance.warehouseId,
-          hallId: dto.hallId || attendance.hallId,
-          date: new Date(dto.clockIn), // keep date aligned
+          warehouseId: whId,
+          hallId: hlId,
+          date: targetDate,
         },
         include: {
           employee: { select: { id: true, name: true, phone: true } },
@@ -257,7 +272,6 @@ export class AttendanceService {
 
       // Keep TimesheetEntry in sync if it belongs to a timesheet
       if (attendance.timesheetId) {
-        // We find the entry by timesheetId and the date of the attendance record
         const entryDate = new Date(attendance.date);
         const tsEntry = await tx.timesheetEntry.findFirst({
           where: {
@@ -274,14 +288,27 @@ export class AttendanceService {
             : '00:00';
 
           let locationName = tsEntry.location;
-          if (dto.warehouseId) {
-            const wh = await tx.warehouse.findUnique({ where: { id: dto.warehouseId } });
-            if (wh) locationName = wh.name;
+          if (whId) {
+            const wh = await tx.warehouse.findUnique({
+              where: { id: whId },
+              include: { halls: { where: { id: hlId } } },
+            });
+            if (wh) {
+              locationName = wh.name;
+              if (wh.halls?.length > 0) {
+                locationName += ` (${wh.halls[0].name})`;
+              }
+            }
           }
+
+          const weekdaysGerman = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+          const weekdayStr = weekdaysGerman[targetDate.getDay()] || 'Montag';
 
           await tx.timesheetEntry.update({
             where: { id: tsEntry.id },
             data: {
+              date: targetDate,
+              weekday: weekdayStr,
               startTime: startTimeStr,
               endTime: endTimeStr,
               breakMinutes: dto.breakMinutes,
@@ -310,15 +337,44 @@ export class AttendanceService {
     const clockIn = new Date(dto.clockIn);
     const clockOut = dto.clockOut ? new Date(dto.clockOut) : null;
 
+    let whId = dto.warehouseId;
+    let hlId = dto.hallId;
+
+    if (!whId || !hlId) {
+      const emp = await this.prisma.user.findUnique({
+        where: { id: dto.employeeId },
+        select: { warehouseId: true, hallId: true },
+      });
+      whId = whId || emp?.warehouseId || null;
+      hlId = hlId || emp?.hallId || null;
+
+      if (!whId || !hlId) {
+        const fallbackWh = await this.prisma.warehouse.findFirst({
+          where: { deletedAt: null },
+          include: { halls: { where: { deletedAt: null } } },
+        });
+        if (fallbackWh) {
+          whId = whId || fallbackWh.id;
+          if (fallbackWh.halls?.length > 0) {
+            hlId = hlId || fallbackWh.halls[0].id;
+          }
+        }
+      }
+    }
+
+    if (!whId || !hlId) {
+      throw new BadRequestException('Kein Lager oder Halle im System gefunden. Bitte ordnen Sie dem Mitarbeiter ein Lager zu oder erstellen Sie ein Standard-Lager im System.');
+    }
+
     const manualEntry = await this.prisma.attendance.create({
       data: {
         employeeId: dto.employeeId,
-        warehouseId: dto.warehouseId,
-        hallId: dto.hallId,
+        warehouseId: whId,
+        hallId: hlId,
         clockIn,
         clockOut,
-        breakMinutes: dto.breakMinutes,
-        totalHours: dto.totalHours,
+        breakMinutes: dto.breakMinutes ?? 0,
+        totalHours: dto.totalHours ?? 0,
         date: new Date(dto.clockIn),
         source: 'MANUAL',
       },
@@ -341,6 +397,7 @@ export class AttendanceService {
 
     return manualEntry;
   }
+
 
   private getDateRangeOfWeek(week: number, year: number) {
     // Find the first Thursday of the year (ISO week standard)

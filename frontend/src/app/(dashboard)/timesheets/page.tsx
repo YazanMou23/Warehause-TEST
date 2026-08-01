@@ -92,8 +92,10 @@ interface DailyAttendanceRecord {
   id: string;
   employeeId: string;
   employee?: { id: string; name: string; phone?: string };
-  warehouse?: { name: string };
-  hall?: { name: string; color?: string };
+  warehouseId?: string;
+  warehouse?: { id?: string; name: string };
+  hallId?: string;
+  hall?: { id?: string; name: string; color?: string };
   clockIn: string;
   clockOut: string | null;
   totalHours?: number;
@@ -218,6 +220,28 @@ function UploadZone({
   const [scannerDpi, setScannerDpi] = useState(300);
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [statusResult, setStatusResult] = useState<{ online?: boolean; state?: string; error?: string } | null>(null);
+  const [discovering, setDiscovering] = useState(false);
+  const [discoveredPrinters, setDiscoveredPrinters] = useState<Array<{ id: string; name: string; connectionType: string; ip?: string; port?: number; status: string }>>([]);
+
+  const discoverPrinters = async () => {
+    setDiscovering(true);
+    try {
+      const res = await fetch(`${API_URL}/scanner/discover`, { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        setDiscoveredPrinters(data || []);
+        if (data && data.length > 0) {
+          const first = data[0];
+          setScannerIp(first.ip || first.id);
+          if (first.port) setScannerPort(first.port);
+        }
+      }
+    } catch (err) {
+      console.error('Fehler bei der Druckersuche:', err);
+    } finally {
+      setDiscovering(false);
+    }
+  };
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -367,17 +391,54 @@ function UploadZone({
             exit={{ opacity: 0, height: 0 }}
             className="w-full max-w-4xl bg-white/5 border border-white/10 rounded-2xl p-5 overflow-hidden"
           >
-            <h4 className="text-white font-semibold text-sm mb-3 flex items-center gap-2">
-              <Settings size={15} className="text-blue-400" />
-              Netzwerkdrucker / Scanner Konfiguration (AirScan / eSCL)
-            </h4>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4 pb-3 border-b border-white/10">
+              <h4 className="text-white font-semibold text-sm flex items-center gap-2">
+                <Settings size={15} className="text-blue-400" />
+                Netzwerkdrucker / Scanner (WLAN & USB)
+              </h4>
+              <button
+                onClick={discoverPrinters}
+                disabled={discovering}
+                className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-400/30 text-xs font-semibold transition-all shadow-sm"
+              >
+                {discovering ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                <span>Drucker & Scanner suchen (WLAN & USB)</span>
+              </button>
+            </div>
+
+            {discoveredPrinters.length > 0 && (
+              <div className="mb-4 p-3 rounded-xl bg-blue-950/40 border border-blue-500/30 text-xs">
+                <label className="text-blue-300 font-semibold block mb-1.5 flex items-center gap-1.5">
+                  <CheckCircle size={14} className="text-emerald-400" />
+                  Erkannte Drucker & Scanner im Netzwerk / am USB-Kabel:
+                </label>
+                <select
+                  onChange={(e) => {
+                    const sel = discoveredPrinters.find((p) => p.id === e.target.value);
+                    if (sel) {
+                      setScannerIp(sel.ip || sel.id);
+                      if (sel.port) setScannerPort(sel.port);
+                    }
+                  }}
+                  value={scannerIp}
+                  className="w-full px-3 py-2 bg-slate-900 border border-blue-500/40 rounded-lg text-white font-medium focus:outline-none focus:border-blue-400"
+                >
+                  <option value="" disabled>-- Bitte erkannten Drucker wählen --</option>
+                  {discoveredPrinters.map((p) => (
+                    <option key={p.id} value={p.ip || p.id}>
+                      [{p.connectionType}] {p.name} - {p.status}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
               <div>
-                <label className="text-xs text-slate-400 block mb-1">Drucker IP-Adresse</label>
+                <label className="text-xs text-slate-400 block mb-1">Drucker IP / Gerät</label>
                 <input
                   type="text"
-                  placeholder="z.B. 192.168.1.100 (Standard: .env)"
+                  placeholder="IP oder USB-ID (Standard: .env)"
                   value={scannerIp}
                   onChange={(e) => setScannerIp(e.target.value)}
                   className="w-full px-3 py-1.5 bg-white/8 border border-white/15 rounded-xl text-white text-xs focus:outline-none focus:border-blue-400"
@@ -1428,6 +1489,17 @@ function DailyAttendanceView() {
   const [manualBreak, setManualBreak] = useState(30);
   const [submittingManual, setSubmittingManual] = useState(false);
   const [dbEmployees, setDbEmployees] = useState<DbEmployee[]>([]);
+  const [warehouses, setWarehouses] = useState<{ id: string; name: string }[]>([]);
+  const [halls, setHalls] = useState<{ id: string; name: string; warehouseId: string }[]>([]);
+
+  // Inline edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDate, setEditDate] = useState('');
+  const [editStartTime, setEditStartTime] = useState('');
+  const [editEndTime, setEditEndTime] = useState('');
+  const [editWarehouseId, setEditWarehouseId] = useState('');
+  const [editHallId, setEditHallId] = useState('');
+  const [savingRecord, setSavingRecord] = useState(false);
 
   const loadDailyAttendance = useCallback(async () => {
     setLoading(true);
@@ -1451,19 +1523,80 @@ function DailyAttendanceView() {
   }, [loadDailyAttendance]);
 
   useEffect(() => {
-    const fetchEmployees = async () => {
+    const fetchMetadata = async () => {
       try {
-        const res = await fetch(`${API_URL}/employees?limit=100`, { headers: getAuthHeaders() });
-        if (res.ok) {
-          const json = await res.json();
+        const [empRes, whRes, hlRes] = await Promise.all([
+          fetch(`${API_URL}/employees?limit=100`, { headers: getAuthHeaders() }),
+          fetch(`${API_URL}/warehouses`, { headers: getAuthHeaders() }),
+          fetch(`${API_URL}/halls`, { headers: getAuthHeaders() }),
+        ]);
+        if (empRes.ok) {
+          const json = await empRes.json();
           setDbEmployees(Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []));
         }
+        if (whRes.ok) {
+          const json = await whRes.json();
+          setWarehouses(Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []));
+        }
+        if (hlRes.ok) {
+          const json = await hlRes.json();
+          setHalls(Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []));
+        }
       } catch (e) {
-        console.error('Fehler beim Laden der Mitarbeiter', e);
+        console.error('Fehler beim Laden der Metadaten', e);
       }
     };
-    fetchEmployees();
+    fetchMetadata();
   }, []);
+
+  const startEditing = (rec: DailyAttendanceRecord) => {
+    setEditingId(rec.id);
+    setEditDate(rec.date ? rec.date.split('T')[0] : selectedDate);
+    const cIn = rec.clockIn ? new Date(rec.clockIn).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '08:00';
+    const cOut = rec.clockOut ? new Date(rec.clockOut).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '16:30';
+    setEditStartTime(cIn);
+    setEditEndTime(cOut);
+    setEditWarehouseId(rec.warehouseId || rec.warehouse?.id || (warehouses[0]?.id || ''));
+    setEditHallId(rec.hallId || rec.hall?.id || (halls[0]?.id || ''));
+  };
+
+  const handleSaveEdit = async (rec: DailyAttendanceRecord) => {
+    setSavingRecord(true);
+    try {
+      const clockIn = `${editDate}T${editStartTime}:00.000Z`;
+      const clockOut = editEndTime ? `${editDate}T${editEndTime}:00.000Z` : null;
+      const hrs = editEndTime ? calculateHours(editStartTime, editEndTime, rec.breakMinutes || 30) : undefined;
+
+      const res = await fetch(`${API_URL}/attendance/${rec.id}`, {
+        method: 'PATCH',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          clockIn,
+          clockOut,
+          totalHours: hrs,
+          date: editDate,
+          warehouseId: editWarehouseId || undefined,
+          hallId: editHallId || undefined,
+          employeeId: rec.employeeId,
+        }),
+      });
+      if (res.ok) {
+        setEditingId(null);
+        loadDailyAttendance();
+      } else {
+        const err = await res.json();
+        alert('Fehler beim Speichern: ' + (err.message || 'Unbekannter Fehler'));
+      }
+    } catch (err) {
+      console.error('Fehler beim Aktualisieren:', err);
+    } finally {
+      setSavingRecord(false);
+    }
+  };
+
 
   const handleCreateManualShift = async () => {
     if (!manualEmpId) return;
@@ -1577,28 +1710,115 @@ function DailyAttendanceView() {
           <p className="text-slate-500 text-xs">Wähle ein anderes Datum oder erstelle/bestätige Stundenzettel für diesen Tag.</p>
         </div>
       ) : (
-        <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden shadow-lg">
-          <table className="w-full text-left border-collapse">
+        <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden shadow-lg overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[700px]">
             <thead>
               <tr className="bg-white/8 border-b border-white/10 text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 <th className="w-12 px-4 py-3 text-center">#</th>
                 <th className="px-4 py-3">Mitarbeiter Name</th>
                 <th className="px-4 py-3">Einsatzort (Lager / Halle)</th>
-                <th className="px-4 py-3">Beginn (Clock In)</th>
-                <th className="px-4 py-3">Ende (Clock Out)</th>
+                <th className="px-4 py-3">Datum & Zeiten</th>
                 <th className="px-4 py-3">Stunden</th>
-                <th className="px-4 py-3 text-right">Status</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3 text-right">Aktion</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5 text-sm text-slate-200">
               {filteredRecords.map((rec, idx) => {
+                const isEditing = editingId === rec.id;
                 const clockInTime = rec.clockIn ? new Date(rec.clockIn).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '—';
                 const clockOutTime = rec.clockOut ? new Date(rec.clockOut).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '—';
                 const isWorkingNow = !rec.clockOut;
+                const filteredHalls = editWarehouseId ? halls.filter(h => h.warehouseId === editWarehouseId) : halls;
+
+                if (isEditing) {
+                  return (
+                    <tr key={rec.id} className="bg-blue-950/30 border-y border-blue-500/30">
+                      <td className="px-4 py-3 font-mono font-bold text-xs text-center text-blue-300">
+                        #{idx + 1}
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-white">
+                        {rec.employee?.name || 'Mitarbeiter'}
+                      </td>
+                      <td className="px-4 py-3 space-y-1.5">
+                        <select
+                          value={editWarehouseId}
+                          onChange={(e) => {
+                            setEditWarehouseId(e.target.value);
+                            const hls = halls.filter(h => h.warehouseId === e.target.value);
+                            if (hls.length > 0) setEditHallId(hls[0].id);
+                          }}
+                          className="w-full px-2 py-1 bg-slate-900 border border-white/20 rounded text-xs text-white outline-none"
+                        >
+                          <option value="" disabled>Lager wählen...</option>
+                          {warehouses.map(w => (
+                            <option key={w.id} value={w.id}>{w.name}</option>
+                          ))}
+                        </select>
+                        <select
+                          value={editHallId}
+                          onChange={(e) => setEditHallId(e.target.value)}
+                          className="w-full px-2 py-1 bg-slate-900 border border-white/20 rounded text-xs text-white outline-none"
+                        >
+                          <option value="" disabled>Halle wählen...</option>
+                          {filteredHalls.map(h => (
+                            <option key={h.id} value={h.id}>{h.name}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-4 py-3 space-y-1 text-xs font-mono">
+                        <input
+                          type="date"
+                          value={editDate}
+                          onChange={(e) => setEditDate(e.target.value)}
+                          className="w-full px-2 py-1 bg-slate-900 border border-white/20 rounded text-xs text-white outline-none"
+                        />
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="time"
+                            value={editStartTime}
+                            onChange={(e) => setEditStartTime(e.target.value)}
+                            className="w-20 px-1.5 py-1 bg-slate-900 border border-white/20 rounded text-xs text-emerald-300 outline-none"
+                          />
+                          <span>-</span>
+                          <input
+                            type="time"
+                            value={editEndTime}
+                            onChange={(e) => setEditEndTime(e.target.value)}
+                            className="w-20 px-1.5 py-1 bg-slate-900 border border-white/20 rounded text-xs text-slate-300 outline-none"
+                          />
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs font-bold text-blue-300">
+                        {editEndTime ? `${calculateHours(editStartTime, editEndTime, rec.breakMinutes || 30).toFixed(2)} h` : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-amber-400 font-semibold">Bearbeiten...</span>
+                      </td>
+                      <td className="px-4 py-3 text-right space-x-1">
+                        <button
+                          onClick={() => handleSaveEdit(rec)}
+                          disabled={savingRecord}
+                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded text-xs inline-flex items-center gap-1"
+                          title="Speichern"
+                        >
+                          {savingRecord ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle size={12} />}
+                          <span>Save</span>
+                        </button>
+                        <button
+                          onClick={() => setEditingId(null)}
+                          className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-slate-300 rounded text-xs"
+                          title="Abbrechen"
+                        >
+                          <X size={12} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                }
 
                 return (
                   <tr key={rec.id} className="hover:bg-white/4 transition-colors">
-                    {/* Numeric Index Badge #1, #2, #3... */}
                     <td className="px-4 py-3 font-mono font-bold text-xs text-center text-blue-300">
                       #{idx + 1}
                     </td>
@@ -1614,13 +1834,10 @@ function DailyAttendanceView() {
                       </span>
                     </td>
 
-                    <td className="px-4 py-3 font-mono text-xs text-emerald-300">
-                      {clockInTime} Uhr
-                    </td>
-
                     <td className="px-4 py-3 font-mono text-xs text-slate-300">
-                      {isWorkingNow ? (
-                        <span className="text-amber-400 font-medium">Aktiv (Arbeitet...)</span>
+                      <span className="block font-sans text-slate-400 text-[11px] mb-0.5">{formatDate(rec.date || selectedDate)}</span>
+                      <span className="text-emerald-300 font-semibold">{clockInTime} Uhr</span> — {isWorkingNow ? (
+                        <span className="text-amber-400 font-medium">Aktiv</span>
                       ) : (
                         `${clockOutTime} Uhr`
                       )}
@@ -1630,7 +1847,7 @@ function DailyAttendanceView() {
                       {rec.totalHours ? `${rec.totalHours.toFixed(2)} h` : '—'}
                     </td>
 
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3">
                       {isWorkingNow ? (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30">
                           <Clock size={10} /> Aktiv
@@ -1640,6 +1857,17 @@ function DailyAttendanceView() {
                           <CheckCircle size={10} /> Beendet
                         </span>
                       )}
+                    </td>
+
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => startEditing(rec)}
+                        className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-blue-400 hover:text-blue-300 transition-colors inline-flex items-center gap-1 text-xs"
+                        title="Bearbeiten (Lager, Halle, Datum, Zeiten)"
+                      >
+                        <Edit size={13} />
+                        <span>Bearbeiten</span>
+                      </button>
                     </td>
                   </tr>
                 );

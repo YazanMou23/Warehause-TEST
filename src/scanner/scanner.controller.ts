@@ -23,6 +23,15 @@ export class ScannerController {
   constructor(private readonly scannerService: ScannerService) {}
 
   /**
+   * GET /scanner/discover
+   * Discover WiFi/Network and USB cable scanners connected to the system or LAN.
+   */
+  @Get('discover')
+  discover() {
+    return this.scannerService.discoverPrinters();
+  }
+
+  /**
    * GET /scanner/status
    * Ping the configured scanner — is it online and idle?
    * Optional query params: ?ip=192.168.1.x&port=80

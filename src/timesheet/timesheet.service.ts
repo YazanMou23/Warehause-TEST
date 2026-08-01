@@ -502,6 +502,61 @@ export class TimesheetService {
       data: updateData,
     });
 
+    // If timesheet is confirmed and has employeeId, sync updates to Attendance record
+    if (timesheet.status === TimesheetStatus.CONFIRMED && timesheet.employeeId) {
+      const att = await this.prisma.attendance.findFirst({
+        where: {
+          timesheetId,
+          date: new Date(entry.date),
+        },
+      });
+
+      if (att) {
+        const targetDate = updateData.date ? new Date(updateData.date) : new Date(att.date);
+        const start = updateData.startTime ?? entry.startTime;
+        const end = updateData.endTime ?? entry.endTime;
+        const [sH, sM] = start.split(':').map(Number);
+        const [eH, eM] = end.split(':').map(Number);
+
+        const clockIn = new Date(targetDate);
+        clockIn.setUTCHours(sH || 0, sM || 0, 0, 0);
+
+        const clockOut = new Date(targetDate);
+        clockOut.setUTCHours(eH || 0, eM || 0, 0, 0);
+
+        let newWhId = att.warehouseId;
+        let newHallId = att.hallId;
+        if (updateData.location) {
+          const matchedWh = await this.prisma.warehouse.findFirst({
+            where: {
+              name: { contains: updateData.location, mode: 'insensitive' },
+              deletedAt: null,
+            },
+            include: { halls: { where: { deletedAt: null }, take: 1 } },
+          });
+          if (matchedWh) {
+            newWhId = matchedWh.id;
+            if (matchedWh.halls?.length > 0) {
+              newHallId = matchedWh.halls[0].id;
+            }
+          }
+        }
+
+        await this.prisma.attendance.update({
+          where: { id: att.id },
+          data: {
+            date: targetDate,
+            clockIn,
+            clockOut,
+            breakMinutes: updateData.breakMinutes ?? att.breakMinutes,
+            totalHours: updateData.totalHours ?? att.totalHours,
+            warehouseId: newWhId,
+            hallId: newHallId,
+          },
+        });
+      }
+    }
+
     await this.prisma.actionLog.create({
       data: {
         userId: actorId,

@@ -23,4 +23,12 @@ export class UpdateAttendanceDto {
   @IsOptional()
   @IsString()
   hallId?: string;
+
+  @IsOptional()
+  @IsString()
+  employeeId?: string;
+
+  @IsOptional()
+  @IsDateString()
+  date?: string;
 }
