@@ -164,26 +164,29 @@ export class PlanningService {
     const formattedDate = new Date(plan.date).toLocaleDateString('de-DE');
     const headerTitle = isUpdate ? 'Schichtplan aktualisiert' : 'Neue Schichtzuweisung';
 
-    // Fetch employee Treffpunkt details fallback
+    // Fetch employee details fallback from database (including email & phone)
     const userRecords = await this.prisma.user.findMany({
       where: { id: { in: employees.map((e) => e.id) } },
-      select: { id: true, treffpunkt: true, treffpunktTime: true, address: true },
+      select: { id: true, name: true, email: true, phone: true, treffpunkt: true, treffpunktTime: true, address: true },
     }).catch(() => []);
     const userMap = new Map(userRecords.map((u) => [u.id, u]));
 
     for (const employee of employees) {
       const uInfo = userMap.get(employee.id);
+      const targetEmail = employee.email || uInfo?.email;
+      const targetPhone = employee.phone || uInfo?.phone;
+      const empName = employee.name || uInfo?.name || 'Mitarbeiter';
       const tpOrt = plan.treffpunkt || uInfo?.treffpunkt || uInfo?.address || 'Kein Treffpunkt angegeben';
       const tpZeit = plan.treffpunktTime || uInfo?.treffpunktTime || 'Keine Treffzeit angegeben';
 
-      // 1. App Notification
+      // 1. App Notification (Bell icon)
       await this.prisma.notification.create({
         data: {
           userId: employee.id,
           title: headerTitle,
           message: isUpdate
-            ? `Ihr Schichtplan am ${formattedDate} in Halle ${plan.hallName} wurde aktualisiert. Treffpunkt: ${tpOrt} (${tpZeit})`
-            : `Sie wurden einer Schicht am ${formattedDate} in Halle ${plan.hallName} zugewiesen. Treffpunkt: ${tpOrt} (${tpZeit})`,
+            ? `Ihr Schichtplan am ${formattedDate} in Halle ${plan.hallName} (${plan.warehouseName}) wurde aktualisiert. Schicht: ${plan.shift || 'Standard'}, Treffpunkt: ${tpOrt} (${tpZeit})`
+            : `Sie wurden einer Schicht am ${formattedDate} in Halle ${plan.hallName} (${plan.warehouseName}) zugewiesen. Schicht: ${plan.shift || 'Standard'}, Treffpunkt: ${tpOrt} (${tpZeit})`,
           type: isUpdate ? 'PLAN_UPDATED' : 'PLAN_CREATED',
         },
       }).catch((err) => {
@@ -191,12 +194,12 @@ export class PlanningService {
       });
 
       // 2. Email Notification
-      if (employee.email) {
+      if (targetEmail) {
         const emailSubject = `${headerTitle} - ${formattedDate}`;
         const emailHtml = `
           <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f8fafc; border-radius: 8px;">
-            <h3 style="color: #1e293b;">Hallo ${employee.name},</h3>
-            <p style="color: #334155;">${isUpdate ? 'Ihr Schichtplan wurde aktualisiert:' : 'Sie wurden für eine neue Schicht eingeteilt:'}</p>
+            <h3 style="color: #1e293b;">Hallo ${empName},</h3>
+            <p style="color: #334155;">${isUpdate ? 'Ihr Schichtplan wurde von der Betriebsleitung aktualisiert:' : 'Sie wurden für eine neue Schicht eingeteilt:'}</p>
             <ul style="color: #334155; line-height: 1.6;">
               <li><strong>Datum:</strong> ${formattedDate}</li>
               <li><strong>Lager:</strong> ${plan.warehouseName}</li>
@@ -210,41 +213,43 @@ export class PlanningService {
           </div>
         `;
 
-        this.emailService.sendEmail(employee.email, emailSubject, emailHtml)
+        this.emailService.sendEmail(targetEmail, emailSubject, emailHtml)
           .then((sent: any) => {
+            const isSuccess = sent === true;
+            this.logger.log(isSuccess ? `✓ Plan notification email sent to ${empName} (${targetEmail})` : `✗ Plan notification email failed for ${targetEmail}: ${sent}`);
             this.prisma.actionLog.create({
               data: {
                 userId: actorId || null,
-                action: sent ? 'EMAIL_NOTIFICATION' : 'EMAIL_NOTIFICATION_FAILED',
-                details: sent
-                  ? `Plan notification email sent to ${employee.name} (${employee.email})`
-                  : `Failed to send plan notification email to ${employee.name} (${employee.email})`,
+                action: isSuccess ? 'EMAIL_NOTIFICATION' : 'EMAIL_NOTIFICATION_FAILED',
+                details: isSuccess
+                  ? `Plan notification email sent to ${empName} (${targetEmail})`
+                  : `Failed to send plan notification email to ${empName} (${targetEmail}): ${sent}`,
               },
             }).catch(() => {});
           })
           .catch((err: any) => {
-            this.logger.error(`Email error for ${employee.email}: ${err.message}`);
+            this.logger.error(`Email error for ${targetEmail}: ${err.message}`);
           });
       }
 
       // 3. WhatsApp Notification
-      if (employee.phone) {
-        const waMessage = `Hallo ${employee.name},\n${isUpdate ? 'Ihr Schichtplan wurde aktualisiert:' : 'Sie wurden für eine neue Schicht eingeteilt:'}\n\n📅 Datum: ${formattedDate}\n🏢 Lager: ${plan.warehouseName}\n📍 Halle: ${plan.hallName}\n🕒 Schicht: ${plan.shift || 'Standard'}\n📍 Treffpunkt: ${tpOrt}\n⏰ Treffpunkt-Uhrzeit: ${tpZeit}${plan.notes ? `\n📝 Notizen: ${plan.notes}` : ''}\n\nBitte loggen Sie sich in das Portal ein für weitere Details.`;
+      if (targetPhone) {
+        const waMessage = `Hallo ${empName},\n${isUpdate ? 'Ihr Schichtplan wurde aktualisiert:' : 'Sie wurden für eine neue Schicht eingeteilt:'}\n\n📅 Datum: ${formattedDate}\n🏢 Lager: ${plan.warehouseName}\n📍 Halle: ${plan.hallName}\n🕒 Schicht: ${plan.shift || 'Standard'}\n📍 Treffpunkt: ${tpOrt}\n⏰ Treffpunkt-Uhrzeit: ${tpZeit}${plan.notes ? `\n📝 Notizen: ${plan.notes}` : ''}\n\nBitte loggen Sie sich in das Portal ein für weitere Details.`;
 
-        this.messagingService.sendWhatsAppDirect(employee.phone, waMessage)
+        this.messagingService.sendWhatsAppDirect(targetPhone, waMessage)
           .then((res) => {
             this.prisma.actionLog.create({
               data: {
                 userId: actorId || null,
                 action: res.success ? 'WHATSAPP_NOTIFICATION' : 'WHATSAPP_NOTIFICATION_FAILED',
                 details: res.success
-                  ? `Plan notification WhatsApp sent to ${employee.name} (${employee.phone})`
-                  : `Failed WhatsApp notification to ${employee.name} (${employee.phone}): ${res.error || 'Unknown error'}`,
+                  ? `Plan notification WhatsApp sent to ${empName} (${targetPhone})`
+                  : `Failed WhatsApp notification to ${empName} (${targetPhone}): ${res.error || 'Unknown error'}`,
               },
             }).catch(() => {});
           })
           .catch((err: any) => {
-            this.logger.error(`WhatsApp error for ${employee.phone}: ${err.message}`);
+            this.logger.error(`WhatsApp error for ${targetPhone}: ${err.message}`);
           });
       }
     }
@@ -377,6 +382,7 @@ export class PlanningService {
       const formattedDate = new Date(updatedPlan.date).toLocaleDateString('de-DE');
 
       for (const emp of removedEmployees) {
+        // 1. App Notification
         await this.prisma.notification.create({
           data: {
             userId: emp.id,
@@ -385,6 +391,25 @@ export class PlanningService {
             type: 'PLAN_UPDATED',
           },
         }).catch(() => {});
+
+        // 2. Email Notification
+        if (emp.email) {
+          const emailSubject = `Schichtzuweisung entfernt - ${formattedDate}`;
+          const emailHtml = `
+            <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f8fafc; border-radius: 8px;">
+              <h3 style="color: #1e293b;">Hallo ${emp.name},</h3>
+              <p style="color: #334155;">Sie wurden aus dem Schichtplan am <strong>${formattedDate}</strong> in <strong>${updatedPlan.warehouseName} (${updatedPlan.hallName})</strong> ausgetragen.</p>
+              <p style="color: #64748b; font-size: 13px;">Bitte loggen Sie sich in das Portal ein, um Ihren aktuellen Dienstplan einzusehen.</p>
+            </div>
+          `;
+          this.emailService.sendEmail(emp.email, emailSubject, emailHtml).catch(() => {});
+        }
+
+        // 3. WhatsApp Notification
+        if (emp.phone) {
+          const waMessage = `Hallo ${emp.name},\nSie wurden aus dem Schichtplan am 📅 ${formattedDate} in 🏢 ${updatedPlan.warehouseName} (${updatedPlan.hallName}) ausgetragen.`;
+          this.messagingService.sendWhatsAppDirect(emp.phone, waMessage).catch(() => {});
+        }
       }
     }
 
