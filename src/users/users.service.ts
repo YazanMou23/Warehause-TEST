@@ -597,6 +597,19 @@ export class UsersService {
     }
     monthlyHours = Math.round(monthlyHours * 100) / 100;
 
+    // 4.5. Total worked hours (overall all time)
+    const allRecords = await this.prisma.attendance.findMany({
+      where: {
+        employeeId,
+      },
+    });
+    let totalOverallHours = allRecords.reduce((sum, r) => sum + (r.totalHours || 0), 0);
+    if (activeShift) {
+      const activeDurationHours = (now.getTime() - activeShift.clockIn.getTime()) / 3600000;
+      totalOverallHours += activeDurationHours;
+    }
+    totalOverallHours = Math.round(totalOverallHours * 100) / 100;
+
     // 5. Active/Assigned plans for today
     const plansToday = await this.prisma.plan.findMany({
       where: {
@@ -728,6 +741,7 @@ export class UsersService {
         today: todayHours,
         week: weeklyHours,
         month: monthlyHours,
+        total: totalOverallHours,
       },
       plansToday: formattedPlansToday,
       plansTomorrow: formattedPlansTomorrow,

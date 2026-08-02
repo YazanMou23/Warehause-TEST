@@ -802,18 +802,22 @@ export default function DashboardPage() {
                 <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-slate-500" /> {t("workHours")}
                 </h4>
-                <div className="grid grid-cols-3 gap-3 text-center">
-                  <div className="bg-slate-50 border border-slate-100 rounded-lg p-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+                  <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5">
                     <p className="text-[9px] text-slate-400 uppercase tracking-wider font-bold">{t("today")}</p>
                     <p className="text-lg font-bold text-slate-800 font-mono mt-1">{employeeSummary?.hoursSummary?.today || 0}h</p>
                   </div>
-                  <div className="bg-slate-50 border border-slate-100 rounded-lg p-3">
+                  <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5">
                     <p className="text-[9px] text-slate-400 uppercase tracking-wider font-bold">{t("thisWeek")}</p>
                     <p className="text-lg font-bold text-blue-600 font-mono mt-1">{employeeSummary?.hoursSummary?.week || 0}h</p>
                   </div>
-                  <div className="bg-slate-50 border border-slate-100 rounded-lg p-3">
+                  <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5">
                     <p className="text-[9px] text-slate-400 uppercase tracking-wider font-bold">{t("thisMonth")}</p>
                     <p className="text-lg font-bold text-slate-800 font-mono mt-1">{employeeSummary?.hoursSummary?.month || 0}h</p>
+                  </div>
+                  <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5">
+                    <p className="text-[9px] text-slate-400 uppercase tracking-wider font-bold">{t("totalHours")}</p>
+                    <p className="text-lg font-bold text-slate-800 font-mono mt-1">{employeeSummary?.hoursSummary?.total || 0}h</p>
                   </div>
                 </div>
               </div>

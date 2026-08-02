@@ -74,10 +74,19 @@ function PlanningPageContent() {
       return;
     }
 
-    // Detect open-ended shift e.g. "07:00 - offen"
-    const openEndMatch = rawShift.match(/(\d{1,2}:\d{2})\s*-\s*offen/i);
-    if (openEndMatch) {
+    // Detect open-ended shift formats: "07:00 - offen", "07:00 - x", "07:00 - open", "07:00 -", "07:00 - "
+    const openEndMatch = rawShift.match(/(\d{1,2}:\d{2})\s*-\s*(offen|x|open|\s*|)$/i);
+    // Or single time value like "07:00"
+    const singleTimeMatch = rawShift.match(/^(\d{1,2}:\d{2})$/);
+
+    if (openEndMatch && (openEndMatch[2].toLowerCase() === "offen" || openEndMatch[2].toLowerCase() === "x" || openEndMatch[2].toLowerCase() === "open" || openEndMatch[2].trim() === "")) {
       setStartTime(openEndMatch[1].padStart(5, '0'));
+      setEndTime("");
+      setEndTimeOpen(true);
+      setShiftPreset("Benutzerdefiniert");
+      return;
+    } else if (singleTimeMatch) {
+      setStartTime(singleTimeMatch[1].padStart(5, '0'));
       setEndTime("");
       setEndTimeOpen(true);
       setShiftPreset("Benutzerdefiniert");
