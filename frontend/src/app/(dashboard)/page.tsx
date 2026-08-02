@@ -900,6 +900,68 @@ export default function DashboardPage() {
                 </div>
               </div>
 
+              {/* Plans for Tomorrow */}
+              <div className={`card-premium p-0 overflow-hidden ${employeeSummary?.plansTomorrow?.length > 0 ? "ring-2 ring-amber-400/50" : ""}`}>
+                <div className={`px-6 py-4 border-b border-slate-100 flex items-center justify-between ${employeeSummary?.plansTomorrow?.length > 0 ? "bg-amber-50" : "bg-slate-50/50"}`}>
+                  <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                    <Calendar className={`w-4 h-4 ${employeeSummary?.plansTomorrow?.length > 0 ? "text-amber-500" : "text-slate-500"}`} />
+                    {language === "de" ? "Schichtplan für morgen" : "Plans for Tomorrow"}
+                  </h5>
+                  {employeeSummary?.plansTomorrow?.length > 0 && (
+                    <span className="badge-premium badge-warning text-[10px] animate-pulse">
+                      {employeeSummary.plansTomorrow.length} {language === "de" ? "Schicht(en)" : "Shift(s)"}
+                    </span>
+                  )}
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {!employeeSummary?.plansTomorrow || employeeSummary.plansTomorrow.length === 0 ? (
+                    <div className="py-8 text-center text-slate-400 text-xs">
+                      <Calendar className="w-6 h-6 text-slate-200 mx-auto mb-2" />
+                      <p>{language === "de" ? "Keine Schichten für morgen geplant" : "No shifts scheduled for tomorrow"}</p>
+                    </div>
+                  ) : (
+                    employeeSummary.plansTomorrow.map((p: any) => (
+                      <div key={p.id} className="p-5 flex flex-col sm:flex-row justify-between sm:items-start hover:bg-amber-50/30 transition-colors gap-3">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-bold text-slate-800 block">
+                            {p.warehouseName} — {p.hallName}
+                          </span>
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {p.shift && (
+                              <span className="flex items-center gap-1 text-[10px] font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">
+                                <Clock className="w-3 h-3" /> {p.shift}
+                              </span>
+                            )}
+                            {p.treffpunkt && (
+                              <span className="flex items-center gap-1 text-[10px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200">
+                                <MapPin className="w-3 h-3" /> {p.treffpunkt}{p.treffpunktTime ? ` (${p.treffpunktTime})` : ""}
+                              </span>
+                            )}
+                            <span className="flex items-center gap-1 text-[10px] text-slate-400 font-semibold">
+                              <Users className="w-3 h-3 text-slate-300" />
+                              {p.assignedEmployees?.length || 0} {language === "de" ? "Mitarbeiter" : "Staff"}
+                            </span>
+                            <span className="flex items-center gap-1 text-[10px] text-slate-400 font-semibold">
+                              <Package className="w-3 h-3 text-slate-300" />
+                              {p.assignedContainers?.length || 0} {language === "de" ? "Container" : "Containers"}
+                            </span>
+                          </div>
+                          {p.notes && (
+                            <p className="text-[10px] text-slate-500 mt-1.5 italic">{p.notes}</p>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => setSelectedPlanForView(p)}
+                          className="btn-secondary py-1.5 px-3 text-[10px] uppercase font-bold tracking-wider hover:bg-slate-50 cursor-pointer self-start sm:self-center shrink-0"
+                        >
+                          {t("viewDetails")}
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
               {/* Plans History */}
               <div className="card-premium p-0 overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">

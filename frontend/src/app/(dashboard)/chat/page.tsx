@@ -528,10 +528,10 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="h-[80vh] flex bg-white border border-outline-variant rounded-2xl overflow-hidden shadow-sm">
+    <div className="h-[calc(100vh-8rem)] sm:h-[80vh] flex bg-white border border-outline-variant rounded-2xl overflow-hidden shadow-sm">
       
-      {/* 1. LEFT SIDEBAR: Conversions list */}
-      <div className="w-1/3 border-r border-outline-variant flex flex-col bg-slate-50/30">
+      {/* 1. LEFT SIDEBAR: Conversation list — hidden on mobile when a chat is open */}
+      <div className={`${selectedPartnerId ? "hidden sm:flex" : "flex"} w-full sm:w-1/3 border-r border-outline-variant flex-col bg-slate-50/30 shrink-0`}>
         
         {/* Search */}
         <div className="p-4 border-b border-outline-variant bg-white">
@@ -570,7 +570,9 @@ export default function ChatPage() {
               return (
                 <div
                   key={conv.id}
-                  onClick={() => setSelectedPartnerId(conv.id)}
+                  onClick={() => {
+                  setSelectedPartnerId(conv.id);
+                }}
                   className={`p-3.5 flex justify-between items-start cursor-pointer transition-colors ${
                     isSelected ? "bg-secondary-container/10 border-l-4 border-secondary" : "hover:bg-slate-50/50"
                   } ${conv.isChatBlocked ? "opacity-60" : ""}`}
@@ -622,19 +624,27 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* 2. RIGHT CHAT WINDOW: Message history & feed */}
-      <div className="flex-1 flex flex-col bg-slate-50/10">
+      {/* 2. RIGHT CHAT WINDOW — full width on mobile when open, flex-1 on desktop */}
+      <div className={`${selectedPartnerId ? "flex" : "hidden sm:flex"} flex-1 flex-col bg-slate-50/10 min-w-0`}>
         {selectedPartner ? (
           <>
             {/* Header */}
             <div className="p-4 border-b border-outline-variant bg-white flex justify-between items-center shadow-sm">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-200 text-secondary font-bold text-xs flex items-center justify-center">
+                {/* Back button — only on mobile */}
+                <button
+                  className="sm:hidden p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors mr-1"
+                  onClick={() => setSelectedPartnerId(null)}
+                  aria-label="Back to conversations"
+                >
+                  <ChevronRight className="w-4 h-4 rotate-180" />
+                </button>
+                <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-200 text-secondary font-bold text-xs flex items-center justify-center shrink-0">
                   {getInitials(selectedPartner.name)}
                 </div>
-                <div>
-                  <h5 className="font-bold text-xs text-slate-900 leading-none">{selectedPartner.name}</h5>
-                  <span className="text-[9px] text-slate-500 mt-1 block">@{selectedPartner.username} • {selectedPartner.role}</span>
+                <div className="min-w-0">
+                  <h5 className="font-bold text-xs text-slate-900 leading-none truncate">{selectedPartner.name}</h5>
+                  <span className="text-[9px] text-slate-500 mt-1 block truncate">@{selectedPartner.username} • {selectedPartner.role}</span>
                 </div>
               </div>
 

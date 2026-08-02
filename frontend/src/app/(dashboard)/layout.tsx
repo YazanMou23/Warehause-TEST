@@ -250,8 +250,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         
         {/* Brand */}
         <div className="px-6 py-5 flex items-center gap-3 border-b border-[#111827]">
-          <div className="w-8 h-8 bg-[#1d4ed8] flex items-center justify-center rounded-lg shrink-0 shadow-lg shadow-[#1d4ed8]/10">
-            <Warehouse className="w-4.5 h-4.5 text-white" />
+          <div className="w-8 h-8 flex items-center justify-center rounded-lg shrink-0 shadow-lg shadow-[#1d4ed8]/10 overflow-hidden">
+            <img src="/icon.png" alt="LogiFlow" className="w-8 h-8 object-cover rounded-lg" />
           </div>
           <div>
             <h1 className="font-extrabold text-white tracking-tight leading-none text-sm">LogiFlow</h1>
@@ -407,7 +407,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </button>
 
               {showNotifications && (
-                <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="absolute right-0 mt-2 w-[min(20rem,calc(100vw-1rem))] bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                     <span className="font-bold text-slate-800 text-xs">Benachrichtigungen</span>
                     {unreadCount > 0 && (
@@ -493,7 +493,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-6 print:p-0">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-6 print:p-0" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
           {children}
         </main>
       </div>

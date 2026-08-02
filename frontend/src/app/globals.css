@@ -267,3 +267,47 @@ body {
   animation: pulse-once 1.5s ease-out 1;
 }
 
+/* ── Mobile UX Improvements ── */
+
+/* Better tap behavior on interactive elements */
+button, a, label, [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Prevent body scroll bounce on iOS */
+html {
+  overscroll-behavior: none;
+}
+
+/* Smooth scrolling for all scroll containers */
+* {
+  scroll-behavior: smooth;
+}
+
+/* Table overflow utility for mobile */
+.table-mobile-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Safe area support for iOS bottom bar */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Input zoom prevention on iOS (16px minimum) */
+@media (max-width: 640px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="number"],
+  input[type="time"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

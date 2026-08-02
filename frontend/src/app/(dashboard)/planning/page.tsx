@@ -57,6 +57,7 @@ function PlanningPageContent() {
   const [shiftPreset, setShiftPreset] = useState("Frühschicht");
   const [startTime, setStartTime] = useState("06:00");
   const [endTime, setEndTime] = useState("14:00");
+  const [endTimeOpen, setEndTimeOpen] = useState(false);
   const [treffpunktTime, setTreffpunktTime] = useState("05:30");
   const [treffpunkt, setTreffpunkt] = useState("");
   const [notes, setNotes] = useState("");
@@ -68,10 +69,22 @@ function PlanningPageContent() {
     if (!rawShift) {
       setStartTime("06:00");
       setEndTime("14:00");
+      setEndTimeOpen(false);
       setShiftPreset("Frühschicht");
       return;
     }
 
+    // Detect open-ended shift e.g. "07:00 - offen"
+    const openEndMatch = rawShift.match(/(\d{1,2}:\d{2})\s*-\s*offen/i);
+    if (openEndMatch) {
+      setStartTime(openEndMatch[1].padStart(5, '0'));
+      setEndTime("");
+      setEndTimeOpen(true);
+      setShiftPreset("Benutzerdefiniert");
+      return;
+    }
+
+    setEndTimeOpen(false);
     const timeMatch = rawShift.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
     if (timeMatch) {
       setStartTime(timeMatch[1].padStart(5, '0'));
@@ -90,6 +103,9 @@ function PlanningPageContent() {
 
   // Helper to build formatted shift string
   const getFormattedShift = () => {
+    if (endTimeOpen) {
+      return `${startTime} - offen`;
+    }
     if (shiftPreset !== "Benutzerdefiniert") {
       return `${startTime} - ${endTime} (${shiftPreset})`;
     }
@@ -485,9 +501,9 @@ function PlanningPageContent() {
             onChange={(e) => {
               const val = e.target.value;
               setShiftPreset(val);
-              if (val === "Frühschicht") { setStartTime("06:00"); setEndTime("14:00"); }
-              else if (val === "Spätschicht") { setStartTime("14:00"); setEndTime("22:00"); }
-              else if (val === "Nachtschicht") { setStartTime("22:00"); setEndTime("06:00"); }
+              if (val === "Frühschicht") { setStartTime("06:00"); setEndTime("14:00"); setEndTimeOpen(false); }
+              else if (val === "Spätschicht") { setStartTime("14:00"); setEndTime("22:00"); setEndTimeOpen(false); }
+              else if (val === "Nachtschicht") { setStartTime("22:00"); setEndTime("06:00"); setEndTimeOpen(false); }
             }}
             className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 outline-none focus:border-blue-400 transition-colors"
           >
@@ -499,31 +515,37 @@ function PlanningPageContent() {
         </div>
 
         {/* Exact Start & End Time Inputs */}
-        <div className="space-y-1.5 col-span-1 md:col-span-4 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/80">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-blue-600 shrink-0" />
-              <span className="text-xs font-bold text-slate-800">Exakte Arbeitszeit (Exact Shift Time):</span>
+        <div className="space-y-3 col-span-1 md:col-span-4 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/80">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-blue-600 shrink-0" />
+            <span className="text-xs font-bold text-slate-800">Exakte Arbeitszeit (Exact Shift Time):</span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Von (Start Time) */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-slate-500">Von:</span>
+              <input
+                type="time"
+                value={startTime}
+                onChange={(e) => {
+                  setStartTime(e.target.value);
+                  setShiftPreset("Benutzerdefiniert");
+                }}
+                className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-sm"
+              />
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-semibold text-slate-500">Von:</span>
-                <input
-                  type="time"
-                  value={startTime}
-                  onChange={(e) => {
-                    setStartTime(e.target.value);
-                    setShiftPreset("Benutzerdefiniert");
-                  }}
-                  className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-sm"
-                />
-              </div>
+            <span className="text-slate-400 font-bold text-xs">–</span>
 
-              <span className="text-slate-400 font-bold text-xs">–</span>
-
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-semibold text-slate-500">Bis:</span>
+            {/* Bis (End Time) — disabled when endTimeOpen is checked */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-slate-500">Bis:</span>
+              {endTimeOpen ? (
+                <span className="bg-slate-100 border border-slate-300 rounded-lg px-3 py-1 text-xs font-bold text-slate-400 italic min-w-[90px] text-center">
+                  offen
+                </span>
+              ) : (
                 <input
                   type="time"
                   value={endTime}
@@ -533,12 +555,31 @@ function PlanningPageContent() {
                   }}
                   className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-sm"
                 />
-              </div>
-
-              <span className="text-xs font-mono font-bold bg-blue-100 text-blue-800 px-3 py-1 rounded-full border border-blue-200">
-                ⏰ {getFormattedShift()}
-              </span>
+              )}
             </div>
+
+            {/* Open-ended toggle */}
+            <label className="flex items-center gap-1.5 cursor-pointer select-none bg-white border border-slate-200 rounded-lg px-2.5 py-1 hover:border-blue-300 transition-colors">
+              <input
+                type="checkbox"
+                checked={endTimeOpen}
+                onChange={(e) => {
+                  setEndTimeOpen(e.target.checked);
+                  if (e.target.checked) {
+                    setShiftPreset("Benutzerdefiniert");
+                  } else {
+                    setEndTime("14:00");
+                  }
+                }}
+                className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+              />
+              <span className="text-[11px] font-semibold text-slate-600">Offen (kein Endzeit)</span>
+            </label>
+
+            {/* Live preview badge */}
+            <span className={`text-xs font-mono font-bold px-3 py-1 rounded-full border ${endTimeOpen ? "bg-amber-100 text-amber-800 border-amber-200" : "bg-blue-100 text-blue-800 border-blue-200"}`}>
+              ⏰ {getFormattedShift()}
+            </span>
           </div>
         </div>
 

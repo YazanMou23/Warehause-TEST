@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "./i18n/LanguageContext";
@@ -17,9 +17,24 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "LogiFlow Warehouse Management",
   description: "Enterprise operations and logistics control hub",
+  icons: {
+    icon: [
+      { url: "/icon.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: "/icon.png",
+    shortcut: "/icon.png",
+  },
   other: {
     google: "notranslate",
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: "#1d4ed8",
 };
 
 export default function RootLayout({

@@ -1,10 +1,14 @@
 import { Injectable, ForbiddenException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationService } from '../notification/notification.service';
 import { Role } from '@prisma/client';
 
 @Injectable()
 export class ChatService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async sendMessage(senderId: string, receiverId: string, content: string) {
     if (!content || content.trim() === '') {
@@ -71,6 +75,14 @@ export class ChatService {
         receiver: { select: { id: true, name: true, role: true } },
       },
     });
+
+    // Create in-app notification for the receiver (bell icon on dashboard)
+    await this.notificationService.create({
+      userId: receiverId,
+      title: `Neue Nachricht von ${sender.name}`,
+      message: content.trim().substring(0, 120) + (content.trim().length > 120 ? '…' : ''),
+      type: 'CHAT_MESSAGE',
+    }).catch(() => {}); // Non-blocking: don't fail the message send if notification fails
 
     return message;
   }
