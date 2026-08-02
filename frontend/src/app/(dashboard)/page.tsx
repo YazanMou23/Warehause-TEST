@@ -860,133 +860,130 @@ export default function DashboardPage() {
             {/* Right Side: Assigned Plans, Plans History & Work History */}
             <div className="lg:col-span-2 space-y-6">
               
-              {/* Assigned Plans for Today */}
+              {/* All Upcoming & Active Shift Plans */}
               <div className="card-premium p-0 overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
                   <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-slate-500" /> {t("activeShiftPlansToday")}
+                    <Calendar className="w-4 h-4 text-blue-600" />
+                    {language === "de" ? "Geplante & Zukünftige Schichten" : "Scheduled & Upcoming Shifts"}
                   </h5>
-                </div>
-                <div className="divide-y divide-slate-100">
-                  {!employeeSummary?.plansToday || employeeSummary.plansToday.length === 0 ? (
-                    <div className="py-10 text-center text-slate-400 text-xs">
-                      <p>{t("noShiftsToday")}</p>
-                    </div>
-                  ) : (
-                    employeeSummary.plansToday.map((p: any) => (
-                      <div key={p.id} className="p-5 flex flex-col sm:flex-row justify-between sm:items-center hover:bg-slate-50/30 transition-colors gap-3">
-                        <div>
-                          <span className="text-sm font-bold text-slate-800 block">
-                            {p.warehouseName} — {p.hallName}
-                          </span>
-                          <div className="flex flex-wrap gap-3 mt-1.5 text-[10px] text-slate-400 font-semibold">
-                            <span suppressHydrationWarning className="font-mono text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded"> {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Users className="w-3.5 h-3.5 text-slate-300" />
-                              {p.assignedEmployees?.length || 0} {language === "de" ? "Mitarbeiter" : "Staff Assigned"}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Package className="w-3.5 h-3.5 text-slate-300" />
-                              {p.assignedContainers?.length || 0} {language === "de" ? "Container" : "Containers"}
-                            </span>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => setSelectedPlanForView(p)}
-                          className="btn-secondary py-1.5 px-3 text-[10px] uppercase font-bold tracking-wider hover:bg-slate-50 cursor-pointer self-start sm:self-center"
-                        >
-                          {t("viewDetails")}
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* Plans for Tomorrow */}
-              <div className={`card-premium p-0 overflow-hidden ${employeeSummary?.plansTomorrow?.length > 0 ? "ring-2 ring-amber-400/50" : ""}`}>
-                <div className={`px-6 py-4 border-b border-slate-100 flex items-center justify-between ${employeeSummary?.plansTomorrow?.length > 0 ? "bg-amber-50" : "bg-slate-50/50"}`}>
-                  <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-                    <Calendar className={`w-4 h-4 ${employeeSummary?.plansTomorrow?.length > 0 ? "text-amber-500" : "text-slate-500"}`} />
-                    {language === "de" ? "Schichtplan für morgen" : "Plans for Tomorrow"}
-                  </h5>
-                  {employeeSummary?.plansTomorrow?.length > 0 && (
-                    <span className="badge-premium badge-warning text-[10px] animate-pulse">
-                      {employeeSummary.plansTomorrow.length} {language === "de" ? "Schicht(en)" : "Shift(s)"}
+                  {employeeSummary?.plansUpcoming?.length > 0 && (
+                    <span className="badge-premium badge-info text-[10px]">
+                      {employeeSummary.plansUpcoming.length} {language === "de" ? "Schicht(en)" : "Shift(s)"}
                     </span>
                   )}
                 </div>
                 <div className="divide-y divide-slate-100">
-                  {!employeeSummary?.plansTomorrow || employeeSummary.plansTomorrow.length === 0 ? (
-                    <div className="py-8 text-center text-slate-400 text-xs">
-                      <Calendar className="w-6 h-6 text-slate-200 mx-auto mb-2" />
-                      <p>{language === "de" ? "Keine Schichten für morgen geplant" : "No shifts scheduled for tomorrow"}</p>
+                  {(!employeeSummary?.plansUpcoming || employeeSummary.plansUpcoming.length === 0) &&
+                   (!employeeSummary?.plansToday || employeeSummary.plansToday.length === 0) ? (
+                    <div className="py-10 text-center text-slate-400 text-xs">
+                      <Calendar className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                      <p>{language === "de" ? "Keine kommenden Schichten geplant." : "No upcoming shifts scheduled."}</p>
                     </div>
                   ) : (
-                    employeeSummary.plansTomorrow.map((p: any) => (
-                      <div key={p.id} className="p-5 flex flex-col sm:flex-row justify-between sm:items-start hover:bg-amber-50/30 transition-colors gap-3">
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm font-bold text-slate-800 block">
-                            {p.warehouseName} — {p.hallName}
-                          </span>
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {p.shift && (
-                              <span className="flex items-center gap-1 text-[10px] font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">
-                                <Clock className="w-3 h-3" /> {p.shift}
+                    (employeeSummary?.plansUpcoming || [...(employeeSummary?.plansToday || []), ...(employeeSummary?.plansTomorrow || [])]).map((p: any) => {
+                      const planDateStr = new Date(p.date).toLocaleDateString('en-CA');
+                      const todayStr = new Date().toLocaleDateString('en-CA');
+                      const tom = new Date();
+                      tom.setDate(tom.getDate() + 1);
+                      const tomStr = tom.toLocaleDateString('en-CA');
+
+                      let dateLabel = new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA");
+                      let badgeClass = "bg-slate-100 text-slate-700 border-slate-200";
+                      if (planDateStr === todayStr) {
+                        dateLabel = language === "de" ? "HEUTE" : "TODAY";
+                        badgeClass = "bg-blue-100 text-blue-800 border-blue-200 font-bold";
+                      } else if (planDateStr === tomStr) {
+                        dateLabel = language === "de" ? "MORGEN" : "TOMORROW";
+                        badgeClass = "bg-amber-100 text-amber-800 border-amber-200 font-bold";
+                      }
+
+                      return (
+                        <div key={p.id} className="p-5 flex flex-col sm:flex-row justify-between sm:items-start hover:bg-slate-50/50 transition-colors gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              <span className={`text-[10px] uppercase px-2 py-0.5 rounded-full border ${badgeClass}`}>
+                                {dateLabel}
                               </span>
-                            )}
-                            {p.treffpunkt && (
-                              <span className="flex items-center gap-1 text-[10px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200">
-                                <MapPin className="w-3 h-3" /> {p.treffpunkt}{p.treffpunktTime ? ` (${p.treffpunktTime})` : ""}
+                              <span suppressHydrationWarning className="text-[11px] font-mono text-slate-400">
+                                {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
                               </span>
+                            </div>
+                            <span className="text-sm font-bold text-slate-900 block mt-1">
+                              {p.warehouseName} — {p.hallName}
+                            </span>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {p.shift && (
+                                <span className="flex items-center gap-1 text-[10px] font-semibold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-100">
+                                  <Clock className="w-3 h-3" /> {p.shift}
+                                </span>
+                              )}
+                              {p.treffpunkt && (
+                                <span className="flex items-center gap-1 text-[10px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200">
+                                  <MapPin className="w-3 h-3 text-amber-600" /> {p.treffpunkt}{p.treffpunktTime ? ` (${p.treffpunktTime})` : ""}
+                                </span>
+                              )}
+                              <span className="flex items-center gap-1 text-[10px] text-slate-500 font-semibold">
+                                <Users className="w-3 h-3 text-slate-400" />
+                                {p.assignedEmployees?.length || 0} {language === "de" ? "Mitarbeiter" : "Staff"}
+                              </span>
+                              <span className="flex items-center gap-1 text-[10px] text-slate-500 font-semibold">
+                                <Package className="w-3 h-3 text-slate-400" />
+                                {p.assignedContainers?.length || 0} {language === "de" ? "Container" : "Containers"}
+                              </span>
+                            </div>
+                            {p.notes && (
+                              <p className="text-[10px] text-slate-500 mt-1.5 italic bg-slate-50 p-1.5 rounded border border-slate-100">
+                                "{p.notes}"
+                              </p>
                             )}
-                            <span className="flex items-center gap-1 text-[10px] text-slate-400 font-semibold">
-                              <Users className="w-3 h-3 text-slate-300" />
-                              {p.assignedEmployees?.length || 0} {language === "de" ? "Mitarbeiter" : "Staff"}
-                            </span>
-                            <span className="flex items-center gap-1 text-[10px] text-slate-400 font-semibold">
-                              <Package className="w-3 h-3 text-slate-300" />
-                              {p.assignedContainers?.length || 0} {language === "de" ? "Container" : "Containers"}
-                            </span>
                           </div>
-                          {p.notes && (
-                            <p className="text-[10px] text-slate-500 mt-1.5 italic">{p.notes}</p>
-                          )}
+                          <button
+                            onClick={() => setSelectedPlanForView(p)}
+                            className="btn-secondary py-1.5 px-3 text-[10px] uppercase font-bold tracking-wider hover:bg-slate-50 cursor-pointer self-start sm:self-center shrink-0"
+                          >
+                            {t("viewDetails")}
+                          </button>
                         </div>
-                        <button
-                          onClick={() => setSelectedPlanForView(p)}
-                          className="btn-secondary py-1.5 px-3 text-[10px] uppercase font-bold tracking-wider hover:bg-slate-50 cursor-pointer self-start sm:self-center shrink-0"
-                        >
-                          {t("viewDetails")}
-                        </button>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
 
-              {/* Plans History */}
+              {/* Plans History (All Past Worked Shifts) */}
               <div className="card-premium p-0 overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
                   <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
                     <History className="w-4 h-4 text-slate-500" /> {t("shiftHistory")}
                   </h5>
+                  {employeeSummary?.plansHistory?.length > 0 && (
+                    <span className="text-[10px] font-mono text-slate-400 font-semibold">
+                      {employeeSummary.plansHistory.length} {language === "de" ? "Einträge" : "Records"}
+                    </span>
+                  )}
                 </div>
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-slate-100 max-h-[450px] overflow-y-auto">
                   {!employeeSummary?.plansHistory || employeeSummary.plansHistory.length === 0 ? (
                     <div className="py-10 text-center text-slate-400 text-xs">
                       <p>{t("noPastShifts")}</p>
                     </div>
                   ) : (
-                    employeeSummary.plansHistory.slice(0, 5).map((p: any) => (
+                    employeeSummary.plansHistory.map((p: any) => (
                       <div key={p.id} className="p-5 flex flex-col sm:flex-row justify-between sm:items-center hover:bg-slate-50/30 transition-colors gap-3">
                         <div>
                           <span className="text-sm font-bold text-slate-800 block">
                             {p.warehouseName} — {p.hallName}
                           </span>
                           <div className="flex flex-wrap gap-3 mt-1.5 text-[10px] text-slate-400 font-semibold">
-                            <span suppressHydrationWarning className="font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded"> {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}</span>
+                            <span suppressHydrationWarning className="font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                              {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
+                            </span>
+                            {p.shift && (
+                              <span className="font-mono text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
+                                {p.shift}
+                              </span>
+                            )}
                             <span>{p.assignedContainers?.length || 0} {language === "de" ? "Container bearbeitet" : "Containers processed"}</span>
                           </div>
                         </div>

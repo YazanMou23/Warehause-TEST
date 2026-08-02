@@ -1,6 +1,18 @@
-import { IsArray, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsDateString, IsOptional, IsString } from 'class-validator';
 
 export class UpdatePlanDto {
+  @IsOptional()
+  @IsDateString()
+  date?: string;
+
+  @IsOptional()
+  @IsString()
+  warehouseId?: string;
+
+  @IsOptional()
+  @IsString()
+  hallId?: string;
+
   @IsOptional()
   @IsString()
   title?: string;
@@ -40,3 +52,4 @@ export class UpdatePlanDto {
   @IsString({ each: true })
   assignedContainerNumbers?: string[];
 }
+

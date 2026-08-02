@@ -610,15 +610,16 @@ export class UsersService {
     }
     totalOverallHours = Math.round(totalOverallHours * 100) / 100;
 
-    // 5. Active/Assigned plans for today
-    const plansToday = await this.prisma.plan.findMany({
+    // 5. Active & Upcoming plans (all plans today and in the future)
+    const upcomingPlans = await this.prisma.plan.findMany({
       where: {
-        date: todayStart,
+        date: { gte: todayStart },
         deletedAt: null,
         assignedEmployees: {
           some: { employeeId },
         },
       },
+      orderBy: { date: 'asc' },
       include: {
         warehouse: { select: { name: true } },
         hall: { select: { name: true } },
@@ -627,7 +628,7 @@ export class UsersService {
       },
     });
 
-    const formattedPlansToday = plansToday.map(p => ({
+    const formattedUpcomingPlans = upcomingPlans.map(p => ({
       id: p.id,
       date: p.date,
       warehouseId: p.warehouseId,
@@ -642,41 +643,12 @@ export class UsersService {
       assignedEmployees: p.assignedEmployees.map(e => e.employee),
     }));
 
-    // 6. Plans for tomorrow
+    const formattedPlansToday = formattedUpcomingPlans.filter(p => new Date(p.date).getTime() === todayStart.getTime());
     const tomorrowStart = new Date(todayStart);
     tomorrowStart.setDate(tomorrowStart.getDate() + 1);
-    const plansTomorrow = await this.prisma.plan.findMany({
-      where: {
-        date: tomorrowStart,
-        deletedAt: null,
-        assignedEmployees: {
-          some: { employeeId },
-        },
-      },
-      include: {
-        warehouse: { select: { name: true } },
-        hall: { select: { name: true } },
-        assignedContainers: { include: { container: true } },
-        assignedEmployees: { include: { employee: { select: { id: true, name: true, phone: true } } } },
-      },
-    });
+    const formattedPlansTomorrow = formattedUpcomingPlans.filter(p => new Date(p.date).getTime() === tomorrowStart.getTime());
 
-    const formattedPlansTomorrow = plansTomorrow.map(p => ({
-      id: p.id,
-      date: p.date,
-      warehouseId: p.warehouseId,
-      warehouseName: p.warehouse.name,
-      hallId: p.hallId,
-      hallName: p.hall.name,
-      shift: (p as any).shift || null,
-      treffpunkt: (p as any).treffpunkt || null,
-      treffpunktTime: (p as any).treffpunktTime || null,
-      notes: (p as any).notes || null,
-      assignedContainers: p.assignedContainers.map(c => c.container),
-      assignedEmployees: p.assignedEmployees.map(e => e.employee),
-    }));
-
-    // 6. Plans history (past plans)
+    // 6. Plans history (all past worked plans)
     const pastPlans = await this.prisma.plan.findMany({
       where: {
         date: { lt: todayStart },
@@ -685,7 +657,6 @@ export class UsersService {
           some: { employeeId },
         },
       },
-      take: 10,
       orderBy: { date: 'desc' },
       include: {
         warehouse: { select: { name: true } },
@@ -702,6 +673,10 @@ export class UsersService {
       warehouseName: p.warehouse.name,
       hallId: p.hallId,
       hallName: p.hall.name,
+      shift: (p as any).shift || null,
+      treffpunkt: (p as any).treffpunkt || null,
+      treffpunktTime: (p as any).treffpunktTime || null,
+      notes: (p as any).notes || null,
       assignedContainers: p.assignedContainers.map(c => c.container),
       assignedEmployees: p.assignedEmployees.map(e => e.employee),
     }));
@@ -710,7 +685,7 @@ export class UsersService {
     const attendanceHistory = await this.prisma.attendance.findMany({
       where: { employeeId },
       orderBy: { clockIn: 'desc' },
-      take: 20,
+      take: 50,
       include: {
         warehouse: { select: { name: true } },
         hall: { select: { name: true } },
@@ -743,6 +718,7 @@ export class UsersService {
         month: monthlyHours,
         total: totalOverallHours,
       },
+      plansUpcoming: formattedUpcomingPlans,
       plansToday: formattedPlansToday,
       plansTomorrow: formattedPlansTomorrow,
       plansHistory: formattedPastPlans,

@@ -268,6 +268,9 @@ export class PlanningService {
     await this.prisma.$transaction(async (tx) => {
       // Update plan properties
       const updateData: any = {};
+      if (updatePlanDto.date !== undefined) updateData.date = this.normalizeDate(updatePlanDto.date);
+      if (updatePlanDto.warehouseId !== undefined) updateData.warehouseId = updatePlanDto.warehouseId;
+      if (updatePlanDto.hallId !== undefined) updateData.hallId = updatePlanDto.hallId;
       if (updatePlanDto.title !== undefined) updateData.title = updatePlanDto.title;
       if (updatePlanDto.description !== undefined) updateData.description = updatePlanDto.description;
       if (updatePlanDto.shift !== undefined) updateData.shift = updatePlanDto.shift;
@@ -359,7 +362,31 @@ export class PlanningService {
     const updatedPlan = await this.findOne(id);
 
     // Notify Employees of plan updates via App, Email & WhatsApp
+    const currentEmployeeIds = updatedPlan.assignedEmployees.map((ae) => ae.id);
+    const removedEmployeeIds = prevEmployeeIds.filter((id) => !currentEmployeeIds.includes(id));
+
+    // Notify newly assigned or updated assigned employees
     await this.notifyAssignedEmployees(updatedPlan, updatedPlan.assignedEmployees, true, actorId);
+
+    // Notify employees who were removed from this plan
+    if (removedEmployeeIds.length > 0) {
+      const removedEmployees = await this.prisma.user.findMany({
+        where: { id: { in: removedEmployeeIds } },
+        select: { id: true, name: true, email: true, phone: true },
+      });
+      const formattedDate = new Date(updatedPlan.date).toLocaleDateString('de-DE');
+
+      for (const emp of removedEmployees) {
+        await this.prisma.notification.create({
+          data: {
+            userId: emp.id,
+            title: 'Schichtzuweisung entfernt',
+            message: `Sie wurden aus dem Schichtplan am ${formattedDate} in ${updatedPlan.warehouseName} (${updatedPlan.hallName}) ausgetragen.`,
+            type: 'PLAN_UPDATED',
+          },
+        }).catch(() => {});
+      }
+    }
 
     return updatedPlan;
   }
