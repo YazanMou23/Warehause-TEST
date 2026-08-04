@@ -621,27 +621,42 @@ export class UsersService {
       },
       orderBy: { date: 'asc' },
       include: {
-        warehouse: { select: { name: true } },
-        hall: { select: { name: true } },
+        locations: {
+          include: {
+            warehouse: { select: { name: true } },
+            hall: { select: { name: true } },
+          },
+        },
         assignedContainers: { include: { container: true } },
         assignedEmployees: { include: { employee: { select: { id: true, name: true, phone: true } } } },
       },
     });
 
-    const formattedUpcomingPlans = upcomingPlans.map(p => ({
-      id: p.id,
-      date: p.date,
-      warehouseId: p.warehouseId,
-      warehouseName: p.warehouse.name,
-      hallId: p.hallId,
-      hallName: p.hall.name,
-      shift: (p as any).shift || null,
-      treffpunkt: (p as any).treffpunkt || null,
-      treffpunktTime: (p as any).treffpunktTime || null,
-      notes: (p as any).notes || null,
-      assignedContainers: p.assignedContainers.map(c => c.container),
-      assignedEmployees: p.assignedEmployees.map(e => e.employee),
-    }));
+    const formattedUpcomingPlans = upcomingPlans.map((p: any) => {
+      const primaryLoc = p.locations && p.locations.length > 0 ? p.locations[0] : null;
+      return {
+        id: p.id,
+        date: p.date,
+        warehouseId: primaryLoc ? primaryLoc.warehouseId : '',
+        warehouseName: primaryLoc && primaryLoc.warehouse ? primaryLoc.warehouse.name : 'Unassigned',
+        hallId: primaryLoc ? primaryLoc.hallId : '',
+        hallName: primaryLoc && primaryLoc.hall ? primaryLoc.hall.name : 'Unassigned',
+        locations: (p.locations || []).map((loc: any) => ({
+          id: loc.id,
+          warehouseId: loc.warehouseId,
+          warehouseName: loc.warehouse ? loc.warehouse.name : '',
+          hallId: loc.hallId,
+          hallName: loc.hall ? loc.hall.name : '',
+          notes: loc.notes || null,
+        })),
+        shift: p.shift || null,
+        treffpunkt: p.treffpunkt || null,
+        treffpunktTime: p.treffpunktTime || null,
+        notes: p.notes || null,
+        assignedContainers: p.assignedContainers ? p.assignedContainers.map((c: any) => c.container) : [],
+        assignedEmployees: p.assignedEmployees ? p.assignedEmployees.map((e: any) => e.employee) : [],
+      };
+    });
 
     const formattedPlansToday = formattedUpcomingPlans.filter(p => new Date(p.date).getTime() === todayStart.getTime());
     const tomorrowStart = new Date(todayStart);
@@ -659,27 +674,42 @@ export class UsersService {
       },
       orderBy: { date: 'desc' },
       include: {
-        warehouse: { select: { name: true } },
-        hall: { select: { name: true } },
+        locations: {
+          include: {
+            warehouse: { select: { name: true } },
+            hall: { select: { name: true } },
+          },
+        },
         assignedContainers: { include: { container: true } },
         assignedEmployees: { include: { employee: { select: { id: true, name: true, phone: true } } } },
       },
     });
 
-    const formattedPastPlans = pastPlans.map(p => ({
-      id: p.id,
-      date: p.date,
-      warehouseId: p.warehouseId,
-      warehouseName: p.warehouse.name,
-      hallId: p.hallId,
-      hallName: p.hall.name,
-      shift: (p as any).shift || null,
-      treffpunkt: (p as any).treffpunkt || null,
-      treffpunktTime: (p as any).treffpunktTime || null,
-      notes: (p as any).notes || null,
-      assignedContainers: p.assignedContainers.map(c => c.container),
-      assignedEmployees: p.assignedEmployees.map(e => e.employee),
-    }));
+    const formattedPastPlans = pastPlans.map((p: any) => {
+      const primaryLoc = p.locations && p.locations.length > 0 ? p.locations[0] : null;
+      return {
+        id: p.id,
+        date: p.date,
+        warehouseId: primaryLoc ? primaryLoc.warehouseId : '',
+        warehouseName: primaryLoc && primaryLoc.warehouse ? primaryLoc.warehouse.name : 'Unassigned',
+        hallId: primaryLoc ? primaryLoc.hallId : '',
+        hallName: primaryLoc && primaryLoc.hall ? primaryLoc.hall.name : 'Unassigned',
+        locations: (p.locations || []).map((loc: any) => ({
+          id: loc.id,
+          warehouseId: loc.warehouseId,
+          warehouseName: loc.warehouse ? loc.warehouse.name : '',
+          hallId: loc.hallId,
+          hallName: loc.hall ? loc.hall.name : '',
+          notes: loc.notes || null,
+        })),
+        shift: p.shift || null,
+        treffpunkt: p.treffpunkt || null,
+        treffpunktTime: p.treffpunktTime || null,
+        notes: p.notes || null,
+        assignedContainers: p.assignedContainers ? p.assignedContainers.map((c: any) => c.container) : [],
+        assignedEmployees: p.assignedEmployees ? p.assignedEmployees.map((e: any) => e.employee) : [],
+      };
+    });
 
     // 7. Work history (recent attendance logs)
     const attendanceHistory = await this.prisma.attendance.findMany({

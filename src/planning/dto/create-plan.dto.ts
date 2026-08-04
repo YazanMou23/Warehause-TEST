@@ -1,10 +1,7 @@
-import { IsArray, IsDateString, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsArray, IsDateString, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
 
-export class CreatePlanDto {
-  @IsNotEmpty()
-  @IsDateString()
-  date: string;
-
+export class LocationDto {
   @IsNotEmpty()
   @IsString()
   warehouseId: string;
@@ -12,6 +9,38 @@ export class CreatePlanDto {
   @IsNotEmpty()
   @IsString()
   hallId: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class CreatePlanDto {
+  @IsNotEmpty()
+  @IsDateString()
+  date: string;
+
+  @IsOptional()
+  @IsDateString()
+  startTime?: string;
+
+  @IsOptional()
+  @IsDateString()
+  endTime?: string;
+
+  @IsOptional()
+  @IsString()
+  warehouseId?: string;
+
+  @IsOptional()
+  @IsString()
+  hallId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => LocationDto)
+  locations?: LocationDto[];
 
   @IsOptional()
   @IsString()
@@ -52,3 +81,4 @@ export class CreatePlanDto {
   @IsString({ each: true })
   assignedContainerNumbers?: string[];
 }
+

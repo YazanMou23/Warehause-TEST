@@ -75,7 +75,7 @@ model Warehouse {
   halls      Hall[]
   users      User[]
   containers Container[]
-  plans      Plan[]
+  planLocations PlanLocation[]
   attendance Attendance[]
 }
 
@@ -92,7 +92,7 @@ model Hall {
 
   users       User[]
   containers  Container[]
-  plans       Plan[]
+  planLocations PlanLocation[]
   attendance  Attendance[]
 
   @@index([warehouseId])
@@ -132,10 +132,8 @@ model Plan {
   title       String?
   description String?
   date        DateTime
-  warehouseId String
-  warehouse   Warehouse       @relation(fields: [warehouseId], references: [id])
-  hallId      String
-  hall        Hall            @relation(fields: [hallId], references: [id])
+  startTime   DateTime        @default(now())
+  endTime     DateTime        @default(now())
   shift       String?
   treffpunkt  String?
   treffpunktTime String?
@@ -144,11 +142,28 @@ model Plan {
   updatedAt   DateTime        @updatedAt
   deletedAt   DateTime?
 
+  locations          PlanLocation[]
   assignedEmployees  PlanEmployee[]
   assignedContainers PlanContainer[]
 
-  @@unique([date, warehouseId, hallId])
-  @@index([date, warehouseId, hallId])
+  @@index([date])
+  @@index([startTime, endTime])
+  @@index([deletedAt])
+}
+
+model PlanLocation {
+  id          String    @id @default(uuid())
+  planId      String
+  plan        Plan      @relation(fields: [planId], references: [id], onDelete: Cascade)
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  hallId      String
+  hall        Hall      @relation(fields: [hallId], references: [id], onDelete: Restrict)
+  notes       String?
+
+  @@unique([planId, warehouseId, hallId])
+  @@index([warehouseId, hallId])
+  @@index([planId])
 }
 
 model PlanEmployee {
@@ -156,8 +171,12 @@ model PlanEmployee {
   plan       Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
   employeeId String
   employee   User     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  startTime  DateTime @default(now())
+  endTime    DateTime @default(now())
 
   @@id([planId, employeeId])
+  @@index([employeeId, startTime, endTime])
+  @@index([planId])
 }
 
 model PlanContainer {
@@ -167,6 +186,8 @@ model PlanContainer {
   container   Container @relation(fields: [containerId], references: [id], onDelete: Cascade)
 
   @@id([planId, containerId])
+  @@index([containerId])
+  @@index([planId])
 }
 
 model Attendance {

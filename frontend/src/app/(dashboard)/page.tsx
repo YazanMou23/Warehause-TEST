@@ -54,6 +54,19 @@ interface PlanItem {
   warehouseName: string;
   hallId: string;
   hallName: string;
+  shift?: string;
+  treffpunkt?: string;
+  treffpunktTime?: string;
+  notes?: string;
+  locations?: {
+    warehouseId: string;
+    warehouseName?: string;
+    hallId: string;
+    hallName?: string;
+    notes?: string;
+    warehouse?: { id: string; name: string };
+    hall?: { id: string; name: string };
+  }[];
   assignedEmployees: any[];
   assignedContainers: any[];
 }
@@ -110,8 +123,16 @@ export default function DashboardPage() {
     // Title & Metadata
     csvContent += `LOGIFLOW SHIFT OPERATIONS PLAN\n`;
     csvContent += `Date,${new Date(plan.date).toLocaleDateString('en-CA')}\n`;
-    csvContent += `Warehouse,${plan.warehouseName}\n`;
-    csvContent += `Staging Hall,${plan.hallName}\n\n`;
+    if (plan.shift) {
+      csvContent += `Shift Time,${plan.shift}\n`;
+    }
+    if (plan.locations && plan.locations.length > 0) {
+      const locString = plan.locations.map(l => `${l.warehouseName || l.warehouse?.name || plan.warehouseName || 'Warehouse'} (${l.hallName || l.hall?.name || plan.hallName || 'Hall'})`).join(" | ");
+      csvContent += `Locations,"${locString}"\n\n`;
+    } else {
+      csvContent += `Warehouse,"${plan.warehouseName || ''}"\n`;
+      csvContent += `Staging Hall,"${plan.hallName || ''}"\n\n`;
+    }
 
     // Staff Roster
     csvContent += `ASSIGNED STAFF ROSTER\n`;
@@ -140,7 +161,9 @@ export default function DashboardPage() {
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    const filename = `plan_${plan.warehouseName.replace(/\s+/g, "_")}_${plan.hallName.replace(/\s+/g, "_")}_${plan.date.split("T")[0]}.csv`;
+    const defaultWh = plan.warehouseName || "Warehouse";
+    const defaultHall = plan.hallName || "Hall";
+    const filename = `plan_${defaultWh.replace(/\s+/g, "_")}_${defaultHall.replace(/\s+/g, "_")}_${plan.date.split("T")[0]}.csv`;
     link.setAttribute("href", url);
     link.setAttribute("download", filename);
     link.style.visibility = "hidden";
@@ -164,6 +187,11 @@ export default function DashboardPage() {
             warehouseName: "Duisburg Port Hub",
             hallId: "hall-1",
             hallName: "Hall A",
+            shift: "06:00 - 14:00 (Frühschicht)",
+            locations: [
+              { warehouseId: "wh-1", warehouseName: "Duisburg Port Hub", hallId: "hall-1", hallName: "Hall A" },
+              { warehouseId: "wh-1", warehouseName: "Duisburg Port Hub", hallId: "hall-2", hallName: "Hall B" }
+            ],
             assignedEmployees: [{ id: "u2", name: "Emil Employee", role: "EMPLOYEE" }, { id: "u3", name: "Elsa Employee", role: "EMPLOYEE" }],
             assignedContainers: [{ containerNumber: "MSKU887652", status: "FULL" }],
           },
@@ -174,6 +202,10 @@ export default function DashboardPage() {
             warehouseName: "Wesel NRW-North",
             hallId: "hall-3",
             hallName: "Hall A",
+            shift: "14:00 - 22:00 (Spätschicht)",
+            locations: [
+              { warehouseId: "wh-2", warehouseName: "Wesel NRW-North", hallId: "hall-3", hallName: "Hall A" }
+            ],
             assignedEmployees: [{ id: "u5", name: "Erik Employee", role: "EMPLOYEE" }],
             assignedContainers: [],
           },
@@ -909,9 +941,22 @@ export default function DashboardPage() {
                                 {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
                               </span>
                             </div>
-                            <span className="text-sm font-bold text-slate-900 block mt-1">
-                              {p.warehouseName} — {p.hallName}
-                            </span>
+                            {p.locations && Array.isArray(p.locations) && p.locations.length > 0 ? (
+                              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                {p.locations.map((loc: any, lidx: number) => (
+                                  <span key={lidx} className="inline-flex items-center gap-1 bg-white text-slate-800 text-xs font-bold px-2 py-0.5 rounded border border-slate-200 shadow-2xs">
+                                    <Warehouse className="w-3 h-3 text-blue-600 shrink-0" />
+                                    <span>{loc.warehouseName || loc.warehouse?.name || p.warehouseName || "Lager"}</span>
+                                    <span className="text-slate-300">|</span>
+                                    <span className="text-slate-600">{loc.hallName || loc.hall?.name || p.hallName || "Halle"}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-sm font-bold text-slate-900 block mt-1">
+                                {p.warehouseName} — {p.hallName}
+                              </span>
+                            )}
                             <div className="flex flex-wrap gap-2 mt-2">
                               {p.shift && (
                                 <span className="flex items-center gap-1 text-[10px] font-semibold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-100">
@@ -972,9 +1017,22 @@ export default function DashboardPage() {
                     employeeSummary.plansHistory.map((p: any) => (
                       <div key={p.id} className="p-5 flex flex-col sm:flex-row justify-between sm:items-center hover:bg-slate-50/30 transition-colors gap-3">
                         <div>
-                          <span className="text-sm font-bold text-slate-800 block">
-                            {p.warehouseName} — {p.hallName}
-                          </span>
+                          {p.locations && Array.isArray(p.locations) && p.locations.length > 0 ? (
+                            <div className="flex flex-wrap gap-1.5 mb-1">
+                              {p.locations.map((loc: any, lidx: number) => (
+                                <span key={lidx} className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 text-[11px] font-bold px-2 py-0.5 rounded border border-slate-200">
+                                  <Warehouse className="w-3 h-3 text-blue-600 shrink-0" />
+                                  <span>{loc.warehouseName || loc.warehouse?.name || p.warehouseName || "Lager"}</span>
+                                  <span className="text-slate-300">|</span>
+                                  <span className="text-slate-600">{loc.hallName || loc.hall?.name || p.hallName || "Halle"}</span>
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-sm font-bold text-slate-800 block">
+                              {p.warehouseName} — {p.hallName}
+                            </span>
+                          )}
                           <div className="flex flex-wrap gap-3 mt-1.5 text-[10px] text-slate-400 font-semibold">
                             <span suppressHydrationWarning className="font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
                               {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
@@ -1385,19 +1443,46 @@ export default function DashboardPage() {
                                 )}
                               </button>
                             )}
-                            <div className="flex flex-col">
-                              <span className="text-xs font-bold text-slate-800">
-                                {p.warehouseName} — {p.hallName}
-                              </span>
-                              <div className="flex flex-wrap gap-3 mt-1.5 text-[10px] text-slate-400 font-semibold">
-                                <span suppressHydrationWarning className="font-mono text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded"> {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
+                            <div className="flex flex-col gap-1.5">
+                              {p.locations && Array.isArray(p.locations) && p.locations.length > 0 ? (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {p.locations.map((loc: any, idx: number) => (
+                                    <span key={idx} className="inline-flex items-center gap-1 bg-slate-100/80 text-slate-800 text-xs font-bold px-2 py-0.5 rounded-md border border-slate-200">
+                                      <Warehouse className="w-3 h-3 text-blue-600 shrink-0" />
+                                      <span>{loc.warehouseName || loc.warehouse?.name || p.warehouseName || "Lager"}</span>
+                                      <span className="text-slate-300">|</span>
+                                      <span className="text-slate-600 font-semibold">{loc.hallName || loc.hall?.name || p.hallName || "Halle"}</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                  <Warehouse className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                  {p.warehouseName || "Lager"} — {p.hallName || "Halle"}
                                 </span>
-                                <span className="flex items-center gap-1">
-                                  <Users className="w-3.5 h-3.5 text-slate-300" />
+                              )}
+                              <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 font-semibold">
+                                <span suppressHydrationWarning className="font-mono text-blue-700 bg-blue-50 border border-blue-200/60 px-1.5 py-0.5 rounded font-bold">
+                                  {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
+                                </span>
+                                {p.shift && (
+                                  <span className="inline-flex items-center gap-1 font-mono bg-amber-50 text-amber-900 border border-amber-200/60 px-2 py-0.5 rounded">
+                                    <Clock className="w-3 h-3 text-amber-600 shrink-0" />
+                                    {p.shift}
+                                  </span>
+                                )}
+                                {p.treffpunkt && (
+                                  <span className="inline-flex items-center gap-1 font-sans bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
+                                    <MapPin className="w-3 h-3 text-rose-500 shrink-0" />
+                                    {p.treffpunkt} {p.treffpunktTime ? `(${p.treffpunktTime})` : ""}
+                                  </span>
+                                )}
+                                <span className="flex items-center gap-1 bg-slate-50 border border-slate-150 px-2 py-0.5 rounded text-slate-600">
+                                  <Users className="w-3 h-3 text-slate-400 shrink-0" />
                                   {p.assignedEmployees?.length || 0} {language === "de" ? "Mitarbeiter" : "Staff"}
                                 </span>
-                                <span className="flex items-center gap-1">
-                                  <Package className="w-3.5 h-3.5 text-slate-300" />
+                                <span className="flex items-center gap-1 bg-slate-50 border border-slate-150 px-2 py-0.5 rounded text-slate-600">
+                                  <Package className="w-3 h-3 text-slate-400 shrink-0" />
                                   {p.assignedContainers?.length || 0} {language === "de" ? "Container" : "Containers"}
                                 </span>
                               </div>
@@ -1552,20 +1637,61 @@ export default function DashboardPage() {
             {/* Modal Content */}
             <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
               
-              {/* Warehouse Details */}
-              <div className="grid grid-cols-2 gap-4 bg-slate-50 border border-slate-100 p-4 rounded-xl text-xs">
-                <div>
-                  <span className="text-[10px] text-slate-400 uppercase tracking-widest block font-bold">{t("depotLocation")}</span>
-                  <span className="font-bold text-slate-850 mt-1 block">{selectedPlanForView.warehouseName}</span>
+              {/* Warehouse & Shift Details */}
+              <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl text-xs space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/60 pb-3">
+                  <div>
+                    <span className="text-[10px] text-slate-400 uppercase tracking-widest block font-bold">{t("shiftDate")} & {language === "de" ? "Arbeitszeit" : "Shift Time"}</span>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <span suppressHydrationWarning className="font-mono text-blue-600 font-bold bg-blue-100/50 px-2 py-0.5 rounded">
+                        {new Date(selectedPlanForView.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                      </span>
+                      {selectedPlanForView.shift && (
+                        <span className="inline-flex items-center gap-1 font-mono text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded shadow-2xs">
+                          <Clock className="w-3.5 h-3.5 text-amber-600" />
+                          {selectedPlanForView.shift}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {selectedPlanForView.treffpunkt && (
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase tracking-widest block font-bold">{language === "de" ? "Treffpunkt" : "Meeting Point"}</span>
+                      <span className="font-semibold text-slate-800 mt-1 flex items-center gap-1 bg-amber-50 text-amber-800 px-2 py-0.5 rounded border border-amber-200/60">
+                        <MapPin className="w-3.5 h-3.5 text-amber-600" />
+                        {selectedPlanForView.treffpunkt} {selectedPlanForView.treffpunktTime ? `(${selectedPlanForView.treffpunktTime})` : ""}
+                      </span>
+                    </div>
+                  )}
                 </div>
+
                 <div>
-                  <span className="text-[10px] text-slate-400 uppercase tracking-widest block font-bold">{t("stagingHall")}</span>
-                  <span className="font-bold text-slate-850 mt-1 block">{selectedPlanForView.hallName}</span>
-                </div>
-                <div className="col-span-2 mt-2 pt-2 border-t border-slate-100">
-                  <span className="text-[10px] text-slate-400 uppercase tracking-widest block font-bold">{t("shiftDate")}</span>
-                  <span suppressHydrationWarning className="font-mono text-blue-600 font-bold mt-1 block"> {new Date(selectedPlanForView.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                  <span className="text-[10px] text-slate-400 uppercase tracking-widest block font-bold mb-1.5">
+                    {language === "de" ? "Einsatzstandorte (Lager & Hallen)" : "Assigned Locations (Warehouses & Halls)"}
                   </span>
+                  {selectedPlanForView.locations && Array.isArray(selectedPlanForView.locations) && selectedPlanForView.locations.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedPlanForView.locations.map((loc: any, idx: number) => (
+                        <span key={idx} className="inline-flex items-center gap-1.5 bg-white text-slate-800 px-2.5 py-1 rounded-lg border border-slate-200 font-semibold shadow-2xs">
+                          <Warehouse className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          <span>{loc.warehouseName || loc.warehouse?.name || selectedPlanForView.warehouseName || "Lager"}</span>
+                          <span className="text-slate-300">|</span>
+                          <span className="text-slate-600">{loc.hallName || loc.hall?.name || selectedPlanForView.hallName || "Halle"}</span>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4 bg-white p-2.5 rounded-lg border border-slate-200/60">
+                      <div>
+                        <span className="text-[9px] text-slate-400 uppercase font-bold">{t("depotLocation")}</span>
+                        <span className="font-bold text-slate-800 block mt-0.5">{selectedPlanForView.warehouseName || "—"}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-slate-400 uppercase font-bold">{t("stagingHall")}</span>
+                        <span className="font-bold text-slate-800 block mt-0.5">{selectedPlanForView.hallName || "—"}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1759,8 +1885,16 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold border-b pb-2 mb-4">LogiFlow Shift Operations Plan</h1>
           <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
             <div suppressHydrationWarning><strong>Date:</strong> {new Date(selectedPlanForView.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}</div>
-            <div><strong>Depot Location:</strong> {selectedPlanForView.warehouseName}</div>
-            <div><strong>Staging Area:</strong> {selectedPlanForView.hallName}</div>
+            {selectedPlanForView.shift && <div><strong>Shift Time:</strong> {selectedPlanForView.shift}</div>}
+            <div className="col-span-2">
+              <strong>Assigned Locations:</strong>{" "}
+              {selectedPlanForView.locations && selectedPlanForView.locations.length > 0
+                ? selectedPlanForView.locations.map((l: any) => `${l.warehouseName || l.warehouse?.name || selectedPlanForView.warehouseName} (${l.hallName || l.hall?.name || selectedPlanForView.hallName})`).join(", ")
+                : `${selectedPlanForView.warehouseName} — ${selectedPlanForView.hallName}`}
+            </div>
+            {selectedPlanForView.treffpunkt && (
+              <div className="col-span-2"><strong>Meeting Point:</strong> {selectedPlanForView.treffpunkt} {selectedPlanForView.treffpunktTime ? `at ${selectedPlanForView.treffpunktTime}` : ""}</div>
+            )}
           </div>
           
           <h2 className="text-lg font-semibold border-b pb-1 mb-2">Assigned Staff ({selectedPlanForView.assignedEmployees?.length || 0})</h2>

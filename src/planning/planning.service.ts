@@ -9,6 +9,35 @@ import { MessagingService } from '../messaging/messaging.service';
 export class PlanningService {
   private readonly logger = new Logger(PlanningService.name);
 
+  private readonly standardInclude = {
+    locations: {
+      include: {
+        warehouse: { select: { name: true } },
+        hall: { select: { name: true } },
+      },
+    },
+    assignedEmployees: {
+      include: {
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            email: true,
+            profilePhoto: true,
+            role: true,
+            telegramId: true,
+          },
+        },
+      },
+    },
+    assignedContainers: {
+      include: {
+        container: true,
+      },
+    },
+  };
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
@@ -24,44 +53,158 @@ export class PlanningService {
     return d;
   }
 
+  private getShiftTimeWindow(
+    date: Date,
+    shift?: string | null,
+    customStart?: string | Date,
+    customEnd?: string | Date,
+  ): { startTime: Date; endTime: Date } {
+    if (customStart && customEnd) {
+      const s = typeof customStart === 'string' ? new Date(customStart) : customStart;
+      const e = typeof customEnd === 'string' ? new Date(customEnd) : customEnd;
+      if (!isNaN(s.getTime()) && !isNaN(e.getTime())) {
+        return { startTime: s, endTime: e };
+      }
+    }
+    const baseDate = new Date(date);
+    baseDate.setUTCHours(0, 0, 0, 0);
+    const startTime = new Date(baseDate);
+    const endTime = new Date(baseDate);
+
+    const sLower = (shift || '').toLowerCase();
+    if (sLower.includes('spät') || sLower.includes('afternoon') || sLower.includes('second')) {
+      startTime.setUTCHours(14, 0, 0, 0);
+      endTime.setUTCHours(22, 0, 0, 0);
+    } else if (sLower.includes('nacht') || sLower.includes('night') || sLower.includes('third')) {
+      startTime.setUTCHours(22, 0, 0, 0);
+      endTime.setDate(endTime.getDate() + 1);
+      endTime.setUTCHours(6, 0, 0, 0);
+    } else {
+      // Frühschicht / Morning / default 06:00 - 14:00
+      startTime.setUTCHours(6, 0, 0, 0);
+      endTime.setUTCHours(14, 0, 0, 0);
+    }
+    return { startTime, endTime };
+  }
+
+  private formatPlanOutput(plan: any) {
+    const primaryLocation = plan.locations && plan.locations.length > 0 ? plan.locations[0] : null;
+    return {
+      id: plan.id,
+      title: plan.title,
+      description: plan.description,
+      date: plan.date,
+      startTime: plan.startTime,
+      endTime: plan.endTime,
+      warehouseId: primaryLocation ? primaryLocation.warehouseId : '',
+      warehouseName: primaryLocation && primaryLocation.warehouse ? primaryLocation.warehouse.name : 'Unassigned',
+      hallId: primaryLocation ? primaryLocation.hallId : '',
+      hallName: primaryLocation && primaryLocation.hall ? primaryLocation.hall.name : 'Unassigned',
+      locations: (plan.locations || []).map((loc: any) => ({
+        id: loc.id,
+        warehouseId: loc.warehouseId,
+        warehouseName: loc.warehouse ? loc.warehouse.name : '',
+        hallId: loc.hallId,
+        hallName: loc.hall ? loc.hall.name : '',
+        notes: loc.notes || null,
+      })),
+      shift: plan.shift,
+      treffpunkt: plan.treffpunkt,
+      treffpunktTime: plan.treffpunktTime,
+      notes: plan.notes,
+      assignedEmployees: (plan.assignedEmployees || []).map((ae: any) => ae.employee),
+      assignedContainers: (plan.assignedContainers || []).map((ac: any) => ac.container),
+    };
+  }
+
+  private async validateNoEmployeeTimeOverlap(
+    tx: any,
+    employeeIds: string[],
+    startTime: Date,
+    endTime: Date,
+    excludePlanId?: string,
+  ) {
+    if (!employeeIds || employeeIds.length === 0) return;
+
+    const where: any = {
+      employeeId: { in: employeeIds },
+      plan: {
+        deletedAt: null,
+      },
+      startTime: { lt: endTime },
+      endTime: { gt: startTime },
+    };
+
+    if (excludePlanId) {
+      where.planId = { not: excludePlanId };
+    }
+
+    const conflictingAssignments = await tx.planEmployee.findMany({
+      where,
+      include: {
+        employee: { select: { name: true, id: true } },
+        plan: { select: { title: true, shift: true, date: true } },
+      },
+    });
+
+    if (conflictingAssignments.length > 0) {
+      const details = conflictingAssignments
+        .map((ca: any) => {
+          const empName = ca.employee?.name || ca.employeeId;
+          const pTitle = ca.plan?.title || ca.plan?.shift || 'existing shift';
+          const pDate = new Date(ca.plan?.date || ca.startTime).toLocaleDateString('de-DE');
+          return `${empName} overlaps with ${pTitle} on ${pDate}`;
+        })
+        .join('; ');
+      throw new ConflictException(`Shift time overlap detected for employee(s): ${details}`);
+    }
+  }
+
   async create(createPlanDto: CreatePlanDto, actorId?: string) {
     const normalizedDate = this.normalizeDate(createPlanDto.date);
+    const { startTime, endTime } = this.getShiftTimeWindow(
+      normalizedDate,
+      createPlanDto.shift,
+      createPlanDto.startTime,
+      createPlanDto.endTime,
+    );
 
-    // Verify warehouse & hall
-    const hall = await this.prisma.hall.findFirst({
-      where: {
-        id: createPlanDto.hallId,
-        warehouseId: createPlanDto.warehouseId,
-        deletedAt: null,
-      },
-    });
-
-    if (!hall) {
-      throw new NotFoundException('Specified hall does not exist in the specified warehouse');
+    // Resolve target locations
+    const targetLocations: { warehouseId: string; hallId: string; notes?: string }[] = [];
+    if (createPlanDto.locations && createPlanDto.locations.length > 0) {
+      targetLocations.push(...createPlanDto.locations);
+    } else if (createPlanDto.warehouseId && createPlanDto.hallId) {
+      targetLocations.push({ warehouseId: createPlanDto.warehouseId, hallId: createPlanDto.hallId });
+    } else {
+      throw new BadRequestException('At least one location (warehouse and hall) must be provided');
     }
 
-    // Check if plan already exists for this date, warehouse, and hall
-    const existing = await this.prisma.plan.findFirst({
-      where: {
-        date: normalizedDate,
-        warehouseId: createPlanDto.warehouseId,
-        hallId: createPlanDto.hallId,
-        deletedAt: null,
-      },
-    });
-
-    if (existing) {
-      throw new ConflictException('A daily plan already exists for this date, warehouse, and hall');
+    // Verify warehouses & halls exist
+    for (const loc of targetLocations) {
+      const hall = await this.prisma.hall.findFirst({
+        where: {
+          id: loc.hallId,
+          warehouseId: loc.warehouseId,
+          deletedAt: null,
+        },
+      });
+      if (!hall) {
+        throw new NotFoundException(`Specified hall (${loc.hallId}) does not exist in warehouse (${loc.warehouseId})`);
+      }
     }
 
-    // Run transaction
+    // Run transaction with non-overlapping checks
     const plan = await this.prisma.$transaction(async (tx) => {
+      if (createPlanDto.assignedEmployeeIds && createPlanDto.assignedEmployeeIds.length > 0) {
+        await this.validateNoEmployeeTimeOverlap(tx, createPlanDto.assignedEmployeeIds, startTime, endTime);
+      }
+
       // 1. Create plan
       const newPlan = await tx.plan.create({
         data: {
           date: normalizedDate,
-          warehouseId: createPlanDto.warehouseId,
-          hallId: createPlanDto.hallId,
+          startTime,
+          endTime,
           title: createPlanDto.title || null,
           description: createPlanDto.description || null,
           shift: createPlanDto.shift || null,
@@ -71,17 +214,29 @@ export class PlanningService {
         },
       });
 
-      // 2. Assign employees
+      // 2. Assign locations
+      await tx.planLocation.createMany({
+        data: targetLocations.map((loc) => ({
+          planId: newPlan.id,
+          warehouseId: loc.warehouseId,
+          hallId: loc.hallId,
+          notes: loc.notes || null,
+        })),
+      });
+
+      // 3. Assign employees with temporal boundaries
       if (createPlanDto.assignedEmployeeIds && createPlanDto.assignedEmployeeIds.length > 0) {
         await tx.planEmployee.createMany({
           data: createPlanDto.assignedEmployeeIds.map((empId) => ({
             planId: newPlan.id,
             employeeId: empId,
+            startTime,
+            endTime,
           })),
         });
       }
 
-      // 3. Assign containers
+      // 4. Assign containers
       const containerIdsToLink = new Set<string>();
 
       if (createPlanDto.assignedContainerIds && createPlanDto.assignedContainerIds.length > 0) {
@@ -89,6 +244,7 @@ export class PlanningService {
       }
 
       if (createPlanDto.assignedContainerNumbers && createPlanDto.assignedContainerNumbers.length > 0) {
+        const primaryLoc = targetLocations[0];
         for (const num of createPlanDto.assignedContainerNumbers) {
           const cleanNum = num.trim().toUpperCase();
           if (!cleanNum) continue;
@@ -104,8 +260,8 @@ export class PlanningService {
             container = await tx.container.create({
               data: {
                 containerNumber: cleanNum,
-                warehouseId: createPlanDto.warehouseId,
-                hallId: createPlanDto.hallId,
+                warehouseId: primaryLoc.warehouseId,
+                hallId: primaryLoc.hallId,
                 status: 'EMPTY',
               },
             });
@@ -127,17 +283,16 @@ export class PlanningService {
       return newPlan;
     });
 
+    const fullPlan = await this.findOne(plan.id);
+
     await this.prisma.actionLog.create({
       data: {
         userId: actorId || null,
         action: 'CREATE_PLAN',
-        details: `Created daily plan for date ${normalizedDate.toISOString().split('T')[0]} in warehouse ${plan.warehouseId}, hall ${plan.hallId}`,
+        details: `Created daily plan for date ${normalizedDate.toISOString().split('T')[0]} across ${fullPlan.locations.length} location(s)`,
       },
     });
 
-    const fullPlan = await this.findOne(plan.id);
-
-    // Trigger Notification, Emails & WhatsApp for assigned employees
     await this.notifyAssignedEmployees(fullPlan, fullPlan.assignedEmployees, false, actorId);
 
     return fullPlan;
@@ -164,11 +319,12 @@ export class PlanningService {
     const formattedDate = new Date(plan.date).toLocaleDateString('de-DE');
     const headerTitle = isUpdate ? 'Schichtplan aktualisiert' : 'Neue Schichtzuweisung';
 
-    // Fetch employee details fallback from database (including email & phone)
-    const userRecords = await this.prisma.user.findMany({
-      where: { id: { in: employees.map((e) => e.id) } },
-      select: { id: true, name: true, email: true, phone: true, treffpunkt: true, treffpunktTime: true, address: true },
-    }).catch(() => []);
+    const userRecords = await this.prisma.user
+      .findMany({
+        where: { id: { in: employees.map((e) => e.id) } },
+        select: { id: true, name: true, email: true, phone: true, treffpunkt: true, treffpunktTime: true, address: true },
+      })
+      .catch(() => []);
     const userMap = new Map(userRecords.map((u) => [u.id, u]));
 
     for (const employee of employees) {
@@ -179,74 +335,81 @@ export class PlanningService {
       const tpOrt = plan.treffpunkt || uInfo?.treffpunkt || uInfo?.address || 'Kein Treffpunkt angegeben';
       const tpZeit = plan.treffpunktTime || uInfo?.treffpunktTime || 'Keine Treffzeit angegeben';
 
-      // 1. App Notification (Bell icon)
-      await this.prisma.notification.create({
-        data: {
-          userId: employee.id,
-          title: headerTitle,
-          message: isUpdate
-            ? `Ihr Schichtplan am ${formattedDate} in Halle ${plan.hallName} (${plan.warehouseName}) wurde aktualisiert. Schicht: ${plan.shift || 'Standard'}, Treffpunkt: ${tpOrt} (${tpZeit})`
-            : `Sie wurden einer Schicht am ${formattedDate} in Halle ${plan.hallName} (${plan.warehouseName}) zugewiesen. Schicht: ${plan.shift || 'Standard'}, Treffpunkt: ${tpOrt} (${tpZeit})`,
-          type: isUpdate ? 'PLAN_UPDATED' : 'PLAN_CREATED',
-        },
-      }).catch((err) => {
-        this.logger.error(`Notification DB error for user ${employee.id}: ${err.message}`);
-      });
+      await this.prisma.notification
+        .create({
+          data: {
+            userId: employee.id,
+            title: headerTitle,
+            message: isUpdate
+              ? `Ihr Schichtplan am ${formattedDate} in Halle ${plan.hallName} (${plan.warehouseName}) wurde aktualisiert. Schicht: ${plan.shift || 'Standard'}, Treffpunkt: ${tpOrt} (${tpZeit})`
+              : `Sie wurden einer Schicht am ${formattedDate} in Halle ${plan.hallName} (${plan.warehouseName}) zugewiesen. Schicht: ${plan.shift || 'Standard'}, Treffpunkt: ${tpOrt} (${tpZeit})`,
+            type: isUpdate ? 'PLAN_UPDATED' : 'PLAN_CREATED',
+          },
+        })
+        .catch((err) => {
+          this.logger.error(`Notification DB error for user ${employee.id}: ${err.message}`);
+        });
 
-      // 2. Email Notification
       if (targetEmail) {
-        const emailSubject = `${headerTitle} - ${formattedDate}`;
-        const emailHtml = `
-          <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f8fafc; border-radius: 8px;">
-            <h3 style="color: #1e293b;">Hallo ${empName},</h3>
-            <p style="color: #334155;">${isUpdate ? 'Ihr Schichtplan wurde von der Betriebsleitung aktualisiert:' : 'Sie wurden für eine neue Schicht eingeteilt:'}</p>
-            <ul style="color: #334155; line-height: 1.6;">
-              <li><strong>Datum:</strong> ${formattedDate}</li>
-              <li><strong>Lager:</strong> ${plan.warehouseName}</li>
-              <li><strong>Halle:</strong> ${plan.hallName}</li>
-              <li><strong>Schicht:</strong> ${plan.shift || 'Standard'}</li>
-              <li><strong>📍 Treffpunkt (Ort):</strong> ${tpOrt}</li>
-              <li><strong>⏰ Treffpunkt-Uhrzeit:</strong> ${tpZeit}</li>
-              ${plan.notes ? `<li><strong>Notizen:</strong> ${plan.notes}</li>` : ''}
-            </ul>
-            <p style="color: #64748b; font-size: 13px;">Bitte loggen Sie sich in das Portal ein, um weitere Details einzusehen.</p>
-          </div>
-        `;
+        const shiftTime = plan.shift || ((plan as any).startTime && (plan as any).endTime ? `${new Date((plan as any).startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} - ${new Date((plan as any).endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'Standardschicht');
+        const warehousesList = ((plan as any).locations && (plan as any).locations.length > 0)
+          ? (plan as any).locations.map((loc: any) => `${loc.warehouseName || 'Lager'} (${loc.hallName || 'Halle'})`)
+          : [`${plan.warehouseName || 'Lager'} (${plan.hallName || 'Halle'})`];
 
-        this.emailService.sendEmail(targetEmail, emailSubject, emailHtml)
+        const planDetails = {
+          employeeName: empName,
+          date: formattedDate,
+          time: shiftTime,
+          warehouses: warehousesList,
+          notes: plan.notes || 'Keine besonderen Hinweise hinterlegt.',
+          title: headerTitle,
+          isUpdate: isUpdate,
+          treffpunkt: tpOrt,
+          treffpunktTime: tpZeit,
+          containers: ((plan as any).assignedContainers || []).map((ac: any) => ac.containerNumber || ac.id || String(ac)),
+        };
+
+        this.emailService
+          .sendPlanNotification(targetEmail, planDetails)
           .then((sent: any) => {
             const isSuccess = sent === true;
-            this.logger.log(isSuccess ? `✓ Plan notification email sent to ${empName} (${targetEmail})` : `✗ Plan notification email failed for ${targetEmail}: ${sent}`);
-            this.prisma.actionLog.create({
-              data: {
-                userId: actorId || null,
-                action: isSuccess ? 'EMAIL_NOTIFICATION' : 'EMAIL_NOTIFICATION_FAILED',
-                details: isSuccess
-                  ? `Plan notification email sent to ${empName} (${targetEmail})`
-                  : `Failed to send plan notification email to ${empName} (${targetEmail}): ${sent}`,
-              },
-            }).catch(() => {});
+            this.logger.log(
+              isSuccess ? `✓ Plan notification email sent to ${empName} (${targetEmail})` : `✗ Plan notification email failed for ${targetEmail}: ${sent}`,
+            );
+            this.prisma.actionLog
+              .create({
+                data: {
+                  userId: actorId || null,
+                  action: isSuccess ? 'EMAIL_NOTIFICATION' : 'EMAIL_NOTIFICATION_FAILED',
+                  details: isSuccess
+                    ? `Plan notification email sent to ${empName} (${targetEmail})`
+                    : `Failed to send plan notification email to ${empName} (${targetEmail}): ${sent}`,
+                },
+              })
+              .catch(() => {});
           })
           .catch((err: any) => {
             this.logger.error(`Email error for ${targetEmail}: ${err.message}`);
           });
       }
 
-      // 3. WhatsApp Notification
       if (targetPhone) {
         const waMessage = `Hallo ${empName},\n${isUpdate ? 'Ihr Schichtplan wurde aktualisiert:' : 'Sie wurden für eine neue Schicht eingeteilt:'}\n\n📅 Datum: ${formattedDate}\n🏢 Lager: ${plan.warehouseName}\n📍 Halle: ${plan.hallName}\n🕒 Schicht: ${plan.shift || 'Standard'}\n📍 Treffpunkt: ${tpOrt}\n⏰ Treffpunkt-Uhrzeit: ${tpZeit}${plan.notes ? `\n📝 Notizen: ${plan.notes}` : ''}\n\nBitte loggen Sie sich in das Portal ein für weitere Details.`;
 
-        this.messagingService.sendWhatsAppDirect(targetPhone, waMessage)
+        this.messagingService
+          .sendWhatsAppDirect(targetPhone, waMessage)
           .then((res) => {
-            this.prisma.actionLog.create({
-              data: {
-                userId: actorId || null,
-                action: res.success ? 'WHATSAPP_NOTIFICATION' : 'WHATSAPP_NOTIFICATION_FAILED',
-                details: res.success
-                  ? `Plan notification WhatsApp sent to ${empName} (${targetPhone})`
-                  : `Failed WhatsApp notification to ${empName} (${targetPhone}): ${res.error || 'Unknown error'}`,
-              },
-            }).catch(() => {});
+            this.prisma.actionLog
+              .create({
+                data: {
+                  userId: actorId || null,
+                  action: res.success ? 'WHATSAPP_NOTIFICATION' : 'WHATSAPP_NOTIFICATION_FAILED',
+                  details: res.success
+                    ? `Plan notification WhatsApp sent to ${empName} (${targetPhone})`
+                    : `Failed WhatsApp notification to ${empName} (${targetPhone}): ${res.error || 'Unknown error'}`,
+                },
+              })
+              .catch(() => {});
           })
           .catch((err: any) => {
             this.logger.error(`WhatsApp error for ${targetPhone}: ${err.message}`);
@@ -260,7 +423,7 @@ export class PlanningService {
       where: { id, deletedAt: null },
       include: {
         assignedEmployees: true,
-        hall: true,
+        locations: true,
       },
     });
 
@@ -269,13 +432,20 @@ export class PlanningService {
     }
 
     const prevEmployeeIds = plan.assignedEmployees.map((ae) => ae.employeeId);
+    const targetDate = updatePlanDto.date !== undefined ? this.normalizeDate(updatePlanDto.date) : plan.date;
+    const targetShift = updatePlanDto.shift !== undefined ? updatePlanDto.shift : plan.shift;
+    const { startTime, endTime } = this.getShiftTimeWindow(
+      targetDate,
+      targetShift,
+      updatePlanDto.startTime || plan.startTime,
+      updatePlanDto.endTime || plan.endTime,
+    );
 
     await this.prisma.$transaction(async (tx) => {
-      // Update plan properties
       const updateData: any = {};
-      if (updatePlanDto.date !== undefined) updateData.date = this.normalizeDate(updatePlanDto.date);
-      if (updatePlanDto.warehouseId !== undefined) updateData.warehouseId = updatePlanDto.warehouseId;
-      if (updatePlanDto.hallId !== undefined) updateData.hallId = updatePlanDto.hallId;
+      if (updatePlanDto.date !== undefined) updateData.date = targetDate;
+      updateData.startTime = startTime;
+      updateData.endTime = endTime;
       if (updatePlanDto.title !== undefined) updateData.title = updatePlanDto.title;
       if (updatePlanDto.description !== undefined) updateData.description = updatePlanDto.description;
       if (updatePlanDto.shift !== undefined) updateData.shift = updatePlanDto.shift;
@@ -283,27 +453,57 @@ export class PlanningService {
       if (updatePlanDto.treffpunktTime !== undefined) updateData.treffpunktTime = updatePlanDto.treffpunktTime;
       if (updatePlanDto.notes !== undefined) updateData.notes = updatePlanDto.notes;
 
-      if (Object.keys(updateData).length > 0) {
-        await tx.plan.update({
-          where: { id },
-          data: updateData,
-        });
-      }
+      await tx.plan.update({
+        where: { id },
+        data: updateData,
+      });
 
-      // Update employee assignments
-      if (updatePlanDto.assignedEmployeeIds !== undefined) {
-        await tx.planEmployee.deleteMany({
-          where: { planId: id },
-        });
-
-        if (updatePlanDto.assignedEmployeeIds.length > 0) {
-          await tx.planEmployee.createMany({
-            data: updatePlanDto.assignedEmployeeIds.map((empId) => ({
+      // Update locations if specified
+      if (updatePlanDto.locations !== undefined || (updatePlanDto.warehouseId && updatePlanDto.hallId)) {
+        await tx.planLocation.deleteMany({ where: { planId: id } });
+        const locs: { warehouseId: string; hallId: string; notes?: string }[] = [];
+        if (updatePlanDto.locations && updatePlanDto.locations.length > 0) {
+          locs.push(...updatePlanDto.locations);
+        } else if (updatePlanDto.warehouseId && updatePlanDto.hallId) {
+          locs.push({ warehouseId: updatePlanDto.warehouseId, hallId: updatePlanDto.hallId });
+        }
+        if (locs.length > 0) {
+          for (const l of locs) {
+            const hall = await tx.hall.findFirst({
+              where: { id: l.hallId, warehouseId: l.warehouseId, deletedAt: null },
+            });
+            if (!hall) {
+              throw new NotFoundException(`Specified hall (${l.hallId}) not found in warehouse (${l.warehouseId})`);
+            }
+          }
+          await tx.planLocation.createMany({
+            data: locs.map((l) => ({
               planId: id,
-              employeeId: empId,
+              warehouseId: l.warehouseId,
+              hallId: l.hallId,
+              notes: l.notes || null,
             })),
           });
         }
+      }
+
+      // Update employee assignments and check overlaps
+      const effectiveEmployees = updatePlanDto.assignedEmployeeIds !== undefined ? updatePlanDto.assignedEmployeeIds : prevEmployeeIds;
+
+      await tx.planEmployee.deleteMany({
+        where: { planId: id },
+      });
+
+      if (effectiveEmployees && effectiveEmployees.length > 0) {
+        await this.validateNoEmployeeTimeOverlap(tx, effectiveEmployees, startTime, endTime, id);
+        await tx.planEmployee.createMany({
+          data: effectiveEmployees.map((empId) => ({
+            planId: id,
+            employeeId: empId,
+            startTime,
+            endTime,
+          })),
+        });
       }
 
       // Update container assignments
@@ -319,29 +519,33 @@ export class PlanningService {
         }
 
         if (updatePlanDto.assignedContainerNumbers && updatePlanDto.assignedContainerNumbers.length > 0) {
-          for (const num of updatePlanDto.assignedContainerNumbers) {
-            const cleanNum = num.trim().toUpperCase();
-            if (!cleanNum) continue;
+          const currentPlanLocs = await tx.planLocation.findMany({ where: { planId: id } });
+          const primaryLoc = currentPlanLocs[0];
+          if (primaryLoc) {
+            for (const num of updatePlanDto.assignedContainerNumbers) {
+              const cleanNum = num.trim().toUpperCase();
+              if (!cleanNum) continue;
 
-            let container = await tx.container.findFirst({
-              where: {
-                containerNumber: cleanNum,
-                deletedAt: null,
-              },
-            });
-
-            if (!container) {
-              container = await tx.container.create({
-                data: {
+              let container = await tx.container.findFirst({
+                where: {
                   containerNumber: cleanNum,
-                  warehouseId: plan.warehouseId,
-                  hallId: plan.hallId,
-                  status: 'EMPTY',
+                  deletedAt: null,
                 },
               });
-            }
 
-            containerIdsToLink.add(container.id);
+              if (!container) {
+                container = await tx.container.create({
+                  data: {
+                    containerNumber: cleanNum,
+                    warehouseId: primaryLoc.warehouseId,
+                    hallId: primaryLoc.hallId,
+                    status: 'EMPTY',
+                  },
+                });
+              }
+
+              containerIdsToLink.add(container.id);
+            }
           }
         }
 
@@ -360,20 +564,17 @@ export class PlanningService {
       data: {
         userId: actorId || null,
         action: 'UPDATE_PLAN',
-        details: `Updated daily plan (ID: ${id}) assignments`,
+        details: `Updated daily plan (ID: ${id}) assignments and locations`,
       },
     });
 
     const updatedPlan = await this.findOne(id);
 
-    // Notify Employees of plan updates via App, Email & WhatsApp
-    const currentEmployeeIds = updatedPlan.assignedEmployees.map((ae) => ae.id);
+    const currentEmployeeIds = updatedPlan.assignedEmployees.map((ae: any) => ae.id);
     const removedEmployeeIds = prevEmployeeIds.filter((id) => !currentEmployeeIds.includes(id));
 
-    // Notify newly assigned or updated assigned employees
     await this.notifyAssignedEmployees(updatedPlan, updatedPlan.assignedEmployees, true, actorId);
 
-    // Notify employees who were removed from this plan
     if (removedEmployeeIds.length > 0) {
       const removedEmployees = await this.prisma.user.findMany({
         where: { id: { in: removedEmployeeIds } },
@@ -382,30 +583,35 @@ export class PlanningService {
       const formattedDate = new Date(updatedPlan.date).toLocaleDateString('de-DE');
 
       for (const emp of removedEmployees) {
-        // 1. App Notification
-        await this.prisma.notification.create({
-          data: {
-            userId: emp.id,
-            title: 'Schichtzuweisung entfernt',
-            message: `Sie wurden aus dem Schichtplan am ${formattedDate} in ${updatedPlan.warehouseName} (${updatedPlan.hallName}) ausgetragen.`,
-            type: 'PLAN_UPDATED',
-          },
-        }).catch(() => {});
+        await this.prisma.notification
+          .create({
+            data: {
+              userId: emp.id,
+              title: 'Schichtzuweisung entfernt',
+              message: `Sie wurden aus dem Schichtplan am ${formattedDate} in ${updatedPlan.warehouseName} (${updatedPlan.hallName}) ausgetragen.`,
+              type: 'PLAN_UPDATED',
+            },
+          })
+          .catch(() => {});
 
-        // 2. Email Notification
         if (emp.email) {
-          const emailSubject = `Schichtzuweisung entfernt - ${formattedDate}`;
-          const emailHtml = `
-            <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f8fafc; border-radius: 8px;">
-              <h3 style="color: #1e293b;">Hallo ${emp.name},</h3>
-              <p style="color: #334155;">Sie wurden aus dem Schichtplan am <strong>${formattedDate}</strong> in <strong>${updatedPlan.warehouseName} (${updatedPlan.hallName})</strong> ausgetragen.</p>
-              <p style="color: #64748b; font-size: 13px;">Bitte loggen Sie sich in das Portal ein, um Ihren aktuellen Dienstplan einzusehen.</p>
-            </div>
-          `;
-          this.emailService.sendEmail(emp.email, emailSubject, emailHtml).catch(() => {});
+          const shiftTime = updatedPlan.shift || (updatedPlan.startTime && updatedPlan.endTime ? `${new Date(updatedPlan.startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} - ${new Date(updatedPlan.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'Standardschicht');
+          const warehousesList = (updatedPlan.locations && updatedPlan.locations.length > 0)
+            ? updatedPlan.locations.map((loc: any) => `${loc.warehouseName || 'Lager'} (${loc.hallName || 'Halle'})`)
+            : [`${updatedPlan.warehouseName || 'Lager'} (${updatedPlan.hallName || 'Halle'})`];
+
+          const planDetails = {
+            employeeName: emp.name || 'Mitarbeiter',
+            date: formattedDate,
+            time: shiftTime,
+            warehouses: warehousesList,
+            notes: 'Sie wurden aus diesem Schichtplan ausgetragen. Ihr Dienstplan wurde aktualisiert.',
+            title: 'Schichtzuweisung entfernt',
+            isRemoved: true,
+          };
+          this.emailService.sendPlanRemovalNotification(emp.email, planDetails).catch(() => {});
         }
 
-        // 3. WhatsApp Notification
         if (emp.phone) {
           const waMessage = `Hallo ${emp.name},\nSie wurden aus dem Schichtplan am 📅 ${formattedDate} in 🏢 ${updatedPlan.warehouseName} (${updatedPlan.hallName}) ausgetragen.`;
           this.messagingService.sendWhatsAppDirect(emp.phone, waMessage).catch(() => {});
@@ -419,51 +625,14 @@ export class PlanningService {
   async findOne(id: string) {
     const plan = await this.prisma.plan.findFirst({
       where: { id, deletedAt: null },
-      include: {
-        warehouse: { select: { name: true } },
-        hall: { select: { name: true } },
-        assignedEmployees: {
-          include: {
-            employee: {
-              select: {
-                id: true,
-                name: true,
-                phone: true,
-                email: true,
-                role: true,
-                telegramId: true,
-              },
-            },
-          },
-        },
-        assignedContainers: {
-          include: {
-            container: true,
-          },
-        },
-      },
+      include: this.standardInclude,
     });
 
     if (!plan) {
       throw new NotFoundException(`Daily plan with ID ${id} not found`);
     }
 
-    return {
-      id: plan.id,
-      title: plan.title,
-      description: plan.description,
-      date: plan.date,
-      warehouseId: plan.warehouseId,
-      warehouseName: plan.warehouse.name,
-      hallId: plan.hallId,
-      hallName: plan.hall.name,
-      shift: plan.shift,
-      treffpunkt: plan.treffpunkt,
-      treffpunktTime: plan.treffpunktTime,
-      notes: plan.notes,
-      assignedEmployees: plan.assignedEmployees.map((ae) => ae.employee),
-      assignedContainers: plan.assignedContainers.map((ac) => ac.container),
-    };
+    return this.formatPlanOutput(plan);
   }
 
   async findByDateAndWarehouse(dateStr: string, warehouseId?: string) {
@@ -474,52 +643,15 @@ export class PlanningService {
       deletedAt: null,
     };
     if (warehouseId) {
-      where.warehouseId = warehouseId;
+      where.locations = { some: { warehouseId } };
     }
 
     const plans = await this.prisma.plan.findMany({
       where,
-      include: {
-        warehouse: { select: { name: true } },
-        hall: { select: { name: true } },
-        assignedEmployees: {
-          include: {
-            employee: {
-              select: {
-                id: true,
-                name: true,
-                phone: true,
-                email: true,
-                role: true,
-                telegramId: true,
-              },
-            },
-          },
-        },
-        assignedContainers: {
-          include: {
-            container: true,
-          },
-        },
-      },
+      include: this.standardInclude,
     });
 
-    return plans.map((plan) => ({
-      id: plan.id,
-      title: plan.title,
-      description: plan.description,
-      date: plan.date,
-      warehouseId: plan.warehouseId,
-      warehouseName: plan.warehouse.name,
-      hallId: plan.hallId,
-      hallName: plan.hall.name,
-      shift: plan.shift,
-      treffpunkt: plan.treffpunkt,
-      treffpunktTime: plan.treffpunktTime,
-      notes: plan.notes,
-      assignedEmployees: plan.assignedEmployees.map((ae) => ae.employee),
-      assignedContainers: plan.assignedContainers.map((ac) => ac.container),
-    }));
+    return plans.map((plan) => this.formatPlanOutput(plan));
   }
 
   async deactivate(id: string, actorId?: string) {
@@ -554,7 +686,7 @@ export class PlanningService {
     };
 
     if (warehouseId) {
-      where.warehouseId = warehouseId;
+      where.locations = { some: { warehouseId } };
     }
 
     if (startDateStr || endDateStr) {
@@ -574,49 +706,11 @@ export class PlanningService {
         skip,
         take: limit,
         orderBy: { date: 'desc' },
-        include: {
-          warehouse: { select: { name: true } },
-          hall: { select: { name: true } },
-          assignedEmployees: {
-            include: {
-              employee: {
-                select: {
-                  id: true,
-                  name: true,
-                  phone: true,
-                  email: true,
-                  profilePhoto: true,
-                  role: true,
-                  telegramId: true,
-                },
-              },
-            },
-          },
-          assignedContainers: {
-            include: {
-              container: true,
-            },
-          },
-        },
+        include: this.standardInclude,
       }),
     ]);
 
-    const formattedPlans = plans.map((plan) => ({
-      id: plan.id,
-      title: plan.title,
-      description: plan.description,
-      date: plan.date,
-      warehouseId: plan.warehouseId,
-      warehouseName: plan.warehouse.name,
-      hallId: plan.hallId,
-      hallName: plan.hall.name,
-      shift: plan.shift,
-      treffpunkt: plan.treffpunkt,
-      treffpunktTime: plan.treffpunktTime,
-      notes: plan.notes,
-      assignedEmployees: plan.assignedEmployees.map((ae) => ae.employee),
-      assignedContainers: plan.assignedContainers.map((ac) => ac.container),
-    }));
+    const formattedPlans = plans.map((plan) => this.formatPlanOutput(plan));
 
     return {
       data: formattedPlans,
@@ -664,7 +758,11 @@ export class PlanningService {
   async bulkDuplicate(ids: string[], actorId?: string) {
     const plans = await this.prisma.plan.findMany({
       where: { id: { in: ids }, deletedAt: null },
-      include: { assignedEmployees: true, assignedContainers: true },
+      include: {
+        assignedEmployees: true,
+        assignedContainers: true,
+        locations: true,
+      },
     });
 
     let count = 0;
@@ -672,41 +770,53 @@ export class PlanningService {
       const nextDay = new Date(plan.date);
       nextDay.setDate(nextDay.getDate() + 1);
 
-      // Check unique constraint: date + warehouseId + hallId
-      const exists = await this.prisma.plan.findFirst({
-        where: {
-          date: nextDay,
-          warehouseId: plan.warehouseId,
-          hallId: plan.hallId,
-          deletedAt: null,
-        },
-      });
+      const { startTime, endTime } = this.getShiftTimeWindow(nextDay, plan.shift);
+      const employeeIds = plan.assignedEmployees.map((e) => e.employeeId);
 
-      if (exists) continue;
+      try {
+        await this.prisma.$transaction(async (tx) => {
+          if (employeeIds.length > 0) {
+            await this.validateNoEmployeeTimeOverlap(tx, employeeIds, startTime, endTime);
+          }
 
-      await this.prisma.$transaction(async (tx) => {
-        const newPlan = await tx.plan.create({
-          data: {
-            date: nextDay,
-            warehouseId: plan.warehouseId,
-            hallId: plan.hallId,
-            title: plan.title ? `${plan.title} (Kopie)` : null,
-            description: plan.description,
-            shift: plan.shift,
-            notes: plan.notes,
-          },
-        });
-
-        if (plan.assignedEmployees.length > 0) {
-          await tx.planEmployee.createMany({
-            data: plan.assignedEmployees.map((emp) => ({
-              planId: newPlan.id,
-              employeeId: emp.employeeId,
-            })),
+          const newPlan = await tx.plan.create({
+            data: {
+              date: nextDay,
+              startTime,
+              endTime,
+              title: plan.title ? `${plan.title} (Kopie)` : null,
+              description: plan.description,
+              shift: plan.shift,
+              notes: plan.notes,
+            },
           });
-        }
-        count++;
-      });
+
+          if (plan.locations && plan.locations.length > 0) {
+            await tx.planLocation.createMany({
+              data: plan.locations.map((loc) => ({
+                planId: newPlan.id,
+                warehouseId: loc.warehouseId,
+                hallId: loc.hallId,
+                notes: loc.notes,
+              })),
+            });
+          }
+
+          if (employeeIds.length > 0) {
+            await tx.planEmployee.createMany({
+              data: employeeIds.map((empId) => ({
+                planId: newPlan.id,
+                employeeId: empId,
+                startTime,
+                endTime,
+              })),
+            });
+          }
+          count++;
+        });
+      } catch (err) {
+        this.logger.warn(`Skipping duplication for plan ${plan.id} due to overlap or error: ${err.message}`);
+      }
     }
 
     await this.prisma.actionLog.create({
@@ -735,26 +845,17 @@ export class PlanningService {
 
     let count = 0;
     for (const plan of plans) {
-      // Check unique constraint
-      const exists = await this.prisma.plan.findFirst({
-        where: {
-          date: plan.date,
-          warehouseId: hall.warehouseId,
-          hallId,
-          deletedAt: null,
-        },
+      await this.prisma.$transaction(async (tx) => {
+        await tx.planLocation.deleteMany({ where: { planId: plan.id } });
+        await tx.planLocation.create({
+          data: {
+            planId: plan.id,
+            warehouseId: hall.warehouseId,
+            hallId: hall.id,
+          },
+        });
+        count++;
       });
-
-      if (exists) continue;
-
-      await this.prisma.plan.update({
-        where: { id: plan.id },
-        data: {
-          hallId,
-          warehouseId: hall.warehouseId,
-        },
-      });
-      count++;
     }
 
     await this.prisma.actionLog.create({
@@ -769,20 +870,50 @@ export class PlanningService {
   }
 
   async bulkChangeShift(ids: string[], shift: string, actorId?: string) {
-    const result = await this.prisma.plan.updateMany({
+    const plans = await this.prisma.plan.findMany({
       where: { id: { in: ids }, deletedAt: null },
-      data: { shift },
+      include: { assignedEmployees: true },
     });
+
+    let count = 0;
+    for (const plan of plans) {
+      const { startTime, endTime } = this.getShiftTimeWindow(plan.date, shift);
+      const employeeIds = plan.assignedEmployees.map((ae) => ae.employeeId);
+
+      try {
+        await this.prisma.$transaction(async (tx) => {
+          if (employeeIds.length > 0) {
+            await tx.planEmployee.deleteMany({ where: { planId: plan.id } });
+            await this.validateNoEmployeeTimeOverlap(tx, employeeIds, startTime, endTime, plan.id);
+            await tx.planEmployee.createMany({
+              data: employeeIds.map((empId) => ({
+                planId: plan.id,
+                employeeId: empId,
+                startTime,
+                endTime,
+              })),
+            });
+          }
+          await tx.plan.update({
+            where: { id: plan.id },
+            data: { shift, startTime, endTime },
+          });
+          count++;
+        });
+      } catch (err) {
+        this.logger.warn(`Could not change shift for plan ${plan.id} due to conflict: ${err.message}`);
+      }
+    }
 
     await this.prisma.actionLog.create({
       data: {
         userId: actorId || null,
         action: 'BULK_CHANGE_SHIFT_PLAN',
-        details: `Bulk updated shift for ${result.count} plans to ${shift}`,
+        details: `Bulk updated shift for ${count} plans to ${shift}`,
       },
     });
 
-    return { message: `Shift updated for ${result.count} daily plans successfully` };
+    return { message: `Shift updated for ${count} daily plans successfully` };
   }
 
   async bulkAssignEmployees(ids: string[], employeeIds: string[], actorId?: string) {
@@ -792,17 +923,18 @@ export class PlanningService {
 
     for (const plan of plans) {
       await this.prisma.$transaction(async (tx) => {
-        // Clear existing
         await tx.planEmployee.deleteMany({
           where: { planId: plan.id },
         });
 
-        // Assign new
-        if (employeeIds.length > 0) {
+        if (employeeIds && employeeIds.length > 0) {
+          await this.validateNoEmployeeTimeOverlap(tx, employeeIds, plan.startTime, plan.endTime, plan.id);
           await tx.planEmployee.createMany({
             data: employeeIds.map((empId) => ({
               planId: plan.id,
               employeeId: empId,
+              startTime: plan.startTime,
+              endTime: plan.endTime,
             })),
           });
         }

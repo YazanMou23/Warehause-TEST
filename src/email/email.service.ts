@@ -45,59 +45,296 @@ export class EmailService {
     return (await this.sendEmail(to, subject, html)) === true;
   }
 
-  async sendPlanNotification(email: string, planDetails: any): Promise<boolean> {
+  async sendPlanNotification(email: string, planDetails: any): Promise<string | true> {
     const frontendUrl =
       this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001';
-    const subject = `Schichtplan Zuweisung: ${planDetails.title} - ${planDetails.date}`;
-    const html = `
-      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; color: #1e293b;">
-        <div style="text-align: center; border-bottom: 2px solid #3b82f6; padding-bottom: 15px; margin-bottom: 20px;">
-          <h2 style="color: #1d4ed8; margin: 0; font-size: 22px;">Schichtplan Zuweisung</h2>
-          <p style="color: #64748b; margin: 5px 0 0 0; font-size: 14px;">LogiFlow Warehouse Management</p>
-        </div>
-        
-        <p>Hallo <strong>${planDetails.employeeName}</strong>,</p>
-        <p>Sie wurden für eine neue Schicht eingeteilt:</p>
-        
-        <div style="background-color: #f8fafc; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-          <h3 style="margin: 0 0 8px 0; color: #1e293b; font-size: 16px;">${planDetails.title}</h3>
-          <p style="margin: 0; color: #475569; font-size: 14px; line-height: 1.5;">${planDetails.description}</p>
-        </div>
+    
+    const employeeName = planDetails.employeeName || planDetails.name || 'Mitarbeiter';
+    const date = planDetails.date || 'Nicht angegeben';
 
-        <table style="width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px;">
+    // Time computation
+    let time = planDetails.time;
+    if (!time) {
+      if (planDetails.shift) {
+        time = planDetails.shift;
+      } else if (planDetails.startTime && planDetails.endTime) {
+        const startStr = typeof planDetails.startTime === 'string' ? planDetails.startTime : new Date(planDetails.startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+        const endStr = typeof planDetails.endTime === 'string' ? planDetails.endTime : new Date(planDetails.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+        time = `${startStr} - ${endStr}`;
+      } else {
+        time = 'Standardschicht';
+      }
+    }
+
+    // Warehouses list computation
+    let warehousesList: string[] = [];
+    if (Array.isArray(planDetails.warehouses) && planDetails.warehouses.length > 0) {
+      warehousesList = planDetails.warehouses.map((w: any) => {
+        if (typeof w === 'string') return w;
+        if (w && typeof w === 'object') {
+          const wName = w.warehouseName || w.warehouse?.name || 'Lager';
+          const hName = w.hallName || w.hall?.name || '';
+          return hName ? `${wName} (${hName})` : wName;
+        }
+        return 'Lagerort unbestimmt';
+      });
+    } else if (planDetails.locations && Array.isArray(planDetails.locations) && planDetails.locations.length > 0) {
+      warehousesList = planDetails.locations.map((loc: any) => {
+        const wName = loc.warehouseName || loc.warehouse?.name || planDetails.warehouseName || 'Lager';
+        const hName = loc.hallName || loc.hall?.name || planDetails.hallName || '';
+        return hName ? `${wName} (${hName})` : wName;
+      });
+    } else if (planDetails.warehouseName || planDetails.hallName) {
+      const wName = planDetails.warehouseName || 'Lager';
+      const hName = planDetails.hallName ? ` (${planDetails.hallName})` : '';
+      warehousesList = [`${wName}${hName}`];
+    } else {
+      warehousesList = ['Lagerort zugewiesen'];
+    }
+
+    const notes = planDetails.notes || planDetails.description || 'Keine besonderen Hinweise hinterlegt.';
+    const isUpdate = planDetails.isUpdate || false;
+    const title = planDetails.title || (isUpdate ? 'Schichtplan aktualisiert' : 'Neue Schichtzuweisung');
+    const subject = `${title}: ${date}`;
+
+    const html = `<!DOCTYPE html>
+<html lang="de" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>${subject}</title>
+  <style type="text/css">
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+    body { margin: 0 !important; padding: 0 !important; width: 100% !important; font-family: 'Segoe UI', Inter, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b; }
+    .email-container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); }
+    .header { background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); padding: 32px 24px; text-align: center; color: #ffffff; }
+    .body-padding { padding: 32px 28px; }
+    .badge { display: inline-block; background-color: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 13px; margin: 3px 2px; }
+    .btn-primary { display: inline-block; background-color: #2563eb; color: #ffffff; font-weight: 700; font-size: 15px; text-decoration: none; padding: 14px 32px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3); transition: background-color 0.2s; }
+    .note-card { background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 0 8px 8px 0; color: #78350f; font-size: 14px; line-height: 1.6; margin-top: 20px; }
+    
+    @media screen and (max-width: 600px) {
+      .email-container { width: 100% !important; border-radius: 0 !important; border: none !important; }
+      .body-padding { padding: 24px 16px !important; }
+      .header { padding: 24px 16px !important; }
+      .table-row-label { display: block !important; width: 100% !important; padding-bottom: 4px !important; }
+      .table-row-value { display: block !important; width: 100% !important; padding-bottom: 16px !important; }
+      .btn-primary { width: 100% !important; text-align: center !important; box-sizing: border-box !important; }
+    }
+  </style>
+</head>
+<body style="margin: 0; padding: 20px 0; background-color: #f8fafc; font-family: 'Segoe UI', Inter, Helvetica, Arial, sans-serif; color: #1e293b;">
+  <center style="width: 100%; background-color: #f8fafc;">
+    <div class="email-container" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; text-align: left;">
+      
+      <!-- Header Section -->
+      <div class="header" style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); padding: 32px 24px; text-align: center; color: #ffffff;">
+        <div style="display: inline-block; background-color: rgba(255, 255, 255, 0.15); padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 12px;">
+          LogiFlow Operations
+        </div>
+        <h1 style="margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.3px; color: #ffffff;">
+          ${isUpdate ? 'Schichtplan Aktualisiert' : 'Neue Schichtzuweisung'}
+        </h1>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #dbeafe; opacity: 0.9;">
+          ${title}
+        </p>
+      </div>
+      
+      <!-- Body Section -->
+      <div class="body-padding" style="padding: 32px 28px;">
+        <p style="margin: 0 0 16px; font-size: 16px; color: #334155; line-height: 1.5;">
+          Hallo <strong style="color: #0f172a;">${employeeName}</strong>,
+        </p>
+        <p style="margin: 0 0 24px; font-size: 15px; color: #475569; line-height: 1.5;">
+          ${isUpdate ? 'Die Betriebsleitung hat Ihren Schichtplan aktualisiert. Bitte prüfen Sie Ihre neuen Einsatzdetails:' : 'Sie wurden für eine neue Schicht im Lager eingeteilt. Hier sind Ihre vollständigen Schichtdetails:'}
+        </p>
+
+        <!-- Details Table -->
+        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 24px;">
           <tr>
-            <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #64748b; width: 30%;">Datum:</td>
-            <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; font-weight: 500;">${planDetails.date}</td>
+            <td class="table-row-label" style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #64748b; font-size: 14px; width: 32%; background-color: #f1f5f9;">
+              👤 Mitarbeiter
+            </td>
+            <td class="table-row-value" style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #0f172a; font-size: 15px;">
+              ${employeeName}
+            </td>
           </tr>
           <tr>
-            <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #64748b;">Lagerort:</td>
-            <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; font-weight: 500;">${planDetails.warehouseName}</td>
+            <td class="table-row-label" style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #64748b; font-size: 14px; width: 32%; background-color: #f1f5f9;">
+              📅 Datum
+            </td>
+            <td class="table-row-value" style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #2563eb; font-size: 15px;">
+              ${date}
+            </td>
           </tr>
           <tr>
-            <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #64748b;">Halle:</td>
-            <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; font-weight: 500;">${planDetails.hallName}</td>
+            <td class="table-row-label" style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #64748b; font-size: 14px; width: 32%; background-color: #f1f5f9;">
+              ⏰ Uhrzeit
+            </td>
+            <td class="table-row-value" style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #0f172a; font-size: 15px;">
+              ${time}
+            </td>
           </tr>
+          <tr>
+            <td class="table-row-label" style="padding: 14px 18px; font-weight: 600; color: #64748b; font-size: 14px; width: 32%; background-color: #f1f5f9; vertical-align: top;">
+              🏢 Lagerort(e)
+            </td>
+            <td class="table-row-value" style="padding: 14px 18px; font-weight: 600; color: #0f172a; font-size: 14px;">
+              <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                ${warehousesList.map(w => `<span class="badge" style="display: inline-block; background-color: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 13px; margin: 2px 0;">🏢 ${w}</span>`).join(' ')}
+              </div>
+            </td>
+          </tr>
+          ${planDetails.treffpunkt ? `
+          <tr>
+            <td class="table-row-label" style="padding: 14px 18px; border-top: 1px solid #e2e8f0; font-weight: 600; color: #64748b; font-size: 14px; width: 32%; background-color: #f1f5f9;">
+              📍 Treffpunkt
+            </td>
+            <td class="table-row-value" style="padding: 14px 18px; border-top: 1px solid #e2e8f0; font-weight: 600; color: #0f172a; font-size: 14px;">
+              ${planDetails.treffpunkt}${planDetails.treffpunktTime ? ` (⏰ ${planDetails.treffpunktTime})` : ''}
+            </td>
+          </tr>
+          ` : ''}
           ${planDetails.containers && planDetails.containers.length > 0 ? `
           <tr>
-            <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #64748b; vertical-align: top;">Zugeordnete Container (Aufgaben):</td>
-            <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; font-family: monospace; font-size: 13px; color: #0f172a;">
+            <td class="table-row-label" style="padding: 14px 18px; border-top: 1px solid #e2e8f0; font-weight: 600; color: #64748b; font-size: 14px; width: 32%; background-color: #f1f5f9;">
+              📦 Container
+            </td>
+            <td class="table-row-value" style="padding: 14px 18px; border-top: 1px solid #e2e8f0; font-family: monospace; font-weight: 600; color: #0f172a; font-size: 13px;">
               ${planDetails.containers.join(', ')}
             </td>
           </tr>
           ` : ''}
         </table>
         
-        <p style="margin-top: 25px; text-align: center;">
-          <a href="${frontendUrl}" style="background-color: #3b82f6; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; box-shadow: 0 4px 6px -1px rgba(59, 131, 246, 0.2);">
-            Zum Dashboard einloggen
+        <!-- Notes Section -->
+        <div class="note-card" style="background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 0 8px 8px 0; color: #78350f; font-size: 14px; line-height: 1.6; margin-top: 20px;">
+          <div style="font-weight: 700; margin-bottom: 6px; color: #b45309;">
+            📝 Notizen & Anweisungen
+          </div>
+          <div style="color: #92400e;">
+            ${notes}
+          </div>
+        </div>
+
+        <!-- Call to Action Button (Dashboard) -->
+        <div style="text-align: center; margin-top: 32px; margin-bottom: 12px;">
+          <a href="${frontendUrl}/planning" class="btn-primary" style="display: inline-block; background-color: #2563eb; color: #ffffff; font-weight: 700; font-size: 15px; text-decoration: none; padding: 14px 32px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3);">
+            Zum Dashboard / Open Dashboard &rarr;
           </a>
+        </div>
+        <p style="text-align: center; font-size: 12px; color: #64748b; margin-top: 12px;">
+          Klicken Sie auf den Button, um Ihren vollständigen Schichtplan im Portal anzuzeigen.
+        </p>
+      </div>
+      
+      <!-- Footer Section -->
+      <div style="background-color: #f1f5f9; padding: 20px 24px; text-align: center; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 12px; line-height: 1.5;">
+        <p style="margin: 0 0 6px; font-weight: 600; color: #475569;">LogiFlow Warehouse Management System</p>
+        <p style="margin: 0; color: #94a3b8;">Dies ist eine automatisierte Systembenachrichtigung für <strong>${employeeName}</strong>. Bitte antworten Sie nicht direkt auf diese E-Mail.</p>
+      </div>
+      
+    </div>
+  </center>
+</body>
+</html>`;
+    return this.sendEmail(email, subject, html);
+  }
+
+  async sendPlanRemovalNotification(email: string, planDetails: any): Promise<string | true> {
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001';
+    
+    const employeeName = planDetails.employeeName || 'Mitarbeiter';
+    const date = planDetails.date || 'Nicht angegeben';
+    const time = planDetails.time || 'Standardschicht';
+    const notes = planDetails.notes || 'Sie wurden aus dieser Schicht ausgetragen. Ihr Dienstplan wurde aktualisiert.';
+    
+    let warehousesList: string[] = [];
+    if (Array.isArray(planDetails.warehouses) && planDetails.warehouses.length > 0) {
+      warehousesList = planDetails.warehouses.map((w: any) => typeof w === 'string' ? w : `${w.warehouseName || 'Lager'} (${w.hallName || 'Halle'})`);
+    } else {
+      warehousesList = [`${planDetails.warehouseName || 'Lager'} (${planDetails.hallName || 'Halle'})`];
+    }
+
+    const subject = `Schichtzuweisung entfernt: ${date}`;
+
+    const html = `<!DOCTYPE html>
+<html lang="de" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${subject}</title>
+  <style type="text/css">
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    body { margin: 0 !important; padding: 0 !important; width: 100% !important; font-family: 'Segoe UI', Inter, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b; }
+    .email-container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; }
+    .header { background: linear-gradient(135deg, #7f1d1d 0%, #dc2626 100%); padding: 32px 24px; text-align: center; color: #ffffff; }
+    .body-padding { padding: 32px 28px; }
+    .btn-primary { display: inline-block; background-color: #3b82f6; color: #ffffff; font-weight: 700; font-size: 15px; text-decoration: none; padding: 14px 32px; border-radius: 8px; }
+    @media screen and (max-width: 600px) {
+      .email-container { width: 100% !important; border-radius: 0 !important; border: none !important; }
+      .body-padding { padding: 24px 16px !important; }
+    }
+  </style>
+</head>
+<body style="margin: 0; padding: 20px 0; background-color: #f8fafc; font-family: 'Segoe UI', Inter, Helvetica, Arial, sans-serif; color: #1e293b;">
+  <center style="width: 100%; background-color: #f8fafc;">
+    <div class="email-container" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; text-align: left;">
+      
+      <div class="header" style="background: linear-gradient(135deg, #7f1d1d 0%, #dc2626 100%); padding: 32px 24px; text-align: center; color: #ffffff;">
+        <h1 style="margin: 0; font-size: 22px; font-weight: 800; color: #ffffff;">Schichtzuweisung Entfernt</h1>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #fca5a5;">Dienstplanänderung / Shift Update</p>
+      </div>
+      
+      <div class="body-padding" style="padding: 32px 28px;">
+        <p style="margin: 0 0 16px; font-size: 16px; color: #334155;">Hallo <strong>${employeeName}</strong>,</p>
+        <p style="margin: 0 0 24px; font-size: 15px; color: #475569; line-height: 1.5;">
+          Sie wurden von der Betriebsleitung aus folgendem Schichtplan ausgetragen:
         </p>
 
-        <hr style="border: none; border-top: 1px solid #e2e8f0; margin-top: 30px;" />
-        <p style="font-size: 11px; color: #94a3b8; text-align: center; margin: 0;">Dies ist eine automatisierte Systemnachricht von LogiFlow. Bitte antworten Sie nicht direkt auf diese E-Mail.</p>
+        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 24px;">
+          <tr>
+            <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #64748b; width: 32%; background-color: #f1f5f9;">👤 Mitarbeiter</td>
+            <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #0f172a;">${employeeName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #64748b; width: 32%; background-color: #f1f5f9;">📅 Datum</td>
+            <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #dc2626;">${date}</td>
+          </tr>
+          <tr>
+            <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #64748b; width: 32%; background-color: #f1f5f9;">⏰ Uhrzeit</td>
+            <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #0f172a;">${time}</td>
+          </tr>
+          <tr>
+            <td style="padding: 12px 16px; font-weight: 600; color: #64748b; width: 32%; background-color: #f1f5f9;">🏢 Lagerort(e)</td>
+            <td style="padding: 12px 16px; font-weight: 600; color: #0f172a;">${warehousesList.join(', ')}</td>
+          </tr>
+        </table>
+        
+        <div style="background-color: #fff1f2; border-left: 4px solid #f43f5e; padding: 16px; border-radius: 0 8px 8px 0; color: #881337; font-size: 14px; line-height: 1.6; margin-top: 20px;">
+          <strong>📝 Notizen:</strong> ${notes}
+        </div>
+
+        <div style="text-align: center; margin-top: 32px; margin-bottom: 12px;">
+          <a href="${frontendUrl}/planning" class="btn-primary" style="display: inline-block; background-color: #2563eb; color: #ffffff; font-weight: 700; font-size: 15px; text-decoration: none; padding: 14px 32px; border-radius: 8px;">
+            Zum Dashboard / Open Dashboard &rarr;
+          </a>
+        </div>
       </div>
-    `;
-    return this.sendEmailBool(email, subject, html);
+      
+      <div style="background-color: #f1f5f9; padding: 20px 24px; text-align: center; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 12px;">
+        <p style="margin: 0;">LogiFlow Warehouse Management System — Automatisierte Systembenachrichtigung</p>
+      </div>
+      
+    </div>
+  </center>
+</body>
+</html>`;
+    return this.sendEmail(email, subject, html);
   }
 
   async sendCustomEmail(

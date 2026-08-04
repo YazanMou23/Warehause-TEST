@@ -1,9 +1,19 @@
-import { IsArray, IsDateString, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsArray, IsDateString, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { LocationDto } from './create-plan.dto';
 
 export class UpdatePlanDto {
   @IsOptional()
   @IsDateString()
   date?: string;
+
+  @IsOptional()
+  @IsDateString()
+  startTime?: string;
+
+  @IsOptional()
+  @IsDateString()
+  endTime?: string;
 
   @IsOptional()
   @IsString()
@@ -12,6 +22,12 @@ export class UpdatePlanDto {
   @IsOptional()
   @IsString()
   hallId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => LocationDto)
+  locations?: LocationDto[];
 
   @IsOptional()
   @IsString()

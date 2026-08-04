@@ -8,15 +8,18 @@ import {
   Warehouse as WarehouseIcon,
   Users,
   Save,
-  CheckCircle,
   AlertTriangle,
   X,
   Search,
   Edit2,
-  Package,
   Clock,
-  CheckCircle2,
   MapPin,
+  Trash2,
+  RotateCcw,
+  Layers,
+  Check,
+  ShieldAlert,
+  Package,
 } from "lucide-react";
 import CustomAlertModal, { CustomAlertOptions } from "../../components/CustomAlertModal";
 
@@ -40,12 +43,20 @@ interface Employee {
   treffpunktTime?: string | null;
 }
 
+interface SelectedLocation {
+  warehouseId: string;
+  hallId: string;
+}
+
 function PlanningPageContent() {
   const [date, setDate] = useState("");
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState("");
   const [halls, setHalls] = useState<Hall[]>([]);
-  const [selectedHallId, setSelectedHallId] = useState("");
+  const [selectedLocations, setSelectedLocations] = useState<SelectedLocation[]>([]);
+  
+  // Keep scalar selectedWarehouseId as a quick filter option if needed
+  const [filterWarehouseId, setFilterWarehouseId] = useState("ALL");
+
   const searchParams = useSearchParams();
   const [hasInitializedFromQuery, setHasInitializedFromQuery] = useState(false);
 
@@ -74,9 +85,7 @@ function PlanningPageContent() {
       return;
     }
 
-    // Detect open-ended shift formats: "07:00 - offen", "07:00 - x", "07:00 - open", "07:00 -", "07:00 - "
     const openEndMatch = rawShift.match(/(\d{1,2}:\d{2})\s*-\s*(offen|x|open|\s*|)$/i);
-    // Or single time value like "07:00"
     const singleTimeMatch = rawShift.match(/^(\d{1,2}:\d{2})$/);
 
     if (openEndMatch && (openEndMatch[2].toLowerCase() === "offen" || openEndMatch[2].toLowerCase() === "x" || openEndMatch[2].toLowerCase() === "open" || openEndMatch[2].trim() === "")) {
@@ -110,7 +119,6 @@ function PlanningPageContent() {
     else setShiftPreset("Benutzerdefiniert");
   };
 
-  // Helper to build formatted shift string
   const getFormattedShift = () => {
     if (endTimeOpen) {
       return `${startTime} - offen`;
@@ -126,9 +134,7 @@ function PlanningPageContent() {
   const [allCreatedPlans, setAllCreatedPlans] = useState<any[]>([]);
   const [isOffline, setIsOffline] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState({ text: "", type: "" });
   const createdPlansSectionRef = useRef<HTMLDivElement>(null);
-  // Guard: while user is editing a plan card, block the auto-fetch from overwriting the form
   const isEditingRef = useRef(false);
 
   // Centered Alert Modal State
@@ -158,7 +164,7 @@ function PlanningPageContent() {
       if (qDt) {
         setDate(qDt);
       } else {
-        setDate(new Date().toLocaleDateString('en-CA'));
+        setDate(new Date().toLocaleDateString("en-CA"));
       }
 
       try {
@@ -169,12 +175,6 @@ function PlanningPageContent() {
         const whJson = whRes.ok ? await whRes.json() : null;
         const whData = whJson && Array.isArray(whJson.data) ? whJson.data : (Array.isArray(whJson) ? whJson : []);
         setWarehouses(whData);
-        
-        if (qWh && whData.some((w: any) => w.id === qWh)) {
-          setSelectedWarehouseId(qWh);
-        } else if (whData.length > 0) {
-          setSelectedWarehouseId(whData[0].id);
-        }
 
         // Fetch halls
         const hallRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/halls`, { headers });
@@ -182,8 +182,10 @@ function PlanningPageContent() {
         const hallData = hallJson && Array.isArray(hallJson.data) ? hallJson.data : (Array.isArray(hallJson) ? hallJson : []);
         setHalls(hallData);
 
-        if (qHall && hallData.some((h: any) => h.id === qHall)) {
-          setSelectedHallId(qHall);
+        if (qWh && qHall && hallData.some((h: any) => h.id === qHall)) {
+          setSelectedLocations([{ warehouseId: qWh, hallId: qHall }]);
+        } else if (hallData.length > 0) {
+          setSelectedLocations([{ warehouseId: hallData[0].warehouseId, hallId: hallData[0].id }]);
         }
 
         // Fetch all employees (limit=10000 to prevent pagination hiding employees)
@@ -195,7 +197,6 @@ function PlanningPageContent() {
         setIsOffline(false);
       } catch (err) {
         setIsOffline(true);
-        // Load fallback mock metadata
         const mockWH = [
           { id: "wh-1", name: "Duisburg Port Hub" },
           { id: "wh-2", name: "Rhein-Ruhr Logistics" },
@@ -214,14 +215,11 @@ function PlanningPageContent() {
         ];
 
         setWarehouses(mockWH);
-        if (qWh && mockWH.some((w: any) => w.id === qWh)) {
-          setSelectedWarehouseId(qWh);
-        } else {
-          setSelectedWarehouseId(mockWH[0].id);
-        }
         setHalls(mockHalls);
-        if (qHall && mockHalls.some((h: any) => h.id === qHall)) {
-          setSelectedHallId(qHall);
+        if (qWh && qHall && mockHalls.some((h: any) => h.id === qHall)) {
+          setSelectedLocations([{ warehouseId: qWh, hallId: qHall }]);
+        } else {
+          setSelectedLocations([{ warehouseId: mockWH[0].id, hallId: mockHalls[0].id }]);
         }
         setEmployees(mockEmployees);
       } finally {
@@ -234,33 +232,17 @@ function PlanningPageContent() {
     }
   }, [router, searchParams]);
 
-  // Set default hall when warehouse changes
+  // Fetch all plans for the selected date whenever date changes
   useEffect(() => {
-    if (!hasInitializedFromQuery) return;
-    const filteredHalls = halls.filter((h) => h.warehouseId === selectedWarehouseId);
-    if (filteredHalls.length > 0) {
-      setSelectedHallId(filteredHalls[0].id);
-    } else {
-      setSelectedHallId("");
-    }
-  }, [selectedWarehouseId, halls, hasInitializedFromQuery]);
-
-  // Fetch plan when date, warehouse, or hall changes
-  // Guarded by isEditingRef — won't overwrite the form while the user is actively editing a plan
-  useEffect(() => {
-    if (!selectedWarehouseId || !selectedHallId || !date) return;
-    // If the user clicked "Bearbeiten", skip this auto-fetch to avoid overwriting their edit
-    if (isEditingRef.current) return;
-
-    const fetchExistingPlan = async () => {
+    if (!date) return;
+    const fetchExistingPlans = async () => {
       const token = localStorage.getItem("accessToken");
       if (!token || isOffline) return;
 
       setIsLoading(true);
-
       try {
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/query?date=${date}&warehouseId=${selectedWarehouseId}`,
+          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/query?date=${date}`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
@@ -269,20 +251,6 @@ function PlanningPageContent() {
         if (res.ok) {
           const plans = await res.json();
           setAllCreatedPlans(plans);
-          const hallPlan = plans.find((p: any) => p.hallId === selectedHallId);
-          if (hallPlan) {
-            setPlanId(hallPlan.id);
-            setAssignedEmployeeIds(hallPlan.assignedEmployees.map((e: any) => e.id));
-            applyShiftString(hallPlan.shift || "Frühschicht");
-            setTreffpunktTime(hallPlan.treffpunktTime || "05:30");
-            setTreffpunkt(hallPlan.treffpunkt || "");
-            setNotes(hallPlan.notes || "");
-            setAssignedContainerNumbers(hallPlan.assignedContainers?.map((c: any) => c.containerNumber) || []);
-          } else {
-            // Keep selected employees, shift, notes for new hall planning!
-            setPlanId(null);
-            setAssignedContainerNumbers([]);
-          }
         }
       } catch (err) {
         console.warn("Could not query plans from API");
@@ -291,15 +259,15 @@ function PlanningPageContent() {
       }
     };
 
-    fetchExistingPlan();
-  }, [date, selectedWarehouseId, selectedHallId, isOffline]);
+    fetchExistingPlans();
+  }, [date, isOffline]);
 
   const fetchExistingPlanManual = async () => {
     const token = localStorage.getItem("accessToken");
     if (!token || isOffline) return;
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/query?date=${date}&warehouseId=${selectedWarehouseId}`,
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/query?date=${date}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (res.ok) {
@@ -309,18 +277,114 @@ function PlanningPageContent() {
     } catch (e) {}
   };
 
+  const toggleLocation = (warehouseId: string, hallId: string) => {
+    setSelectedLocations((prev) => {
+      const exists = prev.some((loc) => loc.hallId === hallId && loc.warehouseId === warehouseId);
+      if (exists) {
+        return prev.filter((loc) => !(loc.hallId === hallId && loc.warehouseId === warehouseId));
+      } else {
+        return [...prev, { warehouseId, hallId }];
+      }
+    });
+  };
+
   const toggleEmployee = (empId: string) => {
     setAssignedEmployeeIds((prev) =>
       prev.includes(empId) ? prev.filter((id) => id !== empId) : [...prev, empId]
     );
   };
 
+  const handleCancelEdit = () => {
+    isEditingRef.current = false;
+    setPlanId(null);
+    setNotes("");
+    setAssignedEmployeeIds([]);
+    setAssignedContainerNumbers([]);
+    applyShiftString("Frühschicht");
+    showAlert({
+      title: "Bearbeiten abgebrochen",
+      message: "Sie erstellen nun wieder einen neuen Schichtplan-Entwurf.",
+      type: "info",
+    });
+  };
+
+  const handleDeletePlan = async (targetPlanId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const token = localStorage.getItem("accessToken");
+    if (!token) return;
+
+    if (!window.confirm("Möchten Sie diesen Schichtplan wirklich löschen/deaktivieren?")) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/${targetPlanId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Fehler beim Löschen des Schichtplans");
+      }
+      showAlert({
+        title: "Schichtplan gelöscht",
+        message: "Der Schichtplan wurde erfolgreich gelöscht.",
+        type: "success",
+      });
+      if (planId === targetPlanId) {
+        isEditingRef.current = false;
+        setPlanId(null);
+        setAssignedEmployeeIds([]);
+        setAssignedContainerNumbers([]);
+      }
+      await fetchExistingPlanManual();
+    } catch (err: any) {
+      showAlert({
+        title: "Fehler beim Löschen",
+        message: err.message || "Plan konnte nicht gelöscht werden.",
+        type: "error",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSavePlan = async () => {
     const token = localStorage.getItem("accessToken");
     if (!token) return;
 
-    setIsLoading(true);
+    // CLIENT-SIDE VALIDATION
+    if (selectedLocations.length === 0) {
+      showAlert({
+        title: "⚠️ Keine Halle ausgewählt",
+        message: "Bitte wählen Sie mindestens ein Lager und eine Halle für diesen Schichtplan aus.",
+        type: "error",
+      });
+      return;
+    }
+    if (!date) {
+      showAlert({
+        title: "⚠️ Kein Datum gewählt",
+        message: "Bitte wählen Sie ein gültiges Datum für den Schichtplan.",
+        type: "error",
+      });
+      return;
+    }
+    if (shiftPreset === "Benutzerdefiniert" && (!startTime || (!endTimeOpen && !endTime))) {
+      showAlert({
+        title: "⚠️ Unvollständige Arbeitszeit",
+        message: "Bitte geben Sie gültige Uhrzeiten (Von / Bis) für Ihre benutzerdefinierte Schicht an.",
+        type: "error",
+      });
+      return;
+    }
+    if (assignedEmployeeIds.length === 0) {
+      const confirmed = window.confirm("Es wurden noch keine Mitarbeiter zu diesem Schichtplan zugewiesen. Möchten Sie den Plan trotzdem als leeren Entwurf speichern?");
+      if (!confirmed) return;
+    }
 
+    setIsLoading(true);
     const formattedShift = getFormattedShift();
 
     if (isOffline) {
@@ -336,6 +400,26 @@ function PlanningPageContent() {
       return;
     }
 
+    const primaryLocation = selectedLocations[0];
+    const payload = {
+      date,
+      // Backward compatible scalar fallback
+      warehouseId: primaryLocation?.warehouseId,
+      hallId: primaryLocation?.hallId,
+      // Multi-location payload array for new backend
+      locations: selectedLocations.map((loc) => ({
+        warehouseId: loc.warehouseId,
+        hallId: loc.hallId,
+        notes: "",
+      })),
+      assignedEmployeeIds,
+      assignedContainerNumbers,
+      shift: formattedShift,
+      treffpunkt,
+      treffpunktTime,
+      notes,
+    };
+
     try {
       let res;
       if (planId) {
@@ -346,14 +430,7 @@ function PlanningPageContent() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({
-            assignedEmployeeIds,
-            assignedContainerNumbers,
-            shift: formattedShift,
-            treffpunkt,
-            treffpunktTime,
-            notes,
-          }),
+          body: JSON.stringify(payload),
         });
       } else {
         // Create new plan
@@ -363,26 +440,25 @@ function PlanningPageContent() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({
-            date,
-            warehouseId: selectedWarehouseId,
-            hallId: selectedHallId,
-            assignedEmployeeIds,
-            assignedContainerNumbers,
-            shift: formattedShift,
-            treffpunkt,
-            treffpunktTime,
-            notes,
-          }),
+          body: JSON.stringify(payload),
         });
       }
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.message || "Failed to save plan");
+        const errText = data.message || "Failed to save plan";
+        if (res.status === 409 || (typeof errText === "string" && (errText.toLowerCase().includes("overlap") || errText.toLowerCase().includes("conflict") || errText.toLowerCase().includes("überschreit")))) {
+          throw new Error(
+            `⚠️ SCHICHTÜBERSCHREITUNG ERKANNT\n\n` +
+            `Ein oder mehrere der ausgewählten Mitarbeiter sind im gewählten Zeitraum bereits in einer anderen Schicht oder an einem anderen Standort eingeplant.\n\n` +
+            `Details:\n• ${errText}\n\n` +
+            `Bitte korrigieren Sie die Arbeitszeiten oder entfernen Sie überschneidende Mitarbeiter.`
+          );
+        }
+        throw new Error(errText);
       }
 
-      // Sync form fields from the saved response (source of truth)
+      // Sync form fields from the saved response
       setPlanId(data.id);
       setLastSavedPlanId(data.id);
       applyShiftString(data.shift || formattedShift);
@@ -391,17 +467,22 @@ function PlanningPageContent() {
       setNotes(data.notes || "");
       setAssignedEmployeeIds(data.assignedEmployees?.map((e: any) => e.id) || assignedEmployeeIds);
       setAssignedContainerNumbers(data.assignedContainers?.map((c: any) => c.containerNumber) || assignedContainerNumbers);
+      
+      if (data.locations && Array.isArray(data.locations) && data.locations.length > 0) {
+        setSelectedLocations(data.locations.map((l: any) => ({
+          warehouseId: l.warehouseId || l.warehouse?.id || "",
+          hallId: l.hallId || l.hall?.id || "",
+        })));
+      }
 
-      // Release the editing lock now that save is complete
       isEditingRef.current = false;
 
       showAlert({
         title: "Schichtplan erfolgreich gespeichert!",
-        message: `Der Schichtplan (${data.shift || formattedShift}) wurde erfolgreich gespeichert. ${(data.assignedEmployees?.length || assignedEmployeeIds.length)} Mitarbeiter wurden benachrichtigt.`,
+        message: `Der Schichtplan (${data.shift || formattedShift}) an ${selectedLocations.length} Standort(en) wurde gespeichert. ${(data.assignedEmployees?.length || assignedEmployeeIds.length)} Mitarbeiter benachrichtigt.`,
         type: "success",
       });
       await fetchExistingPlanManual();
-      // Scroll to the created-plans section so the user sees the saved plan
       setTimeout(() => {
         createdPlansSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       }, 300);
@@ -416,124 +497,271 @@ function PlanningPageContent() {
     }
   };
 
-  const filteredHalls = halls.filter((h) => h.warehouseId === selectedWarehouseId);
+  // Calculate quick stats for the selected date
+  const uniqueScheduledEmployeeIds = new Set<string>();
+  let totalContainersToday = 0;
+  allCreatedPlans.forEach((p) => {
+    p.assignedEmployees?.forEach((emp: any) => uniqueScheduledEmployeeIds.add(emp.id));
+    if (p.assignedContainers) totalContainersToday += p.assignedContainers.length;
+  });
+  const totalEmployeesCount = employees.length;
+  const unscheduledEmployeesCount = Math.max(0, totalEmployeesCount - uniqueScheduledEmployeeIds.size);
+
+  const displayedPlans = filterWarehouseId === "ALL" 
+    ? allCreatedPlans 
+    : allCreatedPlans.filter((p) => {
+        if (p.locations && Array.isArray(p.locations) && p.locations.length > 0) {
+          return p.locations.some((l: any) => (l.warehouseId || l.warehouse?.id) === filterWarehouseId);
+        }
+        return p.warehouseId === filterWarehouseId;
+      });
 
   return (
     <div className="space-y-6 animate-fadeIn text-[#0f172a]">
       {/* Title */}
-      <div>
-        <h3 className="text-2xl font-extrabold text-slate-800 tracking-tight">Schichtplanung (Shift Planning)</h3>
-        <p className="text-slate-500 text-xs mt-1">
-          Erstellen und verwalten Sie die täglichen Personaleinsatzpläne mit exakter Arbeitszeit.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <h3 className="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
+            <Layers className="w-7 h-7 text-blue-600" />
+            Schichtplanung (Multi-Warehouse Shift Planning)
+          </h3>
+          <p className="text-slate-500 text-xs mt-1">
+            Erstellen und verwalten Sie einsatzübergreifende Schichtpläne mit exakter Zeit- und Kollisionsprüfung.
+          </p>
+        </div>
       </div>
 
       {isOffline && (
-        <div className="bg-amber-50 text-amber-800 border border-amber-200 px-4 py-3 rounded-xl flex items-center gap-3 text-xs font-semibold">
+        <div className="bg-amber-50 text-amber-800 border border-amber-200 px-4 py-3 rounded-xl flex items-center gap-3 text-xs font-semibold shadow-sm">
           <AlertTriangle className="w-5 h-5 shrink-0 text-amber-500" />
-          <span>Offline-Modus aktiv. Planänderungen werden lokal simuliert.</span>
+          <span>Offline-Modus aktiv. Planänderungen werden lokal simuliert und validiert.</span>
         </div>
       )}
 
-      {/* Configuration Bar */}
-      <div className="bg-white border border-slate-100 p-5 rounded-xl shadow-sm grid grid-cols-1 md:grid-cols-4 gap-4">
-        
-        {/* Date Selector */}
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-            Datum (Shift Date)
-          </label>
-          <div className="relative">
-            <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-10 pr-3 py-2 text-xs text-slate-700 outline-none focus:border-blue-400 transition-colors"
-            />
+      {/* Daily Statistics Banner */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-white border border-slate-100 p-4 rounded-xl shadow-sm flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+            <Clock className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Aktive Schichten</p>
+            <p className="text-lg font-extrabold text-slate-800">{allCreatedPlans.length}</p>
           </div>
         </div>
 
-        {/* Warehouse Selector */}
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-            Lager (Warehouse)
-          </label>
-          <div className="relative">
-            <WarehouseIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <select
-              value={selectedWarehouseId}
-              onChange={(e) => setSelectedWarehouseId(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-10 pr-3 py-2 text-xs text-slate-700 outline-none focus:border-blue-400 transition-colors appearance-none"
+        <div className="bg-white border border-slate-100 p-4 rounded-xl shadow-sm flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-lg bg-green-50 text-green-600 flex items-center justify-center font-bold">
+            <Users className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Eingeplante Mit.</p>
+            <p className="text-lg font-extrabold text-slate-800">{uniqueScheduledEmployeeIds.size} / {totalEmployeesCount}</p>
+          </div>
+        </div>
+
+        <div className="bg-white border border-slate-100 p-4 rounded-xl shadow-sm flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+            <AlertTriangle className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Verfügbare Mit.</p>
+            <p className="text-lg font-extrabold text-slate-800">{unscheduledEmployeesCount}</p>
+          </div>
+        </div>
+
+        <div className="bg-white border border-slate-100 p-4 rounded-xl shadow-sm flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+            <Package className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Container am Tag</p>
+            <p className="text-lg font-extrabold text-slate-800">{totalContainersToday}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Edit Mode Active Banner */}
+      {planId && (
+        <div className="bg-blue-50/90 border-2 border-blue-300 p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-600 text-white rounded-lg shadow-sm">
+              <Edit2 className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-blue-950 flex items-center gap-2">
+                Bearbeitungsmodus aktiv: Schichtplan wird geändert
+                <span className="text-[10px] font-mono bg-blue-200 text-blue-900 px-2 py-0.5 rounded font-bold">
+                  ID: {planId}
+                </span>
+              </h4>
+              <p className="text-xs text-blue-700 mt-0.5">
+                Sie ändern einen bereits gebuchten Schichtplan. Wenn Sie abbrechen, wird der Editor auf eine Neuanlage zurückgesetzt.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleCancelEdit}
+              className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-bold border border-slate-300 shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              {warehouses.map((wh) => (
-                <option key={wh.id} value={wh.id}>
-                  {wh.name}
-                </option>
-              ))}
+              <RotateCcw className="w-3.5 h-3.5" /> Neu erstellen / Abbrechen
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDeletePlan(planId)}
+              className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Plan löschen
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Configuration Bar & Multi-Select Locations */}
+      <div className="bg-white border border-slate-100 p-6 rounded-xl shadow-sm space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {/* Date Selector */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+              Datum (Shift Date) *
+            </label>
+            <div className="relative">
+              <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-10 pr-3 py-2.5 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500 focus:bg-white transition-colors shadow-sm"
+              />
+            </div>
+          </div>
+
+          {/* Shift Preset & Exact Time Section */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+              Schichtvorlage (Preset) *
+            </label>
+            <select
+              value={shiftPreset}
+              onChange={(e) => {
+                const val = e.target.value;
+                setShiftPreset(val);
+                if (val === "Frühschicht") { setStartTime("06:00"); setEndTime("14:00"); setEndTimeOpen(false); }
+                else if (val === "Spätschicht") { setStartTime("14:00"); setEndTime("22:00"); setEndTimeOpen(false); }
+                else if (val === "Nachtschicht") { setStartTime("22:00"); setEndTime("06:00"); setEndTimeOpen(false); }
+              }}
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500 focus:bg-white transition-colors shadow-sm cursor-pointer"
+            >
+              <option value="Frühschicht">Frühschicht (06:00 - 14:00)</option>
+              <option value="Spätschicht">Spätschicht (14:00 - 22:00)</option>
+              <option value="Nachtschicht">Nachtschicht (22:00 - 06:00)</option>
+              <option value="Benutzerdefiniert">Benutzerdefinierte Arbeitszeit...</option>
             </select>
           </div>
         </div>
 
-        {/* Hall Selector */}
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-            Halle (Warehouse Hall)
-          </label>
-          <div className="relative">
-            <Grid className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <select
-              value={selectedHallId}
-              onChange={(e) => setSelectedHallId(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-10 pr-3 py-2 text-xs text-slate-700 outline-none focus:border-blue-400 transition-colors appearance-none"
-            >
-              {filteredHalls.length === 0 ? (
-                <option value="">Keine Hallen verfügbar</option>
-              ) : (
-                filteredHalls.map((h) => (
-                  <option key={h.id} value={h.id}>
-                    {h.name}
-                  </option>
-                ))
-              )}
-            </select>
+        {/* Multi-Warehouse & Hall Selection UI */}
+        <div className="bg-slate-50/90 border border-slate-200 p-5 rounded-xl space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                <WarehouseIcon className="w-4 h-4 text-blue-600" />
+                Standort-Zuweisung (Lager & Hallen Mehrfachauswahl) *
+              </h4>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Klicken Sie auf eine oder mehrere Hallen, um sie diesem Schichtplan zuzuordnen.
+              </p>
+            </div>
+            <span className="text-xs font-mono font-bold bg-blue-100 text-blue-800 px-3 py-1 rounded-full border border-blue-200">
+              {selectedLocations.length} Standort{selectedLocations.length !== 1 ? "e" : ""} ausgewählt
+            </span>
           </div>
-        </div>
 
-        {/* Shift Preset & Exact Time Section */}
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-            Schichtvorlage (Preset)
-          </label>
-          <select
-            value={shiftPreset}
-            onChange={(e) => {
-              const val = e.target.value;
-              setShiftPreset(val);
-              if (val === "Frühschicht") { setStartTime("06:00"); setEndTime("14:00"); setEndTimeOpen(false); }
-              else if (val === "Spätschicht") { setStartTime("14:00"); setEndTime("22:00"); setEndTimeOpen(false); }
-              else if (val === "Nachtschicht") { setStartTime("22:00"); setEndTime("06:00"); setEndTimeOpen(false); }
-            }}
-            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 outline-none focus:border-blue-400 transition-colors"
-          >
-            <option value="Frühschicht">Frühschicht (06:00 - 14:00)</option>
-            <option value="Spätschicht">Spätschicht (14:00 - 22:00)</option>
-            <option value="Nachtschicht">Nachtschicht (22:00 - 06:00)</option>
-            <option value="Benutzerdefiniert">Benutzerdefinierte Arbeitszeit</option>
-          </select>
+          {/* Grouped by warehouse */}
+          <div className="space-y-4">
+            {warehouses.length === 0 ? (
+              <p className="text-xs text-slate-400 italic">Keine Lager verfügbar.</p>
+            ) : (
+              warehouses.map((wh) => {
+                const whHalls = halls.filter((h) => h.warehouseId === wh.id);
+                return (
+                  <div key={wh.id} className="bg-white p-3.5 rounded-lg border border-slate-200/80 shadow-2xs">
+                    <p className="text-xs font-bold text-slate-700 mb-2.5 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                      {wh.name}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {whHalls.length === 0 ? (
+                        <span className="text-[11px] text-slate-400 italic">Keine Hallen konfiguriert</span>
+                      ) : (
+                        whHalls.map((h) => {
+                          const isSelected = selectedLocations.some(
+                            (loc) => loc.warehouseId === wh.id && loc.hallId === h.id
+                          );
+                          return (
+                            <button
+                              key={h.id}
+                              type="button"
+                              onClick={() => toggleLocation(wh.id, h.id)}
+                              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-2xs border ${
+                                isSelected
+                                  ? "bg-blue-600 text-white border-blue-600 ring-2 ring-blue-200"
+                                  : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200/80 hover:border-slate-300"
+                              }`}
+                            >
+                              {isSelected ? <Check className="w-3.5 h-3.5" /> : <Grid className="w-3.5 h-3.5 text-slate-400" />}
+                              <span>{h.name}</span>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Selected Location Summary Tags */}
+          {selectedLocations.length > 0 && (
+            <div className="pt-3 border-t border-slate-200 flex flex-wrap gap-2 items-center">
+              <span className="text-[11px] font-bold text-slate-500 mr-1">Ausgewählt:</span>
+              {selectedLocations.map((loc) => {
+                const wName = warehouses.find((w) => w.id === loc.warehouseId)?.name || "Lager";
+                const hName = halls.find((h) => h.id === loc.hallId)?.name || "Halle";
+                return (
+                  <div
+                    key={`${loc.warehouseId}-${loc.hallId}`}
+                    className="flex items-center gap-1.5 px-3 py-1 bg-slate-800 text-white rounded-full text-xs font-medium shadow-2xs"
+                  >
+                    <span className="text-slate-300 text-[10px]">{wName}:</span>
+                    <span className="font-bold">{hName}</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleLocation(loc.warehouseId, loc.hallId)}
+                      className="text-slate-400 hover:text-white transition-colors ml-1 p-0.5 rounded-full hover:bg-white/10 cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Exact Start & End Time Inputs */}
-        <div className="space-y-3 col-span-1 md:col-span-4 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/80">
+        <div className="space-y-3 bg-slate-50/80 p-4 rounded-xl border border-slate-200/80">
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4 text-blue-600 shrink-0" />
-            <span className="text-xs font-bold text-slate-800">Exakte Arbeitszeit (Exact Shift Time):</span>
+            <span className="text-xs font-bold text-slate-800">Exakte Arbeitszeit (Exact Shift Time Window):</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* Von (Start Time) */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-semibold text-slate-500">Von:</span>
+              <span className="text-[11px] font-semibold text-slate-600">Von:</span>
               <input
                 type="time"
                 value={startTime}
@@ -541,17 +769,16 @@ function PlanningPageContent() {
                   setStartTime(e.target.value);
                   setShiftPreset("Benutzerdefiniert");
                 }}
-                className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-sm"
+                className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-2xs"
               />
             </div>
 
-            <span className="text-slate-400 font-bold text-xs">–</span>
+            <span className="text-slate-400 font-bold text-xs">--</span>
 
-            {/* Bis (End Time) — disabled when endTimeOpen is checked */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-semibold text-slate-500">Bis:</span>
+              <span className="text-[11px] font-semibold text-slate-600">Bis:</span>
               {endTimeOpen ? (
-                <span className="bg-slate-100 border border-slate-300 rounded-lg px-3 py-1 text-xs font-bold text-slate-400 italic min-w-[90px] text-center">
+                <span className="bg-slate-100 border border-slate-300 rounded-lg px-3.5 py-1.5 text-xs font-bold text-slate-400 italic min-w-[90px] text-center">
                   offen
                 </span>
               ) : (
@@ -562,13 +789,12 @@ function PlanningPageContent() {
                     setEndTime(e.target.value);
                     setShiftPreset("Benutzerdefiniert");
                   }}
-                  className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-sm"
+                  className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-2xs"
                 />
               )}
             </div>
 
-            {/* Open-ended toggle */}
-            <label className="flex items-center gap-1.5 cursor-pointer select-none bg-white border border-slate-200 rounded-lg px-2.5 py-1 hover:border-blue-300 transition-colors">
+            <label className="flex items-center gap-2 cursor-pointer select-none bg-white border border-slate-200 rounded-lg px-3 py-1.5 hover:border-blue-300 transition-colors shadow-2xs">
               <input
                 type="checkbox"
                 checked={endTimeOpen}
@@ -582,48 +808,47 @@ function PlanningPageContent() {
                 }}
                 className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
               />
-              <span className="text-[11px] font-semibold text-slate-600">Offen (kein Endzeit)</span>
+              <span className="text-[11px] font-semibold text-slate-700">Offene Endzeit (Open End)</span>
             </label>
 
-            {/* Live preview badge */}
-            <span className={`text-xs font-mono font-bold px-3 py-1 rounded-full border ${endTimeOpen ? "bg-amber-100 text-amber-800 border-amber-200" : "bg-blue-100 text-blue-800 border-blue-200"}`}>
+            <span className={`text-xs font-mono font-bold px-3 py-1 rounded-full border shadow-2xs ${endTimeOpen ? "bg-amber-100 text-amber-900 border-amber-200" : "bg-blue-50 text-blue-800 border-blue-200"}`}>
               ⏰ {getFormattedShift()}
             </span>
           </div>
         </div>
 
         {/* Daily Treffzeit & Treffpunkt Section */}
-        <div className="space-y-1.5 col-span-1 md:col-span-4 bg-amber-50/60 p-3.5 rounded-xl border border-amber-200/70">
+        <div className="space-y-1.5 bg-amber-50/70 p-4 rounded-xl border border-amber-200/80 shadow-2xs">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-amber-600 shrink-0" />
-              <span className="text-xs font-bold text-amber-950">Tägliche Treffzeit & Treffpunkt (Daily Pick-up Time & Location):</span>
+              <MapPin className="w-4 h-4 text-amber-700 shrink-0" />
+              <span className="text-xs font-bold text-amber-950">Tägliche Treffzeit & Treffpunkt (Pick-up Details):</span>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-semibold text-amber-800">Treffzeit:</span>
+                <span className="text-[11px] font-semibold text-amber-900">Treffzeit:</span>
                 <input
                   type="time"
                   value={treffpunktTime}
                   onChange={(e) => setTreffpunktTime(e.target.value)}
-                  className="bg-white border border-amber-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 outline-none focus:border-amber-500 shadow-sm"
+                  className="bg-white border border-amber-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 outline-none focus:border-amber-500 shadow-2xs"
                 />
               </div>
 
               <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-semibold text-amber-800">Treffpunkt:</span>
+                <span className="text-[11px] font-semibold text-amber-900">Treffpunkt:</span>
                 <input
                   type="text"
-                  placeholder="z.B. Hauptbahnhof Duisburg, Halle Eingang"
+                  placeholder="z.B. Hauptbahnhof Duisburg, Eingang Nord"
                   value={treffpunkt}
                   onChange={(e) => setTreffpunkt(e.target.value)}
-                  className="bg-white border border-amber-300 rounded-lg px-3 py-1 text-xs text-slate-800 outline-none focus:border-amber-500 shadow-sm min-w-[220px]"
+                  className="bg-white border border-amber-300 rounded-lg px-3 py-1 text-xs text-slate-800 outline-none focus:border-amber-500 shadow-2xs min-w-[240px]"
                 />
               </div>
 
               {treffpunktTime && (
-                <span className="text-xs font-mono font-bold bg-amber-100 text-amber-900 px-3 py-1 rounded-full border border-amber-300">
+                <span className="text-xs font-mono font-bold bg-amber-100 text-amber-950 px-3 py-1 rounded-full border border-amber-300 shadow-2xs">
                   📍 {treffpunkt || "Treffpunkt"} um ⏰ {treffpunktTime} Uhr
                 </span>
               )}
@@ -632,27 +857,27 @@ function PlanningPageContent() {
         </div>
 
         {/* Notes TextArea */}
-        <div className="space-y-1.5 col-span-1 md:col-span-4">
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-            Notizen / Anweisungen (Notes)
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+            Notizen / Anweisungen (Notes & Special Instructions)
           </label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
-            placeholder="Besondere Anweisungen oder Notizen für diese Schicht eintragen..."
-            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-xs text-slate-700 outline-none focus:border-blue-400 transition-colors resize-none"
+            placeholder="Besondere Anweisungen, Sicherheitsbestimmungen oder Hinweise eintragen..."
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-colors resize-none shadow-2xs"
           />
         </div>
       </div>
 
       {/* Container Input Section */}
-      <div className="bg-white border border-slate-100 p-5 rounded-xl shadow-sm space-y-4">
+      <div className="bg-white border border-slate-100 p-6 rounded-xl shadow-sm space-y-4">
         <div>
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
             Geplante Container (Planned Containers)
           </label>
-          <div className="flex gap-2">
+          <div className="flex gap-2 max-w-lg">
             <input
               type="text"
               placeholder="z.B. MSCU1284920 (Containernummer)"
@@ -668,7 +893,7 @@ function PlanningPageContent() {
                   setTypedContainerNumber("");
                 }
               }}
-              className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 outline-none focus:border-blue-400 transition-colors"
+              className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-xs text-slate-700 outline-none focus:border-blue-500 transition-colors shadow-2xs"
             />
             <button
               type="button"
@@ -679,7 +904,7 @@ function PlanningPageContent() {
                 }
                 setTypedContainerNumber("");
               }}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm shadow-blue-500/10 cursor-pointer"
+              className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2 rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer"
             >
               Hinzufügen
             </button>
@@ -687,21 +912,21 @@ function PlanningPageContent() {
         </div>
 
         {assignedContainerNumbers.length > 0 && (
-          <div className="space-y-2">
+          <div className="space-y-2 pt-2">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              Hinzugefügte Container ({assignedContainerNumbers.length})
+              Zugewiesene Container ({assignedContainerNumbers.length})
             </p>
             <div className="flex flex-wrap gap-2">
               {assignedContainerNumbers.map((cNum) => (
                 <div
                   key={cNum}
-                  className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-semibold border border-slate-200"
+                  className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 text-slate-800 rounded-full text-xs font-semibold border border-slate-200 shadow-2xs"
                 >
-                  <span className="font-mono">{cNum}</span>
+                  <span className="font-mono font-bold">{cNum}</span>
                   <button
                     type="button"
                     onClick={() => setAssignedContainerNumbers((prev) => prev.filter((num) => num !== cNum))}
-                    className="text-slate-400 hover:text-slate-650 transition-colors p-0.5 rounded-full hover:bg-slate-200 cursor-pointer"
+                    className="text-slate-400 hover:text-red-600 transition-colors p-0.5 rounded-full hover:bg-slate-200 cursor-pointer"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -715,8 +940,9 @@ function PlanningPageContent() {
       {/* Selected Employees Chips Bar */}
       {assignedEmployeeIds.length > 0 && (
         <div className="bg-white border border-slate-100 p-5 rounded-xl shadow-sm space-y-2.5">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-            Eingeteilte Mitarbeiter ({assignedEmployeeIds.length})
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+            <Users className="w-3.5 h-3.5 text-blue-600" />
+            Ausgewählte Mitarbeiter für diesen Schichtplan ({assignedEmployeeIds.length})
           </p>
           <div className="flex flex-wrap gap-2">
             {assignedEmployeeIds.map((empId) => {
@@ -725,12 +951,13 @@ function PlanningPageContent() {
               return (
                 <div
                   key={emp.id}
-                  className="flex items-center gap-1.5 px-3 py-1 bg-[#1d4ed8] text-white rounded-full text-xs font-bold shadow-sm shadow-[#1d4ed8]/20 transition-all hover:bg-blue-700"
+                  className="flex items-center gap-2 px-3.5 py-1.5 bg-blue-600 text-white rounded-full text-xs font-bold shadow-sm transition-all hover:bg-blue-700"
                 >
                   <span>{emp.name}</span>
                   <button
+                    type="button"
                     onClick={() => toggleEmployee(emp.id)}
-                    className="text-blue-100 hover:text-white transition-colors p-0.5 rounded-full hover:bg-white/10 cursor-pointer"
+                    className="text-blue-200 hover:text-white transition-colors p-0.5 rounded-full hover:bg-white/10 cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -742,12 +969,12 @@ function PlanningPageContent() {
       )}
 
       {/* Employees Directory List */}
-      <div className="bg-white border border-slate-100 rounded-xl flex flex-col shadow-sm">
-        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center rounded-t-xl">
+      <div className="bg-white border border-slate-100 rounded-xl flex flex-col shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-slate-100 bg-slate-50/80 flex justify-between items-center">
           <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-            <Users className="w-4 h-4 text-blue-600" /> Mitarbeiter-Zuweisung (Assign Employees)
+            <Users className="w-4 h-4 text-blue-600" /> Mitarbeiter-Zuweisung (Assign Personnel)
           </h5>
-          <span className="font-mono text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full font-bold">
+          <span className="font-mono text-xs bg-blue-50 text-blue-800 px-3 py-1 rounded-full font-bold border border-blue-200">
             {assignedEmployeeIds.length} ausgewählt
           </span>
         </div>
@@ -755,18 +982,18 @@ function PlanningPageContent() {
         {/* Search Bar for Mitarbeiter */}
         <div className="p-3 border-b border-slate-100 bg-white">
           <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Mitarbeiter direkt suchen (Name, Telefon)..."
+              placeholder="Mitarbeiter direkt suchen (Name, Telefon, Rolle)..."
               value={employeeSearchTerm}
               onChange={(e) => setEmployeeSearchTerm(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-700 outline-none focus:border-blue-400 transition-colors"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-10 pr-3 py-2 text-xs font-medium text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-colors shadow-2xs"
             />
           </div>
         </div>
 
-        <div className="overflow-y-auto max-h-[400px] divide-y divide-slate-100 p-3 space-y-1">
+        <div className="overflow-y-auto max-h-[420px] divide-y divide-slate-100 p-3 space-y-1 bg-slate-50/20">
           {(() => {
             const sortedFiltered = employees
               .filter((emp) =>
@@ -786,29 +1013,45 @@ function PlanningPageContent() {
 
             return sortedFiltered.map((emp) => {
               const isAssigned = assignedEmployeeIds.includes(emp.id);
+              // Check if employee is already booked in any other plan today
+              const existingShiftsForEmp = allCreatedPlans
+                .filter((p) => p.id !== planId && p.assignedEmployees?.some((ae: any) => ae.id === emp.id))
+                .map((p) => p.shift || "Schicht");
+
               return (
                 <div
                   key={emp.id}
                   onClick={() => toggleEmployee(emp.id)}
-                  className={`p-3 flex justify-between items-center rounded-xl cursor-pointer transition-all border border-transparent ${
+                  className={`p-3.5 flex justify-between items-center rounded-xl cursor-pointer transition-all border ${
                     isAssigned
-                      ? "bg-blue-50/40 border-blue-100 shadow-sm"
-                      : "hover:bg-slate-50"
+                      ? "bg-blue-50/70 border-blue-200 shadow-2xs"
+                      : "bg-white hover:bg-slate-50 border-transparent hover:border-slate-200"
                   }`}
                 >
-                  <div>
-                    <p className={`text-xs font-bold ${isAssigned ? "text-blue-700" : "text-slate-800"}`}>
-                      {emp.name}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                      <p className="text-[10px] text-slate-400 font-mono">{emp.phone || "Keine Telefonnummer"}</p>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all ${isAssigned ? "bg-blue-600 border-blue-600 text-white" : "border-slate-300 bg-slate-50"}`}>
+                      {isAssigned && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className={`text-xs font-bold ${isAssigned ? "text-blue-800" : "text-slate-800"}`}>
+                          {emp.name}
+                        </p>
+                        {existingShiftsForEmp.length > 0 && (
+                          <span className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-200 font-bold rounded-full flex items-center gap-1">
+                            <ShieldAlert className="w-3 h-3 text-amber-600" />
+                            Bereits heute eingeplant ({existingShiftsForEmp.join(", ")})
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-400 font-mono mt-0.5">{emp.phone || "Keine Telefonnummer"}</p>
                     </div>
                   </div>
                   <span
-                    className={`px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider font-mono ${
+                    className={`px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider font-mono border ${
                       emp.role === "TEAM_LEADER"
-                        ? "bg-amber-100 text-amber-800"
-                        : "bg-slate-100 text-slate-600"
+                        ? "bg-amber-100/80 text-amber-900 border-amber-200"
+                        : "bg-slate-100 text-slate-700 border-slate-200"
                     }`}
                   >
                     {emp.role === "TEAM_LEADER" ? "Vorarbeiter" : "Mitarbeiter"}
@@ -821,151 +1064,213 @@ function PlanningPageContent() {
       </div>
 
       {/* Save Button Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white border border-slate-100 p-5 rounded-xl shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-slate-800 text-white p-6 rounded-xl shadow-lg">
         <div>
-          <p className="text-xs font-bold text-slate-700 leading-none">
-            {planId ? "Bestehender Schichtplan wird aktualisiert" : "Neuer Schichtplan-Entwurf"}
+          <p className="text-sm font-extrabold text-white flex items-center gap-2">
+            {planId ? "Bestehender Schichtplan wird aktualisiert" : "Neuer Schichtplan-Entwurf wird angelegt"}
           </p>
-          <p className="text-[10px] text-slate-400 mt-1">
-            Mitarbeiter können auch später hinzugefügt oder entfernt werden.
+          <p className="text-xs text-slate-300 mt-1">
+            {selectedLocations.length} Standort(e) und {assignedEmployeeIds.length} Mitarbeiter sind für diese Schicht ausgewählt.
           </p>
         </div>
 
-        <button
-          onClick={handleSavePlan}
-          disabled={isLoading}
-          className="bg-[#1d4ed8] hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold px-6 py-2.5 rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-2 cursor-pointer"
-        >
-          {isLoading ? (
-            <div className="animate-spin rounded-full h-4.5 w-4.5 border-b-2 border-white"></div>
-          ) : (
-            <Save className="w-4 h-4" />
+        <div className="flex items-center gap-3">
+          {planId && (
+            <button
+              type="button"
+              onClick={handleCancelEdit}
+              className="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold px-5 py-2.5 rounded-lg transition-all cursor-pointer"
+            >
+              Abbrechen
+            </button>
           )}
-          <span>Plan speichern</span>
-        </button>
+          <button
+            onClick={handleSavePlan}
+            disabled={isLoading}
+            className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-extrabold px-7 py-2.5 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer"
+          >
+            {isLoading ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            <span>{planId ? "Änderungen speichern" : "Plan speichern & benachrichtigen"}</span>
+          </button>
+        </div>
       </div>
 
       {/* ── Created Plans Section ── */}
-      <div ref={createdPlansSectionRef} className="bg-white border border-slate-100 rounded-xl p-5 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
+      <div ref={createdPlansSectionRef} className="bg-white border border-slate-100 rounded-xl p-6 shadow-sm space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
           <div>
-            <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-blue-600" />
-              Erstellte Schichtpläne ({allCreatedPlans.length})
+            <h4 className="font-extrabold text-slate-800 text-base flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-blue-600" />
+              Erstellte Schichtpläne am {date} ({displayedPlans.length})
             </h4>
-            <p className="text-slate-400 text-xs mt-0.5">
-              Übersicht der bereits angelegten Schichtpläne für das ausgewählte Datum & Lager
+            <p className="text-slate-500 text-xs mt-0.5">
+              Übersicht aller aktiven Schichtpläne mit zugeordneten Hallen, Mitarbeitern und Arbeitszeiten
             </p>
+          </div>
+
+          {/* Warehouse Filter for Plans List */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-500 shrink-0">Filter Lager:</span>
+            <select
+              value={filterWarehouseId}
+              onChange={(e) => setFilterWarehouseId(e.target.value)}
+              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-2xs"
+            >
+              <option value="ALL">Alle Lager zeigen</option>
+              {warehouses.map((w) => (
+                <option key={w.id} value={w.id}>{w.name}</option>
+              ))}
+            </select>
           </div>
         </div>
 
-        {allCreatedPlans.length === 0 ? (
-          <div className="p-6 text-center text-slate-400 text-xs italic bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
-            Noch keine Schichtpläne für dieses Datum / Lager erstellt.
+        {displayedPlans.length === 0 ? (
+          <div className="p-8 text-center text-slate-400 text-xs italic bg-slate-50/60 rounded-xl border border-dashed border-slate-200">
+            Noch keine Schichtpläne für dieses Datum und den gewählten Filter erstellt.
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {allCreatedPlans.map((plan: any) => {
-              const hName = halls.find((h) => h.id === plan.hallId)?.name || "Halle";
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {displayedPlans.map((plan: any) => {
               const isSelected = plan.id === planId;
+              const planLocations = plan.locations && Array.isArray(plan.locations) && plan.locations.length > 0 
+                ? plan.locations 
+                : [{ warehouseId: plan.warehouseId, hallId: plan.hallId }];
+
               return (
                 <div
                   key={plan.id}
-                  className={`p-4 rounded-xl border transition-all ${
+                  className={`p-5 rounded-xl border transition-all flex flex-col justify-between ${
                     plan.id === lastSavedPlanId
-                      ? "bg-green-50/40 border-green-300 shadow-md ring-2 ring-green-400 animate-pulse-once"
+                      ? "bg-green-50/50 border-green-300 shadow-md ring-2 ring-green-400 animate-pulse-once"
                       : isSelected
-                      ? "bg-blue-50/30 border-blue-300 shadow-sm ring-1 ring-blue-300"
-                      : "bg-white border-slate-200 hover:border-slate-300"
+                      ? "bg-blue-50/40 border-blue-300 shadow-sm ring-2 ring-blue-300"
+                      : "bg-white border-slate-200 hover:border-slate-300 shadow-2xs hover:shadow-sm"
                   }`}
                 >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
-                        {hName}
-                      </span>
-                      <h5 className="font-bold text-slate-800 text-xs mt-1.5 flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-slate-400" />
-                        {plan.shift || "Schicht"}
-                      </h5>
-                      {(plan.treffpunktTime || plan.treffpunkt) && (
-                        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
-                          {plan.treffpunktTime && (
-                            <span className="px-2 py-0.5 bg-amber-100 text-amber-900 font-mono font-bold rounded border border-amber-200">
-                              ⏰ Treffzeit: {plan.treffpunktTime} Uhr
+                  <div className="space-y-3">
+                    {/* Header: Locations Tags + Actions */}
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="flex flex-wrap gap-1.5 flex-1">
+                        {planLocations.map((loc: any, i: number) => {
+                          const wName = warehouses.find((w) => w.id === (loc.warehouseId || loc.warehouse?.id))?.name || "Lager";
+                          const hName = halls.find((h) => h.id === (loc.hallId || loc.hall?.id))?.name || loc.hallName || "Halle";
+                          return (
+                            <span key={i} className="text-[11px] font-bold text-blue-900 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200 flex items-center gap-1 shadow-2xs">
+                              <WarehouseIcon className="w-3 h-3 text-blue-600 shrink-0" />
+                              <span>{wName} — <strong className="text-blue-950">{hName}</strong></span>
                             </span>
-                          )}
-                          {plan.treffpunkt && (
-                            <span className="px-2 py-0.5 bg-slate-100 text-slate-700 font-medium rounded border border-slate-200 flex items-center gap-1">
-                              <MapPin className="w-3 h-3 text-amber-600 shrink-0" />
-                              {plan.treffpunkt}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => {
-                        // Lock the editing guard BEFORE changing selectedHallId
-                        // This prevents the useEffect from firing and overwriting the form
-                        isEditingRef.current = true;
-                        setSelectedHallId(plan.hallId);
-                        setPlanId(plan.id);
-                        setAssignedEmployeeIds(plan.assignedEmployees?.map((e: any) => e.id) || []);
-                        applyShiftString(plan.shift || "Frühschicht");
-                        setTreffpunktTime(plan.treffpunktTime || "05:30");
-                        setTreffpunkt(plan.treffpunkt || "");
-                        setNotes(plan.notes || "");
-                        setAssignedContainerNumbers(plan.assignedContainers?.map((c: any) => c.containerNumber) || []);
-                        // Scroll to top of page so user can edit the form
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                      }}
-                      className="px-3 py-1 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm cursor-pointer"
-                    >
-                      <Edit2 className="w-3 h-3" /> Bearbeiten
-                    </button>
-                  </div>
+                          );
+                        })}
+                      </div>
 
-                  {/* Employees */}
-                  <div className="mt-3 text-xs space-y-1">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      Eingeteilte Mitarbeiter ({plan.assignedEmployees?.length || 0}):
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {plan.assignedEmployees && plan.assignedEmployees.length > 0 ? (
-                        plan.assignedEmployees.map((emp: any) => (
-                          <span key={emp.id} className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-semibold">
-                            {emp.name}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-slate-400 italic text-[11px]">Keine zugewiesen</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Containers */}
-                  {plan.assignedContainers && plan.assignedContainers.length > 0 && (
-                    <div className="mt-2 text-xs space-y-1">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                        Container ({plan.assignedContainers.length}):
-                      </p>
-                      <div className="flex flex-wrap gap-1">
-                        {plan.assignedContainers.map((cont: any) => (
-                          <span key={cont.id || cont.containerNumber} className="px-2 py-0.5 bg-blue-50 text-blue-800 border border-blue-100 font-mono text-[10px] font-bold rounded">
-                            {cont.containerNumber}
-                          </span>
-                        ))}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            isEditingRef.current = true;
+                            setPlanId(plan.id);
+                            setAssignedEmployeeIds(plan.assignedEmployees?.map((e: any) => e.id) || []);
+                            applyShiftString(plan.shift || "Frühschicht");
+                            setTreffpunktTime(plan.treffpunktTime || "05:30");
+                            setTreffpunkt(plan.treffpunkt || "");
+                            setNotes(plan.notes || "");
+                            setAssignedContainerNumbers(plan.assignedContainers?.map((c: any) => c.containerNumber) || []);
+                            
+                            // Load locations into state
+                            if (plan.locations && Array.isArray(plan.locations) && plan.locations.length > 0) {
+                              setSelectedLocations(plan.locations.map((l: any) => ({
+                                warehouseId: l.warehouseId || l.warehouse?.id || "",
+                                hallId: l.hallId || l.hall?.id || "",
+                              })));
+                            } else if (plan.warehouseId && plan.hallId) {
+                              setSelectedLocations([{ warehouseId: plan.warehouseId, hallId: plan.hallId }]);
+                            }
+                            window.scrollTo({ top: 0, behavior: "smooth" });
+                          }}
+                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm cursor-pointer"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" /> Bearbeiten
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeletePlan(plan.id, e)}
+                          title="Schichtplan löschen"
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                  )}
 
-                  {/* Notes */}
-                  {plan.notes && (
-                    <p className="mt-2 text-[11px] text-slate-500 italic bg-slate-50 p-2 rounded border border-slate-100">
-                      "{plan.notes}"
-                    </p>
-                  )}
+                    {/* Shift & Pick-up Info */}
+                    <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
+                      <span className="font-extrabold text-slate-800 text-xs flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+                        <Clock className="w-3.5 h-3.5 text-blue-600" />
+                        {plan.shift || "Schicht"}
+                      </span>
+
+                      {plan.treffpunktTime && (
+                        <span className="px-2.5 py-1 bg-amber-100/90 text-amber-950 font-mono text-xs font-bold rounded-md border border-amber-300/80">
+                          ⏰ Treff: {plan.treffpunktTime} Uhr
+                        </span>
+                      )}
+                      {plan.treffpunkt && (
+                        <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-xs font-medium rounded-md border border-slate-200 flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          {plan.treffpunkt}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Employees */}
+                    <div className="space-y-1.5 pt-1">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                        <Users className="w-3 h-3 text-slate-400" />
+                        Eingeteilte Mitarbeiter ({plan.assignedEmployees?.length || 0}):
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {plan.assignedEmployees && plan.assignedEmployees.length > 0 ? (
+                          plan.assignedEmployees.map((emp: any) => (
+                            <span key={emp.id} className="px-2.5 py-1 bg-slate-100 text-slate-800 rounded-md text-[11px] font-bold border border-slate-200 shadow-2xs">
+                              {emp.name}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-slate-400 italic text-[11px]">Keine Mitarbeiter zugewiesen</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Containers */}
+                    {plan.assignedContainers && plan.assignedContainers.length > 0 && (
+                      <div className="space-y-1 pt-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                          <Package className="w-3 h-3 text-slate-400" />
+                          Container ({plan.assignedContainers.length}):
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {plan.assignedContainers.map((cont: any) => (
+                            <span key={cont.id || cont.containerNumber} className="px-2.5 py-0.5 bg-blue-50 text-blue-900 border border-blue-200 font-mono text-[10px] font-bold rounded-md">
+                              {cont.containerNumber}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Notes */}
+                    {plan.notes && (
+                      <div className="mt-2 p-2.5 bg-slate-50 rounded-lg border border-slate-200/80">
+                        <p className="text-[11px] font-semibold text-slate-600 italic">
+                          "{plan.notes}"
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -986,7 +1291,7 @@ export default function PlanningPage() {
   return (
     <Suspense fallback={
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-secondary"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
       </div>
     }>
       <PlanningPageContent />
