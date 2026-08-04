@@ -196,6 +196,48 @@ export class PlanningService {
     }
   }
 
+  private async notifyDeletedPlan(plan: any) {
+    if (!plan || !plan.assignedEmployees || plan.assignedEmployees.length === 0) return;
+    const formattedDate = new Date(plan.date).toLocaleDateString('de-DE');
+
+    for (const emp of plan.assignedEmployees) {
+      if (!emp || !emp.id) continue;
+
+      await this.prisma.notification
+        .create({
+          data: {
+            userId: emp.id,
+            title: 'Schichtplan abgesagt',
+            message: `Der Schichtplan am ${formattedDate} in ${plan.warehouseName || 'Lager'} (${plan.hallName || 'Halle'}) wurde abgesagt / storniert.`,
+            type: 'PLAN_DELETED',
+          },
+        })
+        .catch(() => {});
+
+      if (emp.email) {
+        const shiftTime = plan.shift || (plan.startTime && plan.endTime ? `${new Date(plan.startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} - ${new Date(plan.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'Standardschicht');
+        const warehousesList = (plan.locations && plan.locations.length > 0)
+          ? plan.locations.map((loc: any) => `${loc.warehouseName || 'Lager'} (${loc.hallName || 'Halle'})`)
+          : [`${plan.warehouseName || 'Lager'} (${plan.hallName || 'Halle'})`];
+
+        const planDetails = {
+          employeeName: emp.name || 'Mitarbeiter',
+          date: formattedDate,
+          time: shiftTime,
+          warehouses: warehousesList,
+          notes: 'Dieser Schichtplan wurde von der Betriebsleitung komplett storniert bzw. abgesagt.',
+          title: 'Schichtplan abgesagt',
+        };
+        this.emailService.sendPlanDeletionNotification(emp.email, planDetails).catch(() => {});
+      }
+
+      if (emp.phone) {
+        const waMessage = `Hallo ${emp.name},\nDer Schichtplan am 📅 ${formattedDate} in 🏢 ${plan.warehouseName || 'Lager'} (${plan.hallName || 'Halle'}) wurde abgesagt / storniert.`;
+        this.messagingService.sendWhatsAppDirect(emp.phone, waMessage).catch(() => {});
+      }
+    }
+  }
+
   private async validateNoEmployeeTimeOverlap(
     tx: any,
     employeeIds: string[],
@@ -709,6 +751,7 @@ export class PlanningService {
   async deactivate(id: string, actorId?: string) {
     const plan = await this.prisma.plan.findFirst({
       where: { id, deletedAt: null },
+      include: this.standardInclude,
     });
 
     if (!plan) {
@@ -727,6 +770,10 @@ export class PlanningService {
         details: `Soft deleted daily plan (ID: ${id})`,
       },
     });
+
+    // Notify assigned employees that the plan has been cancelled/deleted
+    const formatted = this.formatPlanOutput(plan);
+    this.notifyDeletedPlan(formatted).catch(() => {});
 
     return { message: 'Daily plan deactivated successfully' };
   }
@@ -781,6 +828,7 @@ export class PlanningService {
         id: { in: ids },
         deletedAt: null,
       },
+      include: this.standardInclude,
     });
 
     if (plans.length === 0) {
@@ -803,6 +851,11 @@ export class PlanningService {
         details: `Soft deleted / Deactivated ${result.count} daily plans`,
       },
     });
+
+    // Notify assigned employees for all deleted plans
+    for (const p of plans) {
+      this.notifyDeletedPlan(this.formatPlanOutput(p)).catch(() => {});
+    }
 
     return { message: `${result.count} daily plans deactivated successfully` };
   }

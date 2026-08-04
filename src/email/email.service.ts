@@ -337,6 +337,99 @@ export class EmailService {
     return this.sendEmail(email, subject, html);
   }
 
+  async sendPlanDeletionNotification(email: string, planDetails: any): Promise<string | true> {
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001';
+    
+    const employeeName = planDetails.employeeName || 'Mitarbeiter';
+    const date = planDetails.date || 'Nicht angegeben';
+    const time = planDetails.time || 'Standardschicht';
+    const notes = planDetails.notes || 'Dieser Schichtplan wurde von der Betriebsleitung komplett storniert bzw. abgesagt.';
+    
+    let warehousesList: string[] = [];
+    if (Array.isArray(planDetails.warehouses) && planDetails.warehouses.length > 0) {
+      warehousesList = planDetails.warehouses.map((w: any) => typeof w === 'string' ? w : `${w.warehouseName || 'Lager'} (${w.hallName || 'Halle'})`);
+    } else {
+      warehousesList = [`${planDetails.warehouseName || 'Lager'} (${planDetails.hallName || 'Halle'})`];
+    }
+
+    const subject = `Schichtplan abgesagt: ${date}`;
+
+    const html = `<!DOCTYPE html>
+<html lang="de" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${subject}</title>
+  <style type="text/css">
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    body { margin: 0 !important; padding: 0 !important; width: 100% !important; font-family: 'Segoe UI', Inter, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b; }
+    .email-container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; }
+    .header { background: linear-gradient(135deg, #991b1b 0%, #ef4444 100%); padding: 32px 24px; text-align: center; color: #ffffff; }
+    .body-padding { padding: 32px 28px; }
+    .btn-primary { display: inline-block; background-color: #2563eb; color: #ffffff; font-weight: 700; font-size: 15px; text-decoration: none; padding: 14px 32px; border-radius: 8px; }
+    @media screen and (max-width: 600px) {
+      .email-container { width: 100% !important; border-radius: 0 !important; border: none !important; }
+      .body-padding { padding: 24px 16px !important; }
+    }
+  </style>
+</head>
+<body style="margin: 0; padding: 20px 0; background-color: #f8fafc; font-family: 'Segoe UI', Inter, Helvetica, Arial, sans-serif; color: #1e293b;">
+  <center style="width: 100%; background-color: #f8fafc;">
+    <div class="email-container" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; text-align: left;">
+      
+      <div class="header" style="background: linear-gradient(135deg, #991b1b 0%, #ef4444 100%); padding: 32px 24px; text-align: center; color: #ffffff;">
+        <h1 style="margin: 0; font-size: 22px; font-weight: 800; color: #ffffff;">Schichtplan Abgesagt</h1>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #fee2e2;">Dienstplanstornierung / Shift Cancellation</p>
+      </div>
+      
+      <div class="body-padding" style="padding: 32px 28px;">
+        <p style="margin: 0 0 16px; font-size: 16px; color: #334155;">Hallo <strong>${employeeName}</strong>,</p>
+        <p style="margin: 0 0 24px; font-size: 15px; color: #475569; line-height: 1.5;">
+          Der folgende Schichtplan wurde von der Betriebsleitung storniert bzw. abgesagt:
+        </p>
+
+        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 24px;">
+          <tr>
+            <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #64748b; width: 32%; background-color: #f1f5f9;">👤 Mitarbeiter</td>
+            <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #0f172a;">${employeeName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #64748b; width: 32%; background-color: #f1f5f9;">📅 Datum</td>
+            <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #dc2626;">${date}</td>
+          </tr>
+          <tr>
+            <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #64748b; width: 32%; background-color: #f1f5f9;">⏰ Uhrzeit</td>
+            <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #0f172a;">${time}</td>
+          </tr>
+          <tr>
+            <td style="padding: 12px 16px; font-weight: 600; color: #64748b; width: 32%; background-color: #f1f5f9;">🏢 Lagerort(e)</td>
+            <td style="padding: 12px 16px; font-weight: 600; color: #0f172a;">${warehousesList.join(', ')}</td>
+          </tr>
+        </table>
+        
+        <div style="background-color: #fff1f2; border-left: 4px solid #f43f5e; padding: 16px; border-radius: 0 8px 8px 0; color: #881337; font-size: 14px; line-height: 1.6; margin-top: 20px;">
+          <strong>📝 Hinweis:</strong> ${notes}
+        </div>
+
+        <div style="text-align: center; margin-top: 32px; margin-bottom: 12px;">
+          <a href="${frontendUrl}/planning" class="btn-primary" style="display: inline-block; background-color: #2563eb; color: #ffffff; font-weight: 700; font-size: 15px; text-decoration: none; padding: 14px 32px; border-radius: 8px;">
+            Zum Dashboard / Open Dashboard &rarr;
+          </a>
+        </div>
+      </div>
+      
+      <div style="background-color: #f1f5f9; padding: 20px 24px; text-align: center; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 12px;">
+        <p style="margin: 0;">LogiFlow Warehouse Management System — Automatisierte Systembenachrichtigung</p>
+      </div>
+      
+    </div>
+  </center>
+</body>
+</html>`;
+    return this.sendEmail(email, subject, html);
+  }
+
   async sendCustomEmail(
     to: string,
     subject: string,
