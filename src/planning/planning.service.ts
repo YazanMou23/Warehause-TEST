@@ -117,6 +117,85 @@ export class PlanningService {
     };
   }
 
+  private isPlanDataChanged(oldPlan: any, newPlan: any): boolean {
+    if (!oldPlan || !newPlan) return true;
+    if (oldPlan.title !== newPlan.title) return true;
+    if (oldPlan.description !== newPlan.description) return true;
+    if (new Date(oldPlan.date).getTime() !== new Date(newPlan.date).getTime()) return true;
+    if (oldPlan.shift !== newPlan.shift) return true;
+    if (oldPlan.treffpunkt !== newPlan.treffpunkt) return true;
+    if (oldPlan.treffpunktTime !== newPlan.treffpunktTime) return true;
+    if (oldPlan.notes !== newPlan.notes) return true;
+
+    const getLocsKey = (p: any) =>
+      (p.locations || [])
+        .map((l: any) => `${l.warehouseId}_${l.hallId}`)
+        .sort()
+        .join(',');
+    if (getLocsKey(oldPlan) !== getLocsKey(newPlan)) return true;
+
+    const getEmpsKey = (p: any) =>
+      (p.assignedEmployees || [])
+        .map((e: any) => e.id || e.employeeId)
+        .sort()
+        .join(',');
+    if (getEmpsKey(oldPlan) !== getEmpsKey(newPlan)) return true;
+
+    const getContsKey = (p: any) =>
+      (p.assignedContainers || [])
+        .map((c: any) => c.id || c.containerId || c.containerNumber)
+        .sort()
+        .join(',');
+    if (getContsKey(oldPlan) !== getContsKey(newPlan)) return true;
+
+    return false;
+  }
+
+  private async notifyRemovedEmployees(updatedPlan: any, removedEmployeeIds: string[]) {
+    if (!removedEmployeeIds || removedEmployeeIds.length === 0) return;
+    const removedEmployees = await this.prisma.user.findMany({
+      where: { id: { in: removedEmployeeIds } },
+      select: { id: true, name: true, email: true, phone: true },
+    });
+    const formattedDate = new Date(updatedPlan.date).toLocaleDateString('de-DE');
+
+    for (const emp of removedEmployees) {
+      await this.prisma.notification
+        .create({
+          data: {
+            userId: emp.id,
+            title: 'Schichtzuweisung entfernt',
+            message: `Sie wurden aus dem Schichtplan am ${formattedDate} in ${updatedPlan.warehouseName} (${updatedPlan.hallName}) ausgetragen.`,
+            type: 'PLAN_UPDATED',
+          },
+        })
+        .catch(() => {});
+
+      if (emp.email) {
+        const shiftTime = updatedPlan.shift || (updatedPlan.startTime && updatedPlan.endTime ? `${new Date(updatedPlan.startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} - ${new Date(updatedPlan.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'Standardschicht');
+        const warehousesList = (updatedPlan.locations && updatedPlan.locations.length > 0)
+          ? updatedPlan.locations.map((loc: any) => `${loc.warehouseName || 'Lager'} (${loc.hallName || 'Halle'})`)
+          : [`${updatedPlan.warehouseName || 'Lager'} (${updatedPlan.hallName || 'Halle'})`];
+
+        const planDetails = {
+          employeeName: emp.name || 'Mitarbeiter',
+          date: formattedDate,
+          time: shiftTime,
+          warehouses: warehousesList,
+          notes: 'Sie wurden aus diesem Schichtplan ausgetragen. Ihr Dienstplan wurde aktualisiert.',
+          title: 'Schichtzuweisung entfernt',
+          isRemoved: true,
+        };
+        this.emailService.sendPlanRemovalNotification(emp.email, planDetails).catch(() => {});
+      }
+
+      if (emp.phone) {
+        const waMessage = `Hallo ${emp.name},\nSie wurden aus dem Schichtplan am 📅 ${formattedDate} in 🏢 ${updatedPlan.warehouseName} (${updatedPlan.hallName}) ausgetragen.`;
+        this.messagingService.sendWhatsAppDirect(emp.phone, waMessage).catch(() => {});
+      }
+    }
+  }
+
   private async validateNoEmployeeTimeOverlap(
     tx: any,
     employeeIds: string[],
@@ -316,18 +395,29 @@ export class PlanningService {
   ) {
     if (!employees || employees.length === 0) return;
 
+    // Deduplicate employees by ID to prevent duplicate notifications
+    const uniqueEmployees: Array<{ id: string; name: string; email?: string | null; phone?: string | null }> = [];
+    const seenIds = new Set<string>();
+    for (const emp of employees) {
+      if (emp && emp.id && !seenIds.has(emp.id)) {
+        seenIds.add(emp.id);
+        uniqueEmployees.push(emp);
+      }
+    }
+    if (uniqueEmployees.length === 0) return;
+
     const formattedDate = new Date(plan.date).toLocaleDateString('de-DE');
     const headerTitle = isUpdate ? 'Schichtplan aktualisiert' : 'Neue Schichtzuweisung';
 
     const userRecords = await this.prisma.user
       .findMany({
-        where: { id: { in: employees.map((e) => e.id) } },
+        where: { id: { in: uniqueEmployees.map((e) => e.id) } },
         select: { id: true, name: true, email: true, phone: true, treffpunkt: true, treffpunktTime: true, address: true },
       })
       .catch(() => []);
     const userMap = new Map(userRecords.map((u) => [u.id, u]));
 
-    for (const employee of employees) {
+    for (const employee of uniqueEmployees) {
       const uInfo = userMap.get(employee.id);
       const targetEmail = employee.email || uInfo?.email;
       const targetPhone = employee.phone || uInfo?.phone;
@@ -431,6 +521,7 @@ export class PlanningService {
       throw new NotFoundException(`Daily plan with ID ${id} not found`);
     }
 
+    const oldFormattedPlan = await this.findOne(id);
     const prevEmployeeIds = plan.assignedEmployees.map((ae) => ae.employeeId);
     const targetDate = updatePlanDto.date !== undefined ? this.normalizeDate(updatePlanDto.date) : plan.date;
     const targetShift = updatePlanDto.shift !== undefined ? updatePlanDto.shift : plan.shift;
@@ -569,54 +660,15 @@ export class PlanningService {
     });
 
     const updatedPlan = await this.findOne(id);
-
     const currentEmployeeIds = updatedPlan.assignedEmployees.map((ae: any) => ae.id);
     const removedEmployeeIds = prevEmployeeIds.filter((id) => !currentEmployeeIds.includes(id));
 
-    await this.notifyAssignedEmployees(updatedPlan, updatedPlan.assignedEmployees, true, actorId);
+    if (this.isPlanDataChanged(oldFormattedPlan, updatedPlan)) {
+      await this.notifyAssignedEmployees(updatedPlan, updatedPlan.assignedEmployees, true, actorId);
+    }
 
     if (removedEmployeeIds.length > 0) {
-      const removedEmployees = await this.prisma.user.findMany({
-        where: { id: { in: removedEmployeeIds } },
-        select: { id: true, name: true, email: true, phone: true },
-      });
-      const formattedDate = new Date(updatedPlan.date).toLocaleDateString('de-DE');
-
-      for (const emp of removedEmployees) {
-        await this.prisma.notification
-          .create({
-            data: {
-              userId: emp.id,
-              title: 'Schichtzuweisung entfernt',
-              message: `Sie wurden aus dem Schichtplan am ${formattedDate} in ${updatedPlan.warehouseName} (${updatedPlan.hallName}) ausgetragen.`,
-              type: 'PLAN_UPDATED',
-            },
-          })
-          .catch(() => {});
-
-        if (emp.email) {
-          const shiftTime = updatedPlan.shift || (updatedPlan.startTime && updatedPlan.endTime ? `${new Date(updatedPlan.startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} - ${new Date(updatedPlan.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'Standardschicht');
-          const warehousesList = (updatedPlan.locations && updatedPlan.locations.length > 0)
-            ? updatedPlan.locations.map((loc: any) => `${loc.warehouseName || 'Lager'} (${loc.hallName || 'Halle'})`)
-            : [`${updatedPlan.warehouseName || 'Lager'} (${updatedPlan.hallName || 'Halle'})`];
-
-          const planDetails = {
-            employeeName: emp.name || 'Mitarbeiter',
-            date: formattedDate,
-            time: shiftTime,
-            warehouses: warehousesList,
-            notes: 'Sie wurden aus diesem Schichtplan ausgetragen. Ihr Dienstplan wurde aktualisiert.',
-            title: 'Schichtzuweisung entfernt',
-            isRemoved: true,
-          };
-          this.emailService.sendPlanRemovalNotification(emp.email, planDetails).catch(() => {});
-        }
-
-        if (emp.phone) {
-          const waMessage = `Hallo ${emp.name},\nSie wurden aus dem Schichtplan am 📅 ${formattedDate} in 🏢 ${updatedPlan.warehouseName} (${updatedPlan.hallName}) ausgetragen.`;
-          this.messagingService.sendWhatsAppDirect(emp.phone, waMessage).catch(() => {});
-        }
-      }
+      await this.notifyRemovedEmployees(updatedPlan, removedEmployeeIds);
     }
 
     return updatedPlan;
@@ -845,6 +897,7 @@ export class PlanningService {
 
     let count = 0;
     for (const plan of plans) {
+      const oldPlan = await this.findOne(plan.id);
       await this.prisma.$transaction(async (tx) => {
         await tx.planLocation.deleteMany({ where: { planId: plan.id } });
         await tx.planLocation.create({
@@ -856,6 +909,10 @@ export class PlanningService {
         });
         count++;
       });
+      const updatedPlan = await this.findOne(plan.id);
+      if (this.isPlanDataChanged(oldPlan, updatedPlan)) {
+        await this.notifyAssignedEmployees(updatedPlan, updatedPlan.assignedEmployees, true, actorId);
+      }
     }
 
     await this.prisma.actionLog.create({
@@ -877,6 +934,7 @@ export class PlanningService {
 
     let count = 0;
     for (const plan of plans) {
+      const oldPlan = await this.findOne(plan.id);
       const { startTime, endTime } = this.getShiftTimeWindow(plan.date, shift);
       const employeeIds = plan.assignedEmployees.map((ae) => ae.employeeId);
 
@@ -900,6 +958,10 @@ export class PlanningService {
           });
           count++;
         });
+        const updatedPlan = await this.findOne(plan.id);
+        if (this.isPlanDataChanged(oldPlan, updatedPlan)) {
+          await this.notifyAssignedEmployees(updatedPlan, updatedPlan.assignedEmployees, true, actorId);
+        }
       } catch (err) {
         this.logger.warn(`Could not change shift for plan ${plan.id} due to conflict: ${err.message}`);
       }
@@ -922,6 +984,9 @@ export class PlanningService {
     });
 
     for (const plan of plans) {
+      const oldPlan = await this.findOne(plan.id);
+      const prevEmployeeIds = (oldPlan.assignedEmployees || []).map((ae: any) => ae.id);
+
       await this.prisma.$transaction(async (tx) => {
         await tx.planEmployee.deleteMany({
           where: { planId: plan.id },
@@ -941,7 +1006,15 @@ export class PlanningService {
       });
 
       const updatedPlan = await this.findOne(plan.id);
-      await this.notifyAssignedEmployees(updatedPlan, updatedPlan.assignedEmployees, true, actorId);
+      const currentEmployeeIds = (updatedPlan.assignedEmployees || []).map((ae: any) => ae.id);
+      const removedEmployeeIds = prevEmployeeIds.filter((id: string) => !currentEmployeeIds.includes(id));
+
+      if (this.isPlanDataChanged(oldPlan, updatedPlan)) {
+        await this.notifyAssignedEmployees(updatedPlan, updatedPlan.assignedEmployees, true, actorId);
+      }
+      if (removedEmployeeIds.length > 0) {
+        await this.notifyRemovedEmployees(updatedPlan, removedEmployeeIds);
+      }
     }
 
     await this.prisma.actionLog.create({

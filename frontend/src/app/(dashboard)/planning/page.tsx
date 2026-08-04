@@ -277,6 +277,14 @@ function PlanningPageContent() {
     } catch (e) {}
   };
 
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchExistingPlanManual();
+    };
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [date, isOffline]);
+
   const toggleLocation = (warehouseId: string, hallId: string) => {
     setSelectedLocations((prev) => {
       const exists = prev.some((loc) => loc.hallId === hallId && loc.warehouseId === warehouseId);
@@ -338,6 +346,8 @@ function PlanningPageContent() {
         setAssignedEmployeeIds([]);
         setAssignedContainerNumbers([]);
       }
+      // Immediately update local state without waiting for page reload or network delay
+      setAllCreatedPlans((prev) => prev.filter((p: any) => p.id !== targetPlanId));
       await fetchExistingPlanManual();
     } catch (err: any) {
       showAlert({
@@ -389,13 +399,40 @@ function PlanningPageContent() {
 
     if (isOffline) {
       setTimeout(() => {
-        setPlanId("mock-plan-id");
+        const primaryLoc = selectedLocations[0] || { warehouseId: "", hallId: "" };
+        const mockPlan = {
+          id: planId || `mock-plan-${Date.now()}`,
+          date,
+          shift: formattedShift,
+          treffpunktTime,
+          treffpunkt,
+          notes,
+          warehouseId: primaryLoc.warehouseId,
+          hallId: primaryLoc.hallId,
+          locations: selectedLocations,
+          assignedEmployees: employees.filter((e) => assignedEmployeeIds.includes(e.id)),
+          assignedContainers: assignedContainerNumbers.map((c) => ({ containerNumber: c })),
+        };
+        setAllCreatedPlans((prev) => {
+          const exists = prev.some((p: any) => p.id === mockPlan.id);
+          return exists ? prev.map((p: any) => (p.id === mockPlan.id ? mockPlan : p)) : [mockPlan, ...prev];
+        });
+        setLastSavedPlanId(mockPlan.id);
+        setFilterWarehouseId("ALL");
+        isEditingRef.current = false;
+        setPlanId(null);
+        setNotes("");
+        setAssignedEmployeeIds([]);
+        setAssignedContainerNumbers([]);
         showAlert({
           title: "Schichtplan gespeichert",
           message: "Tagesplan wurde im Offline-Modus erfolgreich simuliert!",
           type: "success",
         });
         setIsLoading(false);
+        setTimeout(() => {
+          createdPlansSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 300);
       }, 500);
       return;
     }
@@ -458,30 +495,33 @@ function PlanningPageContent() {
         throw new Error(errText);
       }
 
-      // Sync form fields from the saved response
-      setPlanId(data.id);
-      setLastSavedPlanId(data.id);
-      applyShiftString(data.shift || formattedShift);
-      setTreffpunktTime(data.treffpunktTime || treffpunktTime);
-      setTreffpunkt(data.treffpunkt || treffpunkt);
-      setNotes(data.notes || "");
-      setAssignedEmployeeIds(data.assignedEmployees?.map((e: any) => e.id) || assignedEmployeeIds);
-      setAssignedContainerNumbers(data.assignedContainers?.map((c: any) => c.containerNumber) || assignedContainerNumbers);
-      
-      if (data.locations && Array.isArray(data.locations) && data.locations.length > 0) {
-        setSelectedLocations(data.locations.map((l: any) => ({
-          warehouseId: l.warehouseId || l.warehouse?.id || "",
-          hallId: l.hallId || l.hall?.id || "",
-        })));
+      // Immediately update local state so newly created or updated plans appear in the last section instantly
+      if (data && data.id) {
+        setAllCreatedPlans((prev) => {
+          const exists = prev.some((p: any) => p.id === data.id);
+          if (exists) {
+            return prev.map((p: any) => (p.id === data.id ? data : p));
+          }
+          return [data, ...prev];
+        });
+        setLastSavedPlanId(data.id);
+        setFilterWarehouseId("ALL"); // Ensure the newly created or updated plan is visible in the filter
       }
 
+      // Reset form out of edit mode after saving so user can clearly see the saved plan below or add a new one
       isEditingRef.current = false;
+      setPlanId(null);
+      setNotes("");
+      setAssignedEmployeeIds([]);
+      setAssignedContainerNumbers([]);
 
       showAlert({
-        title: "Schichtplan erfolgreich gespeichert!",
+        title: planId ? "Schichtplan aktualisiert!" : "Schichtplan erfolgreich gespeichert!",
         message: `Der Schichtplan (${data.shift || formattedShift}) an ${selectedLocations.length} Standort(en) wurde gespeichert. ${(data.assignedEmployees?.length || assignedEmployeeIds.length)} Mitarbeiter benachrichtigt.`,
         type: "success",
       });
+
+      // Background re-fetch to ensure permanent database synchronization without page reload
       await fetchExistingPlanManual();
       setTimeout(() => {
         createdPlansSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
