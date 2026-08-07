@@ -32,6 +32,9 @@ import {
   Edit,
   Plus,
   Camera,
+  Images,
+  ChevronRight,
+  SkipForward,
 } from 'lucide-react';
 import { API_URL } from '../../../config/api';
 import CustomAlertModal, { CustomAlertOptions } from '../../components/CustomAlertModal';
@@ -207,10 +210,12 @@ function StatusBadge({ status }: { status: string }) {
 
 function UploadZone({
   onFileSelect,
+  onFilesSelect,
   onPrinterScan,
   isLoading,
 }: {
   onFileSelect: (file: File) => void;
+  onFilesSelect: (files: File[]) => void;
   onPrinterScan: (settings: { scannerIp?: string; scannerPort?: number; dpi?: number }) => void;
   isLoading: boolean;
 }) {
@@ -265,10 +270,16 @@ function UploadZone({
     (e: React.DragEvent) => {
       e.preventDefault();
       setIsDragOver(false);
-      const file = e.dataTransfer.files[0];
-      if (file) onFileSelect(file);
+      const files = Array.from(e.dataTransfer.files).filter(f =>
+        f.type.startsWith('image/')
+      );
+      if (files.length > 1) {
+        onFilesSelect(files);
+      } else if (files.length === 1) {
+        onFileSelect(files[0]);
+      }
     },
-    [onFileSelect],
+    [onFileSelect, onFilesSelect],
   );
 
   const checkScannerStatus = async () => {
@@ -432,10 +443,16 @@ function UploadZone({
             ref={inputRef}
             type="file"
             accept="image/jpeg,image/png,image/webp"
+            multiple
             className="hidden"
             onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) onFileSelect(file);
+              const files = Array.from(e.target.files ?? []);
+              if (files.length > 1) {
+                onFilesSelect(files);
+              } else if (files.length === 1) {
+                onFileSelect(files[0]);
+              }
+              e.target.value = '';
             }}
           />
         </div>
@@ -473,12 +490,24 @@ function UploadZone({
             type="file"
             accept="image/*"
             capture="environment"
+            multiple
             className="hidden"
             onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) onFileSelect(file);
+              const files = Array.from(e.target.files ?? []);
+              if (files.length > 1) {
+                onFilesSelect(files);
+              } else if (files.length === 1) {
+                onFileSelect(files[0]);
+              }
+              e.target.value = '';
             }}
           />
+        </div>
+
+        {/* 3-card hint: multi-photo */}
+        <div className="col-span-1 md:col-span-3 flex items-center gap-2 text-xs text-slate-500 justify-center">
+          <Images size={13} className="text-blue-400" />
+          <span>Mehrere Fotos auswählen: Strg+Klick (Desktop) oder Mehrfach-Auswahl (Handy) — alle werden nacheinander analysiert.</span>
         </div>
 
       </div>
@@ -2215,12 +2244,67 @@ export default function TimesheetsPage() {
   const [error, setError] = useState<string | null>(null);
   const [refreshListKey, setRefreshListKey] = useState(0);
 
-  // File-upload Handler
-  const handleFileSelect = async (file: File) => {
+  // ── Multi-photo queue ────────────────────────────────────────────────────────
+  type QueueStatus = 'waiting' | 'scanning' | 'review' | 'done' | 'error' | 'skipped';
+  const [fileQueue, setFileQueue] = useState<File[]>([]);
+  const [queueIndex, setQueueIndex] = useState(0);
+  const [queueStatuses, setQueueStatuses] = useState<QueueStatus[]>([]);
+
+  const hasQueue = fileQueue.length > 1;
+  const isLastInQueue = queueIndex >= fileQueue.length - 1;
+
+  // Mark status of a specific queue item
+  const markStatus = (idx: number, status: QueueStatus) =>
+    setQueueStatuses(prev => { const next = [...prev]; next[idx] = status; return next; });
+
+  // Start a queue of files — process the first one immediately
+  const handleFilesSelect = (files: File[]) => {
+    const validFiles = files.filter(f => f.type.startsWith('image/'));
+    if (validFiles.length === 0) return;
+    if (validFiles.length === 1) {
+      // Single file — bypass queue
+      handleFileSelect(validFiles[0]);
+      return;
+    }
+    setFileQueue(validFiles);
+    setQueueIndex(0);
+    setQueueStatuses(validFiles.map(() => 'waiting'));
+    processSingleFile(validFiles[0], 0, validFiles);
+  };
+
+  // Add more files to an existing queue mid-flow
+  const addToQueue = (files: File[]) => {
+    const valid = files.filter(f => f.type.startsWith('image/'));
+    if (!valid.length) return;
+    setFileQueue(prev => [...prev, ...valid]);
+    setQueueStatuses(prev => [...prev, ...valid.map(() => 'waiting' as QueueStatus)]);
+  };
+
+  // Skip current photo and advance to next
+  const skipCurrent = () => {
+    markStatus(queueIndex, 'skipped');
+    advanceQueue(fileQueue, queueIndex + 1);
+  };
+
+  // Advance to the next item in the queue
+  const advanceQueue = (queue: File[], nextIdx: number) => {
+    if (nextIdx >= queue.length) {
+      // All done — show upload zone
+      setScanResult(null);
+      setViewMode('upload');
+      return;
+    }
+    setQueueIndex(nextIdx);
+    processSingleFile(queue[nextIdx], nextIdx, queue);
+  };
+
+  // Process a single file: scan it and go to review
+  const processSingleFile = async (file: File, idx: number, queue: File[]) => {
     setCurrentFileName(file.name);
     setIsPrinterScan(false);
     setError(null);
     setViewMode('scanning');
+    markStatus(idx, 'scanning');
 
     try {
       const formData = new FormData();
@@ -2239,11 +2323,26 @@ export default function TimesheetsPage() {
 
       const result: ScanResult = await res.json();
       setScanResult(result);
+      markStatus(idx, 'review');
       setViewMode('review');
     } catch (e: any) {
+      markStatus(idx, 'error');
       setError(e.message ?? 'Unbekannter Fehler');
+      // On error: stay in queue, allow skip or retry
       setViewMode('upload');
     }
+  };
+
+  // File-upload Handler (single file — also used by queue processor)
+  const handleFileSelect = async (file: File) => {
+    // If there's no active queue, process as standalone
+    if (fileQueue.length <= 1) {
+      setFileQueue([file]);
+      setQueueIndex(0);
+      setQueueStatuses(['scanning']);
+      await processSingleFile(file, 0, [file]);
+    }
+    // If queue is active, processSingleFile is called directly by advanceQueue
   };
 
   // Direct Printer Scanner Handler
@@ -2301,10 +2400,23 @@ export default function TimesheetsPage() {
       }
 
       const confirmed = await res.json();
+      markStatus(queueIndex, 'done');
       setSavedId(confirmed.id);
       setSavedName(confirmed.employee?.name ?? confirmed.employeeName);
-      setViewMode('saved');
       setRefreshListKey((prev) => prev + 1);
+
+      if (hasQueue && !isLastInQueue) {
+        // Auto-advance to next photo in queue (brief saved flash then scan next)
+        setViewMode('saved');
+        setTimeout(() => {
+          setScanResult(null);
+          setSavedId(null);
+          setSavedName('');
+          advanceQueue(fileQueue, queueIndex + 1);
+        }, 1800);
+      } else {
+        setViewMode('saved');
+      }
     } catch (e: any) {
       setError(e.message ?? 'Unbekannter Fehler');
     } finally {
@@ -2319,6 +2431,9 @@ export default function TimesheetsPage() {
     setCurrentFileName('');
     setIsPrinterScan(false);
     setError(null);
+    setFileQueue([]);
+    setQueueIndex(0);
+    setQueueStatuses([]);
     setViewMode('upload');
   };
 
@@ -2403,6 +2518,81 @@ export default function TimesheetsPage() {
                 </div>
               )}
 
+              {/* Queue Progress Bar */}
+              {hasQueue && (
+                <div className="mb-5 p-4 rounded-2xl bg-white/5 border border-white/10">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                      <Images size={16} className="text-blue-400" />
+                      <span>Foto-Warteschlange</span>
+                      <span className="px-2 py-0.5 rounded-full bg-blue-600/30 text-blue-300 text-xs font-bold border border-blue-400/30">
+                        {queueIndex + 1} / {fileQueue.length}
+                      </span>
+                    </div>
+                    {viewMode === 'review' && !isLastInQueue && (
+                      <button
+                        onClick={skipCurrent}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-700/60 hover:bg-slate-600/60 text-slate-300 hover:text-white text-xs border border-white/10 transition-colors cursor-pointer"
+                      >
+                        <SkipForward size={12} /> Foto überspringen
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Progress dots */}
+                  <div className="flex gap-1.5 flex-wrap">
+                    {fileQueue.map((f, i) => {
+                      const st = queueStatuses[i] ?? 'waiting';
+                      const isActive = i === queueIndex;
+                      const dotColor =
+                        st === 'done'    ? 'bg-emerald-400 border-emerald-300' :
+                        st === 'error'   ? 'bg-red-400 border-red-300' :
+                        st === 'skipped' ? 'bg-slate-500 border-slate-400' :
+                        st === 'scanning'|| st === 'review' ? (isActive ? 'bg-blue-400 border-blue-300 animate-pulse' : 'bg-blue-400 border-blue-300') :
+                        'bg-white/20 border-white/10';
+                      return (
+                        <div
+                          key={i}
+                          title={`${f.name} — ${st}`}
+                          className={`h-2.5 flex-1 min-w-[20px] max-w-[60px] rounded-full border transition-all ${
+                            dotColor
+                          }`}
+                        />
+                      );
+                    })}
+                  </div>
+
+                  {/* File names strip */}
+                  <div className="flex gap-1.5 mt-2 flex-wrap">
+                    {fileQueue.map((f, i) => {
+                      const st = queueStatuses[i] ?? 'waiting';
+                      const isActive = i === queueIndex;
+                      return (
+                        <span
+                          key={i}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] border ${
+                            isActive
+                              ? 'bg-blue-600/30 text-blue-200 border-blue-400/40 font-semibold'
+                              : st === 'done'
+                              ? 'bg-emerald-500/15 text-emerald-400 border-emerald-400/20'
+                              : st === 'error'
+                              ? 'bg-red-500/15 text-red-400 border-red-400/20'
+                              : st === 'skipped'
+                              ? 'bg-slate-500/15 text-slate-500 border-slate-500/20 line-through'
+                              : 'bg-white/5 text-slate-500 border-white/8'
+                          }`}
+                        >
+                          {st === 'done'    && <CheckCircle size={8} />}
+                          {st === 'error'   && <AlertCircle size={8} />}
+                          {st === 'scanning'&& <Loader2 size={8} className="animate-spin" />}
+                          {f.name.length > 18 ? f.name.slice(0, 15) + '...' : f.name}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Step Indicator */}
               {(viewMode === 'upload' || viewMode === 'review') && (
                 <div className="flex items-center gap-2 mb-6 text-xs text-slate-500">
@@ -2431,6 +2621,7 @@ export default function TimesheetsPage() {
               {viewMode === 'upload' && (
                 <UploadZone
                   onFileSelect={handleFileSelect}
+                  onFilesSelect={handleFilesSelect}
                   onPrinterScan={handlePrinterScan}
                   isLoading={isLoading}
                 />
