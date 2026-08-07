@@ -220,11 +220,20 @@ function UploadZone({
   const [scannerPort, setScannerPort] = useState(80);
   const [scannerDpi, setScannerDpi] = useState(300);
   const [checkingStatus, setCheckingStatus] = useState(false);
-  const [statusResult, setStatusResult] = useState<{ online?: boolean; state?: string; error?: string } | null>(null);
+  const [statusResult, setStatusResult] = useState<{ online?: boolean; state?: string; model?: string; error?: string } | null>(null);
   const [discovering, setDiscovering] = useState(false);
   const [discoveredPrinters, setDiscoveredPrinters] = useState<Array<{ id: string; name: string; connectionType: string; ip?: string; port?: number; status: string }>>([]);
+  const [subnetScan, setSubnetScan] = useState(true);
 
   const cameraRef = useRef<HTMLInputElement>(null);
+
+  // ── Auto-check printer status on mount if IP is already configured ──────────
+  useEffect(() => {
+    if (scannerIp) {
+      checkScannerStatus();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const discoverPrinters = async () => {
     setDiscovering(true);
@@ -233,10 +242,14 @@ function UploadZone({
       if (res.ok) {
         const data = await res.json();
         setDiscoveredPrinters(data || []);
-        if (data && data.length > 0) {
-          const first = data[0];
+        // Auto-select first real (non-simulator) printer
+        const real = (data || []).find((p: any) => p.ip && p.ip !== 'SIMULATOR');
+        const first = real || data?.[0];
+        if (first) {
           setScannerIp(first.ip || first.id);
           if (first.port) setScannerPort(first.port);
+          // Immediately check the selected printer status
+          setTimeout(() => checkScannerStatus(), 400);
         }
       }
     } catch (err) {
@@ -259,12 +272,13 @@ function UploadZone({
   );
 
   const checkScannerStatus = async () => {
+    if (!scannerIp) return;
     setCheckingStatus(true);
     setStatusResult(null);
     try {
       const params = new URLSearchParams();
-      if (scannerIp) params.set('ip', scannerIp);
-      if (scannerPort) params.set('port', String(scannerPort));
+      params.set('ip', scannerIp);
+      params.set('port', String(scannerPort));
 
       const res = await fetch(`${API_URL}/scanner/status?${params}`, {
         headers: getAuthHeaders(),
@@ -278,6 +292,15 @@ function UploadZone({
     }
   };
 
+  // Per-brand port hints
+  const brandHints = [
+    { brand: 'HP',      port: 8080, color: 'text-blue-300',   bg: 'bg-blue-500/15 border-blue-400/30' },
+    { brand: 'Brother', port: 80,   color: 'text-purple-300', bg: 'bg-purple-500/15 border-purple-400/30' },
+    { brand: 'Canon',   port: 80,   color: 'text-red-300',    bg: 'bg-red-500/15 border-red-400/30' },
+    { brand: 'Epson',   port: 80,   color: 'text-cyan-300',   bg: 'bg-cyan-500/15 border-cyan-400/30' },
+    { brand: 'Lexmark', port: 80,   color: 'text-amber-300',  bg: 'bg-amber-500/15 border-amber-400/30' },
+  ];
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -287,21 +310,47 @@ function UploadZone({
       {/* Action Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl">
         
-        {/* 1. Direct Printer Scanner Action Card (PROMINENT FEATURE) */}
+        {/* 1. Direct Printer Scanner Action Card */}
         <div className="relative rounded-2xl border border-blue-500/30 bg-gradient-to-b from-blue-900/30 to-blue-950/40 p-6 flex flex-col justify-between items-center text-center shadow-xl hover:border-blue-400/60 transition-all group">
-          <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/20 text-blue-300 text-xs font-semibold border border-blue-400/30">
-            <Printer size={12} /> Direkt-Scan
+          {/* Status dot + badge */}
+          <div className="absolute top-3 right-3 flex items-center gap-1.5">
+            {statusResult && (
+              <span className={`w-2 h-2 rounded-full animate-pulse ${
+                statusResult.online ? 'bg-emerald-400' : 'bg-red-400'
+              }`} />
+            )}
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/20 text-blue-300 text-xs font-semibold border border-blue-400/30">
+              <Printer size={12} /> WLAN / USB
+            </span>
           </div>
 
-          <div className="p-4 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-400/30 mt-2 mb-4 group-hover:scale-105 transition-transform">
-            <Printer size={44} />
+          <div className="p-4 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-400/30 mt-2 mb-3 group-hover:scale-105 transition-transform">
+            <Printer size={40} />
           </div>
 
-          <div>
+          <div className="w-full">
             <h3 className="text-white font-bold text-lg mb-1">Vom Drucker scannen</h3>
-            <p className="text-slate-300 text-xs leading-relaxed max-w-xs mb-4">
-              Stundenzettel direkt am Netzwerkschreibdrucker einlegen und mit 1-Klick per AirScan / eSCL erfassen.
+            <p className="text-slate-300 text-xs leading-relaxed mb-2">
+              Netzwerkdrucker per AirScan / eSCL — WLAN oder USB-Kabel.
             </p>
+
+            {/* Inline status */}
+            {statusResult && (
+              <div className={`mb-3 flex items-center justify-center gap-1.5 text-xs font-medium ${
+                statusResult.online ? 'text-emerald-400' : 'text-red-400'
+              }`}>
+                {statusResult.online ? (
+                  <><CheckCircle size={11} /> Online{statusResult.model ? ` · ${statusResult.model}` : ''} ({statusResult.state})</>
+                ) : (
+                  <><AlertCircle size={11} /> {statusResult.error?.slice(0, 48)}</>
+                )}
+              </div>
+            )}
+            {!statusResult && scannerIp && !checkingStatus && (
+              <div className="mb-3 text-xs text-slate-500 flex items-center justify-center gap-1">
+                <Hash size={10} /> IP: {scannerIp}:{scannerPort}
+              </div>
+            )}
           </div>
 
           <div className="w-full space-y-2">
@@ -310,21 +359,29 @@ function UploadZone({
               disabled={isLoading}
               className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-lg hover:shadow-blue-500/20 transition-all text-sm disabled:opacity-50 cursor-pointer"
             >
-              {isLoading ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
-                <Printer size={18} />
-              )}
-              <span>Jetzt vom Drucker scannen</span>
+              {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Printer size={18} />}
+              <span>Jetzt scannen</span>
             </button>
 
-            <button
-              onClick={() => setShowPrinterSettings(!showPrinterSettings)}
-              className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs text-slate-400 hover:text-white transition-colors"
-            >
-              <Settings size={12} />
-              <span>Drucker-IP & Einstellungen {showPrinterSettings ? 'ausblenden' : 'anpassen'}</span>
-            </button>
+            {/* Quick test + settings row */}
+            <div className="flex gap-1.5">
+              <button
+                onClick={checkScannerStatus}
+                disabled={checkingStatus || !scannerIp}
+                title={scannerIp ? 'Verbindung testen' : 'Erst IP in Einstellungen eingeben'}
+                className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-white/8 hover:bg-white/15 text-slate-300 hover:text-white text-xs border border-white/10 transition-colors disabled:opacity-40 cursor-pointer"
+              >
+                {checkingStatus ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
+                Testen
+              </button>
+              <button
+                onClick={() => setShowPrinterSettings(!showPrinterSettings)}
+                className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-white/8 hover:bg-white/15 text-slate-400 hover:text-white text-xs border border-white/10 transition-colors cursor-pointer"
+              >
+                <Settings size={11} />
+                {showPrinterSettings ? 'Schließen' : 'Einstellungen'}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -435,73 +492,117 @@ function UploadZone({
             exit={{ opacity: 0, height: 0 }}
             className="w-full max-w-4xl bg-white/5 border border-white/10 rounded-2xl p-5 overflow-hidden"
           >
+            {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4 pb-3 border-b border-white/10">
               <h4 className="text-white font-semibold text-sm flex items-center gap-2">
                 <Settings size={15} className="text-blue-400" />
-                Netzwerkdrucker / Scanner (WLAN & USB)
+                WLAN-Drucker / Scanner Einstellungen
               </h4>
               <button
                 onClick={discoverPrinters}
                 disabled={discovering}
-                className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-400/30 text-xs font-semibold transition-all shadow-sm"
+                className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-400/30 text-xs font-semibold transition-all shadow-sm cursor-pointer"
               >
                 {discovering ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-                <span>Drucker & Scanner suchen (WLAN & USB)</span>
+                <span>Drucker im Netzwerk suchen</span>
               </button>
             </div>
 
-            {discoveredPrinters.length > 0 && (
-              <div className="mb-4 p-3 rounded-xl bg-blue-950/40 border border-blue-500/30 text-xs">
-                <label className="text-blue-300 font-semibold block mb-1.5 flex items-center gap-1.5">
-                  <CheckCircle size={14} className="text-emerald-400" />
-                  Erkannte Drucker & Scanner im Netzwerk / am USB-Kabel:
-                </label>
-                <select
-                  onChange={(e) => {
-                    const sel = discoveredPrinters.find((p) => p.id === e.target.value);
-                    if (sel) {
-                      setScannerIp(sel.ip || sel.id);
-                      if (sel.port) setScannerPort(sel.port);
-                    }
-                  }}
-                  value={scannerIp}
-                  className="w-full px-3 py-2 bg-slate-900 border border-blue-500/40 rounded-lg text-white font-medium focus:outline-none focus:border-blue-400"
+            {/* WiFi Setup Guide */}
+            <div className="mb-4 p-3 rounded-xl bg-blue-950/50 border border-blue-500/20 text-xs text-slate-300 space-y-1">
+              <p className="text-blue-300 font-semibold flex items-center gap-1.5 mb-2">
+                <RefreshCw size={11} /> WLAN-Drucker verbinden — Kurzanleitung:
+              </p>
+              <p>① Drucker & dieses Gerät im gleichen WLAN-Netzwerk.</p>
+              <p>② IP-Adresse am Drucker-Display ablesen (oder Konfigurationsseite drucken).</p>
+              <p>③ IP unten eingeben → "Verbindung testen" klicken.</p>
+              <p className="text-slate-500 pt-1">eSCL/AirScan ist aktiviert auf allen modernen HP-, Brother-, Canon-, Epson- und Lexmark-Druckern.</p>
+            </div>
+
+            {/* Brand port hints */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              <span className="text-xs text-slate-500 self-center">Port-Schnellwahl:</span>
+              {brandHints.map(({ brand, port, color, bg }) => (
+                <button
+                  key={brand}
+                  onClick={() => setScannerPort(port)}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-xs font-medium cursor-pointer transition-all hover:opacity-80 ${bg} ${color} ${
+                    scannerPort === port ? 'ring-1 ring-white/30' : ''
+                  }`}
                 >
-                  <option value="" disabled>-- Bitte erkannten Drucker wählen --</option>
-                  {discoveredPrinters.map((p) => (
-                    <option key={p.id} value={p.ip || p.id}>
-                      [{p.connectionType}] {p.name} - {p.status}
-                    </option>
-                  ))}
-                </select>
+                  {brand} <span className="opacity-70">:{port}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Discovered printers */}
+            {discoveredPrinters.length > 0 && (
+              <div className="mb-4 p-3 rounded-xl bg-slate-800/60 border border-white/10 text-xs space-y-2">
+                <label className="text-slate-300 font-semibold flex items-center gap-1.5 mb-2">
+                  <CheckCircle size={13} className="text-emerald-400" />
+                  Gefundene Drucker & Scanner ({discoveredPrinters.length}):
+                </label>
+                <div className="space-y-1.5">
+                  {discoveredPrinters.map((p) => {
+                    const isSelected = scannerIp === (p.ip || p.id);
+                    const connColor = p.connectionType === 'USB'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-400/30'
+                      : p.id === 'SIMULATOR'
+                      ? 'bg-slate-500/20 text-slate-400 border-slate-500/30'
+                      : 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30';
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => {
+                          setScannerIp(p.ip || p.id);
+                          if (p.port) setScannerPort(p.port);
+                          setTimeout(() => checkScannerStatus(), 300);
+                        }}
+                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all text-left ${
+                          isSelected
+                            ? 'bg-blue-600/20 border-blue-400/50 text-white'
+                            : 'bg-white/5 border-white/8 text-slate-300 hover:bg-white/10'
+                        }`}
+                      >
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${connColor}`}>
+                          {p.connectionType}
+                        </span>
+                        <span className="flex-1 truncate font-medium">{p.name}</span>
+                        {p.ip && p.ip !== 'SIMULATOR' && (
+                          <span className="text-slate-500 font-mono text-[10px]">{p.ip}:{p.port}</span>
+                        )}
+                        {isSelected && <CheckCircle size={12} className="text-emerald-400 flex-shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
+            {/* Manual IP + port + DPI */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
               <div>
-                <label className="text-xs text-slate-400 block mb-1">Drucker IP / Gerät</label>
+                <label className="text-xs text-slate-400 block mb-1">Drucker IP-Adresse</label>
                 <input
                   type="text"
-                  placeholder="IP oder USB-ID (Standard: .env)"
+                  placeholder="z.B. 192.168.1.105"
                   value={scannerIp}
-                  onChange={(e) => setScannerIp(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-white/8 border border-white/15 rounded-xl text-white text-xs focus:outline-none focus:border-blue-400"
+                  onChange={(e) => { setScannerIp(e.target.value); setStatusResult(null); }}
+                  className="w-full px-3 py-1.5 bg-white/8 border border-white/15 rounded-xl text-white text-xs focus:outline-none focus:border-blue-400 font-mono"
                 />
               </div>
-
               <div>
-                <label className="text-xs text-slate-400 block mb-1">Port</label>
+                <label className="text-xs text-slate-400 block mb-1">Port (HP: 8080 / andere: 80)</label>
                 <input
                   type="number"
-                  placeholder="80 (HP: 8080)"
+                  placeholder="80"
                   value={scannerPort}
                   onChange={(e) => setScannerPort(parseInt(e.target.value) || 80)}
                   className="w-full px-3 py-1.5 bg-white/8 border border-white/15 rounded-xl text-white text-xs focus:outline-none focus:border-blue-400"
                 />
               </div>
-
               <div>
-                <label className="text-xs text-slate-400 block mb-1">Scan Auflösung (DPI)</label>
+                <label className="text-xs text-slate-400 block mb-1">Auflösung (DPI)</label>
                 <select
                   value={scannerDpi}
                   onChange={(e) => setScannerDpi(parseInt(e.target.value))}
@@ -514,25 +615,28 @@ function UploadZone({
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-white/10">
+            {/* Footer: test + status */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-white/10">
               <button
                 onClick={checkScannerStatus}
-                disabled={checkingStatus}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-medium transition-colors"
+                disabled={checkingStatus || !scannerIp}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-400/30 text-xs font-semibold transition-all disabled:opacity-40 cursor-pointer"
               >
-                {checkingStatus ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                Drucker-Verbindung testen
+                {checkingStatus ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                Verbindung testen
               </button>
 
               {statusResult && (
-                <div className="text-xs">
+                <div className="text-xs flex items-center gap-2">
                   {statusResult.online ? (
-                    <span className="text-emerald-400 font-medium flex items-center gap-1">
-                      <CheckCircle size={12} /> Drucker online ({statusResult.state})
+                    <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
+                      <CheckCircle size={13} />
+                      Online{statusResult.model ? ` · ${statusResult.model}` : ''} — {statusResult.state}
                     </span>
                   ) : (
-                    <span className="text-red-400 font-medium flex items-center gap-1">
-                      <AlertCircle size={12} /> Nicht erreichbar ({statusResult.error})
+                    <span className="text-red-400 font-medium flex items-center gap-1.5">
+                      <AlertCircle size={13} />
+                      {statusResult.error}
                     </span>
                   )}
                 </div>

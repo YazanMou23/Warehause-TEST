@@ -11,15 +11,32 @@ import { TimesheetMatcherService } from '../timesheet/timesheet-matcher.service'
 import { ScanSettingsDto, ColorMode, ScanFormat } from './dto/scan-settings.dto';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import * as dns from 'dns';
 import * as os from 'os';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as net from 'net';
 
 const execAsync = promisify(exec);
+const dnsResolve4 = promisify(dns.resolve4);
 
 /** eSCL XML namespaces */
 const NS_SCAN = 'http://schemas.hp.com/imaging/escl/2011/05/03';
 const NS_PWG  = 'http://www.pwg.org/schemas/2010/12/sm';
+
+/**
+ * All ports checked per IP during WiFi/LAN discovery.
+ * 80    — Brother, Canon, Epson, Lexmark (standard HTTP eSCL)
+ * 8080  — HP (alternative HTTP eSCL)
+ * 443   — HTTPS eSCL (some newer models)
+ * 8443  — HP secure AirScan
+ * 5757  — Epson alternative eSCL port
+ * 9100  — Generic IPP/eSCL probe
+ */
+const ESCL_PORTS = [80, 8080, 443, 8443, 5757, 9100];
+
+/** Timeout in milliseconds for a single eSCL probe request */
+const PROBE_TIMEOUT_MS = 1500;
 
 /** A4 paper dimensions in pixels at a given DPI */
 function a4Pixels(dpi: number) {
@@ -45,6 +62,55 @@ function extractAllXmlTags(xml: string, tag: string): string[] {
   return results;
 }
 
+/** Return all non-loopback IPv4 addresses of the host machine */
+function getLocalIpv4Addresses(): string[] {
+  const ifaces = os.networkInterfaces();
+  const addresses: string[] = [];
+  for (const iface of Object.values(ifaces)) {
+    for (const info of iface ?? []) {
+      if (info.family === 'IPv4' && !info.internal) {
+        addresses.push(info.address);
+      }
+    }
+  }
+  return addresses;
+}
+
+/** Generate all host IPs in the same /24 subnet as a given IP */
+function subnetHosts(ip: string): string[] {
+  const parts = ip.split('.');
+  if (parts.length !== 4) return [];
+  const prefix = parts.slice(0, 3).join('.');
+  const hosts: string[] = [];
+  for (let i = 1; i <= 254; i++) {
+    hosts.push(`${prefix}.${i}`);
+  }
+  return hosts;
+}
+
+/** Quick TCP reachability check before spending HTTP budget on a host */
+function tcpReachable(ip: string, port: number, timeoutMs: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    const timer = setTimeout(() => {
+      socket.destroy();
+      resolve(false);
+    }, timeoutMs);
+
+    socket.once('connect', () => {
+      clearTimeout(timer);
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once('error', () => {
+      clearTimeout(timer);
+      resolve(false);
+    });
+
+    socket.connect(port, ip);
+  });
+}
+
 export interface DiscoveredPrinter {
   id: string;
   name: string;
@@ -57,6 +123,7 @@ export interface DiscoveredPrinter {
 export interface ScannerStatusResult {
   online: boolean;
   state?: string;  // 'Idle' | 'Processing' | 'Stopped'
+  model?: string;
   error?: string;
 }
 
@@ -88,15 +155,15 @@ export class ScannerService {
 
     if (!resolvedIp) {
       throw new BadRequestException(
-        'Kein erreichbarer Scanner konfiguriert oder im WLAN/USB erkannt. Bitte wählen Sie in den Einstellungen über "Drucker suchen (WLAN & USB)" Ihren Scanner aus.',
+        'Kein Scanner konfiguriert. Bitte klicken Sie auf "Drucker suchen (WLAN & USB)" oder geben Sie die IP-Adresse des Druckers manuell ein.',
       );
     }
 
     return `http://${resolvedIp}:${resolvedPort}`;
   }
 
-  private eSclUrl(base: string, path: string): string {
-    return `${base}/eSCL/${path}`;
+  private eSclUrl(base: string, eSclPath: string): string {
+    return `${base}/eSCL/${eSclPath}`;
   }
 
   private colorModeXml(mode: ColorMode): string {
@@ -154,21 +221,31 @@ export class ScannerService {
     try {
       const response = await fetch(url, {
         method: 'GET',
-        signal: AbortSignal.timeout(5000), // 5-second timeout
+        signal: AbortSignal.timeout(5000),
       });
 
       if (!response.ok) {
-        return { online: false, error: `HTTP ${response.status}` };
+        return {
+          online: false,
+          error: `HTTP ${response.status} — Scanner antwortet, lehnt aber die Anfrage ab.`,
+        };
       }
 
       const xml   = await response.text();
       const state = extractXmlTag(xml, 'State') ?? 'Unknown';
+      const model = extractXmlTag(xml, 'MakeAndModel') ?? extractXmlTag(xml, 'Model') ?? undefined;
 
-      this.logger.log(`Scanner at ${base} is online — state: ${state}`);
-      return { online: true, state };
+      this.logger.log(`Scanner at ${base} online — state: ${state}${model ? ` (${model})` : ''}`);
+      return { online: true, state, model };
     } catch (err: any) {
+      const isTimeout = err.name === 'TimeoutError' || err.message?.includes('timeout');
       this.logger.warn(`Scanner at ${base} unreachable: ${err.message}`);
-      return { online: false, error: err.message };
+      return {
+        online: false,
+        error: isTimeout
+          ? `Zeitüberschreitung — Drucker nicht im WLAN erreichbar (${base})`
+          : err.message,
+      };
     }
   }
 
@@ -179,9 +256,7 @@ export class ScannerService {
     const base = this.resolveBase(ip, port);
     const url  = this.eSclUrl(base, 'ScannerCapabilities');
 
-    const response = await fetch(url, {
-      signal: AbortSignal.timeout(8000),
-    });
+    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
 
     if (!response.ok) {
       throw new ServiceUnavailableException(
@@ -191,21 +266,12 @@ export class ScannerService {
 
     const xml = await response.text();
 
-    // Extract supported DPI values
     const xRes = extractAllXmlTags(xml, 'XResolution').map(Number).filter(Boolean);
     const yRes = extractAllXmlTags(xml, 'YResolution').map(Number).filter(Boolean);
     const dpis = [...new Set([...xRes, ...yRes])].sort((a, b) => a - b);
-
-    // Extract color modes
-    const colorModes = extractAllXmlTags(xml, 'ColorMode');
-
-    // Extract input sources
+    const colorModes   = extractAllXmlTags(xml, 'ColorMode');
     const inputSources = extractAllXmlTags(xml, 'InputSource');
-
-    // Extract document formats
-    const formats = extractAllXmlTags(xml, 'DocumentFormat');
-
-    // Extract max dimensions
+    const formats      = extractAllXmlTags(xml, 'DocumentFormat');
     const maxWidthStr  = extractXmlTag(xml, 'MaxWidth');
     const maxHeightStr = extractXmlTag(xml, 'MaxHeight');
 
@@ -220,101 +286,193 @@ export class ScannerService {
   }
 
   /**
+   * Probe a single IP across all known eSCL ports and add it to the discovered list.
+   * Uses TCP pre-check to skip ports that are definitely closed (fast).
+   */
+  private async probeIp(
+    ip: string,
+    seenIds: Set<string>,
+    discovered: DiscoveredPrinter[],
+    connectionType: 'WIFI' | 'LAN' = 'WIFI',
+  ): Promise<void> {
+    for (const p of ESCL_PORTS) {
+      try {
+        // Fast TCP check first — saves HTTP budget on closed ports
+        const open = await tcpReachable(ip, p, PROBE_TIMEOUT_MS);
+        if (!open) continue;
+
+        const url = `http://${ip}:${p}/eSCL/ScannerStatus`;
+        const res = await fetch(url, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) });
+
+        if (res.ok) {
+          const xml   = await res.text();
+          const model =
+            extractXmlTag(xml, 'MakeAndModel') ??
+            extractXmlTag(xml, 'Model') ??
+            `Netzwerk Scanner (${ip})`;
+          const state = extractXmlTag(xml, 'State') ?? 'Idle';
+
+          if (!seenIds.has(ip)) {
+            seenIds.add(ip);
+            discovered.push({
+              id:             ip,
+              name:           model,
+              connectionType,
+              ip,
+              port:           p,
+              status:         `Online — ${state} (${connectionType === 'WIFI' ? 'WLAN' : 'LAN'}, Port ${p})`,
+            });
+          }
+          return; // Found on this port — no need to probe remaining ports
+        }
+      } catch {
+        // Continue probing next port
+      }
+    }
+  }
+
+  /**
+   * Attempt mDNS / DNS-SD lookup for _uscan._tcp.local and _ipp._tcp.local.
+   * Only works in LAN environments (not cloud-deployed servers).
+   */
+  private async discoverViaMdns(
+    seenIds: Set<string>,
+    discovered: DiscoveredPrinter[],
+  ): Promise<void> {
+    const mdnsNames = [
+      '_uscan._tcp.local',
+      '_ipp._tcp.local',
+      '_printer._tcp.local',
+      '_pdl-datastream._tcp.local',
+    ];
+
+    for (const name of mdnsNames) {
+      try {
+        const addresses = await Promise.race([
+          dnsResolve4(name),
+          new Promise<string[]>((_, reject) => setTimeout(() => reject(new Error('mDNS timeout')), 1000)),
+        ]) as string[];
+
+        for (const ip of addresses) {
+          if (!seenIds.has(ip)) {
+            await this.probeIp(ip, seenIds, discovered, 'WIFI');
+          }
+        }
+      } catch {
+        // mDNS not available in this environment — silently skip
+      }
+    }
+  }
+
+  /**
    * Discover WiFi/Network and USB cable scanners connected to the system or LAN.
+   *
+   * Discovery strategy (layered — fastest to slowest):
+   *  1. Windows WMI/PnP devices (USB + installed network printers)
+   *  2. mDNS / DNS-SD (_uscan._tcp.local, _ipp._tcp.local)
+   *  3. ARP table probe  (recently-seen LAN hosts)
+   *  4. /24 subnet sweep (cold-cache printers not in ARP)
+   *  5. .env SCANNER_IP (admin-configured fixed IP)
+   *  6. Simulator entry (always present for demo/test)
    */
   async discoverPrinters(): Promise<DiscoveredPrinter[]> {
     const discovered: DiscoveredPrinter[] = [];
     const seenIds = new Set<string>();
 
-    // 1. Discover Windows installed printers & scanners (USB cable + Network)
+    // ── 1. Windows WMI / PnP (USB cable + installed network printers) ────────
     try {
       const cmd = `powershell -NoProfile -Command "Get-CimInstance Win32_PnPEntity | Where-Object { $_.PNPClass -eq 'Image' -or $_.PNPClass -eq 'Printer' -or $_.Name -like '*Scanner*' -or $_.Name -like '*Drucker*' -or $_.Service -eq 'stisvc' -or $_.Service -eq 'usbscan' } | Select-Object Name, PNPClass, Status, DeviceID | ConvertTo-Json"`;
       const { stdout } = await execAsync(cmd, { timeout: 4500 }).catch(() => ({ stdout: '' }));
-      if (stdout && stdout.trim()) {
-        let items = [];
+
+      if (stdout?.trim()) {
+        let items: any[] = [];
         try {
           const parsed = JSON.parse(stdout.trim());
           items = Array.isArray(parsed) ? parsed : [parsed];
-        } catch { /* ignore parse error */ }
+        } catch { /* ignore */ }
 
         for (const item of items) {
-          if (!item.Name || item.Name.toLowerCase().includes('pdf') || item.Name.toLowerCase().includes('onenote') || item.Name.toLowerCase().includes('xps') || item.Name.toLowerCase().includes('root\\')) {
-            continue;
-          }
-          const isUsb = item.DeviceID && (item.DeviceID.toUpperCase().startsWith('USB') || item.DeviceID.toUpperCase().startsWith('WIA'));
-          const id = isUsb ? `USB_${item.Name.replace(/\s+/g, '_')}` : `WIA_${item.Name.replace(/\s+/g, '_')}`;
+          if (!item.Name) continue;
+          const nameLower = item.Name.toLowerCase();
+          if (nameLower.includes('pdf') || nameLower.includes('onenote') ||
+              nameLower.includes('xps') || nameLower.includes('root\\')) continue;
+
+          const isUsb = item.DeviceID &&
+            (item.DeviceID.toUpperCase().startsWith('USB') ||
+             item.DeviceID.toUpperCase().startsWith('WIA'));
+          const id = isUsb
+            ? `USB_${item.Name.replace(/\s+/g, '_')}`
+            : `WIA_${item.Name.replace(/\s+/g, '_')}`;
+
           if (!seenIds.has(id)) {
             seenIds.add(id);
             discovered.push({
               id,
-              name: item.Name,
+              name:           item.Name,
               connectionType: isUsb ? 'USB' : 'WIFI',
-              status: isUsb ? 'Bereit (USB-Kabel am PC verbunden)' : 'Bereit (In Windows konfiguriert)',
+              status:         isUsb
+                ? 'Bereit (USB-Kabel am PC verbunden)'
+                : 'Bereit (In Windows konfiguriert)',
             });
           }
         }
       }
     } catch (err: any) {
-      this.logger.debug(`Windows registry device query failed: ${err?.message}`);
+      this.logger.debug(`Windows PnP device query failed: ${err?.message}`);
     }
 
-    // 2. Discover LAN / WiFi scanners via local network ARP table & eSCL probing
+    // ── 2. mDNS / DNS-SD (Bonjour) ───────────────────────────────────────────
+    await this.discoverViaMdns(seenIds, discovered);
+
+    // ── 3. ARP table — hosts the OS has recently talked to ───────────────────
+    const arpIps: string[] = [];
     try {
       const { stdout: arpOut } = await execAsync('arp -a', { timeout: 3000 }).catch(() => ({ stdout: '' }));
       const ipRegex = /\b(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)\b/g;
-      const matchIps = [...new Set(arpOut.match(ipRegex) ?? [])];
-      
-      const envIp = this.config.get<string>('SCANNER_IP');
-      if (envIp && !matchIps.includes(envIp)) matchIps.unshift(envIp);
-
-      const probeIp = async (ip: string) => {
-        const ports = [80, 8080, 443];
-        for (const p of ports) {
-          try {
-            const url = `http://${ip}:${p}/eSCL/ScannerStatus`;
-            const res = await fetch(url, { signal: AbortSignal.timeout(800) });
-            if (res.ok) {
-              const xml = await res.text();
-              const model = extractXmlTag(xml, 'MakeAndModel') ?? extractXmlTag(xml, 'Model') ?? `Netzwerk Scanner (${ip})`;
-              if (!seenIds.has(ip)) {
-                seenIds.add(ip);
-                discovered.push({
-                  id: ip,
-                  name: model,
-                  connectionType: 'WIFI',
-                  ip,
-                  port: p,
-                  status: 'Online (WLAN/LAN eSCL bereit)',
-                });
-              }
-              return;
-            }
-          } catch {
-            // Continue probing
-          }
-        }
-      };
-
-      await Promise.all(matchIps.slice(0, 25).map((ip) => probeIp(ip)));
+      const matches = [...new Set((arpOut ?? '').match(ipRegex) ?? [])];
+      arpIps.push(...matches);
     } catch (err: any) {
-      this.logger.debug(`LAN ARP scan failed: ${err?.message}`);
+      this.logger.debug(`ARP table scan failed: ${err?.message}`);
     }
 
-    // 3. Always offer Simulator / Test printer so scanning works even without physical hardware
+    // ── 4. /24 subnet sweep (catches cold-cache printers not in ARP) ─────────
+    const localIps = getLocalIpv4Addresses();
+    const subnetIps = new Set<string>(arpIps);
+    for (const localIp of localIps) {
+      for (const host of subnetHosts(localIp)) {
+        subnetIps.add(host);
+      }
+    }
+
+    // Prepend .env configured IP so it's always checked
+    const envIp = this.config.get<string>('SCANNER_IP');
+    if (envIp && !seenIds.has(envIp)) subnetIps.add(envIp);
+
+    // Probe all subnet + ARP IPs in parallel (capped at 50 concurrent)
+    const ipList = [...subnetIps].filter((ip) => !seenIds.has(ip));
+    const CHUNK  = 50;
+    for (let i = 0; i < ipList.length; i += CHUNK) {
+      const chunk = ipList.slice(i, i + CHUNK);
+      await Promise.all(chunk.map((ip) => this.probeIp(ip, seenIds, discovered)));
+    }
+
+    // ── 5. Always offer Simulator / Test printer ──────────────────────────────
     if (!seenIds.has('SIMULATOR')) {
       discovered.push({
-        id: 'SIMULATOR',
-        name: 'WLAN-Drucker Simulator (Test-Modus)',
+        id:             'SIMULATOR',
+        name:           'WLAN-Drucker Simulator (Test-Modus)',
         connectionType: 'WIFI',
-        ip: 'SIMULATOR',
-        port: 80,
-        status: 'Bereit (Simulierter Testscan)',
+        ip:             'SIMULATOR',
+        port:           80,
+        status:         'Bereit (Simulierter Testscan)',
       });
     }
 
+    this.logger.log(`Discovery complete — found ${discovered.length} device(s)`);
     return discovered;
   }
 
+  /** Trigger a scan via Windows WIA (USB-attached scanner) */
   private async triggerLocalUsbScan(settings: ScanSettingsDto): Promise<{ buffer: Buffer; mimeType: string }> {
     const tempOut = path.join(os.tmpdir(), `usb_scan_${Date.now()}.jpg`);
     try {
@@ -344,6 +502,7 @@ export class ScannerService {
       }
       `;
       await execAsync(`powershell -NoProfile -Command "${psScript.replace(/\n/g, ' ')}"`, { timeout: 25000 });
+
       if (fs.existsSync(tempOut)) {
         const buffer = fs.readFileSync(tempOut);
         try { fs.unlinkSync(tempOut); } catch {}
@@ -354,113 +513,125 @@ export class ScannerService {
     }
 
     throw new ServiceUnavailableException(
-      `Kein aktiver Drucker/Scanner an USB oder im Netzwerk erreichbar (${settings.scannerIp || 'Automatische Suche'}). Bitte stellen Sie sicher, dass das Gerät im Leerlauf und eingeschaltet ist oder klicken Sie im Scanner-Menü auf "Drucker suchen (WLAN & USB)".`
+      'Kein aktiver USB-Scanner gefunden. Bitte stellen Sie sicher, dass das Gerät eingeschaltet und per USB-Kabel angeschlossen ist.',
     );
   }
 
   /**
-   * Trigger a scan job via eSCL and return the raw image as a Buffer.
+   * Trigger a scan job via eSCL (WiFi/LAN) and return the raw image as a Buffer.
+   *
    * Steps:
    *   1. POST /eSCL/ScanJobs        → scanner queues job, returns Location header
-   *   2. GET  /eSCL/ScanJobs/{id}/NextDocument → download image bytes
+   *   2. GET  /eSCL/ScanJobs/{id}/NextDocument → poll until image is ready
    */
   async triggerScan(settings: ScanSettingsDto): Promise<{ buffer: Buffer; mimeType: string }> {
     let targetIp = settings.scannerIp ?? this.config.get<string>('SCANNER_IP');
 
+    // ── Simulator / Demo mode ─────────────────────────────────────────────────
     if (targetIp === 'SIMULATOR' || targetIp === 'DEMO' || targetIp === 'MOCK') {
-      this.logger.log('Executing simulated printer scan (DEMO/SIMULATOR mode)...');
-      const tinyJpg = 'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; // tiny valid image buffer
-      return {
-        buffer: Buffer.from('4a464946', 'hex'), // fallback buffer
-        mimeType: 'image/jpeg',
-      };
+      this.logger.log('Executing simulated scan (DEMO/SIMULATOR mode)...');
+      return { buffer: Buffer.from('FFD8FFE0', 'hex'), mimeType: 'image/jpeg' };
     }
 
+    // ── USB / WIA scan ────────────────────────────────────────────────────────
     if (targetIp && (targetIp.startsWith('USB_') || targetIp.startsWith('WIA_') || targetIp === 'USB')) {
       this.logger.log(`Executing local USB/WIA scan for device: ${targetIp}`);
       return this.triggerLocalUsbScan(settings);
     }
 
+    // ── Auto-discovery if no IP provided ─────────────────────────────────────
     if (!targetIp) {
-      this.logger.log('No scanner IP provided in settings or .env. Attempting auto-discovery...');
+      this.logger.log('No scanner IP configured — attempting auto-discovery...');
       const discovered = await this.discoverPrinters();
-      const realWifiScanner = discovered.find(d => d.ip && d.ip !== 'SIMULATOR');
-      if (realWifiScanner && realWifiScanner.ip) {
-        targetIp = realWifiScanner.ip;
-        settings.scannerIp = realWifiScanner.ip;
-        settings.scannerPort = realWifiScanner.port || settings.scannerPort;
-        this.logger.log(`Auto-discovered WiFi scanner at ${targetIp}`);
+      const realWifi   = discovered.find((d) => d.ip && d.ip !== 'SIMULATOR');
+      if (realWifi?.ip) {
+        targetIp             = realWifi.ip;
+        settings.scannerIp   = realWifi.ip;
+        settings.scannerPort = realWifi.port ?? settings.scannerPort;
+        this.logger.log(`Auto-discovered WiFi scanner at ${targetIp}:${settings.scannerPort}`);
       } else {
-        this.logger.log('No physical scanner found on network. Using Simulator mode for demo scan...');
-        targetIp = 'SIMULATOR';
-        return {
-          buffer: Buffer.from('4a464946', 'hex'),
-          mimeType: 'image/jpeg',
-        };
+        this.logger.log('No physical scanner found — falling back to Simulator mode.');
+        return { buffer: Buffer.from('FFD8FFE0', 'hex'), mimeType: 'image/jpeg' };
       }
     }
 
     const base = this.resolveBase(targetIp, settings.scannerPort);
-
-    // Resolve defaults
     const dpi         = settings.dpi         ?? parseInt(this.config.get('SCANNER_DPI') ?? '300', 10);
     const colorMode   = settings.colorMode   ?? 'Grayscale';
     const format      = settings.format      ?? 'jpeg';
     const inputSource = settings.inputSource ?? 'Platen';
 
-    this.logger.log(`Triggering scan: ${base} | ${dpi}DPI | ${colorMode} | ${format} | source:${inputSource}`);
+    this.logger.log(`Triggering WiFi scan: ${base} | ${dpi}DPI | ${colorMode} | ${format} | source:${inputSource}`);
 
     try {
-      // ── Step 1: Create scan job ──────────────────────────────────────────
+      // ── Step 1: Create scan job ─────────────────────────────────────────────
       const jobsUrl = this.eSclUrl(base, 'ScanJobs');
       const xmlBody = this.buildScanJobXml({ dpi, colorMode, format, inputSource });
 
       const jobResponse = await fetch(jobsUrl, {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'text/xml; charset=utf-8' },
-        body: xmlBody,
-        signal: AbortSignal.timeout(10000),
+        body:    xmlBody,
+        signal:  AbortSignal.timeout(20_000), // 20 s — cold WiFi printer can be slow
       });
 
       if (!jobResponse.ok) {
         const errBody = await jobResponse.text().catch(() => '');
+        if (jobResponse.status === 503) {
+          throw new ServiceUnavailableException(
+            `Der Drucker ist beschäftigt (HTTP 503). Warten Sie bis der aktuelle Druckauftrag abgeschlossen ist und versuchen Sie es erneut.`,
+          );
+        }
         throw new ServiceUnavailableException(
           `Scanner hat den Scan-Job abgelehnt (HTTP ${jobResponse.status}): ${errBody}`,
         );
       }
 
-      // The scanner returns Location: /eSCL/ScanJobs/{jobId}
       const locationHeader = jobResponse.headers.get('location');
       if (!locationHeader) {
         throw new ServiceUnavailableException(
-          'Scanner hat keinen Job-Speicherort zurückgegeben (kein Location-Header)',
+          'Scanner hat keinen Job-Speicherort zurückgegeben (kein Location-Header). Mögliche Ursache: Kein Dokument im Einzug.',
         );
       }
 
-      // ── Step 2: Download the scanned document ────────────────────────────
+      // ── Step 2: Poll for scanned document ──────────────────────────────────
+      // 15 attempts × 1200 ms backoff → up to ~18 s total wait
       const docUrl = `${base}${locationHeader}/NextDocument`;
+      this.logger.log(`Polling for scanned document: ${docUrl}`);
 
-      this.logger.log(`Fetching scanned document from: ${docUrl}`);
-
+      const MAX_ATTEMPTS  = 15;
+      const POLL_DELAY_MS = 1200;
       let imageResponse: Response | null = null;
-      for (let attempt = 1; attempt <= 5; attempt++) {
-        await new Promise((r) => setTimeout(r, attempt * 800));
 
-        const resp = await fetch(docUrl, {
-          signal: AbortSignal.timeout(15000),
-        });
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        await new Promise((r) => setTimeout(r, POLL_DELAY_MS));
+
+        const resp = await fetch(docUrl, { signal: AbortSignal.timeout(15_000) });
 
         if (resp.ok) {
           imageResponse = resp;
+          this.logger.log(`Document ready after ${attempt} attempt(s).`);
           break;
         }
 
-        this.logger.warn(`Attempt ${attempt}: scanner returned HTTP ${resp.status} for NextDocument`);
+        if (resp.status === 404) {
+          // Job expired — scanner discarded it (device reset or timeout)
+          throw new ServiceUnavailableException(
+            'Der Scan-Job ist abgelaufen (HTTP 404). Möglicherweise wurde das Dokument nicht rechtzeitig abgerufen. Bitte legen Sie das Dokument neu ein und versuchen Sie es erneut.',
+          );
+        }
+
+        if (resp.status === 503) {
+          this.logger.warn(`Attempt ${attempt}/${MAX_ATTEMPTS}: scanner still processing (HTTP 503)...`);
+          continue; // Scanner still processing — keep polling
+        }
+
+        this.logger.warn(`Attempt ${attempt}/${MAX_ATTEMPTS}: unexpected HTTP ${resp.status} — retrying...`);
       }
 
       if (!imageResponse) {
         throw new ServiceUnavailableException(
-          'Scanner hat das Dokument nicht bereitgestellt. Ist das Gerät bereit und liegt ein Dokument im Einzug / Glast?',
+          `Der Scanner hat das Dokument nach ${MAX_ATTEMPTS} Versuchen nicht bereitgestellt. Mögliche Ursachen: Kein Dokument auf dem Glas/Einzug, Drucker im Fehlerzustand oder zu langsame WLAN-Verbindung.`,
         );
       }
 
@@ -468,22 +639,26 @@ export class ScannerService {
       const buffer   = Buffer.from(arrayBuf);
       const mime     = this.mimeType(format);
 
-      this.logger.log(`Scan complete — received ${buffer.length} bytes (${mime})`);
+      this.logger.log(`Scan complete — ${buffer.length} bytes (${mime}) from ${base}`);
       return { buffer, mimeType: mime };
+
     } catch (err: any) {
       if (err instanceof ServiceUnavailableException || err instanceof BadRequestException) {
         throw err;
       }
-      this.logger.error(`Netzwerkdrucker Scan-Fehler (${base}): ${err.message}`);
+      const isTimeout = err.name === 'TimeoutError' || err.message?.includes('timeout');
+      this.logger.error(`WiFi scan error (${base}): ${err.message}`);
+
       throw new ServiceUnavailableException(
-        `Der Netzwerkschreibdrucker unter "${base}" ist im lokalen Netzwerk nicht erreichbar (${err.message}). Bitte IP-Adresse, Strom und WLAN/LAN-Verbindung des Druckers prüfen.`,
+        isTimeout
+          ? `Zeitüberschreitung beim WLAN-Drucker (${base}). Bitte prüfen Sie: 1) Drucker eingeschaltet und im gleichen WLAN? 2) IP-Adresse korrekt? 3) Ist Port ${settings.scannerPort ?? 80} erreichbar?`
+          : `Der Netzwerkdrucker unter "${base}" ist nicht erreichbar: ${err.message}. Bitte IP-Adresse, Strom und WLAN-Verbindung des Druckers prüfen.`,
       );
     }
   }
 
   /**
    * Full pipeline: trigger scanner → OCR → create PENDING_REVIEW timesheet.
-   * Returns the same shape as POST /timesheets/scan (upload flow).
    */
   async scanToTimesheet(settings: ScanSettingsDto, actorId: string) {
     const { buffer, mimeType } = await this.triggerScan(settings);
@@ -505,9 +680,7 @@ export class ScannerService {
   }
 
   /**
-   * Preview pipeline: trigger scanner → OCR extract → DB name match.
-   * Returns the raw OCR result + employee match WITHOUT creating any DB record.
-   * Use this to preview the scan before calling scan-to-timesheet.
+   * Preview pipeline: trigger scanner → OCR → DB name match (NO DB write).
    */
   async scanAndExtract(settings: ScanSettingsDto) {
     const { buffer, mimeType } = await this.triggerScan(settings);
@@ -525,10 +698,7 @@ export class ScannerService {
       stream:       null as any,
     };
 
-    // Run OCR (no DB write)
-    const ocrResult = await this.timesheetOcrService.extractFromFile(fakeFile);
-
-    // Match name against DB (no DB write)
+    const ocrResult   = await this.timesheetOcrService.extractFromFile(fakeFile);
     const matchResult = await this.matcherService.findBestMatch(ocrResult.employeeName);
 
     return {
