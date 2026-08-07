@@ -101,6 +101,10 @@ export default function EmployeesPage() {
   const [formEmploymentEnd, setFormEmploymentEnd] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [formRole, setFormRole] = useState("EMPLOYEE");
+
+  // Sorting
+  const [sortBy, setSortBy] = useState<"name" | "contractStart" | "contractEnd">("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [formError, setFormError] = useState("");
   const [formLoading, setFormLoading] = useState(false);
 
@@ -727,7 +731,21 @@ export default function EmployeesPage() {
       (emp.treffpunkt && emp.treffpunkt.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (emp.address && emp.address.toLowerCase().includes(searchTerm.toLowerCase()))
     )
-    .sort((a, b) => a.name.localeCompare(b.name, "de", { sensitivity: "base" }));
+    .sort((a, b) => {
+      let cmp = 0;
+      if (sortBy === "name") {
+        cmp = a.name.localeCompare(b.name, "de", { sensitivity: "base" });
+      } else if (sortBy === "contractStart") {
+        const aDate = a.employmentStart ? new Date(a.employmentStart).getTime() : 0;
+        const bDate = b.employmentStart ? new Date(b.employmentStart).getTime() : 0;
+        cmp = aDate - bDate;
+      } else if (sortBy === "contractEnd") {
+        const aDate = a.employmentEnd ? new Date(a.employmentEnd).getTime() : Number.MAX_SAFE_INTEGER;
+        const bDate = b.employmentEnd ? new Date(b.employmentEnd).getTime() : Number.MAX_SAFE_INTEGER;
+        cmp = aDate - bDate;
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
 
   const itemsPerPage = 50;
   const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage) || 1;
@@ -893,6 +911,36 @@ export default function EmployeesPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="input-premium pl-9 py-2 text-xs"
             />
+          </div>
+
+          {/* Sort Controls */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-slate-500 font-semibold">{language === "de" ? "Sortieren:" : "Sort:"}</span>
+            <select
+              value={sortBy}
+              onChange={(e) => { setSortBy(e.target.value as any); setCurrentPage(1); }}
+              className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 bg-white outline-none hover:border-slate-400 cursor-pointer"
+            >
+              <option value="name">{language === "de" ? "Name (A–Z)" : "Name (A–Z)"}</option>
+              <option value="contractStart">{language === "de" ? "Vertrag ab (Monat)" : "Contract From (Month)"}</option>
+              <option value="contractEnd">{language === "de" ? "Vertrag bis (Monat)" : "Contract To (Month)"}</option>
+            </select>
+            <button
+              onClick={() => setSortDir(d => d === "asc" ? "desc" : "asc")}
+              title={sortDir === "asc" ? "Ascending" : "Descending"}
+              className="flex items-center gap-1 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-400 cursor-pointer transition-all"
+            >
+              {sortDir === "asc" ? (
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
+                </svg>
+              )}
+              {sortDir === "asc" ? (language === "de" ? "Aufst." : "Asc") : (language === "de" ? "Abst." : "Desc")}
+            </button>
           </div>
         </div>
 

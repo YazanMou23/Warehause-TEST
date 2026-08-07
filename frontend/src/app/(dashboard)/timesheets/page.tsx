@@ -31,6 +31,7 @@ import {
   Users,
   Edit,
   Plus,
+  Camera,
 } from 'lucide-react';
 import { API_URL } from '../../../config/api';
 import CustomAlertModal, { CustomAlertOptions } from '../../components/CustomAlertModal';
@@ -223,6 +224,8 @@ function UploadZone({
   const [discovering, setDiscovering] = useState(false);
   const [discoveredPrinters, setDiscoveredPrinters] = useState<Array<{ id: string; name: string; connectionType: string; ip?: string; port?: number; status: string }>>([]);
 
+  const cameraRef = useRef<HTMLInputElement>(null);
+
   const discoverPrinters = async () => {
     setDiscovering(true);
     try {
@@ -282,7 +285,7 @@ function UploadZone({
       className="flex flex-col gap-6 items-center w-full"
     >
       {/* Action Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl">
         
         {/* 1. Direct Printer Scanner Action Card (PROMINENT FEATURE) */}
         <div className="relative rounded-2xl border border-blue-500/30 bg-gradient-to-b from-blue-900/30 to-blue-950/40 p-6 flex flex-col justify-between items-center text-center shadow-xl hover:border-blue-400/60 transition-all group">
@@ -372,6 +375,47 @@ function UploadZone({
             ref={inputRef}
             type="file"
             accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onFileSelect(file);
+            }}
+          />
+        </div>
+
+        {/* 3. Camera Capture Card */}
+        <div
+          onClick={() => !isLoading && cameraRef.current?.click()}
+          className="relative cursor-pointer rounded-2xl border-2 border-dashed border-emerald-500/30 bg-gradient-to-b from-emerald-900/20 to-emerald-950/30 p-6 flex flex-col justify-between items-center text-center shadow-xl hover:border-emerald-400/60 transition-all group"
+        >
+          <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-semibold border border-emerald-400/30">
+            <Camera size={12} /> Kamera
+          </div>
+
+          <div className="p-4 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-400/30 mt-2 mb-4 group-hover:scale-105 transition-transform">
+            <Camera size={44} />
+          </div>
+
+          <div>
+            <h3 className="text-white font-bold text-lg mb-1">Kamera aufnehmen</h3>
+            <p className="text-slate-300 text-xs leading-relaxed max-w-xs mb-4">
+              Stundenzettel direkt mit der Handy- oder Laptop-Kamera fotografieren und sofort scannen.
+            </p>
+          </div>
+
+          <div className="w-full">
+            <div className="px-4 py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-medium text-sm border border-emerald-400/30 transition-all flex items-center justify-center gap-2">
+              {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
+              <span>Kamera öffnen</span>
+            </div>
+            <p className="text-slate-500 text-[11px] mt-2">Foto, Handy oder Webcam</p>
+          </div>
+
+          <input
+            ref={cameraRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
@@ -612,6 +656,25 @@ function ReviewView({
       }
     };
     fetchEmployees();
+  }, []);
+
+  // Fetch halls for multi-hall selector
+  const [availableHalls, setAvailableHalls] = useState<{ id: string; name: string; warehouseId?: string }[]>([]);
+  const [openHallDropdown, setOpenHallDropdown] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchHalls = async () => {
+      try {
+        const res = await fetch(`${API_URL}/halls`, { headers: getAuthHeaders() });
+        if (res.ok) {
+          const json = await res.json();
+          setAvailableHalls(Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []));
+        }
+      } catch (e) {
+        console.error('Fehler beim Laden der Hallen', e);
+      }
+    };
+    fetchHalls();
   }, []);
 
   const filteredEmployees = dbEmployees.filter((emp) =>
@@ -891,7 +954,7 @@ function ReviewView({
           <div>Bis</div>
           <div><Coffee size={10} className="inline mr-0.5" />Pause</div>
           <div>Gesamt</div>
-          <div><MapPin size={10} className="inline mr-0.5" />Ort</div>
+          <div className="flex items-center gap-1"><MapPin size={10} className="inline mr-0.5" />Halle(n)</div>
         </div>
 
         {/* Table Rows with Numeric Index 1, 2, 3... */}
@@ -959,13 +1022,89 @@ function ReviewView({
                 className="px-2 py-1 bg-white/8 border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-blue-400/60 w-full text-center font-mono"
               />
 
-              <input
-                type="text"
-                value={entry.location || ''}
-                placeholder="Ort..."
-                onChange={(e) => updateEntry(idx, 'location', e.target.value)}
-                className="px-2 py-1 bg-white/8 border border-white/10 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-400/60 w-full"
-              />
+              {/* Multi-Hall Selector */}
+              <div className="relative">
+                {/* Selected halls as chips */}
+                <div
+                  onClick={() => setOpenHallDropdown(openHallDropdown === idx ? null : idx)}
+                  className="flex flex-wrap gap-1 min-h-[28px] px-2 py-1 bg-white/8 border border-white/10 rounded-lg cursor-pointer hover:border-blue-400/60 transition-colors"
+                >
+                  {entry.location
+                    ? entry.location.split(',').filter(Boolean).map((h) => h.trim()).map((hallName, hIdx) => (
+                        <span
+                          key={hIdx}
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-500/25 text-blue-200 text-[10px] font-medium border border-blue-400/30"
+                        >
+                          <MapPin size={8} />
+                          {hallName}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const halls = entry.location.split(',').map(h => h.trim()).filter(Boolean);
+                              const updated = halls.filter((_, i) => i !== hIdx);
+                              updateEntry(idx, 'location', updated.join(', '));
+                            }}
+                            className="ml-0.5 text-blue-300 hover:text-white"
+                          >
+                            <X size={8} />
+                          </button>
+                        </span>
+                      ))
+                    : <span className="text-slate-600 text-[10px] self-center">Halle(n) wählen...</span>
+                  }
+                  <span className="ml-auto text-slate-500 self-center"><ChevronDown size={10} /></span>
+                </div>
+
+                {/* Hall dropdown */}
+                {openHallDropdown === idx && (
+                  <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-slate-900 border border-white/15 rounded-xl shadow-2xl overflow-hidden p-1.5 max-h-40 overflow-y-auto">
+                    {availableHalls.length === 0 ? (
+                      <p className="text-xs text-slate-500 text-center py-2">Keine Hallen gefunden</p>
+                    ) : (
+                      availableHalls.map((hall) => {
+                        const selectedNames = entry.location ? entry.location.split(',').map(h => h.trim()).filter(Boolean) : [];
+                        const isSelected = selectedNames.includes(hall.name);
+                        return (
+                          <div
+                            key={hall.id}
+                            onClick={() => {
+                              const currentHalls = entry.location ? entry.location.split(',').map(h => h.trim()).filter(Boolean) : [];
+                              let newHalls: string[];
+                              if (isSelected) {
+                                newHalls = currentHalls.filter(h => h !== hall.name);
+                              } else {
+                                newHalls = [...currentHalls, hall.name];
+                              }
+                              updateEntry(idx, 'location', newHalls.join(', '));
+                            }}
+                            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors ${
+                              isSelected ? 'bg-blue-600 text-white font-semibold' : 'text-slate-300 hover:bg-white/10'
+                            }`}
+                          >
+                            <MapPin size={10} className={isSelected ? 'text-white' : 'text-blue-400'} />
+                            {hall.name}
+                            {isSelected && <span className="ml-auto text-[9px] font-bold text-blue-200">✓</span>}
+                          </div>
+                        );
+                      })
+                    )}
+                    <div className="border-t border-white/10 mt-1 pt-1">
+                      <input
+                        type="text"
+                        placeholder="Oder manuell eingeben..."
+                        value={entry.location && !entry.location.split(',').every(h => availableHalls.some(ah => ah.name === h.trim())) ? entry.location.split(',').filter(h => !availableHalls.some(ah => ah.name === h.trim())).join(', ') : ''}
+                        onChange={(e) => {
+                          const manual = e.target.value;
+                          const fromList = entry.location ? entry.location.split(',').map(h => h.trim()).filter(h => availableHalls.some(ah => ah.name === h)) : [];
+                          const combined = [...fromList, ...(manual ? [manual] : [])].join(', ');
+                          updateEntry(idx, 'location', combined);
+                        }}
+                        className="w-full px-2.5 py-1.5 bg-white/8 border border-white/10 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-400/60"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}
