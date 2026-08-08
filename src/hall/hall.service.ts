@@ -39,7 +39,7 @@ export class HallService {
     return hall;
   }
 
-  async findAll(page = 1, limit = 10, warehouseId?: string) {
+  async findAll(page = 1, limit = 1000, warehouseId?: string) {
     const skip = (page - 1) * limit;
     const where: any = { deletedAt: null };
     if (warehouseId) {

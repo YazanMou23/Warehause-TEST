@@ -814,7 +814,88 @@ export default function DashboardPage() {
             {/* Left Side: Clock Widget, Stats & Profile */}
             <div className="lg:col-span-1 space-y-6">
               
-              {/* QR-Code Zeiterfassung (Eingang & Ausgang) Card */}
+              {/* Card 1: Manuelle Zeiterfassung (Auswahl Lager & Halle) */}
+              <div className="card-premium space-y-4">
+                <h4 className="font-bold text-sm text-slate-800 flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-slate-500" /> {t("timeTracking")}
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400 font-bold uppercase">
+                    Manuell
+                  </span>
+                </h4>
+                
+                {employeeSummary?.activeShift ? (
+                  <div className="space-y-4">
+                    <div className="bg-slate-50 border border-slate-100 rounded-lg p-4 space-y-2">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">{t("currentShift")}</p>
+                      <p className="font-bold text-slate-800 text-sm">{employeeSummary.activeShift.warehouseName}</p>
+                      <p className="text-xs text-slate-500">{employeeSummary.activeShift.hallName}</p>
+                      <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-2">
+                        <LogIn className="w-3.5 h-3.5 text-emerald-500" />
+                        {language === "de" ? "Seit" : "Since"} {new Date(employeeSummary.activeShift.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {language === "de" ? "Uhr" : ""}
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleClockInOut}
+                      disabled={clockLoading}
+                      className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-4 rounded-lg text-xs shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      {clockLoading ? (language === "de" ? "Wird verarbeitet..." : "Processing...") : t("clockOutButton")}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        {t("selectWarehouse")}
+                      </label>
+                      <select
+                        value={clockInWarehouseId}
+                        onChange={(e) => {
+                          setClockInWarehouseId(e.target.value);
+                          setClockInHallId(""); // Reset hall
+                        }}
+                        className="input-premium py-2 text-xs"
+                      >
+                        <option value="">{t("chooseWarehousePlaceholder")}</option>
+                        {allWarehouses.map((wh) => (
+                          <option key={wh.id} value={wh.id}>{wh.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        {t("selectHall")}
+                      </label>
+                      <select
+                        value={clockInHallId}
+                        onChange={(e) => setClockInHallId(e.target.value)}
+                        disabled={!clockInWarehouseId}
+                        className="input-premium py-2 text-xs"
+                      >
+                        <option value="">{t("chooseHallPlaceholder")}</option>
+                        {allHalls
+                          .filter((h) => h.warehouseId === clockInWarehouseId)
+                          .map((hall) => (
+                            <option key={hall.id} value={hall.id}>{hall.name}</option>
+                          ))}
+                      </select>
+                    </div>
+
+                    <button
+                      onClick={handleClockInOut}
+                      disabled={clockLoading || !clockInWarehouseId || !clockInHallId}
+                      className="w-full btn-primary py-2.5 text-xs shadow-sm hover:shadow transition-all"
+                    >
+                      {clockLoading ? (language === "de" ? "Wird verarbeitet..." : "Processing...") : t("clockInButton")}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Card 2: QR-Code Zeiterfassung (Eingang & Ausgang) Card */}
               <div className="card-premium space-y-4">
                 <h4 className="font-bold text-sm text-slate-800 flex items-center justify-between">
                   <span className="flex items-center gap-2">
