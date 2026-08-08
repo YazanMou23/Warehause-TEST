@@ -102,9 +102,11 @@ export default function EmployeesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [formRole, setFormRole] = useState("EMPLOYEE");
 
-  // Sorting
-  const [sortBy, setSortBy] = useState<"name" | "contractStart" | "contractEnd">("name");
+  // Sorting & Range Filtering
+  const [sortBy, setSortBy] = useState<"name" | "contractPeriod">("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [fromMonthYear, setFromMonthYear] = useState<string>("");
+  const [toMonthYear, setToMonthYear] = useState<string>("");
   const [formError, setFormError] = useState("");
   const [formLoading, setFormLoading] = useState(false);
 
@@ -724,25 +726,46 @@ export default function EmployeesPage() {
   };
 
   const filteredEmployees = employees
-    .filter((emp) =>
-      emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.phone.includes(searchTerm) ||
-      emp.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (emp.treffpunkt && emp.treffpunkt.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (emp.address && emp.address.toLowerCase().includes(searchTerm.toLowerCase()))
-    )
+    .filter((emp) => {
+      const matchesSearch =
+        emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        emp.phone.includes(searchTerm) ||
+        emp.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (emp.treffpunkt && emp.treffpunkt.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (emp.address && emp.address.toLowerCase().includes(searchTerm.toLowerCase()));
+
+      if (!matchesSearch) return false;
+
+      // Month & Year date range filtering
+      if (fromMonthYear) {
+        const [y, m] = fromMonthYear.split("-").map(Number);
+        const fromDate = new Date(y, m - 1, 1).getTime();
+        const empEnd = emp.employmentEnd ? new Date(emp.employmentEnd).getTime() : Number.MAX_SAFE_INTEGER;
+        if (empEnd < fromDate) return false;
+      }
+
+      if (toMonthYear) {
+        const [y, m] = toMonthYear.split("-").map(Number);
+        const toDate = new Date(y, m, 0, 23, 59, 59, 999).getTime();
+        const empStart = emp.employmentStart ? new Date(emp.employmentStart).getTime() : 0;
+        if (empStart > toDate) return false;
+      }
+
+      return true;
+    })
     .sort((a, b) => {
       let cmp = 0;
       if (sortBy === "name") {
         cmp = a.name.localeCompare(b.name, "de", { sensitivity: "base" });
-      } else if (sortBy === "contractStart") {
-        const aDate = a.employmentStart ? new Date(a.employmentStart).getTime() : 0;
-        const bDate = b.employmentStart ? new Date(b.employmentStart).getTime() : 0;
-        cmp = aDate - bDate;
-      } else if (sortBy === "contractEnd") {
-        const aDate = a.employmentEnd ? new Date(a.employmentEnd).getTime() : Number.MAX_SAFE_INTEGER;
-        const bDate = b.employmentEnd ? new Date(b.employmentEnd).getTime() : Number.MAX_SAFE_INTEGER;
-        cmp = aDate - bDate;
+      } else if (sortBy === "contractPeriod") {
+        const aStart = a.employmentStart ? new Date(a.employmentStart).getTime() : 0;
+        const bStart = b.employmentStart ? new Date(b.employmentStart).getTime() : 0;
+        cmp = aStart - bStart;
+        if (cmp === 0) {
+          const aEnd = a.employmentEnd ? new Date(a.employmentEnd).getTime() : Number.MAX_SAFE_INTEGER;
+          const bEnd = b.employmentEnd ? new Date(b.employmentEnd).getTime() : Number.MAX_SAFE_INTEGER;
+          cmp = aEnd - bEnd;
+        }
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
@@ -922,9 +945,43 @@ export default function EmployeesPage() {
               className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 bg-white outline-none hover:border-slate-400 cursor-pointer"
             >
               <option value="name">{language === "de" ? "Name (A–Z)" : "Name (A–Z)"}</option>
-              <option value="contractStart">{language === "de" ? "Vertrag ab (Monat)" : "Contract From (Month)"}</option>
-              <option value="contractEnd">{language === "de" ? "Vertrag bis (Monat)" : "Contract To (Month)"}</option>
+              <option value="contractPeriod">{language === "de" ? "Vertragszeitraum (Monat & Jahr)" : "Contract Period (Month & Year)"}</option>
             </select>
+
+            {sortBy === "contractPeriod" && (
+              <div className="flex items-center gap-2 flex-wrap bg-slate-50 border border-slate-200 rounded-lg p-1 px-2 text-xs">
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-500 font-medium text-[11px]">{language === "de" ? "Von:" : "From:"}</span>
+                  <input
+                    type="month"
+                    value={fromMonthYear}
+                    onChange={(e) => { setFromMonthYear(e.target.value); setCurrentPage(1); }}
+                    className="border border-slate-200 rounded px-1.5 py-1 text-xs text-slate-700 bg-white outline-none focus:border-blue-500 cursor-pointer"
+                    placeholder="YYYY-MM"
+                  />
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-500 font-medium text-[11px]">{language === "de" ? "Bis:" : "To:"}</span>
+                  <input
+                    type="month"
+                    value={toMonthYear}
+                    onChange={(e) => { setToMonthYear(e.target.value); setCurrentPage(1); }}
+                    className="border border-slate-200 rounded px-1.5 py-1 text-xs text-slate-700 bg-white outline-none focus:border-blue-500 cursor-pointer"
+                    placeholder="YYYY-MM"
+                  />
+                </div>
+                {(fromMonthYear || toMonthYear) && (
+                  <button
+                    onClick={() => { setFromMonthYear(""); setToMonthYear(""); setCurrentPage(1); }}
+                    className="text-slate-400 hover:text-red-600 transition-colors p-0.5"
+                    title={language === "de" ? "Zeitraum zurücksetzen" : "Reset date range"}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
+
             <button
               onClick={() => setSortDir(d => d === "asc" ? "desc" : "asc")}
               title={sortDir === "asc" ? "Ascending" : "Descending"}
