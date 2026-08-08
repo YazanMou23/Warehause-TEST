@@ -40,7 +40,7 @@ export class WarehouseService {
     return warehouse;
   }
 
-  async findAll(page = 1, limit = 1000) {
+  async findAll(page = 1, limit = 10) {
     const skip = (page - 1) * limit;
     const [total, data] = await this.prisma.$transaction([
       this.prisma.warehouse.count({ where: { deletedAt: null } }),

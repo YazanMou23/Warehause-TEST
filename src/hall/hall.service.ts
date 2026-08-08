@@ -16,15 +16,12 @@ export class HallService {
       throw new NotFoundException(`Warehouse with ID ${createHallDto.warehouseId} not found`);
     }
 
-    const qrPayload = `LOGIFLOW:HALL:${createHallDto.warehouseId}:${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-
     const hall = await this.prisma.hall.create({
       data: {
         name: createHallDto.name,
         warehouseId: createHallDto.warehouseId,
         capacity: createHallDto.capacity || null,
         color: createHallDto.color || "#1d4ed8",
-        qrCode: qrPayload,
       },
     });
 
@@ -39,14 +36,14 @@ export class HallService {
     return hall;
   }
 
-  async findAll(page = 1, limit = 1000, warehouseId?: string) {
+  async findAll(page = 1, limit = 10, warehouseId?: string) {
     const skip = (page - 1) * limit;
     const where: any = { deletedAt: null };
     if (warehouseId) {
       where.warehouseId = warehouseId;
     }
 
-    const [total, rawData] = await this.prisma.$transaction([
+    const [total, data] = await this.prisma.$transaction([
       this.prisma.hall.count({ where }),
       this.prisma.hall.findMany({
         where,
@@ -63,21 +60,6 @@ export class HallService {
         take: limit,
       }),
     ]);
-
-    // Ensure all halls have a unique qrCode
-    const data = await Promise.all(
-      rawData.map(async (h) => {
-        if (!h.qrCode) {
-          const generatedQr = `LOGIFLOW:HALL:${h.id}:${h.warehouseId}`;
-          const updated = await this.prisma.hall.update({
-            where: { id: h.id },
-            data: { qrCode: generatedQr },
-          }).catch(() => null);
-          return updated ? { ...h, qrCode: updated.qrCode } : { ...h, qrCode: generatedQr };
-        }
-        return h;
-      })
-    );
 
     return {
       data,

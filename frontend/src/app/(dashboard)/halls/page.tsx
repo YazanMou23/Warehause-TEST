@@ -17,9 +17,8 @@ import {
   ChevronDown,
   Edit2,
   QrCode,
-  Printer,
-  Download,
 } from "lucide-react";
+import QRCodeModal from "../../components/QRCodeModal";
 
 interface UserCompact {
   id: string;
@@ -39,7 +38,6 @@ interface HallItem {
   warehouse?: WarehouseItem;
   capacity: number | null;
   color?: string;
-  qrCode?: string;
   containers?: any[];
   users?: UserCompact[];
 }
@@ -78,8 +76,7 @@ function HallsPageContent() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const [qrModalOpen, setQrModalOpen] = useState(false);
-  const [qrModalHall, setQrModalHall] = useState<HallItem | null>(null);
+  const [selectedQrHall, setSelectedQrHall] = useState<HallItem | null>(null);
 
   const COLOR_PRESETS = [
     "#1d4ed8",
@@ -551,6 +548,16 @@ function HallsPageContent() {
                       <span className={`px-2 py-0.5 rounded font-label-md text-[9px] uppercase font-bold tracking-wider ${statusBadge}`}>
                         {statusLabel}
                       </span>
+                      {(userRole === "ADMIN" || userRole === "MANAGER") && (
+                        <button
+                          onClick={() => setSelectedQrHall(hall)}
+                          className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-[10px] font-bold transition-all cursor-pointer border border-blue-200"
+                          title="QR-Code für Ein- & Ausgang anzeigen"
+                        >
+                          <QrCode className="w-3 h-3" />
+                          <span>QR-Code</span>
+                        </button>
+                      )}
                       {userRole === "ADMIN" && (
                         <div className="flex items-center gap-1">
                           <button
@@ -603,20 +610,6 @@ function HallsPageContent() {
                     </div>
                   </div>
                 </div>
-
-                  {/* QR Code Action Button for Admins & Team Leaders */}
-                  {(userRole === "ADMIN" || userRole === "MANAGER" || userRole === "TEAM_LEADER") && (
-                    <button
-                      onClick={() => {
-                        setQrModalHall(hall);
-                        setQrModalOpen(true);
-                      }}
-                      className="w-full bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-800 py-1.5 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs mb-3"
-                    >
-                      <QrCode className="w-4 h-4 text-blue-600" />
-                      <span>Hallen-QR-Code anzeigen</span>
-                    </button>
-                  )}
 
                 {/* Staging level */}
                 <div className="space-y-1 mt-2">
@@ -927,76 +920,18 @@ function HallsPageContent() {
         </div>
       )}
 
-      {/* Modal - Hall QR Code Display & Print */}
-      {qrModalOpen && qrModalHall && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn print:bg-white print:p-0 print:static">
-          <div className="bg-white border border-slate-100 rounded-2xl max-w-md w-full p-6 shadow-2xl relative animate-scaleIn text-center print:shadow-none print:border-none print:max-w-none">
-            <button
-              onClick={() => {
-                setQrModalOpen(false);
-                setQrModalHall(null);
-              }}
-              className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors print:hidden cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="space-y-4">
-              <div>
-                <span className="badge-premium badge-info text-[9px] uppercase tracking-wider py-0.5 px-2 font-bold mb-2 inline-block">
-                  Offizieller Hallen QR-Code (Ein- & Ausgang)
-                </span>
-                <h3 className="font-bold text-xl text-slate-800 tracking-tight">
-                  {qrModalHall.name}
-                </h3>
-                <p className="text-xs text-slate-500 font-semibold mt-0.5 flex items-center justify-center gap-1">
-                  <WarehouseIcon className="w-3.5 h-3.5 text-blue-600" />
-                  {qrModalHall.warehouse?.name || "Lager"}
-                </p>
-              </div>
-
-              {/* QR Code Container */}
-              <div className="p-6 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl inline-block max-w-[260px] mx-auto shadow-inner">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(
-                    qrModalHall.qrCode || `LOGIFLOW:HALL:${qrModalHall.id}:${qrModalHall.warehouseId}`
-                  )}`}
-                  alt={`QR Code ${qrModalHall.name}`}
-                  className="w-48 h-48 mx-auto rounded-lg shadow-sm"
-                />
-                <div className="mt-3 bg-white px-2 py-1 rounded border border-slate-200 text-[10px] font-mono text-slate-500 break-all select-all font-bold">
-                  {qrModalHall.qrCode || `LOGIFLOW:HALL:${qrModalHall.id}:${qrModalHall.warehouseId}`}
-                </div>
-              </div>
-
-              <p className="text-xs text-slate-500 leading-relaxed px-4">
-                Diesen QR-Code an den Ein- und Ausgängen der Halle platzieren. Mitarbeiter scannen diesen Code zum Ein- und Ausstempeln.
-              </p>
-
-              {/* Modal Footer Actions */}
-              <div className="pt-2 flex items-center justify-center gap-3 print:hidden">
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="btn-primary py-2 px-4 text-xs shadow-sm flex items-center gap-1.5"
-                >
-                  <Printer className="w-4 h-4 text-white" /> Drucken
-                </button>
-                <a
-                  href={`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(
-                    qrModalHall.qrCode || `LOGIFLOW:HALL:${qrModalHall.id}:${qrModalHall.warehouseId}`
-                  )}`}
-                  download={`QR_${qrModalHall.name.replace(/\s+/g, '_')}.png`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-secondary py-2 px-4 text-xs flex items-center gap-1.5"
-                >
-                  <Download className="w-4 h-4 text-slate-500" /> Herunterladen
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Hall QR Code Modal */}
+      {selectedQrHall && (
+        <QRCodeModal
+          isOpen={!!selectedQrHall}
+          onClose={() => setSelectedQrHall(null)}
+          hall={{
+            id: selectedQrHall.id,
+            name: selectedQrHall.name,
+            warehouseId: selectedQrHall.warehouseId,
+            warehouseName: selectedQrHall.warehouse?.name,
+          }}
+        />
       )}
     </div>
   );

@@ -9,13 +9,12 @@ import {
   Body,
   Query,
   UploadedFile,
-  UploadedFiles,
   UseInterceptors,
   UseGuards,
   BadRequestException,
   Res,
 } from '@nestjs/common';
-import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { TimesheetService } from './timesheet.service';
 import { TimesheetExportService } from './timesheet-export.service';
@@ -52,27 +51,6 @@ export class TimesheetController {
       throw new BadRequestException('Bitte eine Bilddatei hochladen');
     }
     return this.timesheetService.scanAndCreate(file, currentUser.id);
-  }
-
-  /**
-   * POST /timesheets/scan-batch
-   * Upload multiple timesheet files (PNG, JPG, JPEG, PDF) → OCR → fuzzy match → return list of PENDING_REVIEW timesheets
-   */
-  @Post('scan-batch')
-  @UseInterceptors(FilesInterceptor('files'))
-  async scanBatch(
-    @UploadedFiles() files: Express.Multer.File[],
-    @CurrentUser() currentUser: any,
-  ) {
-    if (!files || files.length === 0) {
-      throw new BadRequestException('Bitte mindestens eine Datei hochladen');
-    }
-    const results = [];
-    for (const file of files) {
-      const result = await this.timesheetService.scanAndCreate(file, currentUser.id);
-      results.push(result);
-    }
-    return results;
   }
 
   /**

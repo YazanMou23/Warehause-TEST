@@ -35,13 +35,13 @@ import {
   Mail,
   Eye,
   EyeOff,
-  Scan,
   QrCode,
+  Camera,
+  ScanLine,
 } from "lucide-react";
 import { useTranslation } from "../i18n/LanguageContext";
 import ActiveEmployeeCalendar from "../components/ActiveEmployeeCalendar";
 import CustomAlertModal, { CustomAlertOptions } from "../components/CustomAlertModal";
-import QrScannerModal from "../components/QrScannerModal";
 
 interface Metrics {
   employeesCount: number;
@@ -106,7 +106,6 @@ export default function DashboardPage() {
   const [allWarehouses, setAllWarehouses] = useState<any[]>([]);
   const [allHalls, setAllHalls] = useState<any[]>([]);
   const [clockLoading, setClockLoading] = useState(false);
-  const [qrScannerOpen, setQrScannerOpen] = useState(false);
 
   // Manager/Admin Dashboard States
   const [recentActivityLogs, setRecentActivityLogs] = useState<any[]>([]);
@@ -475,6 +474,66 @@ export default function DashboardPage() {
     }
   };
 
+  const handleQrScan = async (warehouseId: string, hallId: string) => {
+    setClockLoading(true);
+    const token = localStorage.getItem("accessToken");
+    const headers = { 
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}` 
+    };
+
+    try {
+      if (isOffline) {
+        const isCurrentlyActive = !!employeeSummary?.activeShift;
+        if (isCurrentlyActive) {
+          setEmployeeSummary((prev: any) => ({
+            ...prev,
+            activeShift: null,
+          }));
+          showAlert({ title: "Ausgestempelt (QR)", message: "Erfolgreich aus der Halle ausgestempelt!", type: "success" });
+        } else {
+          const wh = allWarehouses.find(w => w.id === warehouseId) || { name: "Lager Sector" };
+          const hl = allHalls.find(h => h.id === hallId) || { name: "Halle Sector" };
+          setEmployeeSummary((prev: any) => ({
+            ...prev,
+            activeShift: {
+              id: "att-mock-qr",
+              warehouseId,
+              hallId,
+              warehouseName: wh.name,
+              hallName: hl.name,
+              clockIn: new Date().toISOString(),
+            },
+          }));
+          showAlert({ title: "Eingestempelt (QR)", message: `Erfolgreich in ${hl.name} (${wh.name}) eingestempelt!`, type: "success" });
+        }
+        return;
+      }
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/attendance/qr-scan`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ warehouseId, hallId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showAlert({
+          title: data.action === 'CLOCK_OUT' ? 'Ausgestempelt (QR-Code)' : 'Eingestempelt (QR-Code)',
+          message: data.message || 'QR-Code Zeiterfassung erfolgreich!',
+          type: 'success',
+          onConfirm: () => window.location.reload(),
+        });
+      } else {
+        showAlert({ title: "Fehler", message: data.message || "QR-Scan Zeiterfassung fehlgeschlagen.", type: "error" });
+      }
+    } catch (e: any) {
+      console.error(e);
+      showAlert({ title: "Fehler", message: e.message || "QR-Code konnte nicht verarbeitet werden.", type: "error" });
+    } finally {
+      setClockLoading(false);
+    }
+  };
+
   useEffect(() => {
     const today = new Date().toLocaleDateString('en-CA');
     setTodayStr(today);
@@ -713,63 +772,6 @@ export default function DashboardPage() {
     }
   }, [selectedDate, showAllPlans, isOffline, userRole]);
 
-  const handleQrScan = async (qrCodePayload: string) => {
-    setClockLoading(true);
-    const token = localStorage.getItem("accessToken");
-    try {
-      if (isOffline) {
-        showAlert({
-          title: "Eingestempelt (Offline)",
-          message: `QR-Scan für Halle "${qrCodePayload}" im Offline-Modus verarbeitet.`,
-          type: "success",
-        });
-        setClockLoading(false);
-        return;
-      }
-
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/attendance/qr-scan`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ qrCode: qrCodePayload }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || "QR-Scan fehlgeschlagen");
-      }
-
-      showAlert({
-        title: data.action === "CLOCK_IN" ? "Eingestempelt!" : "Ausgestempelt!",
-        message: data.message || "Arbeitszeit erfolgreich via QR-Code erfasst.",
-        type: "success",
-      });
-
-      // Reload dashboard data
-      if (token) {
-        try {
-          const payload = JSON.parse(atob(token.split(".")[1]));
-          const headers = { Authorization: `Bearer ${token}` };
-          const empSummaryRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${payload.sub}/dashboard-summary`, { headers });
-          if (empSummaryRes.ok) {
-            setEmployeeSummary(await empSummaryRes.json());
-          }
-        } catch (e) {}
-      }
-    } catch (err: any) {
-      showAlert({
-        title: "Fehler beim QR-Scan",
-        message: err.message || "QR-Code konnte nicht verarbeitet werden.",
-        type: "error",
-      });
-      throw err;
-    } finally {
-      setClockLoading(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -814,139 +816,134 @@ export default function DashboardPage() {
             {/* Left Side: Clock Widget, Stats & Profile */}
             <div className="lg:col-span-1 space-y-6">
               
-              {/* Card 1: Manuelle Zeiterfassung (Auswahl Lager & Halle) */}
-              <div className="card-premium space-y-4">
-                <h4 className="font-bold text-sm text-slate-800 flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-slate-500" /> {t("timeTracking")}
+              {/* QR Code Zeiterfassung Card (Eingang & Ausgang) */}
+              <div className="card-premium space-y-4 border-2 border-blue-500/20 shadow-md">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                    <QrCode className="w-4 h-4 text-blue-600 animate-pulse" />
+                    <span>QR-Code Zeiterfassung</span>
+                  </h4>
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-100 text-blue-700">
+                    Ein- & Ausgang
                   </span>
-                  <span className="text-[10px] font-mono text-slate-400 font-bold uppercase">
-                    Manuell
-                  </span>
-                </h4>
+                </div>
                 
                 {employeeSummary?.activeShift ? (
                   <div className="space-y-4">
-                    <div className="bg-slate-50 border border-slate-100 rounded-lg p-4 space-y-2">
-                      <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">{t("currentShift")}</p>
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] text-emerald-700 uppercase tracking-wider font-bold">
+                          Aktive Schicht
+                        </p>
+                        <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                          Eingestempelt
+                        </span>
+                      </div>
                       <p className="font-bold text-slate-800 text-sm">{employeeSummary.activeShift.warehouseName}</p>
-                      <p className="text-xs text-slate-500">{employeeSummary.activeShift.hallName}</p>
-                      <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-2">
-                        <LogIn className="w-3.5 h-3.5 text-emerald-500" />
-                        {language === "de" ? "Seit" : "Since"} {new Date(employeeSummary.activeShift.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {language === "de" ? "Uhr" : ""}
+                      <p className="text-xs text-slate-600 font-medium">{employeeSummary.activeShift.hallName}</p>
+                      <p className="text-xs text-slate-500 flex items-center gap-1.5 pt-1 border-t border-emerald-200/60 font-mono">
+                        <LogIn className="w-3.5 h-3.5 text-emerald-600" />
+                        {language === "de" ? "Gestartet um:" : "Started at:"} {new Date(employeeSummary.activeShift.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} Uhr
                       </p>
                     </div>
-                    <button
-                      onClick={handleClockInOut}
-                      disabled={clockLoading}
-                      className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-4 rounded-lg text-xs shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                    >
-                      {clockLoading ? (language === "de" ? "Wird verarbeitet..." : "Processing...") : t("clockOutButton")}
-                    </button>
+
+                    <div className="space-y-2">
+                      <p className="text-xs text-slate-500 text-center">
+                        Beim Verlassen der Halle den QR-Code scannen um auszustempeln:
+                      </p>
+                      
+                      <div className="space-y-2">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          Ausgangs-Halle QR scannen / wählen:
+                        </label>
+                        <select
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              const [whId, hId] = e.target.value.split(":");
+                              handleQrScan(whId, hId);
+                            }
+                          }}
+                          disabled={clockLoading}
+                          className="input-premium py-2 text-xs bg-slate-50 font-bold"
+                          defaultValue=""
+                        >
+                          <option value="" disabled>QR-Code scannen oder Halle wählen zum Ausstempeln...</option>
+                          {allHalls.map((h) => (
+                            <option key={h.id} value={`${h.warehouseId}:${h.id}`}>
+                              📷 QR: {h.warehouse?.name || 'Lager'} — {h.name}
+                            </option>
+                          ))}
+                        </select>
+
+                        <button
+                          onClick={() => {
+                            if (employeeSummary?.activeShift) {
+                              const currentWhId = employeeSummary.activeShift.warehouseId || allWarehouses[0]?.id || "";
+                              const currentHId = employeeSummary.activeShift.hallId || allHalls[0]?.id || "";
+                              handleQrScan(currentWhId, currentHId);
+                            }
+                          }}
+                          disabled={clockLoading}
+                          className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          <span>{clockLoading ? "Wird verarbeitet..." : "Ausstempeln (QR Scan bestätigen)"}</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="space-y-1.5">
+                    <div className="p-4 rounded-xl bg-blue-50/60 border border-blue-100 text-center space-y-2">
+                      <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center mx-auto shadow-md">
+                        <ScanLine className="w-6 h-6 animate-pulse" />
+                      </div>
+                      <p className="font-bold text-slate-800 text-xs">
+                        Hallen QR-Code scannen (Eingang)
+                      </p>
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
+                        Scannen Sie den QR-Code am Halleneingang um Ihre Arbeitszeit automatisch zu starten.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
                       <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                        {t("selectWarehouse")}
+                        Eingangs-Halle QR scannen / auswählen:
                       </label>
                       <select
-                        value={clockInWarehouseId}
                         onChange={(e) => {
-                          setClockInWarehouseId(e.target.value);
-                          setClockInHallId(""); // Reset hall
+                          if (e.target.value) {
+                            const [whId, hId] = e.target.value.split(":");
+                            handleQrScan(whId, hId);
+                          }
                         }}
-                        className="input-premium py-2 text-xs"
+                        disabled={clockLoading}
+                        className="input-premium py-2 text-xs font-bold border-blue-300 focus:border-blue-500"
+                        defaultValue=""
                       >
-                        <option value="">{t("chooseWarehousePlaceholder")}</option>
-                        {allWarehouses.map((wh) => (
-                          <option key={wh.id} value={wh.id}>{wh.name}</option>
+                        <option value="" disabled>📷 QR-Code scannen oder Halle wählen...</option>
+                        {allHalls.map((h) => (
+                          <option key={h.id} value={`${h.warehouseId}:${h.id}`}>
+                            📷 QR: {h.warehouse?.name || 'Lager'} — {h.name}
+                          </option>
                         ))}
                       </select>
                     </div>
 
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                        {t("selectHall")}
-                      </label>
-                      <select
-                        value={clockInHallId}
-                        onChange={(e) => setClockInHallId(e.target.value)}
-                        disabled={!clockInWarehouseId}
-                        className="input-premium py-2 text-xs"
-                      >
-                        <option value="">{t("chooseHallPlaceholder")}</option>
-                        {allHalls
-                          .filter((h) => h.warehouseId === clockInWarehouseId)
-                          .map((hall) => (
-                            <option key={hall.id} value={hall.id}>{hall.name}</option>
-                          ))}
-                      </select>
-                    </div>
-
                     <button
-                      onClick={handleClockInOut}
-                      disabled={clockLoading || !clockInWarehouseId || !clockInHallId}
-                      className="w-full btn-primary py-2.5 text-xs shadow-sm hover:shadow transition-all"
+                      onClick={() => {
+                        if (allHalls.length > 0) {
+                          handleQrScan(allHalls[0].warehouseId, allHalls[0].id);
+                        } else {
+                          showAlert({ title: "Hinweis", message: "Keine Hallen im System gefunden.", type: "warning" });
+                        }
+                      }}
+                      disabled={clockLoading}
+                      className="w-full btn-primary py-2.5 text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
-                      {clockLoading ? (language === "de" ? "Wird verarbeitet..." : "Processing...") : t("clockInButton")}
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Card 2: QR-Code Zeiterfassung (Eingang & Ausgang) Card */}
-              <div className="card-premium space-y-4">
-                <h4 className="font-bold text-sm text-slate-800 flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <QrCode className="w-4 h-4 text-blue-600" /> QR-Code Zeiterfassung
-                  </span>
-                  <span className="text-[10px] font-mono text-slate-400 font-bold uppercase">
-                    Eingang / Ausgang
-                  </span>
-                </h4>
-                
-                {employeeSummary?.activeShift ? (
-                  <div className="space-y-4">
-                    <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-xl p-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-emerald-700 uppercase tracking-wider font-bold">Aktuelle Schicht (Eingestempelt)</span>
-                        <span className="badge-premium badge-success py-0.5 px-2 text-[9px] flex items-center gap-1 font-bold animate-pulse">
-                          <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span> Aktiv
-                        </span>
-                      </div>
-                      <p className="font-bold text-slate-800 text-sm">{employeeSummary.activeShift.warehouseName}</p>
-                      <p className="text-xs text-slate-600 font-semibold">{employeeSummary.activeShift.hallName}</p>
-                      <p className="text-xs text-slate-500 font-mono flex items-center gap-1.5 mt-2">
-                        <LogIn className="w-3.5 h-3.5 text-emerald-600" />
-                        {language === "de" ? "Eingestempelt seit" : "Clocked in since"} {new Date(employeeSummary.activeShift.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {language === "de" ? "Uhr" : ""}
-                      </p>
-                    </div>
-
-                    <button
-                      onClick={() => setQrScannerOpen(true)}
-                      className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 px-4 rounded-xl text-xs shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <Scan className="w-4 h-4 text-white" />
-                      <span>Hallen QR-Code scannen (Ausgang / Ausstempeln)</span>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="bg-slate-50 border border-slate-200/70 rounded-xl p-4 text-center space-y-1.5">
-                      <div className="w-10 h-10 bg-blue-50 border border-blue-100 rounded-full flex items-center justify-center text-blue-600 mx-auto mb-1">
-                        <QrCode className="w-5 h-5" />
-                      </div>
-                      <p className="font-bold text-slate-800 text-xs">Bereit zum Einstempeln</p>
-                      <p className="text-[11px] text-slate-500">Scannen Sie den QR-Code an Ihrer Halle beim Betreten (Eingang).</p>
-                    </div>
-
-                    <button
-                      onClick={() => setQrScannerOpen(true)}
-                      className="w-full btn-primary py-3 px-4 rounded-xl text-xs shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer font-bold"
-                    >
-                      <Scan className="w-4 h-4 text-white" />
-                      <span>Hallen QR-Code scannen (Eingang / Einstempeln)</span>
+                      <Camera className="w-4 h-4" />
+                      <span>{clockLoading ? "Wird verarbeitet..." : "Kamera-Scanner starten / Einstempeln"}</span>
                     </button>
                   </div>
                 )}
@@ -2059,13 +2056,6 @@ export default function DashboardPage() {
           </table>
         </div>
       )}
-
-      {/* QR Code Scanner Modal */}
-      <QrScannerModal
-        isOpen={qrScannerOpen}
-        onClose={() => setQrScannerOpen(false)}
-        onScan={handleQrScan}
-      />
 
       {/* Custom Popup Alert Modal */}
       <CustomAlertModal

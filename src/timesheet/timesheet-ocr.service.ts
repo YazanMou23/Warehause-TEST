@@ -38,11 +38,11 @@ export class TimesheetOcrService {
 
     const isImage = file.mimetype.startsWith('image/');
     const isPdf = file.mimetype === 'application/pdf' || file.originalname.toLowerCase().endsWith('.pdf');
-
+    
     if (!isImage && !isPdf) {
       this.logger.warn(`Unsupported file type: ${file.mimetype}`);
       return this.getSandboxFallback(
-        'Nur Bilder (JPG/PNG/JPEG) und PDF-Dateien werden unterstützt.',
+        'Unterstützte Formate: JPG, PNG, WEBP und PDF.',
       );
     }
 

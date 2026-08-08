@@ -2,6 +2,7 @@ import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Forb
 import { AttendanceService } from './attendance.service';
 import { ClockInDto } from './dto/clock-in.dto';
 import { ClockOutDto } from './dto/clock-out.dto';
+import { QrScanDto } from './dto/qr-scan.dto';
 import { AttendanceReportDto } from './dto/attendance-report.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -34,11 +35,9 @@ export class AttendanceController {
   }
 
   @Post('qr-scan')
-  qrScan(@Body('qrCode') qrCode: string, @CurrentUser() currentUser: any) {
-    if (!qrCode) {
-      throw new BadRequestException('QR-Code ist erforderlich');
-    }
-    return this.attendanceService.qrScan(currentUser.id, qrCode);
+  qrScan(@Body() dto: QrScanDto, @CurrentUser() currentUser: any) {
+    const employeeId = currentUser.id;
+    return this.attendanceService.qrScan(employeeId, dto);
   }
 
   @Get('daily')

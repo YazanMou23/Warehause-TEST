@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { ClockInDto } from './dto/clock-in.dto';
 import { ClockOutDto } from './dto/clock-out.dto';
+import { QrScanDto } from './dto/qr-scan.dto';
 
 @Injectable()
 export class AttendanceService {
@@ -86,101 +87,85 @@ export class AttendanceService {
     return updatedShift;
   }
 
-  async qrScan(employeeId: string, qrCodePayload: string) {
+  async qrScan(employeeId: string, dto: QrScanDto) {
+    const targetEmpId = dto.employeeId || employeeId;
+
+    // Verify employee
     const user = await this.prisma.user.findFirst({
-      where: { id: employeeId, isActive: true, deletedAt: null },
+      where: { id: targetEmpId, isActive: true, deletedAt: null },
     });
     if (!user) {
-      throw new NotFoundException('Mitarbeiter nicht gefunden');
+      throw new NotFoundException(`Active employee with ID ${targetEmpId} not found`);
     }
 
-    const cleanPayload = qrCodePayload.trim();
-    let hall = await this.prisma.hall.findFirst({
-      where: {
-        OR: [
-          { qrCode: cleanPayload },
-          { id: cleanPayload },
-        ],
-        deletedAt: null,
-      },
+    // Verify hall and warehouse
+    const hall = await this.prisma.hall.findFirst({
+      where: { id: dto.hallId, warehouseId: dto.warehouseId, deletedAt: null },
       include: { warehouse: true },
     });
-
-    if (!hall && cleanPayload.startsWith('LOGIFLOW:HALL:')) {
-      const parts = cleanPayload.split(':');
-      const candidateId = parts[2];
-      hall = await this.prisma.hall.findFirst({
-        where: { id: candidateId, deletedAt: null },
-        include: { warehouse: true },
-      });
-    }
-
     if (!hall) {
-      throw new NotFoundException('Ungültiger oder unbekannter Hallen-QR-Code');
+      throw new NotFoundException('Specified hall does not exist in the warehouse');
     }
 
+    // Check if user has an active shift (clockOut === null)
     const activeShift = await this.prisma.attendance.findFirst({
       where: {
-        employeeId,
+        employeeId: targetEmpId,
         clockOut: null,
       },
-      include: { hall: true, warehouse: true },
+      include: {
+        hall: { select: { id: true, name: true, color: true } },
+        warehouse: { select: { id: true, name: true } },
+      },
     });
 
     if (activeShift) {
+      // Clock Out
       const clockOutTime = new Date();
       const durationMs = clockOutTime.getTime() - activeShift.clockIn.getTime();
       const totalHours = Math.round((durationMs / 3600000) * 100) / 100;
 
-      const updated = await this.prisma.attendance.update({
+      const updatedShift = await this.prisma.attendance.update({
         where: { id: activeShift.id },
         data: {
           clockOut: clockOutTime,
           totalHours,
           source: 'QR_SCAN',
         },
-        include: { hall: true, warehouse: true },
-      });
-
-      await this.prisma.actionLog.create({
-        data: {
-          userId: employeeId,
-          action: 'CLOCK_OUT_QR',
-          details: `Ausgestempelt via QR-Scan in Halle "${hall.name}" (${hall.warehouse.name}) nach ${totalHours}h`,
+        include: {
+          hall: { select: { id: true, name: true, color: true } },
+          warehouse: { select: { id: true, name: true } },
         },
       });
 
       return {
         action: 'CLOCK_OUT',
-        message: `Ausgestempelt aus Halle "${hall.name}" (${totalHours}h gearbeitet)`,
-        attendance: updated,
+        message: `Ausgestempelt aus ${updatedShift.hall.name} (${updatedShift.warehouse.name})`,
+        attendance: updatedShift,
+        totalHours,
       };
     } else {
+      // Clock In
       const today = this.getTodayMidnight();
-      const attendance = await this.prisma.attendance.create({
+      const newShift = await this.prisma.attendance.create({
         data: {
-          employeeId,
-          warehouseId: hall.warehouseId,
-          hallId: hall.id,
+          employeeId: targetEmpId,
+          warehouseId: dto.warehouseId,
+          hallId: dto.hallId,
           clockIn: new Date(),
           date: today,
           source: 'QR_SCAN',
         },
-        include: { hall: true, warehouse: true },
-      });
-
-      await this.prisma.actionLog.create({
-        data: {
-          userId: employeeId,
-          action: 'CLOCK_IN_QR',
-          details: `Eingestempelt via QR-Scan in Halle "${hall.name}" (${hall.warehouse.name})`,
+        include: {
+          hall: { select: { id: true, name: true, color: true } },
+          warehouse: { select: { id: true, name: true } },
         },
       });
 
       return {
         action: 'CLOCK_IN',
-        message: `Eingestempelt in Halle "${hall.name}" (${hall.warehouse.name})`,
-        attendance,
+        message: `Eingestempelt in ${newShift.hall.name} (${newShift.warehouse.name})`,
+        attendance: newShift,
       };
     }
   }

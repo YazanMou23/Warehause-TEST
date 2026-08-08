@@ -271,7 +271,7 @@ function UploadZone({
       e.preventDefault();
       setIsDragOver(false);
       const files = Array.from(e.dataTransfer.files).filter(f =>
-        f.type.startsWith('image/')
+        f.type.startsWith('image/') || f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
       );
       if (files.length > 1) {
         onFilesSelect(files);
@@ -424,25 +424,25 @@ function UploadZone({
 
           <div>
             <h3 className="text-white font-bold text-lg mb-1">
-              {isDragOver ? 'Dateien hier ablegen' : 'Stundenzettel (Bilder / PDF) hochladen'}
+              {isDragOver ? 'Datei hier ablegen' : 'Datei / Dokument hochladen'}
             </h3>
             <p className="text-slate-400 text-xs max-w-xs mb-4">
-              Mehrere JPG, PNG oder PDF Dateien per Drag & Drop ziehen oder Durchsuchen klicken.
+              PNG, JPG, JPEG oder PDF per Drag & Drop ziehen oder Durchsuchen klicken.
             </p>
           </div>
 
           <div className="w-full">
             <div className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-medium text-sm border border-white/10 transition-all flex items-center justify-center gap-2">
               <Upload size={16} />
-              <span>Dateien auswählen</span>
+              <span>Datei auswählen</span>
             </div>
-            <p className="text-slate-500 text-[11px] mt-2">Max. 15 MB (PNG, JPEG, JPG, PDF)</p>
+            <p className="text-slate-500 text-[11px] mt-2">Max. 15 MB (PNG, JPG, JPEG, PDF)</p>
           </div>
 
           <input
             ref={inputRef}
             type="file"
-            accept="image/jpeg,image/png,image/jpg,image/webp,application/pdf,.pdf"
+            accept="image/jpeg,image/png,image/webp,application/pdf,.pdf"
             multiple
             className="hidden"
             onChange={(e) => {
@@ -507,7 +507,7 @@ function UploadZone({
         {/* 3-card hint: multi-photo */}
         <div className="col-span-1 md:col-span-3 flex items-center gap-2 text-xs text-slate-500 justify-center">
           <Images size={13} className="text-blue-400" />
-          <span>Mehrere Fotos auswählen: Strg+Klick (Desktop) oder Mehrfach-Auswahl (Handy) — alle werden nacheinander analysiert.</span>
+          <span>Mehrere Dateien auswählen (PNG, JPG, JPEG, PDF): Strg+Klick (Desktop) oder Mehrfach-Auswahl — alle werden nacheinander analysiert.</span>
         </div>
 
       </div>
