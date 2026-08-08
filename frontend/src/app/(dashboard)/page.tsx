@@ -42,6 +42,7 @@ import {
 import { useTranslation } from "../i18n/LanguageContext";
 import ActiveEmployeeCalendar from "../components/ActiveEmployeeCalendar";
 import CustomAlertModal, { CustomAlertOptions } from "../components/CustomAlertModal";
+import QRScannerCameraModal from "../components/QRScannerCameraModal";
 
 interface Metrics {
   employeesCount: number;
@@ -96,6 +97,7 @@ export default function DashboardPage() {
   const [userRole, setUserRole] = useState("");
   const [isOffline, setIsOffline] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
   const router = useRouter();
 
   // Employee Dashboard States
@@ -848,102 +850,44 @@ export default function DashboardPage() {
                       </p>
                     </div>
 
-                    <div className="space-y-2">
-                      <p className="text-xs text-slate-500 text-center">
-                        Beim Verlassen der Halle den QR-Code scannen um auszustempeln:
+                    <div className="space-y-3 text-center">
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        Beim Verlassen der Halle den offiziellen QR-Code am Hallenausgang scannen um auszustempeln.
                       </p>
                       
-                      <div className="space-y-2">
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                          Ausgangs-Halle QR scannen / wählen:
-                        </label>
-                        <select
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              const [whId, hId] = e.target.value.split(":");
-                              handleQrScan(whId, hId);
-                            }
-                          }}
-                          disabled={clockLoading}
-                          className="input-premium py-2 text-xs bg-slate-50 font-bold"
-                          defaultValue=""
-                        >
-                          <option value="" disabled>QR-Code scannen oder Halle wählen zum Ausstempeln...</option>
-                          {allHalls.map((h) => (
-                            <option key={h.id} value={`${h.warehouseId}:${h.id}`}>
-                              📷 QR: {h.warehouse?.name || 'Lager'} — {h.name}
-                            </option>
-                          ))}
-                        </select>
-
-                        <button
-                          onClick={() => {
-                            if (employeeSummary?.activeShift) {
-                              const currentWhId = employeeSummary.activeShift.warehouseId || allWarehouses[0]?.id || "";
-                              const currentHId = employeeSummary.activeShift.hallId || allHalls[0]?.id || "";
-                              handleQrScan(currentWhId, currentHId);
-                            }
-                          }}
-                          disabled={clockLoading}
-                          className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                        >
-                          <LogOut className="w-4 h-4" />
-                          <span>{clockLoading ? "Wird verarbeitet..." : "Ausstempeln (QR Scan bestätigen)"}</span>
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => setIsQrScannerOpen(true)}
+                        disabled={clockLoading}
+                        className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-xl text-xs shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                      >
+                        <Camera className="w-4.5 h-4.5" />
+                        <span>{clockLoading ? "Wird verarbeitet..." : "📷 QR-Code scannen (Ausgang / Ausstempeln)"}</span>
+                      </button>
                     </div>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="p-4 rounded-xl bg-blue-50/60 border border-blue-100 text-center space-y-2">
-                      <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center mx-auto shadow-md">
-                        <ScanLine className="w-6 h-6 animate-pulse" />
+                    <div className="p-5 rounded-2xl bg-blue-50/70 border border-blue-100 text-center space-y-3">
+                      <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center mx-auto shadow-md">
+                        <ScanLine className="w-7 h-7 animate-pulse" />
                       </div>
-                      <p className="font-bold text-slate-800 text-xs">
-                        Hallen QR-Code scannen (Eingang)
-                      </p>
-                      <p className="text-[11px] text-slate-500 leading-relaxed">
-                        Scannen Sie den QR-Code am Halleneingang um Ihre Arbeitszeit automatisch zu starten.
-                      </p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                        Eingangs-Halle QR scannen / auswählen:
-                      </label>
-                      <select
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            const [whId, hId] = e.target.value.split(":");
-                            handleQrScan(whId, hId);
-                          }
-                        }}
-                        disabled={clockLoading}
-                        className="input-premium py-2 text-xs font-bold border-blue-300 focus:border-blue-500"
-                        defaultValue=""
-                      >
-                        <option value="" disabled>📷 QR-Code scannen oder Halle wählen...</option>
-                        {allHalls.map((h) => (
-                          <option key={h.id} value={`${h.warehouseId}:${h.id}`}>
-                            📷 QR: {h.warehouse?.name || 'Lager'} — {h.name}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="space-y-1">
+                        <p className="font-bold text-slate-800 text-sm">
+                          Hallen QR-Code scannen (Eingang)
+                        </p>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                          Sie sind aktuell nicht eingestempelt. Scannen Sie den QR-Code am Halleneingang mit Ihrer Kamera oder laden Sie ein QR-Foto hoch um Ihre Arbeitszeit zu starten.
+                        </p>
+                      </div>
                     </div>
 
                     <button
-                      onClick={() => {
-                        if (allHalls.length > 0) {
-                          handleQrScan(allHalls[0].warehouseId, allHalls[0].id);
-                        } else {
-                          showAlert({ title: "Hinweis", message: "Keine Hallen im System gefunden.", type: "warning" });
-                        }
-                      }}
+                      onClick={() => setIsQrScannerOpen(true)}
                       disabled={clockLoading}
-                      className="w-full btn-primary py-2.5 text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full btn-primary py-3.5 text-xs font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
-                      <Camera className="w-4 h-4" />
-                      <span>{clockLoading ? "Wird verarbeitet..." : "Kamera-Scanner starten / Einstempeln"}</span>
+                      <Camera className="w-5 h-5" />
+                      <span>{clockLoading ? "Wird verarbeitet..." : "📷 QR-Code scannen (Eingang / Einstempeln)"}</span>
                     </button>
                   </div>
                 )}
@@ -2056,6 +2000,15 @@ export default function DashboardPage() {
           </table>
         </div>
       )}
+
+      {/* QR Code Camera / Image Scanner Modal for Mitarbeiter */}
+      <QRScannerCameraModal
+        isOpen={isQrScannerOpen}
+        onClose={() => setIsQrScannerOpen(false)}
+        onScanSuccess={({ warehouseId, hallId }) => {
+          handleQrScan(warehouseId, hallId);
+        }}
+      />
 
       {/* Custom Popup Alert Modal */}
       <CustomAlertModal
