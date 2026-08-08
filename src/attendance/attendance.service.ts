@@ -86,6 +86,105 @@ export class AttendanceService {
     return updatedShift;
   }
 
+  async qrScan(employeeId: string, qrCodePayload: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: employeeId, isActive: true, deletedAt: null },
+    });
+    if (!user) {
+      throw new NotFoundException('Mitarbeiter nicht gefunden');
+    }
+
+    const cleanPayload = qrCodePayload.trim();
+    let hall = await this.prisma.hall.findFirst({
+      where: {
+        OR: [
+          { qrCode: cleanPayload },
+          { id: cleanPayload },
+        ],
+        deletedAt: null,
+      },
+      include: { warehouse: true },
+    });
+
+    if (!hall && cleanPayload.startsWith('LOGIFLOW:HALL:')) {
+      const parts = cleanPayload.split(':');
+      const candidateId = parts[2];
+      hall = await this.prisma.hall.findFirst({
+        where: { id: candidateId, deletedAt: null },
+        include: { warehouse: true },
+      });
+    }
+
+    if (!hall) {
+      throw new NotFoundException('Ungültiger oder unbekannter Hallen-QR-Code');
+    }
+
+    const activeShift = await this.prisma.attendance.findFirst({
+      where: {
+        employeeId,
+        clockOut: null,
+      },
+      include: { hall: true, warehouse: true },
+    });
+
+    if (activeShift) {
+      const clockOutTime = new Date();
+      const durationMs = clockOutTime.getTime() - activeShift.clockIn.getTime();
+      const totalHours = Math.round((durationMs / 3600000) * 100) / 100;
+
+      const updated = await this.prisma.attendance.update({
+        where: { id: activeShift.id },
+        data: {
+          clockOut: clockOutTime,
+          totalHours,
+          source: 'QR_SCAN',
+        },
+        include: { hall: true, warehouse: true },
+      });
+
+      await this.prisma.actionLog.create({
+        data: {
+          userId: employeeId,
+          action: 'CLOCK_OUT_QR',
+          details: `Ausgestempelt via QR-Scan in Halle "${hall.name}" (${hall.warehouse.name}) nach ${totalHours}h`,
+        },
+      });
+
+      return {
+        action: 'CLOCK_OUT',
+        message: `Ausgestempelt aus Halle "${hall.name}" (${totalHours}h gearbeitet)`,
+        attendance: updated,
+      };
+    } else {
+      const today = this.getTodayMidnight();
+      const attendance = await this.prisma.attendance.create({
+        data: {
+          employeeId,
+          warehouseId: hall.warehouseId,
+          hallId: hall.id,
+          clockIn: new Date(),
+          date: today,
+          source: 'QR_SCAN',
+        },
+        include: { hall: true, warehouse: true },
+      });
+
+      await this.prisma.actionLog.create({
+        data: {
+          userId: employeeId,
+          action: 'CLOCK_IN_QR',
+          details: `Eingestempelt via QR-Scan in Halle "${hall.name}" (${hall.warehouse.name})`,
+        },
+      });
+
+      return {
+        action: 'CLOCK_IN',
+        message: `Eingestempelt in Halle "${hall.name}" (${hall.warehouse.name})`,
+        attendance,
+      };
+    }
+  }
+
   async getDailyAttendance(dateStr?: string, warehouseId?: string) {
     const targetDate = dateStr ? new Date(dateStr) : new Date();
     targetDate.setUTCHours(0, 0, 0, 0);

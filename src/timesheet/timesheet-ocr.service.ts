@@ -37,10 +37,12 @@ export class TimesheetOcrService {
     if (!file) throw new BadRequestException('No file provided');
 
     const isImage = file.mimetype.startsWith('image/');
-    if (!isImage) {
-      this.logger.warn(`Non-image file: ${file.mimetype}`);
+    const isPdf = file.mimetype === 'application/pdf' || file.originalname.toLowerCase().endsWith('.pdf');
+
+    if (!isImage && !isPdf) {
+      this.logger.warn(`Unsupported file type: ${file.mimetype}`);
       return this.getSandboxFallback(
-        'Nur Bilder (JPG/PNG) werden unterstützt. PDF-Unterstützung folgt.',
+        'Nur Bilder (JPG/PNG/JPEG) und PDF-Dateien werden unterstützt.',
       );
     }
 

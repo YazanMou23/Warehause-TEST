@@ -33,6 +33,14 @@ export class AttendanceController {
     return this.attendanceService.clockOut(clockOutDto);
   }
 
+  @Post('qr-scan')
+  qrScan(@Body('qrCode') qrCode: string, @CurrentUser() currentUser: any) {
+    if (!qrCode) {
+      throw new BadRequestException('QR-Code ist erforderlich');
+    }
+    return this.attendanceService.qrScan(currentUser.id, qrCode);
+  }
+
   @Get('daily')
   @Roles(Role.MANAGER, Role.ADMIN)
   getDaily(

@@ -424,25 +424,25 @@ function UploadZone({
 
           <div>
             <h3 className="text-white font-bold text-lg mb-1">
-              {isDragOver ? 'Datei hier ablegen' : 'Foto / Bild hochladen'}
+              {isDragOver ? 'Dateien hier ablegen' : 'Stundenzettel (Bilder / PDF) hochladen'}
             </h3>
             <p className="text-slate-400 text-xs max-w-xs mb-4">
-              JPG oder PNG per Drag & Drop ziehen oder Durchsuchen klicken.
+              Mehrere JPG, PNG oder PDF Dateien per Drag & Drop ziehen oder Durchsuchen klicken.
             </p>
           </div>
 
           <div className="w-full">
             <div className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-medium text-sm border border-white/10 transition-all flex items-center justify-center gap-2">
               <Upload size={16} />
-              <span>Datei auswählen</span>
+              <span>Dateien auswählen</span>
             </div>
-            <p className="text-slate-500 text-[11px] mt-2">Max. 15 MB (JPG, PNG)</p>
+            <p className="text-slate-500 text-[11px] mt-2">Max. 15 MB (PNG, JPEG, JPG, PDF)</p>
           </div>
 
           <input
             ref={inputRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp"
+            accept="image/jpeg,image/png,image/jpg,image/webp,application/pdf,.pdf"
             multiple
             className="hidden"
             onChange={(e) => {
@@ -2259,7 +2259,7 @@ export default function TimesheetsPage() {
 
   // Start a queue of files — process the first one immediately
   const handleFilesSelect = (files: File[]) => {
-    const validFiles = files.filter(f => f.type.startsWith('image/'));
+    const validFiles = files.filter(f => f.type.startsWith('image/') || f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
     if (validFiles.length === 0) return;
     if (validFiles.length === 1) {
       // Single file — bypass queue
@@ -2274,7 +2274,7 @@ export default function TimesheetsPage() {
 
   // Add more files to an existing queue mid-flow
   const addToQueue = (files: File[]) => {
-    const valid = files.filter(f => f.type.startsWith('image/'));
+    const valid = files.filter(f => f.type.startsWith('image/') || f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
     if (!valid.length) return;
     setFileQueue(prev => [...prev, ...valid]);
     setQueueStatuses(prev => [...prev, ...valid.map(() => 'waiting' as QueueStatus)]);
