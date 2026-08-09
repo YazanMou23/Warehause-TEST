@@ -8,6 +8,7 @@ interface QRScannerCameraModalProps {
   isOpen: boolean;
   onClose: () => void;
   onScanSuccess: (payload: { warehouseId: string; hallId: string; hallName?: string }) => void;
+  isLoading?: boolean;
   title?: string;
   subtitle?: string;
 }
@@ -16,6 +17,7 @@ export default function QRScannerCameraModal({
   isOpen,
   onClose,
   onScanSuccess,
+  isLoading = false,
   title = 'Hallen QR-Code scannen',
   subtitle = 'Halten Sie Ihre Kamera auf den QR-Code am Halleneingang oder laden Sie ein QR-Foto hoch.',
 }: QRScannerCameraModalProps) {
@@ -90,13 +92,10 @@ export default function QRScannerCameraModal({
         return;
       }
 
-      // ✅ Valid!
+      // ✅ Valid — stop camera and notify parent. Parent controls when to close.
       stopCamera();
-      setSuccessResult(`✅ Halle erkannt: ${hallName || hallId.slice(0, 12)}...`);
-      setTimeout(() => {
-        onScanSuccess({ warehouseId, hallId, hallName });
-        onClose();
-      }, 700);
+      setSuccessResult(`✅ Halle erkannt: ${hallName || hallId.slice(0, 12)}… Verbinde…`);
+      onScanSuccess({ warehouseId, hallId, hallName });
     } catch {
       setScanError('QR-Code konnte nicht gelesen werden.');
       handledRef.current = false;
@@ -327,16 +326,24 @@ export default function QRScannerCameraModal({
               </div>
             )}
 
-            {/* Loading state */}
-            {!isStreaming && !cameraError && (
+            {/* Loading state — camera starting */}
+            {!isStreaming && !cameraError && !isLoading && (
               <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
                 <div className="w-10 h-10 rounded-full border-2 border-blue-400 border-t-transparent animate-spin" />
                 <p className="text-xs text-slate-400">Kamera wird gestartet…</p>
               </div>
             )}
 
+            {/* API processing state */}
+            {isLoading && (
+              <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
+                <div className="w-10 h-10 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
+                <p className="text-xs text-emerald-300 font-semibold">Zeiterfassung wird gespeichert…</p>
+              </div>
+            )}
+
             {/* Error state */}
-            {cameraError && (
+            {cameraError && !isLoading && (
               <div className="flex flex-col items-center gap-3 p-5 text-center">
                 <AlertCircle size={32} className="text-amber-400" />
                 <p className="text-xs text-slate-300 leading-relaxed">{cameraError}</p>

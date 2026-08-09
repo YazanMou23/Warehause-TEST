@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { QrCode, X, Download, Printer, Copy, CheckCircle, MapPin, Warehouse } from 'lucide-react';
 
 interface QRCodeModalProps {
@@ -14,75 +14,63 @@ interface QRCodeModalProps {
   };
 }
 
-// ─── Simple & Robust SVG QR Code Matrix Generator ────────────────────────────
-function generateQrSvg(dataString: string, size = 220): string {
-  // Simple deterministic hash pattern for visual QR representation
-  // Encodes JSON payload safely into SVG QR grid with position detection markers
-  const payload = dataString;
-  const gridCount = 21;
-  const cellSize = size / gridCount;
-  let svgPaths = '';
-
-  // Render 3 Position Detection Patterns (Corners)
-  const drawFinder = (startX: number, startY: number) => {
-    // Outer box (7x7)
-    svgPaths += `<rect x="${startX * cellSize}" y="${startY * cellSize}" width="${7 * cellSize}" height="${7 * cellSize}" fill="#0f172a"/>`;
-    svgPaths += `<rect x="${(startX + 1) * cellSize}" y="${(startY + 1) * cellSize}" width="${5 * cellSize}" height="${5 * cellSize}" fill="#ffffff"/>`;
-    svgPaths += `<rect x="${(startX + 2) * cellSize}" y="${(startY + 2) * cellSize}" width="${3 * cellSize}" height="${3 * cellSize}" fill="#0f172a"/>`;
-  };
-
-  drawFinder(0, 0); // Top-Left
-  drawFinder(gridCount - 7, 0); // Top-Right
-  drawFinder(0, gridCount - 7); // Bottom-Left
-
-  // Generate data modules deterministically based on character charCodes
-  let hash = 0;
-  for (let i = 0; i < payload.length; i++) {
-    hash = (hash << 5) - hash + payload.charCodeAt(i);
-    hash |= 0;
-  }
-
-  for (let r = 0; r < gridCount; r++) {
-    for (let c = 0; c < gridCount; c++) {
-      // Skip finder pattern zones
-      if (
-        (r < 8 && c < 8) ||
-        (r < 8 && c >= gridCount - 8) ||
-        (r >= gridCount - 8 && c < 8)
-      ) {
-        continue;
-      }
-      
-      const seed = (r * 31 + c * 17 + Math.abs(hash) + payload.charCodeAt((r + c) % payload.length)) % 100;
-      if (seed > 42) {
-        svgPaths += `<rect x="${c * cellSize}" y="${r * cellSize}" width="${cellSize + 0.3}" height="${cellSize + 0.3}" fill="#0f172a"/>`;
-      }
-    }
-  }
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" shape-rendering="crispEdges">
-    <rect width="${size}" height="${size}" fill="#ffffff" rx="12"/>
-    <g transform="translate(10, 10) scale(${ (size - 20) / size })">
-      ${svgPaths}
-    </g>
-  </svg>`;
-}
-
 export default function QRCodeModal({ isOpen, onClose, hall }: QRCodeModalProps) {
   const [copied, setCopied] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string>('');
+  const [qrSvgString, setQrSvgString] = useState<string>('');
 
-  if (!isOpen || !hall) return null;
-
-  const payloadObj = {
+  // Build the payload string (stable across renders)
+  const payloadString = isOpen && hall ? JSON.stringify({
     type: 'LOGIFLOW_HALL_QR',
     warehouseId: hall.warehouseId,
     hallId: hall.id,
     hallName: hall.name,
     warehouseName: hall.warehouseName || 'Lager',
-  };
+  }) : '';
 
-  const payloadString = JSON.stringify(payloadObj);
-  const svgMarkup = generateQrSvg(payloadString, 260);
+  // ─── Generate REAL scannable QR code via qrcode library ───────────────────
+  useEffect(() => {
+    if (!isOpen || !payloadString) {
+      setQrDataUrl('');
+      setQrSvgString('');
+      return;
+    }
+
+    let cancelled = false;
+
+    const generate = async () => {
+      try {
+        const QRCode = (await import('qrcode')).default;
+
+        const dataUrl = await QRCode.toDataURL(payloadString, {
+          errorCorrectionLevel: 'H',
+          width: 280,
+          margin: 2,
+          color: { dark: '#0f172a', light: '#ffffff' },
+        });
+
+        const svgStr = await QRCode.toString(payloadString, {
+          type: 'svg',
+          errorCorrectionLevel: 'H',
+          width: 280,
+          margin: 2,
+          color: { dark: '#0f172a', light: '#ffffff' },
+        });
+
+        if (!cancelled) {
+          setQrDataUrl(dataUrl);
+          setQrSvgString(svgStr);
+        }
+      } catch (err) {
+        console.error('[QRCodeModal] QR generation failed:', err);
+      }
+    };
+
+    generate();
+    return () => { cancelled = true; };
+  }, [isOpen, payloadString]);
+
+  if (!isOpen || !hall) return null;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(payloadString);
@@ -91,7 +79,8 @@ export default function QRCodeModal({ isOpen, onClose, hall }: QRCodeModalProps)
   };
 
   const handleDownload = () => {
-    const blob = new Blob([svgMarkup], { type: 'image/svg+xml' });
+    if (!qrSvgString) return;
+    const blob = new Blob([qrSvgString], { type: 'image/svg+xml' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -101,6 +90,7 @@ export default function QRCodeModal({ isOpen, onClose, hall }: QRCodeModalProps)
   };
 
   const handlePrint = () => {
+    if (!qrSvgString) return;
     const printWin = window.open('', '_blank');
     if (!printWin) return;
     printWin.document.write(`
@@ -110,10 +100,10 @@ export default function QRCodeModal({ isOpen, onClose, hall }: QRCodeModalProps)
           <title>QR Code - ${hall.name}</title>
           <style>
             body { font-family: system-ui, sans-serif; text-align: center; padding: 40px; color: #0f172a; }
-            .card { border: 4px solid #0f172a; border-radius: 24px; padding: 40px; display: inline-block; background: #fff; max-w: 450px; }
+            .card { border: 4px solid #0f172a; border-radius: 24px; padding: 40px; display: inline-block; background: #fff; }
             h1 { margin: 0 0 8px; font-size: 28px; text-transform: uppercase; letter-spacing: 1px; }
             h2 { margin: 0 0 24px; color: #475569; font-size: 18px; font-weight: 500; }
-            .qr-box { padding: 20px; background: #fff; border-radius: 16px; display: inline-block; border: 2px stroke #e2e8f0; }
+            .qr-box { padding: 20px; background: #fff; border-radius: 16px; display: inline-block; border: 2px solid #e2e8f0; }
             p { font-size: 13px; color: #64748b; margin-top: 24px; }
             .badge { display: inline-block; padding: 6px 16px; background: #2563eb; color: #fff; border-radius: 20px; font-weight: bold; font-size: 14px; margin-bottom: 16px; }
           </style>
@@ -123,14 +113,10 @@ export default function QRCodeModal({ isOpen, onClose, hall }: QRCodeModalProps)
             <div class="badge">EINGANG / AUSGANG SCAN</div>
             <h1>${hall.name}</h1>
             <h2>${hall.warehouseName || 'Logistiklager'}</h2>
-            <div class="qr-box">
-              ${svgMarkup}
-            </div>
-            <p>Mitarbeiter: QR-Code beim Betreten & Verlassen der Halle scannen um Arbeitszeit zu erfassen.</p>
+            <div class="qr-box">${qrSvgString}</div>
+            <p>Mitarbeiter: QR-Code beim Betreten &amp; Verlassen der Halle scannen um Arbeitszeit zu erfassen.</p>
           </div>
-          <script>
-            window.onload = function() { window.print(); window.close(); }
-          </script>
+          <script>window.onload = function() { window.print(); window.close(); }<\/script>
         </body>
       </html>
     `);
@@ -151,7 +137,7 @@ export default function QRCodeModal({ isOpen, onClose, hall }: QRCodeModalProps)
         {/* Header */}
         <div className="text-center space-y-1.5 pt-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 text-xs font-bold uppercase tracking-wider mb-1">
-            <QrCode size={14} /> Hallen QR-Code (Ein- & Ausgang)
+            <QrCode size={14} /> Hallen QR-Code (Ein- &amp; Ausgang)
           </div>
           <h3 className="text-2xl font-bold text-white tracking-tight flex items-center justify-center gap-2">
             <MapPin size={20} className="text-blue-400" />
@@ -163,18 +149,34 @@ export default function QRCodeModal({ isOpen, onClose, hall }: QRCodeModalProps)
           </p>
         </div>
 
-        {/* QR Code Graphic Box */}
-        <div className="flex flex-col items-center justify-center bg-white p-6 rounded-2xl border-4 border-blue-500/30 shadow-inner">
-          <div dangerouslySetInnerHTML={{ __html: svgMarkup }} />
-          <p className="text-[11px] font-semibold text-slate-700 mt-3 font-mono">
-            Halle-ID: {hall.id.slice(0, 18)}...
-          </p>
+        {/* Real Scannable QR Code */}
+        <div className="flex flex-col items-center justify-center bg-white p-5 rounded-2xl border-4 border-blue-500/30 shadow-inner min-h-[200px]">
+          {qrDataUrl ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={qrDataUrl}
+                alt={`QR Code ${hall.name}`}
+                width={260}
+                height={260}
+                style={{ imageRendering: 'pixelated', display: 'block' }}
+              />
+              <p className="text-[11px] font-semibold text-slate-600 mt-2 font-mono text-center">
+                {hall.name} &bull; {hall.warehouseName || 'Lager'}
+              </p>
+            </>
+          ) : (
+            <div className="flex flex-col items-center gap-3 py-10">
+              <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-xs text-slate-400">QR-Code wird generiert…</p>
+            </div>
+          )}
         </div>
 
         {/* Info Box */}
         <div className="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3.5 text-xs text-slate-300 space-y-1">
           <p className="font-semibold text-blue-300 flex items-center gap-1.5">
-            <CheckCircle size={14} /> Vorarbeiter & Admin Info:
+            <CheckCircle size={14} /> Vorarbeiter &amp; Admin Info:
           </p>
           <p className="text-slate-400 leading-relaxed">
             Diesen QR-Code am Halleneingang anbringen. Mitarbeiter scannen ihn mit der App beim Kommen (Einstempeln) und Gehen (Ausstempeln).
@@ -193,7 +195,8 @@ export default function QRCodeModal({ isOpen, onClose, hall }: QRCodeModalProps)
 
           <button
             onClick={handleDownload}
-            className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-blue-600/30 hover:bg-blue-600/40 text-blue-200 border border-blue-400/30 text-xs font-semibold transition-all cursor-pointer"
+            disabled={!qrSvgString}
+            className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-blue-600/30 hover:bg-blue-600/40 text-blue-200 border border-blue-400/30 text-xs font-semibold transition-all cursor-pointer disabled:opacity-40"
           >
             <Download size={14} />
             <span>SVG Speichern</span>
@@ -201,7 +204,8 @@ export default function QRCodeModal({ isOpen, onClose, hall }: QRCodeModalProps)
 
           <button
             onClick={handlePrint}
-            className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-all shadow-md cursor-pointer"
+            disabled={!qrSvgString}
+            className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-all shadow-md cursor-pointer disabled:opacity-40"
           >
             <Printer size={14} />
             <span>Drucken</span>

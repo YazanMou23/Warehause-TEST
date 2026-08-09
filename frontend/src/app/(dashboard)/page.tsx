@@ -494,8 +494,8 @@ export default function DashboardPage() {
           }));
           showAlert({ title: "Ausgestempelt (QR)", message: "Erfolgreich aus der Halle ausgestempelt!", type: "success" });
         } else {
-          const wh = allWarehouses.find(w => w.id === warehouseId) || { name: "Lager Sector" };
-          const hl = allHalls.find(h => h.id === hallId) || { name: "Halle Sector" };
+          const wh = allWarehouses.find((w: any) => w.id === warehouseId) || { name: "Lager Sector" };
+          const hl = allHalls.find((h: any) => h.id === hallId) || { name: "Halle Sector" };
           setEmployeeSummary((prev: any) => ({
             ...prev,
             activeShift: {
@@ -509,6 +509,7 @@ export default function DashboardPage() {
           }));
           showAlert({ title: "Eingestempelt (QR)", message: `Erfolgreich in ${hl.name} (${wh.name}) eingestempelt!`, type: "success" });
         }
+        setIsQrScannerOpen(false);
         return;
       }
 
@@ -518,18 +519,44 @@ export default function DashboardPage() {
         body: JSON.stringify({ warehouseId, hallId }),
       });
       const data = await res.json();
+
       if (res.ok) {
+        // ✅ Close scanner modal first
+        setIsQrScannerOpen(false);
+
+        // ✅ Update local UI state immediately from response (no page reload needed)
+        if (data.action === 'CLOCK_IN' && data.attendance) {
+          const att = data.attendance;
+          setEmployeeSummary((prev: any) => ({
+            ...prev,
+            activeShift: {
+              id: att.id,
+              warehouseId: att.warehouseId,
+              hallId: att.hallId,
+              warehouseName: att.warehouse?.name || warehouseId,
+              hallName: att.hall?.name || hallId,
+              clockIn: att.clockIn,
+            },
+          }));
+        } else if (data.action === 'CLOCK_OUT') {
+          setEmployeeSummary((prev: any) => ({
+            ...prev,
+            activeShift: null,
+          }));
+        }
+
         showAlert({
-          title: data.action === 'CLOCK_OUT' ? 'Ausgestempelt (QR-Code)' : 'Eingestempelt (QR-Code)',
+          title: data.action === 'CLOCK_OUT' ? '✅ Ausgestempelt' : '✅ Eingestempelt',
           message: data.message || 'QR-Code Zeiterfassung erfolgreich!',
           type: 'success',
-          onConfirm: () => window.location.reload(),
         });
       } else {
+        setIsQrScannerOpen(false);
         showAlert({ title: "Fehler", message: data.message || "QR-Scan Zeiterfassung fehlgeschlagen.", type: "error" });
       }
     } catch (e: any) {
       console.error(e);
+      setIsQrScannerOpen(false);
       showAlert({ title: "Fehler", message: e.message || "QR-Code konnte nicht verarbeitet werden.", type: "error" });
     } finally {
       setClockLoading(false);
@@ -2005,6 +2032,7 @@ export default function DashboardPage() {
       <QRScannerCameraModal
         isOpen={isQrScannerOpen}
         onClose={() => setIsQrScannerOpen(false)}
+        isLoading={clockLoading}
         onScanSuccess={({ warehouseId, hallId }) => {
           handleQrScan(warehouseId, hallId);
         }}
