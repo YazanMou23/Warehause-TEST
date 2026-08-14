@@ -1590,7 +1590,7 @@ export default function DashboardPage() {
                               {t("viewDetails")}
                             </button>
                             <Link
-                              href={`/planning?date=${p.date.split("T")[0]}&warehouseId=${p.warehouseId}&hallId=${p.hallId}`}
+                              href={`/planning?date=${p.date.split("T")[0]}&warehouseId=${p.warehouseId}&hallId=${p.hallId}&planId=${p.id}`}
                               onClick={(e) => e.stopPropagation()}
                               className="btn-secondary py-1.5 px-3.5 text-[10px] uppercase font-bold tracking-wider cursor-pointer"
                             >

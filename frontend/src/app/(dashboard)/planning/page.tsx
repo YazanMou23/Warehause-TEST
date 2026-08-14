@@ -136,6 +136,7 @@ function PlanningPageContent() {
   const [isLoading, setIsLoading] = useState(false);
   const createdPlansSectionRef = useRef<HTMLDivElement>(null);
   const isEditingRef = useRef(false);
+  const autoEditDone = useRef(false);
 
   // Centered Alert Modal State
   const [alertConfig, setAlertConfig] = useState<CustomAlertOptions>({
@@ -261,6 +262,40 @@ function PlanningPageContent() {
 
     fetchExistingPlans();
   }, [date, isOffline]);
+
+  // Auto-load plan into edit mode when planId is provided in the URL (e.g. from Dashboard "Plan verwalten")
+  useEffect(() => {
+    if (autoEditDone.current) return;
+    if (!hasInitializedFromQuery) return;
+    if (allCreatedPlans.length === 0) return;
+
+    const qPlanId = searchParams.get("planId");
+    if (!qPlanId) return;
+
+    const plan = allCreatedPlans.find((p: any) => p.id === qPlanId);
+    if (!plan) return;
+
+    autoEditDone.current = true;
+    isEditingRef.current = true;
+    setPlanId(plan.id);
+    setAssignedEmployeeIds(plan.assignedEmployees?.map((e: any) => e.id) || []);
+    applyShiftString(plan.shift || "Frühschicht");
+    setTreffpunktTime(plan.treffpunktTime || "05:30");
+    setTreffpunkt(plan.treffpunkt || "");
+    setNotes(plan.notes || "");
+    setAssignedContainerNumbers(plan.assignedContainers?.map((c: any) => c.containerNumber) || []);
+
+    if (plan.locations && Array.isArray(plan.locations) && plan.locations.length > 0) {
+      setSelectedLocations(plan.locations.map((l: any) => ({
+        warehouseId: l.warehouseId || l.warehouse?.id || "",
+        hallId: l.hallId || l.hall?.id || "",
+      })));
+    } else if (plan.warehouseId && plan.hallId) {
+      setSelectedLocations([{ warehouseId: plan.warehouseId, hallId: plan.hallId }]);
+    }
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [allCreatedPlans, hasInitializedFromQuery, searchParams]);
 
   const fetchExistingPlanManual = async () => {
     const token = localStorage.getItem("accessToken");
