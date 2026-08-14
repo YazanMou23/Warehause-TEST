@@ -74,6 +74,7 @@ function PlanningPageContent() {
   const [notes, setNotes] = useState("");
   const [assignedContainerNumbers, setAssignedContainerNumbers] = useState<string[]>([]);
   const [typedContainerNumber, setTypedContainerNumber] = useState("");
+  const [containerCountInput, setContainerCountInput] = useState("");
 
   // Helper to parse shift string into start/end time and preset
   const applyShiftString = (rawShift: string) => {
@@ -343,6 +344,7 @@ function PlanningPageContent() {
     setNotes("");
     setAssignedEmployeeIds([]);
     setAssignedContainerNumbers([]);
+    setContainerCountInput("");
     applyShiftString("Frühschicht");
     showAlert({
       title: "Bearbeiten abgebrochen",
@@ -549,6 +551,7 @@ function PlanningPageContent() {
       setNotes("");
       setAssignedEmployeeIds([]);
       setAssignedContainerNumbers([]);
+      setContainerCountInput("");
 
       showAlert({
         title: planId ? "Schichtplan aktualisiert!" : "Schichtplan erfolgreich gespeichert!",
@@ -947,11 +950,81 @@ function PlanningPageContent() {
       </div>
 
       {/* Container Input Section */}
-      <div className="bg-white border border-slate-100 p-6 rounded-xl shadow-sm space-y-4">
-        <div>
-          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
+      <div className="bg-white border border-slate-100 p-6 rounded-xl shadow-sm space-y-5">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
             Geplante Container (Planned Containers)
           </label>
+          {assignedContainerNumbers.length > 0 && (
+            <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-800 border border-blue-200 px-3 py-1 rounded-full text-[11px] font-bold">
+              <Package className="w-3.5 h-3.5" />
+              {assignedContainerNumbers.length} Container zugewiesen
+            </span>
+          )}
+        </div>
+
+        {/* Quick-Add by Count */}
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+            <Package className="w-3.5 h-3.5 text-blue-500" />
+            Schnellzuweisung: Anzahl Container
+          </p>
+          <p className="text-[10px] text-slate-400">
+            Geben Sie die Anzahl an — Platzhalter-IDs werden automatisch generiert (z. B. PLAN-001, PLAN-002 …)
+          </p>
+          <div className="flex gap-2 max-w-xs">
+            <input
+              type="number"
+              min="1"
+              max="999"
+              placeholder="z.B. 5"
+              value={containerCountInput}
+              onChange={(e) => setContainerCountInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const count = parseInt(containerCountInput, 10);
+                  if (!isNaN(count) && count > 0 && count <= 999) {
+                    const existing = assignedContainerNumbers.filter((n) => n.startsWith("PLAN-"));
+                    const startIdx = existing.length + 1;
+                    const newNums = Array.from({ length: count }, (_, i) =>
+                      `PLAN-${String(startIdx + i).padStart(3, "0")}`
+                    ).filter((n) => !assignedContainerNumbers.includes(n));
+                    setAssignedContainerNumbers((prev) => [...prev, ...newNums]);
+                    setContainerCountInput("");
+                  }
+                }
+              }}
+              className="w-28 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 outline-none focus:border-blue-500 transition-colors shadow-2xs text-center font-bold"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const count = parseInt(containerCountInput, 10);
+                if (!isNaN(count) && count > 0 && count <= 999) {
+                  const existing = assignedContainerNumbers.filter((n) => n.startsWith("PLAN-"));
+                  const startIdx = existing.length + 1;
+                  const newNums = Array.from({ length: count }, (_, i) =>
+                    `PLAN-${String(startIdx + i).padStart(3, "0")}`
+                  ).filter((n) => !assignedContainerNumbers.includes(n));
+                  setAssignedContainerNumbers((prev) => [...prev, ...newNums]);
+                  setContainerCountInput("");
+                }
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
+            >
+              <Package className="w-3.5 h-3.5" />
+              Generieren
+            </button>
+          </div>
+        </div>
+
+        {/* Manual Container Number Entry */}
+        <div>
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+            Manuelle Eingabe (Container-Nummer)
+          </p>
           <div className="flex gap-2 max-w-lg">
             <input
               type="text"
