@@ -18,6 +18,7 @@ import { TimesheetModule } from './timesheet/timesheet.module';
 import { ChatModule } from './chat/chat.module';
 import { NotificationModule } from './notification/notification.module';
 import { ScannerModule } from './scanner/scanner.module';
+import { DocumentsModule } from './documents/documents.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { ScannerModule } from './scanner/scanner.module';
     ChatModule,
     NotificationModule,
     ScannerModule,
+    DocumentsModule,
   ],
   controllers: [AppController],
   providers: [],

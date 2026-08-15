@@ -22,6 +22,36 @@ enum TimesheetStatus {
   CONFIRMED
 }
 
+enum DocumentSource {
+  SCANNER
+  CAMERA
+  UPLOAD
+  DRAG_AND_DROP
+}
+
+enum DocumentStatus {
+  CREATED
+  UPLOADING
+  UPLOADED
+  QUEUED
+  OCR_PROCESSING
+  AI_ANALYZING
+  PERSISTING
+  COMPLETED
+  FAILED
+  SKIPPED
+  CANCELLED
+}
+
+enum BatchStatus {
+  DRAFT
+  INGESTING
+  PROCESSING
+  PAUSED
+  COMPLETED
+  FAILED
+}
+
 model User {
   id           String        @id @default(uuid())
   username     String        @unique
@@ -60,6 +90,8 @@ model User {
   createdContainers   Container[]   @relation("ContainerCreatedBy")
   updatedContainers   Container[]   @relation("ContainerUpdatedBy")
   workedContainers    ContainerEmployee[]
+  documentBatches     DocumentBatch[]
+  universalDocuments  UniversalDocument[]
 
   @@index([warehouseId])
   @@index([hallId])
@@ -316,4 +348,110 @@ model ContainerEmployee {
 
   @@id([containerId, employeeId])
 }
+
+// ─── Universal Document Ingestion & Processing System ────────────────────────
+
+model DocumentBatch {
+  id              String              @id @default(uuid())
+  batchNumber     Int                 @default(autoincrement())
+  title           String?
+  status          BatchStatus         @default(DRAFT)
+  totalDocuments  Int                 @default(0)
+  completedCount  Int                 @default(0)
+  failedCount     Int                 @default(0)
+  skippedCount    Int                 @default(0)
+  createdById     String
+  createdBy       User                @relation(fields: [createdById], references: [id])
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  startedAt       DateTime?
+  completedAt     DateTime?
+
+  documents       UniversalDocument[]
+  auditLogs       DocumentAuditLog[]
+
+  @@index([createdById])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model UniversalDocument {
+  id                 String                  @id @default(uuid())
+  batchId            String
+  batch              DocumentBatch           @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User                    @relation(fields: [userId], references: [id])
+  source             DocumentSource          @default(UPLOAD)
+  status             DocumentStatus          @default(CREATED)
+  queuePosition      Int                     @default(0)
+  originalFileName   String
+  mimeType           String
+  fileSize           Int                     @default(0)
+  filePath           String                  // Original storage path
+  processedFilePath  String?                 // Enhanced / perspective corrected / merged storage path
+  pageCount          Int                     @default(1)
+  
+  // Processing lock and worker tracking
+  processingAttempts Int                     @default(0)
+  maxAttempts        Int                     @default(3)
+  lockWorkerId       String?
+  lockedAt           DateTime?
+  lockExpiresAt      DateTime?
+  idempotencyKey     String                  @unique @default(uuid())
+  
+  // Extracted Results
+  ocrLanguage        String?                 @default("de")
+  ocrRawText         String?                 @db.Text
+  analysisResult     Json?                   // Full validated structured CRM data (Company, Contact, Invoice, Amounts, Items, Summary)
+  matchedEntityType  String?                 // "EMPLOYEE" | "CONTAINER" | "TIMESHEET" | "COMPANY" | "INVOICE"
+  matchedEntityId    String?
+  
+  errorCode          String?
+  errorMessage       String?
+  
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  startedAt          DateTime?
+  completedAt        DateTime?
+
+  pages              UniversalDocumentPage[]
+  auditLogs          DocumentAuditLog[]
+
+  @@index([batchId, queuePosition])
+  @@index([status])
+  @@index([lockWorkerId, lockExpiresAt])
+}
+
+model UniversalDocumentPage {
+  id             String            @id @default(uuid())
+  documentId     String
+  document       UniversalDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  pageNumber     Int
+  originalPath   String
+  processedPath  String?
+  width          Int?
+  height         Int?
+  ocrText        String?           @db.Text
+  createdAt      DateTime          @default(now())
+
+  @@unique([documentId, pageNumber])
+  @@index([documentId])
+}
+
+model DocumentAuditLog {
+  id         String             @id @default(uuid())
+  batchId    String?
+  batch      DocumentBatch?     @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  documentId String?
+  document   UniversalDocument? @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId     String?
+  event      String             // "BATCH_CREATED" | "DOCUMENT_QUEUED" | "OCR_STARTED" | "OCR_COMPLETED" | "AI_ANALYZED" | "PERSISTED" | "COMPLETED" | "FAILED" | "RETRIED" | "SKIPPED"
+  details    Json?
+  timestamp  DateTime           @default(now())
+
+  @@index([batchId])
+  @@index([documentId])
+  @@index([timestamp])
+}
+
 

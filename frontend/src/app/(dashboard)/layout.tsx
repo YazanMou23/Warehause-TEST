@@ -24,6 +24,7 @@ import {
   ChevronRight,
   FileCheck,
   MessageSquare,
+  FileScan,
 } from "lucide-react";
 import { useTranslation } from "../i18n/LanguageContext";
 import { getAuthToken, clearAuthToken } from "../utils/auth";
@@ -44,6 +45,7 @@ const sidebarLinks: SidebarLink[] = [
   { name: "Warehouses", href: "/warehouses", icon: Warehouse, section: "resources" },
   { name: "Halls", href: "/halls", icon: Grid, section: "resources" },
   { name: "Containers", href: "/containers", icon: Package, section: "resources" },
+  { name: "Dokumente", href: "/documents", icon: FileScan, section: "ops" },
   { name: "Attendance", href: "/attendance", icon: Clock, section: "ops" },
   { name: "OCR Upload", href: "/ocr", icon: Scan, section: "ops" },
   { name: "Stundenzettel", href: "/timesheets", icon: FileCheck, section: "ops" },
