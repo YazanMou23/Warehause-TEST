@@ -46,8 +46,9 @@ export class EmailService {
   }
 
   async sendPlanNotification(email: string, planDetails: any): Promise<string | true> {
-    const frontendUrl =
+    const rawFrontendUrl =
       this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001';
+    const frontendUrl = rawFrontendUrl.replace(/\/+$/, '');
     
     const employeeName = planDetails.employeeName || planDetails.name || 'Mitarbeiter';
     const date = planDetails.date || 'Nicht angegeben';
@@ -222,12 +223,13 @@ export class EmailService {
 
         <!-- Call to Action Button (Dashboard) -->
         <div style="text-align: center; margin-top: 32px; margin-bottom: 12px;">
-          <a href="${frontendUrl}/planning" class="btn-primary" style="display: inline-block; background-color: #2563eb; color: #ffffff; font-weight: 700; font-size: 15px; text-decoration: none; padding: 14px 32px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3);">
+          <a href="${frontendUrl}" class="btn-primary" style="display: inline-block; background-color: #2563eb; color: #ffffff; font-weight: 700; font-size: 15px; text-decoration: none; padding: 14px 32px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3);">
             Zum Dashboard / Open Dashboard &rarr;
           </a>
         </div>
         <p style="text-align: center; font-size: 12px; color: #64748b; margin-top: 12px;">
-          Klicken Sie auf den Button, um Ihren vollständigen Schichtplan im Portal anzuzeigen.
+          Klicken Sie auf den Button, um Ihren vollständigen Schichtplan im Portal anzuzeigen.<br/>
+          <a href="${frontendUrl}" style="color: #2563eb; text-decoration: underline; font-size: 11px;">${frontendUrl}</a>
         </p>
       </div>
       
@@ -245,8 +247,9 @@ export class EmailService {
   }
 
   async sendPlanRemovalNotification(email: string, planDetails: any): Promise<string | true> {
-    const frontendUrl =
+    const rawFrontendUrl =
       this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001';
+    const frontendUrl = rawFrontendUrl.replace(/\/+$/, '');
     
     const employeeName = planDetails.employeeName || 'Mitarbeiter';
     const date = planDetails.date || 'Nicht angegeben';
@@ -320,10 +323,13 @@ export class EmailService {
         </div>
 
         <div style="text-align: center; margin-top: 32px; margin-bottom: 12px;">
-          <a href="${frontendUrl}/planning" class="btn-primary" style="display: inline-block; background-color: #2563eb; color: #ffffff; font-weight: 700; font-size: 15px; text-decoration: none; padding: 14px 32px; border-radius: 8px;">
+          <a href="${frontendUrl}" class="btn-primary" style="display: inline-block; background-color: #2563eb; color: #ffffff; font-weight: 700; font-size: 15px; text-decoration: none; padding: 14px 32px; border-radius: 8px;">
             Zum Dashboard / Open Dashboard &rarr;
           </a>
         </div>
+        <p style="text-align: center; font-size: 12px; color: #64748b; margin-top: 12px;">
+          <a href="${frontendUrl}" style="color: #2563eb; text-decoration: underline; font-size: 11px;">${frontendUrl}</a>
+        </p>
       </div>
       
       <div style="background-color: #f1f5f9; padding: 20px 24px; text-align: center; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 12px;">
@@ -338,8 +344,9 @@ export class EmailService {
   }
 
   async sendPlanDeletionNotification(email: string, planDetails: any): Promise<string | true> {
-    const frontendUrl =
+    const rawFrontendUrl =
       this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001';
+    const frontendUrl = rawFrontendUrl.replace(/\/+$/, '');
     
     const employeeName = planDetails.employeeName || 'Mitarbeiter';
     const date = planDetails.date || 'Nicht angegeben';
@@ -413,10 +420,13 @@ export class EmailService {
         </div>
 
         <div style="text-align: center; margin-top: 32px; margin-bottom: 12px;">
-          <a href="${frontendUrl}/planning" class="btn-primary" style="display: inline-block; background-color: #2563eb; color: #ffffff; font-weight: 700; font-size: 15px; text-decoration: none; padding: 14px 32px; border-radius: 8px;">
+          <a href="${frontendUrl}" class="btn-primary" style="display: inline-block; background-color: #2563eb; color: #ffffff; font-weight: 700; font-size: 15px; text-decoration: none; padding: 14px 32px; border-radius: 8px;">
             Zum Dashboard / Open Dashboard &rarr;
           </a>
         </div>
+        <p style="text-align: center; font-size: 12px; color: #64748b; margin-top: 12px;">
+          <a href="${frontendUrl}" style="color: #2563eb; text-decoration: underline; font-size: 11px;">${frontendUrl}</a>
+        </p>
       </div>
       
       <div style="background-color: #f1f5f9; padding: 20px 24px; text-align: center; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 12px;">
@@ -436,8 +446,9 @@ export class EmailService {
     message: string,
     senderName = 'LogiFlow',
   ): Promise<string | true> {
-    const frontendUrl =
+    const rawFrontendUrl =
       this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001';
+    const frontendUrl = rawFrontendUrl.replace(/\/+$/, '');
     const html = `
       <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: auto; background-color: #0d1117; color: #e2e8f0; border-radius: 12px; overflow: hidden; border: 1px solid #1e293b;">
         <!-- Header -->
@@ -470,6 +481,9 @@ export class EmailService {
   }
 
   async sendWelcomeEmail(email: string, name: string): Promise<boolean> {
+    const rawFrontendUrl =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001';
+    const frontendUrl = rawFrontendUrl.replace(/\/+$/, '');
     const subject = 'Willkommen bei LogiFlow';
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
@@ -477,6 +491,11 @@ export class EmailService {
         <p>Hallo ${name},</p>
         <p>Ihr Account im LogiFlow Warehouse Management System wurde erfolgreich erstellt.</p>
         <p>Sie können sich nun unter Verwendung Ihrer Telefonnummer und Ihres Passworts einloggen.</p>
+        <div style="text-align: center; margin: 24px 0;">
+          <a href="${frontendUrl}" style="display: inline-block; background-color: #2563eb; color: #ffffff; font-weight: 700; font-size: 15px; text-decoration: none; padding: 14px 32px; border-radius: 8px;">
+            Zum Dashboard / Login &rarr;
+          </a>
+        </div>
         <p style="margin-top: 20px;">Wir freuen uns auf die Zusammenarbeit!</p>
         <hr style="border: none; border-top: 1px solid #eee; margin-top: 30px;" />
         <p style="font-size: 12px; color: #888; text-align: center;">Dies ist eine automatisierte Nachricht von LogiFlow.</p>
