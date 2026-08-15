@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { API_URL } from '../../../config/api';
 import CustomAlertModal, { CustomAlertOptions } from '../../components/CustomAlertModal';
+import { useDialog } from '../../components/DialogProvider';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1748,6 +1749,7 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
 // ─── Daily Attendance View (With Manual Shift Add Modal) ──────────────────────
 
 function DailyAttendanceView() {
+  const dialog = useDialog();
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [records, setRecords] = useState<DailyAttendanceRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1859,11 +1861,20 @@ function DailyAttendanceView() {
         setEditingId(null);
         loadDailyAttendance();
       } else {
-        const err = await res.json();
-        alert('Fehler beim Speichern: ' + (err.message || 'Unbekannter Fehler'));
+        const err = await res.json().catch(() => ({}));
+        dialog.alert({
+          title: 'Fehler beim Speichern',
+          message: err.message || 'Unbekannter Fehler beim Speichern des Zeiteintrags.',
+          type: 'error',
+        });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Fehler beim Aktualisieren:', err);
+      dialog.alert({
+        title: 'Fehler beim Speichern',
+        message: err?.message || 'Fehler beim Aktualisieren des Eintrags.',
+        type: 'error',
+      });
     } finally {
       setSavingRecord(false);
     }
@@ -1896,7 +1907,21 @@ function DailyAttendanceView() {
       if (res.ok) {
         setShowManualModal(false);
         loadDailyAttendance();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        dialog.alert({
+          title: 'Fehler beim Erstellen',
+          message: err.message || 'Schicht konnte nicht manuell erstellt werden.',
+          type: 'error',
+        });
       }
+    } catch (err: any) {
+      console.error('Fehler beim Erstellen:', err);
+      dialog.alert({
+        title: 'Fehler beim Erstellen',
+        message: err?.message || 'Ein unerwarteter Fehler ist aufgetreten.',
+        type: 'error',
+      });
     } finally {
       setSubmittingManual(false);
     }

@@ -1,20 +1,24 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
-import { CheckCircle2, AlertTriangle, Info, XCircle, X } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { CheckCircle2, AlertTriangle, Info, XCircle, HelpCircle, X } from "lucide-react";
 
 export interface CustomAlertOptions {
   isOpen: boolean;
   title?: string;
   message: string;
-  type?: "success" | "error" | "warning" | "info";
+  type?: "success" | "error" | "warning" | "info" | "prompt";
   confirmText?: string;
   cancelText?: string;
-  onConfirm?: () => void;
+  inputPlaceholder?: string;
+  defaultValue?: string;
+  inputType?: "text" | "password" | "number" | "email";
+  onConfirm?: (inputValue?: string) => void;
   onCancel?: () => void;
 }
 
-interface CustomAlertModalProps extends CustomAlertOptions {
+export interface CustomAlertModalProps extends Partial<CustomAlertOptions> {
+  isOpen?: boolean;
   onClose: () => void;
 }
 
@@ -67,6 +71,18 @@ const TYPE_CONFIG = {
     accent: "#2563eb",
     headerBorder: "#bfdbfe",
   },
+  prompt: {
+    icon: HelpCircle,
+    iconColor: "#4f46e5",
+    iconBg: "#eef2ff",
+    badgeBg: "#e0e7ff",
+    badgeText: "#4338ca",
+    badgeLabel: "Eingabe",
+    confirmBg: "#4f46e5",
+    confirmHover: "#4338ca",
+    accent: "#4f46e5",
+    headerBorder: "#c7d2fe",
+  },
 } as const;
 
 export default function CustomAlertModal({
@@ -76,40 +92,62 @@ export default function CustomAlertModal({
   type = "info",
   confirmText = "OK",
   cancelText,
+  inputPlaceholder = "Eingabe...",
+  defaultValue = "",
+  inputType = "text",
   onConfirm,
   onCancel,
   onClose,
 }: CustomAlertModalProps) {
-  const cfg = TYPE_CONFIG[type];
+  const cfg = TYPE_CONFIG[type] || TYPE_CONFIG.info;
   const Icon = cfg.icon;
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [inputValue, setInputValue] = useState(defaultValue);
 
+  // Sync defaultValue when modal opens
   useEffect(() => {
     if (isOpen) {
-      // Focus confirm button for keyboard accessibility
-      setTimeout(() => confirmBtnRef.current?.focus(), 50);
-      // Prevent background scroll
+      setInputValue(defaultValue);
+      setTimeout(() => {
+        if (type === "prompt" && inputRef.current) {
+          inputRef.current.focus();
+          inputRef.current.select();
+        } else {
+          confirmBtnRef.current?.focus();
+        }
+      }, 60);
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
     }
-    return () => { document.body.style.overflow = ""; };
-  }, [isOpen]);
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isOpen, defaultValue, type]);
 
-  // Close on Escape key
+  // Handle keyboard shortcuts (Escape -> Cancel, Enter -> Confirm for prompt)
   useEffect(() => {
     if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { onClose(); }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        handleCancel();
+      } else if (e.key === "Enter" && type === "prompt" && document.activeElement === inputRef.current) {
+        e.preventDefault();
+        handleConfirm();
+      }
     };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [isOpen, onClose]);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, inputValue, type]);
 
   if (!isOpen) return null;
 
   const handleConfirm = () => {
-    if (onConfirm) onConfirm();
+    if (onConfirm) {
+      onConfirm(type === "prompt" ? inputValue : undefined);
+    }
     onClose();
   };
 
@@ -122,7 +160,8 @@ export default function CustomAlertModal({
     <div
       role="dialog"
       aria-modal="true"
-      aria-labelledby="alert-modal-title"
+      aria-labelledby="custom-alert-modal-title"
+      aria-describedby="custom-alert-modal-desc"
       style={{
         position: "fixed",
         inset: 0,
@@ -131,31 +170,35 @@ export default function CustomAlertModal({
         alignItems: "center",
         justifyContent: "center",
         padding: "16px",
-        backgroundColor: "rgba(15, 23, 42, 0.55)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-        animation: "alertFadeIn 0.2s ease-out",
+        backgroundColor: "rgba(15, 23, 42, 0.65)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+        animation: "alertFadeIn 0.18s ease-out",
       }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          handleCancel();
+        }
+      }}
     >
       <div
         style={{
           backgroundColor: "#ffffff",
           borderRadius: "20px",
-          maxWidth: "420px",
+          maxWidth: "440px",
           width: "100%",
-          boxShadow:
-            "0 25px 50px -12px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.06)",
+          boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3), 0 0 0 1px rgba(0,0,0,0.08)",
           overflow: "hidden",
-          animation: "alertScaleIn 0.22s cubic-bezier(0.34,1.56,0.64,1)",
+          animation: "alertScaleIn 0.22s cubic-bezier(0.34, 1.56, 0.64, 1)",
           transformOrigin: "center center",
         }}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Accent top stripe */}
         <div
           style={{
             height: "4px",
-            background: `linear-gradient(90deg, ${cfg.accent}, ${cfg.accent}aa)`,
+            background: `linear-gradient(90deg, ${cfg.accent}, ${cfg.accent}99)`,
           }}
         />
 
@@ -173,8 +216,8 @@ export default function CustomAlertModal({
             {/* Icon bubble */}
             <div
               style={{
-                width: "48px",
-                height: "48px",
+                width: "46px",
+                height: "46px",
                 borderRadius: "14px",
                 backgroundColor: cfg.iconBg,
                 border: `1.5px solid ${cfg.headerBorder}`,
@@ -184,9 +227,7 @@ export default function CustomAlertModal({
                 flexShrink: 0,
               }}
             >
-              <Icon
-                style={{ width: "24px", height: "24px", color: cfg.iconColor }}
-              />
+              <Icon style={{ width: "24px", height: "24px", color: cfg.iconColor }} />
             </div>
 
             {/* Badge + title */}
@@ -208,7 +249,7 @@ export default function CustomAlertModal({
                 {cfg.badgeLabel}
               </span>
               <h4
-                id="alert-modal-title"
+                id="custom-alert-modal-title"
                 style={{
                   margin: 0,
                   fontSize: "15px",
@@ -224,13 +265,14 @@ export default function CustomAlertModal({
 
           {/* Close button */}
           <button
+            type="button"
             onClick={handleCancel}
             style={{
               background: "none",
               border: "none",
               cursor: "pointer",
               color: "#94a3b8",
-              padding: "4px",
+              padding: "6px",
               borderRadius: "8px",
               display: "flex",
               alignItems: "center",
@@ -246,6 +288,7 @@ export default function CustomAlertModal({
               (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
               (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8";
             }}
+            aria-label="Schließen"
           >
             <X style={{ width: "16px", height: "16px" }} />
           </button>
@@ -253,27 +296,65 @@ export default function CustomAlertModal({
 
         {/* Message body */}
         <div
+          id="custom-alert-modal-desc"
           style={{
-            padding: "4px 20px 20px 20px",
+            padding: "4px 20px 16px 20px",
             fontSize: "14px",
             color: "#475569",
             lineHeight: "1.6",
             fontWeight: 400,
+            whiteSpace: "pre-line",
           }}
         >
           {message}
         </div>
 
+        {/* Prompt Input field if type === 'prompt' */}
+        {type === "prompt" && (
+          <div style={{ padding: "0 20px 18px 20px" }}>
+            <input
+              ref={inputRef}
+              type={inputType}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder={inputPlaceholder}
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                fontSize: "14px",
+                borderRadius: "10px",
+                border: "1.5px solid #cbd5e1",
+                outline: "none",
+                color: "#0f172a",
+                backgroundColor: "#f8fafc",
+                transition: "all 0.15s ease",
+                boxSizing: "border-box",
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = cfg.accent;
+                e.currentTarget.style.backgroundColor = "#ffffff";
+                e.currentTarget.style.boxShadow = `0 0 0 3px ${cfg.accent}25`;
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = "#cbd5e1";
+                e.currentTarget.style.backgroundColor = "#f8fafc";
+                e.currentTarget.style.boxShadow = "none";
+              }}
+            />
+          </div>
+        )}
+
         {/* Divider */}
-        <div style={{ height: "1px", backgroundColor: "#f1f5f9", margin: "0 0" }} />
+        <div style={{ height: "1px", backgroundColor: "#f1f5f9", margin: 0 }} />
 
         {/* Action buttons */}
         <div
           style={{
-            padding: "16px 20px",
+            padding: "14px 20px",
             backgroundColor: "#f8fafc",
             display: "flex",
             justifyContent: "flex-end",
+            alignItems: "center",
             gap: "10px",
           }}
         >
@@ -282,7 +363,7 @@ export default function CustomAlertModal({
               type="button"
               onClick={handleCancel}
               style={{
-                padding: "9px 20px",
+                padding: "9px 18px",
                 borderRadius: "10px",
                 border: "1.5px solid #e2e8f0",
                 backgroundColor: "#ffffff",
@@ -309,7 +390,7 @@ export default function CustomAlertModal({
             type="button"
             onClick={handleConfirm}
             style={{
-              padding: "9px 24px",
+              padding: "9px 22px",
               borderRadius: "10px",
               border: "none",
               backgroundColor: cfg.confirmBg,
@@ -342,10 +423,11 @@ export default function CustomAlertModal({
           to   { opacity: 1; }
         }
         @keyframes alertScaleIn {
-          from { opacity: 0; transform: scale(0.85) translateY(8px); }
+          from { opacity: 0; transform: scale(0.88) translateY(6px); }
           to   { opacity: 1; transform: scale(1) translateY(0); }
         }
       `}</style>
     </div>
   );
 }
+

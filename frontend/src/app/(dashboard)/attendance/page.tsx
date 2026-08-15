@@ -26,6 +26,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { API_URL } from "../../../config/api";
+import { useDialog } from "../../components/DialogProvider";
 
 interface AttendanceRecord {
   id: string;
@@ -400,8 +401,17 @@ export default function AttendancePage() {
     }
   };
 
+  const dialog = useDialog();
+
   const handleDeleteRecord = async (recordId: string) => {
-    if (!window.confirm("Möchten Sie diesen Zeiterfassungs-Eintrag wirklich löschen?")) {
+    const confirmed = await dialog.confirm({
+      title: "Zeiterfassungs-Eintrag löschen",
+      message: "Möchten Sie diesen Zeiterfassungs-Eintrag wirklich löschen?",
+      type: "warning",
+      confirmText: "Löschen",
+      cancelText: "Abbrechen",
+    });
+    if (!confirmed) {
       return;
     }
     setSubmitting(true);
