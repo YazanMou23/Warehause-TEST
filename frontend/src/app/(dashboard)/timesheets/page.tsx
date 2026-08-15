@@ -787,6 +787,7 @@ function ReviewView({
         if (res.ok) {
           const json = await res.json();
           const list = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+          list.sort((a: any, b: any) => (a.name || "").localeCompare(b.name || "", "de", { sensitivity: "base" }));
           setDbEmployees(list);
         }
       } catch (e) {
@@ -1480,6 +1481,10 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
   const filtered = items.filter((item) => {
     const name = (item.employee?.name ?? item.employeeName).toLowerCase();
     return !filter || name.includes(filter.toLowerCase());
+  }).sort((a, b) => {
+    const nameA = a.employee?.name ?? a.employeeName ?? "";
+    const nameB = b.employee?.name ?? b.employeeName ?? "";
+    return nameA.localeCompare(nameB, "de", { sensitivity: "base" });
   });
 
   return (
@@ -1788,7 +1793,13 @@ function DailyAttendanceView() {
       });
       if (res.ok) {
         const json = await res.json();
-        setRecords(Array.isArray(json) ? json : []);
+        const list = Array.isArray(json) ? json : [];
+        list.sort((a: any, b: any) => {
+          const nameA = a.employee?.name || a.employeeName || '';
+          const nameB = b.employee?.name || b.employeeName || '';
+          return nameA.localeCompare(nameB, 'de', { sensitivity: 'base' });
+        });
+        setRecords(list);
       }
     } catch (e) {
       console.error('Fehler beim Laden der Tages-Anwesenheiten', e);
@@ -1811,7 +1822,9 @@ function DailyAttendanceView() {
         ]);
         if (empRes.ok) {
           const json = await empRes.json();
-          setDbEmployees(Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []));
+          const list = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+          list.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '', 'de', { sensitivity: 'base' }));
+          setDbEmployees(list);
         }
         if (whRes.ok) {
           const json = await whRes.json();

@@ -188,7 +188,9 @@ export default function AttendancePage() {
       const empRes = await fetch(`${API_URL}/employees`, { headers });
       const empJson = empRes.ok ? await empRes.json() : null;
       const empData = empJson && Array.isArray(empJson.data) ? empJson.data : (Array.isArray(empJson) ? empJson : []);
-      const nonAdmin = empData.filter((u: any) => u.role !== "ADMIN");
+      const nonAdmin = empData
+        .filter((u: any) => u.role !== "ADMIN")
+        .sort((a: any, b: any) => (a.name || "").localeCompare(b.name || "", "de", { sensitivity: "base" }));
       setEmployees(nonAdmin);
     } catch (err) {
       console.error("Failed to load metadata", err);
@@ -222,25 +224,30 @@ export default function AttendancePage() {
       const json = await res.json();
       const rawLogs = json.logs ?? [];
 
-      setLogs(
-        rawLogs.map((a: any) => ({
-          id: a.id,
-          employeeId: a.employeeId,
-          employeeName: a.employee?.name || "Unknown Staff",
-          employeePhone: a.employee?.phone || "",
-          warehouseId: a.warehouseId,
-          warehouseName: a.warehouse?.name || "Global Hub",
-          hallId: a.hallId,
-          hallName: a.hall?.name || "Main Staging",
-          clockIn: a.clockIn,
-          clockOut: a.clockOut,
-          totalHours: a.totalHours,
-          breakMinutes: a.breakMinutes ?? 0,
-          source: a.source ?? "MANUAL",
-          date: a.date ? a.date.split("T")[0] : "",
-          timesheetId: a.timesheetId || null,
-        }))
+      const parsedLogs = rawLogs.map((a: any) => ({
+        id: a.id,
+        employeeId: a.employeeId,
+        employeeName: a.employee?.name || "Unknown Staff",
+        employeePhone: a.employee?.phone || "",
+        warehouseId: a.warehouseId,
+        warehouseName: a.warehouse?.name || "Global Hub",
+        hallId: a.hallId,
+        hallName: a.hall?.name || "Main Staging",
+        clockIn: a.clockIn,
+        clockOut: a.clockOut,
+        totalHours: a.totalHours,
+        breakMinutes: a.breakMinutes ?? 0,
+        source: a.source ?? "MANUAL",
+        date: a.date ? a.date.split("T")[0] : "",
+        timesheetId: a.timesheetId || null,
+      }));
+
+      // Sort logs alphabetically A-Z by employee name
+      parsedLogs.sort((a: any, b: any) =>
+        (a.employeeName || "").localeCompare(b.employeeName || "", "de", { sensitivity: "base" })
       );
+
+      setLogs(parsedLogs);
     } catch (err) {
       console.error("Failed to load report logs", err);
       setMessage({ text: "Verbindung zum Server fehlgeschlagen. Zeige lokale Daten.", type: "error" });
@@ -456,11 +463,12 @@ export default function AttendancePage() {
     }
   };
 
-  // Grouped employees for weekly view
+  // Grouped employees for weekly view, explicitly sorted A-Z
   const displayEmployees = useMemo(() => {
-    return filterEmployeeId === "ALL"
+    const list = filterEmployeeId === "ALL"
       ? employees
       : employees.filter((e) => e.id === filterEmployeeId);
+    return [...list].sort((a, b) => (a.name || "").localeCompare(b.name || "", "de", { sensitivity: "base" }));
   }, [employees, filterEmployeeId]);
 
   return (
