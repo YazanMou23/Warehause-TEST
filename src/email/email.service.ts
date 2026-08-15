@@ -45,10 +45,49 @@ export class EmailService {
     return (await this.sendEmail(to, subject, html)) === true;
   }
 
+  /** Ensures frontend URL always has a valid protocol (https:// or http://) and no trailing slash */
+  private getFrontendUrl(): string {
+    let url = (this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001').trim();
+    url = url.replace(/\/+$/, '');
+    if (!/^https?:\/\//i.test(url)) {
+      url = (url.includes('localhost') || url.includes('127.0.0.1'))
+        ? `http://${url}`
+        : `https://${url}`;
+    }
+    return url;
+  }
+
+  /** Renders bulletproof email button that works across all mobile & desktop email clients */
+  private renderCtaButton(url: string, label = 'Zum Dashboard / Open Dashboard &rarr;'): string {
+    return `
+      <div style="text-align: center; margin: 32px 0 16px 0;">
+        <!--[if mso]>
+        <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${url}" style="height:50px;v-text-anchor:middle;width:300px;" arcsize="16%" stroke="f" fillcolor="#2563eb">
+          <w:anchorlock/>
+          <center style="color:#ffffff;font-family:'Segoe UI',Inter,sans-serif;font-size:15px;font-weight:bold;">${label}</center>
+        </v:roundrect>
+        <![endif]-->
+        <!--[if !mso]><!-->
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" align="center" style="margin: 0 auto; border-collapse: separate;">
+          <tr>
+            <td align="center" bgcolor="#2563eb" style="border-radius: 8px; background-color: #2563eb;">
+              <a href="${url}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 14px 32px; font-family: 'Segoe UI', Inter, Helvetica, Arial, sans-serif; font-size: 15px; font-weight: 700; color: #ffffff !important; text-decoration: none; border-radius: 8px; border: 1px solid #2563eb; background-color: #2563eb; box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3);">
+                ${label}
+              </a>
+            </td>
+          </tr>
+        </table>
+        <!--<![endif]-->
+      </div>
+      <p style="text-align: center; font-size: 12px; color: #64748b; margin: 12px 0 0 0; line-height: 1.5;">
+        Klicken Sie auf den Button, um Ihren vollständigen Schichtplan im Portal anzuzeigen.<br/>
+        <a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: underline; font-size: 12px; font-weight: 600; word-break: break-all;">${url}</a>
+      </p>
+    `;
+  }
+
   async sendPlanNotification(email: string, planDetails: any): Promise<string | true> {
-    const rawFrontendUrl =
-      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001';
-    const frontendUrl = rawFrontendUrl.replace(/\/+$/, '');
+    const frontendUrl = this.getFrontendUrl();
     
     const employeeName = planDetails.employeeName || planDetails.name || 'Mitarbeiter';
     const date = planDetails.date || 'Nicht angegeben';
@@ -222,15 +261,7 @@ export class EmailService {
         </div>
 
         <!-- Call to Action Button (Dashboard) -->
-        <div style="text-align: center; margin-top: 32px; margin-bottom: 12px;">
-          <a href="${frontendUrl}" class="btn-primary" style="display: inline-block; background-color: #2563eb; color: #ffffff; font-weight: 700; font-size: 15px; text-decoration: none; padding: 14px 32px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3);">
-            Zum Dashboard / Open Dashboard &rarr;
-          </a>
-        </div>
-        <p style="text-align: center; font-size: 12px; color: #64748b; margin-top: 12px;">
-          Klicken Sie auf den Button, um Ihren vollständigen Schichtplan im Portal anzuzeigen.<br/>
-          <a href="${frontendUrl}" style="color: #2563eb; text-decoration: underline; font-size: 11px;">${frontendUrl}</a>
-        </p>
+        ${this.renderCtaButton(frontendUrl, 'Zum Dashboard / Open Dashboard &rarr;')}
       </div>
       
       <!-- Footer Section -->
@@ -247,9 +278,7 @@ export class EmailService {
   }
 
   async sendPlanRemovalNotification(email: string, planDetails: any): Promise<string | true> {
-    const rawFrontendUrl =
-      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001';
-    const frontendUrl = rawFrontendUrl.replace(/\/+$/, '');
+    const frontendUrl = this.getFrontendUrl();
     
     const employeeName = planDetails.employeeName || 'Mitarbeiter';
     const date = planDetails.date || 'Nicht angegeben';
@@ -322,14 +351,7 @@ export class EmailService {
           <strong>📝 Notizen:</strong> ${notes}
         </div>
 
-        <div style="text-align: center; margin-top: 32px; margin-bottom: 12px;">
-          <a href="${frontendUrl}" class="btn-primary" style="display: inline-block; background-color: #2563eb; color: #ffffff; font-weight: 700; font-size: 15px; text-decoration: none; padding: 14px 32px; border-radius: 8px;">
-            Zum Dashboard / Open Dashboard &rarr;
-          </a>
-        </div>
-        <p style="text-align: center; font-size: 12px; color: #64748b; margin-top: 12px;">
-          <a href="${frontendUrl}" style="color: #2563eb; text-decoration: underline; font-size: 11px;">${frontendUrl}</a>
-        </p>
+        ${this.renderCtaButton(frontendUrl, 'Zum Dashboard / Open Dashboard &rarr;')}
       </div>
       
       <div style="background-color: #f1f5f9; padding: 20px 24px; text-align: center; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 12px;">
@@ -344,9 +366,7 @@ export class EmailService {
   }
 
   async sendPlanDeletionNotification(email: string, planDetails: any): Promise<string | true> {
-    const rawFrontendUrl =
-      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001';
-    const frontendUrl = rawFrontendUrl.replace(/\/+$/, '');
+    const frontendUrl = this.getFrontendUrl();
     
     const employeeName = planDetails.employeeName || 'Mitarbeiter';
     const date = planDetails.date || 'Nicht angegeben';
@@ -419,14 +439,7 @@ export class EmailService {
           <strong>📝 Hinweis:</strong> ${notes}
         </div>
 
-        <div style="text-align: center; margin-top: 32px; margin-bottom: 12px;">
-          <a href="${frontendUrl}" class="btn-primary" style="display: inline-block; background-color: #2563eb; color: #ffffff; font-weight: 700; font-size: 15px; text-decoration: none; padding: 14px 32px; border-radius: 8px;">
-            Zum Dashboard / Open Dashboard &rarr;
-          </a>
-        </div>
-        <p style="text-align: center; font-size: 12px; color: #64748b; margin-top: 12px;">
-          <a href="${frontendUrl}" style="color: #2563eb; text-decoration: underline; font-size: 11px;">${frontendUrl}</a>
-        </p>
+        ${this.renderCtaButton(frontendUrl, 'Zum Dashboard / Open Dashboard &rarr;')}
       </div>
       
       <div style="background-color: #f1f5f9; padding: 20px 24px; text-align: center; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 12px;">
@@ -446,9 +459,7 @@ export class EmailService {
     message: string,
     senderName = 'LogiFlow',
   ): Promise<string | true> {
-    const rawFrontendUrl =
-      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001';
-    const frontendUrl = rawFrontendUrl.replace(/\/+$/, '');
+    const frontendUrl = this.getFrontendUrl();
     const html = `
       <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: auto; background-color: #0d1117; color: #e2e8f0; border-radius: 12px; overflow: hidden; border: 1px solid #1e293b;">
         <!-- Header -->
@@ -481,24 +492,18 @@ export class EmailService {
   }
 
   async sendWelcomeEmail(email: string, name: string): Promise<boolean> {
-    const rawFrontendUrl =
-      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001';
-    const frontendUrl = rawFrontendUrl.replace(/\/+$/, '');
+    const frontendUrl = this.getFrontendUrl();
     const subject = 'Willkommen bei LogiFlow';
     const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-        <h2 style="color: #6200EE;">Willkommen bei LogiFlow!</h2>
-        <p>Hallo ${name},</p>
+      <div style="font-family: 'Segoe UI', Inter, Helvetica, Arial, sans-serif; max-width: 600px; margin: auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; color: #1e293b;">
+        <h2 style="color: #2563eb; margin-top: 0;">Willkommen bei LogiFlow!</h2>
+        <p>Hallo <strong>${name}</strong>,</p>
         <p>Ihr Account im LogiFlow Warehouse Management System wurde erfolgreich erstellt.</p>
         <p>Sie können sich nun unter Verwendung Ihrer Telefonnummer und Ihres Passworts einloggen.</p>
-        <div style="text-align: center; margin: 24px 0;">
-          <a href="${frontendUrl}" style="display: inline-block; background-color: #2563eb; color: #ffffff; font-weight: 700; font-size: 15px; text-decoration: none; padding: 14px 32px; border-radius: 8px;">
-            Zum Dashboard / Login &rarr;
-          </a>
-        </div>
-        <p style="margin-top: 20px;">Wir freuen uns auf die Zusammenarbeit!</p>
-        <hr style="border: none; border-top: 1px solid #eee; margin-top: 30px;" />
-        <p style="font-size: 12px; color: #888; text-align: center;">Dies ist eine automatisierte Nachricht von LogiFlow.</p>
+        ${this.renderCtaButton(frontendUrl, 'Zum Dashboard / Login &rarr;')}
+        <p style="margin-top: 20px; font-size: 14px; color: #64748b;">Wir freuen uns auf die Zusammenarbeit!</p>
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin-top: 24px;" />
+        <p style="font-size: 11px; color: #94a3b8; text-align: center;">Dies ist eine automatisierte Nachricht von LogiFlow.</p>
       </div>
     `;
     return this.sendEmailBool(email, subject, html);

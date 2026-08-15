@@ -148,8 +148,12 @@ export class AuthService {
       },
     });
 
-    const frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001';
+    let frontendUrl = (this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001').trim().replace(/\/+$/, '');
+    if (!/^https?:\/\//i.test(frontendUrl)) {
+      frontendUrl = (frontendUrl.includes('localhost') || frontendUrl.includes('127.0.0.1'))
+        ? `http://${frontendUrl}`
+        : `https://${frontendUrl}`;
+    }
     const resetUrl = `${frontendUrl}/reset-password?token=${rawToken}`;
 
     // Send reset email (fire-and-forget — don't fail the request if email fails)
