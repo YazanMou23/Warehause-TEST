@@ -320,23 +320,24 @@ function UploadZone({
       className="flex flex-col gap-6 items-center w-full"
     >
       {/* Action Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-5xl">
         
         {/* 1. Direct Printer Scanner Action Card */}
         <div className="relative rounded-2xl border border-blue-200 bg-blue-50/40 p-6 flex flex-col justify-between items-center text-center shadow-sm hover:border-blue-300 transition-all group">
           {/* Status dot + badge */}
-          <div className="absolute top-3 right-3 flex items-center gap-1.5">
+          <div className="absolute top-4 right-4 flex items-center gap-2">
             {statusResult && (
-              <span className={`w-2 h-2 rounded-full animate-pulse ${
+              <span className={`w-2.5 h-2.5 rounded-full animate-pulse ${
                 statusResult.online ? 'bg-emerald-500' : 'bg-red-500'
               }`} />
             )}
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold border border-blue-200">
-              <Printer size={12} /> WLAN / USB
+            <span className="flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold border border-blue-200 shadow-xs">
+              <Printer size={13} className="shrink-0" />
+              <span>WLAN / USB</span>
             </span>
           </div>
 
-          <div className="p-4 rounded-2xl bg-blue-100 text-blue-600 border border-blue-200 mt-2 mb-3 group-hover:scale-105 transition-transform">
+          <div className="p-4 rounded-2xl bg-blue-100 text-blue-600 border border-blue-200 mt-8 mb-4 group-hover:scale-105 transition-transform">
             <Printer size={40} />
           </div>
 
@@ -415,11 +416,12 @@ function UploadZone({
             }
           `}
         >
-          <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-200/80 text-slate-700 text-xs font-semibold border border-slate-300">
-            <Upload size={12} /> Datei-Upload
+          <div className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1 rounded-full bg-slate-200/80 text-slate-700 text-xs font-semibold border border-slate-300">
+            <Upload size={12} />
+            <span>Datei-Upload</span>
           </div>
 
-          <div className={`p-4 rounded-2xl transition-colors mt-2 mb-4 ${isDragOver ? 'bg-blue-100 text-blue-600' : 'bg-slate-200/60 text-slate-600'}`}>
+          <div className={`p-4 rounded-2xl transition-colors mt-8 mb-4 ${isDragOver ? 'bg-blue-100 text-blue-600' : 'bg-slate-200/60 text-slate-600'}`}>
             <ScanLine size={44} className={isDragOver ? 'text-blue-600' : 'text-slate-600'} />
           </div>
 
@@ -463,11 +465,12 @@ function UploadZone({
           onClick={() => !isLoading && cameraRef.current?.click()}
           className="relative cursor-pointer rounded-2xl border-2 border-dashed border-emerald-300 bg-emerald-50/40 p-6 flex flex-col justify-between items-center text-center shadow-sm hover:border-emerald-400 transition-all group"
         >
-          <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-200">
-            <Camera size={12} /> Kamera
+          <div className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-200">
+            <Camera size={12} />
+            <span>Kamera</span>
           </div>
 
-          <div className="p-4 rounded-2xl bg-emerald-100 text-emerald-600 border border-emerald-200 mt-2 mb-4 group-hover:scale-105 transition-transform">
+          <div className="p-4 rounded-2xl bg-emerald-100 text-emerald-600 border border-emerald-200 mt-8 mb-4 group-hover:scale-105 transition-transform">
             <Camera size={44} />
           </div>
 
@@ -1482,22 +1485,22 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
   return (
     <div className="flex flex-col gap-4">
       {/* Search Bar & Filters Header */}
-      <div className="flex flex-wrap gap-3 items-center justify-between bg-white/5 p-4 rounded-2xl border border-white/10">
+      <div className="flex flex-wrap gap-3 items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-sm">
         
-        {/* Mitarbeiter Search Bar */}
+        {/* Mitarbeiter Search Bar without border */}
         <div className="relative flex-1 min-w-[240px]">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-blue-400" />
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-blue-500" />
           <input
             type="text"
             placeholder="Mitarbeiter-Name in Stundenzetteln suchen..."
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white/8 border border-white/15 rounded-xl text-white placeholder-slate-400 text-sm focus:outline-none focus:border-blue-400/60 transition-colors"
+            className="w-full pl-10 pr-4 py-2.5 bg-white border-0 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-0 shadow-sm"
           />
           {filter && (
             <button
               onClick={() => setFilter('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
             >
               <X size={14} />
             </button>
@@ -1509,20 +1512,21 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3.5 py-2.5 bg-white/8 border border-white/15 rounded-xl text-white text-sm focus:outline-none focus:border-blue-400/60"
+            className="px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 text-sm focus:outline-none focus:border-blue-400 shadow-sm"
           >
-            <option value="" className="bg-slate-900">Alle Status (Gesamt)</option>
-            <option value="PENDING_REVIEW" className="bg-slate-900">Ausstehend (PENDING_REVIEW)</option>
-            <option value="CONFIRMED" className="bg-slate-900">Bestätigt (CONFIRMED)</option>
+            <option value="">Alle Status (Gesamt)</option>
+            <option value="PENDING_REVIEW">Ausstehend (PENDING_REVIEW)</option>
+            <option value="CONFIRMED">Bestätigt (CONFIRMED)</option>
           </select>
 
+          {/* Aktualisieren button with NO hover color change */}
           <button
             onClick={loadList}
             disabled={loading}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white/8 border border-white/15 rounded-xl text-slate-300 hover:text-white text-sm font-medium transition-colors hover:bg-white/12"
+            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 text-sm font-medium shadow-sm cursor-pointer disabled:opacity-50"
             title="Liste neu laden"
           >
-            <RefreshCw size={14} className={loading ? 'animate-spin text-blue-400' : ''} />
+            <RefreshCw size={14} className={loading ? 'animate-spin text-blue-500' : 'text-slate-500'} />
             <span>Aktualisieren</span>
           </button>
         </div>
@@ -1530,21 +1534,21 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
 
       {/* List Content */}
       {loading && items.length === 0 ? (
-        <div className="flex items-center justify-center py-16 gap-3 text-slate-400">
-          <Loader2 size={24} className="animate-spin text-blue-400" />
+        <div className="flex items-center justify-center py-16 gap-3 text-slate-500">
+          <Loader2 size={24} className="animate-spin text-blue-500" />
           <span>Stundenzettel werden geladen...</span>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16 text-slate-500 bg-white/3 border border-white/10 rounded-2xl">
-          <FileText size={36} className="mx-auto mb-3 opacity-40 text-blue-400" />
-          <p className="text-slate-300 font-medium mb-1">Keine Stundenzettel gefunden</p>
+        <div className="text-center py-16 text-slate-500 bg-slate-50 border border-slate-200 rounded-2xl shadow-sm">
+          <FileText size={36} className="mx-auto mb-3 opacity-40 text-blue-500" />
+          <p className="text-slate-800 font-semibold mb-1">Keine Stundenzettel gefunden</p>
           <p className="text-slate-500 text-xs">
             {filter ? `Keine Ergebnisse für "${filter}"` : 'Lade einen Stundenzettel per Scanner oder Foto hoch.'}
           </p>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          <div className="text-xs text-slate-400 px-1 font-mono flex items-center justify-between">
+          <div className="text-xs text-slate-500 px-1 font-mono flex items-center justify-between">
             <span>{filtered.length} Stundenzettel gefunden</span>
             <span>Klicke auf den Pfeil zum Aufklappen der Tagesstunden</span>
           </div>
@@ -1557,24 +1561,24 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
                 layout
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="flex flex-col bg-white/5 border border-white/10 rounded-2xl hover:border-blue-400/40 transition-colors overflow-hidden group"
+                className="flex flex-col bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-blue-300 transition-colors overflow-hidden group"
               >
                 {/* Header Row */}
                 <div className="flex items-center gap-4 p-4">
                   {/* Numeric Index Badge (#1, #2, #3...) */}
-                  <div className="w-8 h-8 rounded-xl bg-blue-500/15 border border-blue-400/30 text-blue-300 font-mono font-bold text-xs flex items-center justify-center shrink-0">
+                  <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 font-mono font-bold text-xs flex items-center justify-center shrink-0">
                     #{index + 1}
                   </div>
 
                   {/* Timesheet Employee info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="text-white font-semibold text-sm truncate">
+                      <p className="text-slate-900 font-semibold text-sm truncate">
                         {item.employee?.name ?? item.employeeName}
                       </p>
                       <StatusBadge status={item.status} />
                     </div>
-                    <p className="text-slate-400 text-xs flex items-center gap-3">
+                    <p className="text-slate-500 text-xs flex items-center gap-3">
                       <span>📅 {getWeekRange(item.weekStartDate)}</span>
                       <span>⏱️ {item.entryCount} Tage ({item.totalHours.toFixed(2)} h)</span>
                     </p>
@@ -1585,7 +1589,7 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
                     {/* Expand Details Button */}
                     <button
                       onClick={() => setExpandedId(isExpanded ? null : item.id)}
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/8 hover:bg-white/15 text-slate-300 transition-colors text-xs font-medium"
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors text-xs font-medium cursor-pointer"
                     >
                       <span>Tageszeiten</span>
                       {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -1597,7 +1601,7 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
                         setEditingItem(item);
                         setEditEmployeeName(item.employee?.name ?? item.employeeName);
                       }}
-                      className="p-1.5 rounded-lg bg-blue-500/15 text-blue-300 hover:bg-blue-500/25 border border-blue-500/30 transition-colors"
+                      className="p-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors cursor-pointer"
                       title="Name / Daten bearbeiten"
                     >
                       <Edit size={14} />
@@ -1608,7 +1612,7 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
                         <button
                           onClick={() => downloadFile(item.id, 'pdf')}
                           disabled={downloading?.id === item.id}
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-500/15 text-red-300 hover:bg-red-500/25 border border-red-500/30 transition-colors text-xs"
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 transition-colors text-xs cursor-pointer"
                           title="PDF Herunterladen"
                         >
                           {downloading?.id === item.id && downloading.fmt === 'pdf'
@@ -1619,7 +1623,7 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
                         <button
                           onClick={() => downloadFile(item.id, 'xlsx')}
                           disabled={downloading?.id === item.id}
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/30 transition-colors text-xs"
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors text-xs cursor-pointer"
                           title="Excel Herunterladen"
                         >
                           {downloading?.id === item.id && downloading.fmt === 'xlsx'
@@ -1634,7 +1638,7 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
                       <button
                         onClick={() => deleteItem(item.id)}
                         disabled={deleting === item.id}
-                        className="p-1.5 rounded-lg bg-red-500/15 text-red-300 hover:bg-red-500/25 border border-red-500/30 transition-colors"
+                        className="p-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 transition-colors cursor-pointer"
                         title="Löschen"
                       >
                         {deleting === item.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
@@ -1650,13 +1654,13 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
-                      className="bg-black/30 border-t border-white/10 p-4"
+                      className="bg-slate-50 border-t border-slate-200 p-4"
                     >
-                      <h4 className="text-xs font-bold text-blue-300 mb-2 flex items-center gap-1.5">
+                      <h4 className="text-xs font-bold text-blue-700 mb-2 flex items-center gap-1.5">
                         <Clock size={12} /> Detaillierte Tagesstunden für {item.employee?.name ?? item.employeeName}:
                       </h4>
 
-                      <div className="grid grid-cols-[40px_100px_90px_70px_70px_70px_70px_1fr] gap-2 py-1.5 px-3 bg-white/5 rounded-lg text-xs font-semibold text-slate-400">
+                      <div className="grid grid-cols-[40px_100px_90px_70px_70px_70px_70px_1fr] gap-2 py-1.5 px-3 bg-slate-200/70 rounded-lg text-xs font-semibold text-slate-700">
                         <div>#</div>
                         <div>Tag</div>
                         <div>Datum</div>
@@ -1667,20 +1671,20 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
                         <div>Ort</div>
                       </div>
 
-                      <div className="divide-y divide-white/5">
+                      <div className="divide-y divide-slate-200">
                         {item.entries.map((entry, eIdx) => (
                           <div
                             key={entry.id || eIdx}
-                            className="grid grid-cols-[40px_100px_90px_70px_70px_70px_70px_1fr] gap-2 py-2 px-3 text-xs items-center text-slate-300 hover:bg-white/5 transition-colors font-mono"
+                            className="grid grid-cols-[40px_100px_90px_70px_70px_70px_70px_1fr] gap-2 py-2 px-3 text-xs items-center text-slate-800 hover:bg-slate-100 transition-colors font-mono"
                           >
-                            <div className="font-bold text-blue-400">#{eIdx + 1}</div>
-                            <div className="font-sans font-medium text-white">{entry.weekday}</div>
+                            <div className="font-bold text-blue-600">#{eIdx + 1}</div>
+                            <div className="font-sans font-medium text-slate-900">{entry.weekday}</div>
                             <div>{formatDate(entry.date)}</div>
-                            <div className="text-emerald-300 font-semibold">{entry.startTime || '—'}</div>
-                            <div className="text-slate-300">{entry.endTime || '—'}</div>
+                            <div className="text-emerald-700 font-semibold">{entry.startTime || '—'}</div>
+                            <div className="text-slate-700">{entry.endTime || '—'}</div>
                             <div>{entry.breakMinutes ? `${entry.breakMinutes}m` : '0m'}</div>
-                            <div className="font-bold text-blue-300">{entry.totalHours ? `${entry.totalHours.toFixed(2)}h` : '0h'}</div>
-                            <div className="font-sans text-slate-400 truncate">{entry.location || 'Standard-Lager'}</div>
+                            <div className="font-bold text-blue-700">{entry.totalHours ? `${entry.totalHours.toFixed(2)}h` : '0h'}</div>
+                            <div className="font-sans text-slate-600 truncate">{entry.location || 'Standard-Lager'}</div>
                           </div>
                         ))}
                       </div>
@@ -1695,25 +1699,25 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
 
       {/* Edit Employee Name Modal */}
       {editingItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="bg-slate-900 border border-white/15 rounded-2xl p-6 max-w-md w-full shadow-2xl">
-            <h3 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
-              <Edit size={18} className="text-blue-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <h3 className="text-slate-900 font-bold text-lg mb-4 flex items-center gap-2">
+              <Edit size={18} className="text-blue-600" />
               Mitarbeiter-Name im Stundenzettel bearbeiten
             </h3>
 
             <div className="space-y-4 mb-6">
               <div>
-                <label className="text-xs text-slate-400 block mb-1">Mitarbeiter Name</label>
+                <label className="text-xs text-slate-600 font-medium block mb-1">Mitarbeiter Name</label>
                 <input
                   type="text"
                   value={editEmployeeName}
                   onChange={(e) => setEditEmployeeName(e.target.value)}
-                  className="w-full px-3 py-2 bg-white/10 border border-white/15 rounded-xl text-white text-sm focus:outline-none focus:border-blue-400"
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-blue-500 shadow-sm"
                 />
               </div>
 
-              <div className="p-3 bg-white/5 rounded-xl text-xs text-slate-400">
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600">
                 <p><strong>Stundenzettel KW:</strong> {getKw(editingItem.weekStartDate)}</p>
                 <p><strong>Status:</strong> {editingItem.status}</p>
               </div>
@@ -1722,14 +1726,14 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setEditingItem(null)}
-                className="px-4 py-2 rounded-xl bg-white/10 text-slate-300 hover:text-white text-sm"
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm cursor-pointer"
               >
                 Abbrechen
               </button>
               <button
                 onClick={saveEdit}
                 disabled={savingEdit}
-                className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm"
+                className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm cursor-pointer"
               >
                 {savingEdit ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
                 <span>Speichern</span>
@@ -1941,41 +1945,41 @@ function DailyAttendanceView() {
   return (
     <div className="flex flex-col gap-4">
       {/* Date selector and stats bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-white/5 p-4 rounded-2xl border border-white/10">
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-sm">
         <div className="flex items-center gap-3">
-          <Calendar size={18} className="text-blue-400" />
-          <span className="text-white font-semibold text-sm">Datum wählen:</span>
+          <Calendar size={18} className="text-blue-600" />
+          <span className="text-slate-900 font-semibold text-sm">Datum wählen:</span>
           <input
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="px-3 py-1.5 bg-white/8 border border-white/15 rounded-xl text-white text-sm focus:outline-none focus:border-blue-400 font-mono"
+            className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-blue-500 font-mono shadow-sm"
           />
           <button
             onClick={loadDailyAttendance}
             disabled={loading}
-            className="p-2 rounded-xl bg-white/8 hover:bg-white/12 text-slate-300 transition-colors"
+            className="p-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-sm transition-colors cursor-pointer"
             title="Aktualisieren"
           >
-            <RefreshCw size={14} className={loading ? 'animate-spin text-blue-400' : ''} />
+            <RefreshCw size={14} className={loading ? 'animate-spin text-blue-500' : 'text-slate-500'} />
           </button>
         </div>
 
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-4 text-xs font-mono">
-            <div className="px-3 py-1.5 rounded-xl bg-blue-500/15 border border-blue-400/30 text-blue-300">
+            <div className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 font-semibold">
               <Users size={12} className="inline mr-1.5" />
-              Mitarbeiter am Tag: <strong className="text-white">{records.length}</strong>
+              Mitarbeiter am Tag: <strong className="text-blue-900">{records.length}</strong>
             </div>
-            <div className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-400/30 text-emerald-300">
+            <div className="px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold">
               <Clock size={12} className="inline mr-1.5" />
-              Gesamte Schichtstunden: <strong className="text-white">{totalShiftHours.toFixed(2)} h</strong>
+              Gesamte Schichtstunden: <strong className="text-emerald-900">{totalShiftHours.toFixed(2)} h</strong>
             </div>
           </div>
 
           <button
             onClick={() => setShowManualModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-md transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-sm transition-colors cursor-pointer"
           >
             <Plus size={14} />
             <span>Manuelle Schicht eintragen</span>
@@ -1991,27 +1995,27 @@ function DailyAttendanceView() {
           placeholder="Mitarbeiter oder Lager an diesem Tag filtern..."
           value={searchFilter}
           onChange={(e) => setSearchFilter(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 bg-white/8 border border-white/15 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-400"
+          className="w-full pl-10 pr-4 py-2.5 bg-white border-0 shadow-sm rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-0"
         />
       </div>
 
       {/* Daily Shift Table */}
       {loading ? (
-        <div className="flex items-center justify-center py-16 gap-3 text-slate-400">
-          <Loader2 size={24} className="animate-spin text-blue-400" />
+        <div className="flex items-center justify-center py-16 gap-3 text-slate-500">
+          <Loader2 size={24} className="animate-spin text-blue-500" />
           <span>Tages-Anwesenheiten werden geladen...</span>
         </div>
       ) : filteredRecords.length === 0 ? (
-        <div className="text-center py-16 text-slate-500 bg-white/3 border border-white/10 rounded-2xl">
-          <Users size={36} className="mx-auto mb-3 opacity-40 text-blue-400" />
-          <p className="text-slate-300 font-medium mb-1">Keine Arbeitszeiten für den {formatDate(selectedDate)} eingetragen</p>
+        <div className="text-center py-16 text-slate-500 bg-slate-50 border border-slate-200 rounded-2xl shadow-sm">
+          <Users size={36} className="mx-auto mb-3 opacity-40 text-blue-500" />
+          <p className="text-slate-900 font-semibold mb-1">Keine Arbeitszeiten für den {formatDate(selectedDate)} eingetragen</p>
           <p className="text-slate-500 text-xs">Wähle ein anderes Datum oder erstelle/bestätige Stundenzettel für diesen Tag.</p>
         </div>
       ) : (
-        <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden shadow-lg overflow-x-auto">
+        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[700px]">
             <thead>
-              <tr className="bg-white/8 border-b border-white/10 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              <tr className="bg-slate-100 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 <th className="w-12 px-4 py-3 text-center">#</th>
                 <th className="px-4 py-3">Mitarbeiter Name</th>
                 <th className="px-4 py-3">Einsatzort (Lager / Halle)</th>
@@ -2021,7 +2025,7 @@ function DailyAttendanceView() {
                 <th className="px-4 py-3 text-right">Aktion</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5 text-sm text-slate-200">
+            <tbody className="divide-y divide-slate-200 text-sm text-slate-800">
               {filteredRecords.map((rec, idx) => {
                 const isEditing = editingId === rec.id;
                 const clockInTime = rec.clockIn ? new Date(rec.clockIn).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '—';
@@ -2031,11 +2035,11 @@ function DailyAttendanceView() {
 
                 if (isEditing) {
                   return (
-                    <tr key={rec.id} className="bg-blue-950/30 border-y border-blue-500/30">
-                      <td className="px-4 py-3 font-mono font-bold text-xs text-center text-blue-300">
+                    <tr key={rec.id} className="bg-blue-50/70 border-y border-blue-200">
+                      <td className="px-4 py-3 font-mono font-bold text-xs text-center text-blue-700">
                         #{idx + 1}
                       </td>
-                      <td className="px-4 py-3 font-semibold text-white">
+                      <td className="px-4 py-3 font-semibold text-slate-900">
                         {rec.employee?.name || 'Mitarbeiter'}
                       </td>
                       <td className="px-4 py-3 space-y-1.5">
@@ -2046,7 +2050,7 @@ function DailyAttendanceView() {
                             const hls = halls.filter(h => h.warehouseId === e.target.value);
                             if (hls.length > 0) setEditHallId(hls[0].id);
                           }}
-                          className="w-full px-2 py-1 bg-slate-900 border border-white/20 rounded text-xs text-white outline-none"
+                          className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs text-slate-900 outline-none shadow-sm"
                         >
                           <option value="" disabled>Lager wählen...</option>
                           {warehouses.map(w => (
@@ -2056,7 +2060,7 @@ function DailyAttendanceView() {
                         <select
                           value={editHallId}
                           onChange={(e) => setEditHallId(e.target.value)}
-                          className="w-full px-2 py-1 bg-slate-900 border border-white/20 rounded text-xs text-white outline-none"
+                          className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs text-slate-900 outline-none shadow-sm"
                         >
                           <option value="" disabled>Halle wählen...</option>
                           {filteredHalls.map(h => (
@@ -2069,35 +2073,35 @@ function DailyAttendanceView() {
                           type="date"
                           value={editDate}
                           onChange={(e) => setEditDate(e.target.value)}
-                          className="w-full px-2 py-1 bg-slate-900 border border-white/20 rounded text-xs text-white outline-none"
+                          className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs text-slate-900 outline-none shadow-sm"
                         />
                         <div className="flex items-center gap-1">
                           <input
                             type="time"
                             value={editStartTime}
                             onChange={(e) => setEditStartTime(e.target.value)}
-                            className="w-20 px-1.5 py-1 bg-slate-900 border border-white/20 rounded text-xs text-emerald-300 outline-none"
+                            className="w-20 px-1.5 py-1 bg-white border border-slate-300 rounded text-xs text-emerald-700 outline-none shadow-sm font-semibold"
                           />
-                          <span>-</span>
+                          <span className="text-slate-500">-</span>
                           <input
                             type="time"
                             value={editEndTime}
                             onChange={(e) => setEditEndTime(e.target.value)}
-                            className="w-20 px-1.5 py-1 bg-slate-900 border border-white/20 rounded text-xs text-slate-300 outline-none"
+                            className="w-20 px-1.5 py-1 bg-white border border-slate-300 rounded text-xs text-slate-700 outline-none shadow-sm"
                           />
                         </div>
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs font-bold text-blue-300">
+                      <td className="px-4 py-3 font-mono text-xs font-bold text-blue-700">
                         {editEndTime ? `${calculateHours(editStartTime, editEndTime, rec.breakMinutes || 30).toFixed(2)} h` : '—'}
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-xs text-amber-400 font-semibold">Bearbeiten...</span>
+                        <span className="text-xs text-amber-700 font-semibold">Bearbeiten...</span>
                       </td>
                       <td className="px-4 py-3 text-right space-x-1">
                         <button
                           onClick={() => handleSaveEdit(rec)}
                           disabled={savingRecord}
-                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded text-xs inline-flex items-center gap-1"
+                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded text-xs inline-flex items-center gap-1 cursor-pointer"
                           title="Speichern"
                         >
                           {savingRecord ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle size={12} />}
@@ -2105,7 +2109,7 @@ function DailyAttendanceView() {
                         </button>
                         <button
                           onClick={() => setEditingId(null)}
-                          className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-slate-300 rounded text-xs"
+                          className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-xs cursor-pointer"
                           title="Abbrechen"
                         >
                           <X size={12} />
@@ -2116,42 +2120,42 @@ function DailyAttendanceView() {
                 }
 
                 return (
-                  <tr key={rec.id} className="hover:bg-white/4 transition-colors">
-                    <td className="px-4 py-3 font-mono font-bold text-xs text-center text-blue-300">
+                  <tr key={rec.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3 font-mono font-bold text-xs text-center text-blue-700">
                       #{idx + 1}
                     </td>
 
-                    <td className="px-4 py-3 font-semibold text-white">
+                    <td className="px-4 py-3 font-semibold text-slate-900">
                       {rec.employee?.name || 'Mitarbeiter'}
                     </td>
 
-                    <td className="px-4 py-3 text-xs text-slate-300">
-                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-white/8 border border-white/10">
-                        <MapPin size={11} className="text-blue-400" />
+                    <td className="px-4 py-3 text-xs text-slate-600">
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-100 border border-slate-200 font-medium">
+                        <MapPin size={11} className="text-blue-600" />
                         {rec.warehouse?.name || 'Lager'} — {rec.hall?.name || 'Halle'}
                       </span>
                     </td>
 
-                    <td className="px-4 py-3 font-mono text-xs text-slate-300">
-                      <span className="block font-sans text-slate-400 text-[11px] mb-0.5">{formatDate(rec.date || selectedDate)}</span>
-                      <span className="text-emerald-300 font-semibold">{clockInTime} Uhr</span> — {isWorkingNow ? (
-                        <span className="text-amber-400 font-medium">Aktiv</span>
+                    <td className="px-4 py-3 font-mono text-xs text-slate-700">
+                      <span className="block font-sans text-slate-500 text-[11px] mb-0.5">{formatDate(rec.date || selectedDate)}</span>
+                      <span className="text-emerald-700 font-semibold">{clockInTime} Uhr</span> — {isWorkingNow ? (
+                        <span className="text-amber-700 font-medium">Aktiv</span>
                       ) : (
                         `${clockOutTime} Uhr`
                       )}
                     </td>
 
-                    <td className="px-4 py-3 font-mono text-xs font-bold text-blue-300">
+                    <td className="px-4 py-3 font-mono text-xs font-bold text-blue-700">
                       {rec.totalHours ? `${rec.totalHours.toFixed(2)} h` : '—'}
                     </td>
 
                     <td className="px-4 py-3">
                       {isWorkingNow ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
                           <Clock size={10} /> Aktiv
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
                           <CheckCircle size={10} /> Beendet
                         </span>
                       )}
@@ -2160,7 +2164,7 @@ function DailyAttendanceView() {
                     <td className="px-4 py-3 text-right">
                       <button
                         onClick={() => startEditing(rec)}
-                        className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-blue-400 hover:text-blue-300 transition-colors inline-flex items-center gap-1 text-xs"
+                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-blue-700 transition-colors inline-flex items-center gap-1 text-xs font-medium cursor-pointer"
                         title="Bearbeiten (Lager, Halle, Datum, Zeiten)"
                       >
                         <Edit size={13} />
@@ -2177,24 +2181,24 @@ function DailyAttendanceView() {
 
       {/* Manual Shift Modal */}
       {showManualModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="bg-slate-900 border border-white/15 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            <h3 className="text-white font-bold text-base flex items-center gap-2">
-              <Plus size={16} className="text-blue-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <h3 className="text-slate-900 font-bold text-base flex items-center gap-2">
+              <Plus size={16} className="text-blue-600" />
               Manuelle Schicht eintragen ({formatDate(selectedDate)})
             </h3>
 
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-slate-400 block mb-1">Mitarbeiter wählen</label>
+                <label className="text-xs text-slate-600 font-medium block mb-1">Mitarbeiter wählen</label>
                 <select
                   value={manualEmpId}
                   onChange={(e) => setManualEmpId(e.target.value)}
-                  className="w-full px-3 py-2 bg-white/10 border border-white/15 rounded-xl text-white text-xs outline-none"
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs outline-none shadow-sm"
                 >
-                  <option value="" className="bg-slate-900">Mitarbeiter wählen...</option>
+                  <option value="">Mitarbeiter wählen...</option>
                   {dbEmployees.map((e, idx) => (
-                    <option key={e.id} value={e.id} className="bg-slate-900">
+                    <option key={e.id} value={e.id}>
                       #{idx + 1} {e.name}
                     </option>
                   ))}
@@ -2203,32 +2207,32 @@ function DailyAttendanceView() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-slate-400 block mb-1">Von (Uhrzeit)</label>
+                  <label className="text-xs text-slate-600 font-medium block mb-1">Von (Uhrzeit)</label>
                   <input
                     type="time"
                     value={manualStartTime}
                     onChange={(e) => setManualStartTime(e.target.value)}
-                    className="w-full px-3 py-2 bg-white/10 border border-white/15 rounded-xl text-white text-xs outline-none font-mono"
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs outline-none font-mono shadow-sm"
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-slate-400 block mb-1">Bis (Uhrzeit)</label>
+                  <label className="text-xs text-slate-600 font-medium block mb-1">Bis (Uhrzeit)</label>
                   <input
                     type="time"
                     value={manualEndTime}
                     onChange={(e) => setManualEndTime(e.target.value)}
-                    className="w-full px-3 py-2 bg-white/10 border border-white/15 rounded-xl text-white text-xs outline-none font-mono"
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs outline-none font-mono shadow-sm"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-xs text-slate-400 block mb-1">Pause (Minuten)</label>
+                <label className="text-xs text-slate-600 font-medium block mb-1">Pause (Minuten)</label>
                 <input
                   type="number"
                   value={manualBreak}
                   onChange={(e) => setManualBreak(parseInt(e.target.value) || 0)}
-                  className="w-full px-3 py-2 bg-white/10 border border-white/15 rounded-xl text-white text-xs outline-none"
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs outline-none shadow-sm"
                 />
               </div>
             </div>
@@ -2236,14 +2240,14 @@ function DailyAttendanceView() {
             <div className="flex gap-3 justify-end pt-2">
               <button
                 onClick={() => setShowManualModal(false)}
-                className="px-4 py-2 rounded-xl bg-white/10 text-slate-300 text-xs"
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs cursor-pointer"
               >
                 Abbrechen
               </button>
               <button
                 onClick={handleCreateManualShift}
                 disabled={submittingManual || !manualEmpId}
-                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs flex items-center gap-1.5 disabled:opacity-50"
+                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-sm"
               >
                 {submittingManual ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />}
                 Eintragen
