@@ -912,162 +912,199 @@ export default function AttendancePage() {
         )}
       </div>
 
-      {/* Row + Date Edit Panel Card */}
+      {/* Zeiterfassung Bearbeiten / Eintragen Popup Modal */}
       {selectedCell && (
-        <div className="bg-white border border-secondary/30 p-6 rounded-2xl shadow-xl space-y-4 animate-slideUp print:hidden">
-          <div className="flex items-center justify-between border-b border-outline-variant pb-3">
-            <h5 className="font-bold text-slate-800 flex items-center gap-2 text-sm">
-              <Clock className="w-5 h-5 text-secondary" />
-              Zeiterfassung bearbeiten
-            </h5>
-            <button
-              onClick={() => setSelectedCell(null)}
-              className="text-slate-500 hover:text-slate-800 p-1 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-            >
-              <X size={18} />
-            </button>
-          </div>
-
-          <div className="text-xs text-slate-500 font-semibold font-mono space-y-1">
-            <p>
-              Mitarbeiter:{" "}
-              <strong className="text-slate-900">
-                {employees.find((e) => e.id === selectedCell.employeeId)?.name || "Lade..."}
-              </strong>
-            </p>
-            <p>
-              Datum: <strong className="text-slate-900">{formatDateLabel(selectedCell.date)} ({getGermanWeekdayLabel(selectedCell.date)})</strong>
-            </p>
-            <p>
-              Status:{" "}
-              <span
-                className={`font-bold ${
-                  getLogForCell(selectedCell.employeeId, selectedCell.date)
-                    ? "text-emerald-600"
-                    : "text-amber-600"
-                }`}
-              >
-                {getLogForCell(selectedCell.employeeId, selectedCell.date)
-                  ? "Eintrag vorhanden (Wird überschrieben)"
-                  : "Kein Eintrag vorhanden (Wird neu angelegt)"}
-              </span>
-            </p>
-          </div>
-
-          {/* Form */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
-            <div className="space-y-1">
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Datum</label>
-              <input
-                type="date"
-                value={editDate}
-                onChange={(e) => setEditDate(e.target.value)}
-                className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-secondary"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Startzeit</label>
-              <input
-                type="time"
-                value={editStartTime}
-                onChange={(e) => setEditStartTime(e.target.value)}
-                className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-secondary"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Endzeit</label>
-              <input
-                type="time"
-                value={editEndTime}
-                onChange={(e) => setEditEndTime(e.target.value)}
-                className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-secondary"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Pause (Min.)</label>
-              <input
-                type="number"
-                min={0}
-                value={editBreakMinutes}
-                onChange={(e) => setEditBreakMinutes(Number(e.target.value) || 0)}
-                className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-secondary"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Netto Stunden</label>
-              <input
-                type="number"
-                step="0.05"
-                min={0}
-                value={editTotalHours}
-                onChange={(e) => setEditTotalHours(parseFloat(e.target.value) || 0)}
-                className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-secondary font-mono"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Lager</label>
-              <select
-                value={editWarehouseId}
-                onChange={(e) => setEditWarehouseId(e.target.value)}
-                className="w-full bg-white border border-outline-variant rounded-xl px-2 py-2 text-xs text-slate-800 focus:outline-none focus:border-secondary outline-none"
-              >
-                {warehouses.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Halle</label>
-              <select
-                value={editHallId}
-                onChange={(e) => setEditHallId(e.target.value)}
-                className="w-full bg-white border border-outline-variant rounded-xl px-2 py-2 text-xs text-slate-800 focus:outline-none focus:border-secondary outline-none"
-              >
-                {filteredHallsForEdit.map((h) => (
-                  <option key={h.id} value={h.id}>
-                    {h.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={() => setSelectedCell(null)}
-              className="px-5 py-2.5 rounded-xl bg-white border border-outline-variant hover:bg-slate-50 text-slate-700 transition-all text-xs cursor-pointer"
-            >
-              Abbrechen
-            </button>
-            {getLogForCell(selectedCell.employeeId, selectedCell.date) && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedCell(null);
+          }}
+        >
+          <div 
+            className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-scaleUp"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-blue-50 text-blue-600 border border-blue-200">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900 text-base">
+                    Zeiterfassung bearbeiten
+                  </h4>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Arbeitszeiten, Pausen und Einsatzort anpassen
+                  </p>
+                </div>
+              </div>
               <button
                 type="button"
-                onClick={() => handleDeleteRecord(getLogForCell(selectedCell.employeeId, selectedCell.date)!.id)}
-                disabled={submitting}
-                className="px-4 py-2.5 rounded-xl bg-red-50 border border-red-200 hover:bg-red-100 text-red-700 font-semibold transition-all text-xs flex items-center gap-1.5 cursor-pointer"
+                onClick={() => setSelectedCell(null)}
+                className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
+                title="Schließen"
               >
-                <Trash2 className="w-4 h-4" /> Löschen
+                <X size={18} />
               </button>
-            )}
-            <button
-              type="button"
-              onClick={handleSaveEntry}
-              disabled={submitting || !editStartTime}
-              className="flex-1 bg-secondary hover:bg-blue-700 disabled:opacity-60 text-white font-semibold py-2.5 px-5 rounded-xl shadow transition-all flex items-center justify-center gap-1.5 cursor-pointer text-xs"
-            >
-              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-              {submitting ? "Wird gespeichert..." : "Speichern & Übernehmen"}
-            </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5">
+              {/* Employee & Date info banner */}
+              <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                <div>
+                  <span className="text-slate-500 block text-[11px]">Mitarbeiter</span>
+                  <strong className="text-slate-900 text-sm">
+                    {employees.find((e) => e.id === selectedCell.employeeId)?.name || "Mitarbeiter"}
+                  </strong>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[11px]">Tag & Datum</span>
+                  <span className="text-slate-900 font-bold font-mono">
+                    {formatDateLabel(selectedCell.date)} ({getGermanWeekdayLabel(selectedCell.date)})
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[11px]">Status</span>
+                  <span
+                    className={`inline-flex items-center gap-1 font-semibold px-2.5 py-0.5 rounded-full text-[11px] border ${
+                      getLogForCell(selectedCell.employeeId, selectedCell.date)
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : "bg-amber-50 text-amber-700 border-amber-200"
+                    }`}
+                  >
+                    {getLogForCell(selectedCell.employeeId, selectedCell.date)
+                      ? "Eintrag vorhanden"
+                      : "Neuer Eintrag"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Form Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">Datum</label>
+                  <input
+                    type="date"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 font-mono shadow-sm"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">Pause (Minuten)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={editBreakMinutes}
+                    onChange={(e) => setEditBreakMinutes(Number(e.target.value) || 0)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 shadow-sm"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">Startzeit (Von)</label>
+                  <input
+                    type="time"
+                    value={editStartTime}
+                    onChange={(e) => setEditStartTime(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 font-mono shadow-sm font-semibold text-emerald-700"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">Endzeit (Bis)</label>
+                  <input
+                    type="time"
+                    value={editEndTime}
+                    onChange={(e) => setEditEndTime(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 font-mono shadow-sm"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Netto Arbeitsstunden
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.05"
+                      min={0}
+                      value={editTotalHours}
+                      onChange={(e) => setEditTotalHours(parseFloat(e.target.value) || 0)}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-blue-700 font-bold focus:outline-none focus:border-blue-500 font-mono shadow-sm"
+                    />
+                    <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                      Stunden
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">Lager & Halle</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={editWarehouseId}
+                      onChange={(e) => setEditWarehouseId(e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 shadow-sm"
+                    >
+                      {warehouses.map((w) => (
+                        <option key={w.id} value={w.id}>
+                          {w.name}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={editHallId}
+                      onChange={(e) => setEditHallId(e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 shadow-sm"
+                    >
+                      {filteredHallsForEdit.map((h) => (
+                        <option key={h.id} value={h.id}>
+                          {h.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/80">
+              <button
+                type="button"
+                onClick={() => setSelectedCell(null)}
+                className="px-4 py-2.5 rounded-xl bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium transition-all text-xs cursor-pointer shadow-sm"
+              >
+                Abbrechen
+              </button>
+
+              <div className="flex items-center gap-2.5">
+                {getLogForCell(selectedCell.employeeId, selectedCell.date) && (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteRecord(getLogForCell(selectedCell.employeeId, selectedCell.date)!.id)}
+                    disabled={submitting}
+                    className="px-4 py-2.5 rounded-xl bg-red-50 border border-red-200 hover:bg-red-100 text-red-700 font-semibold transition-all text-xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4" /> Löschen
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleSaveEntry}
+                  disabled={submitting || !editStartTime}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold py-2.5 px-5 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer text-xs"
+                >
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                  {submitting ? "Wird gespeichert..." : "Speichern & Übernehmen"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
