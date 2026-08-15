@@ -32,6 +32,7 @@ interface HallItem {
   id: string;
   name: string;
   capacity: number | null;
+  color?: string;
   containers: any[];
   users: UserCompact[];
 }
@@ -608,7 +609,11 @@ export default function WarehousesPage() {
                     return (
                       <tr key={hall.id} className="hover:bg-surface-container-lowest transition-colors">
                         <td className="p-4 font-bold text-on-surface flex items-center gap-2">
-                          <Grid className="w-4 h-4 text-outline" />
+                          <span
+                            className="w-3 h-3 rounded-full border border-black/10 shrink-0 shadow-2xs"
+                            style={{ backgroundColor: hall.color || '#1d4ed8' }}
+                            title={`Hall color: ${hall.color || '#1d4ed8'}`}
+                          />
                           {hall.name}
                         </td>
                         <td className="p-4">

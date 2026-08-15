@@ -17,8 +17,10 @@ import {
   ChevronDown,
   Edit2,
   QrCode,
+  Palette,
 } from "lucide-react";
 import QRCodeModal from "../../components/QRCodeModal";
+import HallColorPicker, { getContrastTextColor } from "../../components/HallColorPicker";
 
 interface UserCompact {
   id: string;
@@ -78,19 +80,12 @@ function HallsPageContent() {
 
   const [selectedQrHall, setSelectedQrHall] = useState<HallItem | null>(null);
 
-  const COLOR_PRESETS = [
-    "#1d4ed8",
-    "#b91c1c",
-    "#0f766e",
-    "#6b21a8",
-    "#c2410c",
-    "#0369a1",
-    "#15803d",
-    "#4d7c0f",
-    "#312e81",
-    "#b45309",
-  ];
-
+  // Quick Color Customizer Modal
+  const [quickColorModalOpen, setQuickColorModalOpen] = useState(false);
+  const [quickColorHall, setQuickColorHall] = useState<HallItem | null>(null);
+  const [quickColorHex, setQuickColorHex] = useState("#1d4ed8");
+  const [quickColorLoading, setQuickColorLoading] = useState(false);
+  const [quickColorError, setQuickColorError] = useState("");
   const router = useRouter();
 
   // Decode user role and load initial data
@@ -334,6 +329,55 @@ function HallsPageContent() {
       }
     } finally {
       setEditLoading(false);
+    }
+  };
+
+  // Quick update color action
+  const handleQuickUpdateColor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickColorHall) return;
+
+    setQuickColorLoading(true);
+    setQuickColorError("");
+    const token = localStorage.getItem("accessToken");
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/halls/${quickColorHall.id}`,
+        {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({
+            color: quickColorHex,
+          }),
+        }
+      );
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.message || "Failed to update hall color");
+      }
+
+      setQuickColorModalOpen(false);
+      setQuickColorHall(null);
+      await fetchHalls();
+    } catch (err: any) {
+      if (isOffline) {
+        setHalls((prev) =>
+          prev.map((h) =>
+            h.id === quickColorHall.id ? { ...h, color: quickColorHex } : h
+          )
+        );
+        setQuickColorModalOpen(false);
+        setQuickColorHall(null);
+      } else {
+        setQuickColorError(err.message || "Could not update hall color.");
+      }
+    } finally {
+      setQuickColorLoading(false);
     }
   };
 
@@ -586,7 +630,28 @@ function HallsPageContent() {
                     </div>
                   </div>
 
-                  <h4 className="font-bold text-body-lg text-on-surface mb-0.5">{hall.name}</h4>
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="font-bold text-body-lg text-on-surface mb-0.5">{hall.name}</h4>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuickColorHall(hall);
+                        setQuickColorHex(hall.color || "#1d4ed8");
+                        setQuickColorModalOpen(true);
+                      }}
+                      className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold border transition-all hover:scale-105 cursor-pointer shadow-2xs shrink-0"
+                      style={{
+                        backgroundColor: `${hallColor}15`,
+                        color: hallColor,
+                        borderColor: `${hallColor}40`,
+                      }}
+                      title="Klicken, um Farbe anzupassen"
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full shadow-2xs" style={{ backgroundColor: hallColor }}></span>
+                      <span>{hallColor}</span>
+                      <Palette className="w-3 h-3 opacity-70 ml-0.5" />
+                    </button>
+                  </div>
                   <p className="text-outline text-[12px] flex items-center gap-1 mb-4 font-semibold uppercase tracking-wider">
                     <WarehouseIcon className="w-3.5 h-3.5" />
                     {hall.warehouse?.name || "Duisburg Port Hub"}
@@ -703,34 +768,11 @@ function HallsPageContent() {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-1">
-                  Sector Color
-                </label>
-                <div className="flex items-center gap-2 mb-2">
-                  <input
-                    type="color"
-                    value={newHallColor}
-                    onChange={(e) => setNewHallColor(e.target.value)}
-                    className="w-10 h-10 border border-outline-variant rounded cursor-pointer p-0 bg-transparent"
-                  />
-                  <span className="text-body-sm font-mono text-slate-650">{newHallColor}</span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {COLOR_PRESETS.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => setNewHallColor(color)}
-                      className={`w-6 h-6 rounded-full border transition-all cursor-pointer ${
-                        newHallColor === color ? "border-slate-800 scale-110 shadow-sm" : "border-transparent hover:scale-105"
-                      }`}
-                      style={{ backgroundColor: color }}
-                      title={color}
-                    />
-                  ))}
-                </div>
-              </div>
+              <HallColorPicker
+                color={newHallColor}
+                onChange={setNewHallColor}
+                label="Hallen-Farbsystem & Customizing"
+              />
 
               {createError && (
                 <div className="bg-error-container text-on-error-container px-3 py-2 rounded-lg text-xs flex items-center gap-2">
@@ -828,34 +870,11 @@ function HallsPageContent() {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-1">
-                  Sector Color
-                </label>
-                <div className="flex items-center gap-2 mb-2">
-                  <input
-                    type="color"
-                    value={editHallColor}
-                    onChange={(e) => setEditHallColor(e.target.value)}
-                    className="w-10 h-10 border border-outline-variant rounded cursor-pointer p-0 bg-transparent"
-                  />
-                  <span className="text-body-sm font-mono text-slate-650">{editHallColor}</span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {COLOR_PRESETS.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => setEditHallColor(color)}
-                      className={`w-6 h-6 rounded-full border transition-all cursor-pointer ${
-                        editHallColor === color ? "border-slate-800 scale-110 shadow-sm" : "border-transparent hover:scale-105"
-                      }`}
-                      style={{ backgroundColor: color }}
-                      title={color}
-                    />
-                  ))}
-                </div>
-              </div>
+              <HallColorPicker
+                color={editHallColor}
+                onChange={setEditHallColor}
+                label="Hallen-Farbsystem & Customizing"
+              />
 
               {editError && (
                 <div className="bg-error-container text-on-error-container px-3 py-2 rounded-lg text-xs flex items-center gap-2">
@@ -916,6 +935,72 @@ function HallsPageContent() {
                 {deleteLoading ? "Processing..." : "Deactivate Sector"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Color Customizer Modal */}
+      {quickColorModalOpen && quickColorHall && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white border border-outline-variant rounded-xl max-w-md w-full p-stack-md shadow-2xl relative animate-scaleIn">
+            <button
+              onClick={() => {
+                setQuickColorModalOpen(false);
+                setQuickColorHall(null);
+              }}
+              className="absolute top-4 right-4 p-1 rounded-full text-on-surface hover:bg-surface-container-high transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2.5 mb-1">
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center shadow-2xs"
+                style={{ backgroundColor: `${quickColorHex}20`, color: quickColorHex }}
+              >
+                <Palette className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-bold text-body-lg text-on-surface">Farbe für Halle anpassen</h3>
+                <p className="text-on-surface-variant text-xs">{quickColorHall.name}</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleQuickUpdateColor} className="space-y-4 mt-4">
+              <HallColorPicker
+                color={quickColorHex}
+                onChange={setQuickColorHex}
+                label="Farbe auswählen oder neu gestalten"
+              />
+
+              {quickColorError && (
+                <div className="bg-error-container text-on-error-container px-3 py-2 rounded-lg text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+                  <span>{quickColorError}</span>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuickColorModalOpen(false);
+                    setQuickColorHall(null);
+                  }}
+                  className="px-4 py-2 border border-outline-variant hover:bg-surface-container-high rounded-lg text-label-md transition-colors cursor-pointer"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  type="submit"
+                  disabled={quickColorLoading}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-label-md transition-colors font-bold disabled:opacity-50 cursor-pointer flex items-center gap-1.5 shadow-sm"
+                >
+                  <Palette className="w-3.5 h-3.5" />
+                  {quickColorLoading ? "Wird gespeichert..." : "Farbe anwenden"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

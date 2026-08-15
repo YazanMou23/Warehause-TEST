@@ -32,6 +32,7 @@ interface Hall {
   id: string;
   name: string;
   warehouseId: string;
+  color?: string;
 }
 
 interface Employee {
@@ -778,6 +779,7 @@ function PlanningPageContent() {
                           const isSelected = selectedLocations.some(
                             (loc) => loc.warehouseId === wh.id && loc.hallId === h.id
                           );
+                          const hColor = h.color || "#1d4ed8";
                           return (
                             <button
                               key={h.id}
@@ -788,8 +790,20 @@ function PlanningPageContent() {
                                   ? "bg-blue-600 text-white border-blue-600 ring-2 ring-blue-200"
                                   : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200/80 hover:border-slate-300"
                               }`}
+                              style={
+                                isSelected
+                                  ? { borderLeft: `4px solid ${hColor}` }
+                                  : {}
+                              }
                             >
-                              {isSelected ? <Check className="w-3.5 h-3.5" /> : <Grid className="w-3.5 h-3.5 text-slate-400" />}
+                              {isSelected ? (
+                                <Check className="w-3.5 h-3.5" />
+                              ) : (
+                                <span
+                                  className="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs border border-black/10"
+                                  style={{ backgroundColor: hColor }}
+                                />
+                              )}
                               <span>{h.name}</span>
                             </button>
                           );
@@ -808,12 +822,18 @@ function PlanningPageContent() {
               <span className="text-[11px] font-bold text-slate-500 mr-1">Ausgewählt:</span>
               {selectedLocations.map((loc) => {
                 const wName = warehouses.find((w) => w.id === loc.warehouseId)?.name || "Lager";
-                const hName = halls.find((h) => h.id === loc.hallId)?.name || "Halle";
+                const locHall = halls.find((h) => h.id === loc.hallId);
+                const hName = locHall?.name || "Halle";
+                const hColor = locHall?.color || "#3b82f6";
                 return (
                   <div
                     key={`${loc.warehouseId}-${loc.hallId}`}
                     className="flex items-center gap-1.5 px-3 py-1 bg-slate-800 text-white rounded-full text-xs font-medium shadow-2xs"
                   >
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: hColor }}
+                    />
                     <span className="text-slate-300 text-[10px]">{wName}:</span>
                     <span className="font-bold">{hName}</span>
                     <button
@@ -1305,9 +1325,16 @@ function PlanningPageContent() {
                       <div className="flex flex-wrap gap-1.5 flex-1">
                         {planLocations.map((loc: any, i: number) => {
                           const wName = warehouses.find((w) => w.id === (loc.warehouseId || loc.warehouse?.id))?.name || "Lager";
-                          const hName = halls.find((h) => h.id === (loc.hallId || loc.hall?.id))?.name || loc.hallName || "Halle";
+                          const locHall = halls.find((h) => h.id === (loc.hallId || loc.hall?.id));
+                          const hName = locHall?.name || loc.hallName || "Halle";
+                          const hColor = locHall?.color || loc.hall?.color || "#1d4ed8";
                           return (
-                            <span key={i} className="text-[11px] font-bold text-blue-900 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200 flex items-center gap-1 shadow-2xs">
+                            <span
+                              key={i}
+                              className="text-[11px] font-bold text-blue-900 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200 flex items-center gap-1.5 shadow-2xs"
+                              style={{ borderLeft: `3px solid ${hColor}` }}
+                            >
+                              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: hColor }} />
                               <WarehouseIcon className="w-3 h-3 text-blue-600 shrink-0" />
                               <span>{wName} — <strong className="text-blue-950">{hName}</strong></span>
                             </span>
