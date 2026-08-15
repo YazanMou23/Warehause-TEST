@@ -306,11 +306,11 @@ function UploadZone({
 
   // Per-brand port hints
   const brandHints = [
-    { brand: 'HP',      port: 8080, color: 'text-blue-300',   bg: 'bg-blue-500/15 border-blue-400/30' },
-    { brand: 'Brother', port: 80,   color: 'text-purple-300', bg: 'bg-purple-500/15 border-purple-400/30' },
-    { brand: 'Canon',   port: 80,   color: 'text-red-300',    bg: 'bg-red-500/15 border-red-400/30' },
-    { brand: 'Epson',   port: 80,   color: 'text-cyan-300',   bg: 'bg-cyan-500/15 border-cyan-400/30' },
-    { brand: 'Lexmark', port: 80,   color: 'text-amber-300',  bg: 'bg-amber-500/15 border-amber-400/30' },
+    { brand: 'HP',      port: 8080, color: 'text-blue-700',   bg: 'bg-blue-100 border-blue-200' },
+    { brand: 'Brother', port: 80,   color: 'text-purple-700', bg: 'bg-purple-100 border-purple-200' },
+    { brand: 'Canon',   port: 80,   color: 'text-red-700',    bg: 'bg-red-100 border-red-200' },
+    { brand: 'Epson',   port: 80,   color: 'text-cyan-700',   bg: 'bg-cyan-100 border-cyan-200' },
+    { brand: 'Lexmark', port: 80,   color: 'text-amber-700',  bg: 'bg-amber-100 border-amber-200' },
   ];
 
   return (
@@ -323,33 +323,33 @@ function UploadZone({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl">
         
         {/* 1. Direct Printer Scanner Action Card */}
-        <div className="relative rounded-2xl border border-blue-500/30 bg-gradient-to-b from-blue-900/30 to-blue-950/40 p-6 flex flex-col justify-between items-center text-center shadow-xl hover:border-blue-400/60 transition-all group">
+        <div className="relative rounded-2xl border border-blue-200 bg-blue-50/40 p-6 flex flex-col justify-between items-center text-center shadow-sm hover:border-blue-300 transition-all group">
           {/* Status dot + badge */}
           <div className="absolute top-3 right-3 flex items-center gap-1.5">
             {statusResult && (
               <span className={`w-2 h-2 rounded-full animate-pulse ${
-                statusResult.online ? 'bg-emerald-400' : 'bg-red-400'
+                statusResult.online ? 'bg-emerald-500' : 'bg-red-500'
               }`} />
             )}
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/20 text-blue-300 text-xs font-semibold border border-blue-400/30">
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold border border-blue-200">
               <Printer size={12} /> WLAN / USB
             </span>
           </div>
 
-          <div className="p-4 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-400/30 mt-2 mb-3 group-hover:scale-105 transition-transform">
+          <div className="p-4 rounded-2xl bg-blue-100 text-blue-600 border border-blue-200 mt-2 mb-3 group-hover:scale-105 transition-transform">
             <Printer size={40} />
           </div>
 
           <div className="w-full">
-            <h3 className="text-white font-bold text-lg mb-1">Vom Drucker scannen</h3>
-            <p className="text-slate-300 text-xs leading-relaxed mb-2">
+            <h3 className="text-slate-900 font-bold text-lg mb-1">Vom Drucker scannen</h3>
+            <p className="text-slate-600 text-xs leading-relaxed mb-2">
               Netzwerkdrucker per AirScan / eSCL — WLAN oder USB-Kabel.
             </p>
 
             {/* Inline status */}
             {statusResult && (
               <div className={`mb-3 flex items-center justify-center gap-1.5 text-xs font-medium ${
-                statusResult.online ? 'text-emerald-400' : 'text-red-400'
+                statusResult.online ? 'text-emerald-600' : 'text-red-600'
               }`}>
                 {statusResult.online ? (
                   <><CheckCircle size={11} /> Online{statusResult.model ? ` · ${statusResult.model}` : ''} ({statusResult.state})</>
@@ -369,7 +369,7 @@ function UploadZone({
             <button
               onClick={() => onPrinterScan({ scannerIp, scannerPort, dpi: scannerDpi })}
               disabled={isLoading}
-              className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-lg hover:shadow-blue-500/20 transition-all text-sm disabled:opacity-50 cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-md hover:shadow-blue-500/20 transition-all text-sm disabled:opacity-50 cursor-pointer"
             >
               {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Printer size={18} />}
               <span>Jetzt scannen</span>
@@ -381,14 +381,14 @@ function UploadZone({
                 onClick={checkScannerStatus}
                 disabled={checkingStatus || !scannerIp}
                 title={scannerIp ? 'Verbindung testen' : 'Erst IP in Einstellungen eingeben'}
-                className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-white/8 hover:bg-white/15 text-slate-300 hover:text-white text-xs border border-white/10 transition-colors disabled:opacity-40 cursor-pointer"
+                className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 text-xs border border-slate-200 transition-colors disabled:opacity-40 cursor-pointer shadow-sm"
               >
                 {checkingStatus ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
                 Testen
               </button>
               <button
                 onClick={() => setShowPrinterSettings(!showPrinterSettings)}
-                className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-white/8 hover:bg-white/15 text-slate-400 hover:text-white text-xs border border-white/10 transition-colors cursor-pointer"
+                className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 text-xs border border-slate-200 transition-colors cursor-pointer shadow-sm"
               >
                 <Settings size={11} />
                 {showPrinterSettings ? 'Schließen' : 'Einstellungen'}
@@ -410,30 +410,30 @@ function UploadZone({
             relative cursor-pointer rounded-2xl border-2 border-dashed
             transition-all duration-300 p-6 flex flex-col justify-between items-center text-center
             ${isDragOver
-              ? 'border-blue-400 bg-blue-500/10 scale-[1.01]'
-              : 'border-white/20 bg-white/5 hover:border-white/30 hover:bg-white/8'
+              ? 'border-blue-500 bg-blue-50 scale-[1.01]'
+              : 'border-slate-300 bg-slate-50/70 hover:border-blue-400 hover:bg-blue-50/30'
             }
           `}
         >
-          <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 text-slate-300 text-xs font-semibold border border-white/10">
+          <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-200/80 text-slate-700 text-xs font-semibold border border-slate-300">
             <Upload size={12} /> Datei-Upload
           </div>
 
-          <div className={`p-4 rounded-2xl transition-colors mt-2 mb-4 ${isDragOver ? 'bg-blue-500/20' : 'bg-white/10'}`}>
-            <ScanLine size={44} className={isDragOver ? 'text-blue-400' : 'text-slate-400'} />
+          <div className={`p-4 rounded-2xl transition-colors mt-2 mb-4 ${isDragOver ? 'bg-blue-100 text-blue-600' : 'bg-slate-200/60 text-slate-600'}`}>
+            <ScanLine size={44} className={isDragOver ? 'text-blue-600' : 'text-slate-600'} />
           </div>
 
           <div>
-            <h3 className="text-white font-bold text-lg mb-1">
+            <h3 className="text-slate-900 font-bold text-lg mb-1">
               {isDragOver ? 'Datei hier ablegen' : 'Datei / Dokument hochladen'}
             </h3>
-            <p className="text-slate-400 text-xs max-w-xs mb-4">
+            <p className="text-slate-500 text-xs max-w-xs mb-4">
               PNG, JPG, JPEG oder PDF per Drag & Drop ziehen oder Durchsuchen klicken.
             </p>
           </div>
 
           <div className="w-full">
-            <div className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-medium text-sm border border-white/10 transition-all flex items-center justify-center gap-2">
+            <div className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-semibold text-sm border border-slate-200 shadow-sm transition-all flex items-center justify-center gap-2">
               <Upload size={16} />
               <span>Datei auswählen</span>
             </div>
@@ -461,25 +461,25 @@ function UploadZone({
         {/* 3. Camera Capture Card */}
         <div
           onClick={() => !isLoading && cameraRef.current?.click()}
-          className="relative cursor-pointer rounded-2xl border-2 border-dashed border-emerald-500/30 bg-gradient-to-b from-emerald-900/20 to-emerald-950/30 p-6 flex flex-col justify-between items-center text-center shadow-xl hover:border-emerald-400/60 transition-all group"
+          className="relative cursor-pointer rounded-2xl border-2 border-dashed border-emerald-300 bg-emerald-50/40 p-6 flex flex-col justify-between items-center text-center shadow-sm hover:border-emerald-400 transition-all group"
         >
-          <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-semibold border border-emerald-400/30">
+          <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-200">
             <Camera size={12} /> Kamera
           </div>
 
-          <div className="p-4 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-400/30 mt-2 mb-4 group-hover:scale-105 transition-transform">
+          <div className="p-4 rounded-2xl bg-emerald-100 text-emerald-600 border border-emerald-200 mt-2 mb-4 group-hover:scale-105 transition-transform">
             <Camera size={44} />
           </div>
 
           <div>
-            <h3 className="text-white font-bold text-lg mb-1">Kamera aufnehmen</h3>
-            <p className="text-slate-300 text-xs leading-relaxed max-w-xs mb-4">
+            <h3 className="text-slate-900 font-bold text-lg mb-1">Kamera aufnehmen</h3>
+            <p className="text-slate-600 text-xs leading-relaxed max-w-xs mb-4">
               Stundenzettel direkt mit der Handy- oder Laptop-Kamera fotografieren und sofort scannen.
             </p>
           </div>
 
           <div className="w-full">
-            <div className="px-4 py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-medium text-sm border border-emerald-400/30 transition-all flex items-center justify-center gap-2">
+            <div className="px-4 py-2.5 rounded-xl bg-white hover:bg-emerald-50 text-emerald-700 font-semibold text-sm border border-emerald-200 shadow-sm transition-all flex items-center justify-center gap-2">
               {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
               <span>Kamera öffnen</span>
             </div>
@@ -507,7 +507,7 @@ function UploadZone({
 
         {/* 3-card hint: multi-photo */}
         <div className="col-span-1 md:col-span-3 flex items-center gap-2 text-xs text-slate-500 justify-center">
-          <Images size={13} className="text-blue-400" />
+          <Images size={13} className="text-blue-500" />
           <span>Mehrere Dateien auswählen (PNG, JPG, JPEG, PDF): Strg+Klick (Desktop) oder Mehrfach-Auswahl — alle werden nacheinander analysiert.</span>
         </div>
 
@@ -520,18 +520,18 @@ function UploadZone({
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="w-full max-w-4xl bg-white/5 border border-white/10 rounded-2xl p-5 overflow-hidden"
+            className="w-full max-w-4xl bg-slate-50 border border-slate-200 rounded-2xl p-5 overflow-hidden shadow-sm"
           >
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4 pb-3 border-b border-white/10">
-              <h4 className="text-white font-semibold text-sm flex items-center gap-2">
-                <Settings size={15} className="text-blue-400" />
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4 pb-3 border-b border-slate-200">
+              <h4 className="text-slate-900 font-semibold text-sm flex items-center gap-2">
+                <Settings size={15} className="text-blue-600" />
                 WLAN-Drucker / Scanner Einstellungen
               </h4>
               <button
                 onClick={discoverPrinters}
                 disabled={discovering}
-                className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-400/30 text-xs font-semibold transition-all shadow-sm cursor-pointer"
+                className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold transition-all shadow-sm cursor-pointer"
               >
                 {discovering ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
                 <span>Drucker im Netzwerk suchen</span>
@@ -539,8 +539,8 @@ function UploadZone({
             </div>
 
             {/* WiFi Setup Guide */}
-            <div className="mb-4 p-3 rounded-xl bg-blue-950/50 border border-blue-500/20 text-xs text-slate-300 space-y-1">
-              <p className="text-blue-300 font-semibold flex items-center gap-1.5 mb-2">
+            <div className="mb-4 p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs text-slate-700 space-y-1">
+              <p className="text-blue-700 font-semibold flex items-center gap-1.5 mb-2">
                 <RefreshCw size={11} /> WLAN-Drucker verbinden — Kurzanleitung:
               </p>
               <p>① Drucker & dieses Gerät im gleichen WLAN-Netzwerk.</p>
@@ -557,29 +557,30 @@ function UploadZone({
                   key={brand}
                   onClick={() => setScannerPort(port)}
                   className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-xs font-medium cursor-pointer transition-all hover:opacity-80 ${bg} ${color} ${
-                    scannerPort === port ? 'ring-1 ring-white/30' : ''
+                    scannerPort === port ? 'ring-2 ring-blue-500' : ''
                   }`}
                 >
-                  {brand} <span className="opacity-70">:{port}</span>
+                  <span>{brand}</span>
+                  <span className="opacity-70">:{port}</span>
                 </button>
               ))}
             </div>
 
             {/* Discovered printers */}
             {discoveredPrinters.length > 0 && (
-              <div className="mb-4 p-3 rounded-xl bg-slate-800/60 border border-white/10 text-xs space-y-2">
-                <label className="text-slate-300 font-semibold flex items-center gap-1.5 mb-2">
-                  <CheckCircle size={13} className="text-emerald-400" />
+              <div className="mb-4 p-3 rounded-xl bg-white border border-slate-200 text-xs space-y-2 shadow-sm">
+                <label className="text-slate-800 font-semibold flex items-center gap-1.5 mb-2">
+                  <CheckCircle size={13} className="text-emerald-600" />
                   Gefundene Drucker & Scanner ({discoveredPrinters.length}):
                 </label>
                 <div className="space-y-1.5">
                   {discoveredPrinters.map((p) => {
                     const isSelected = scannerIp === (p.ip || p.id);
                     const connColor = p.connectionType === 'USB'
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-400/30'
+                      ? 'bg-amber-100 text-amber-800 border-amber-200'
                       : p.id === 'SIMULATOR'
-                      ? 'bg-slate-500/20 text-slate-400 border-slate-500/30'
-                      : 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30';
+                      ? 'bg-slate-100 text-slate-600 border-slate-200'
+                      : 'bg-emerald-100 text-emerald-800 border-emerald-200';
                     return (
                       <button
                         key={p.id}
@@ -590,8 +591,8 @@ function UploadZone({
                         }}
                         className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all text-left ${
                           isSelected
-                            ? 'bg-blue-600/20 border-blue-400/50 text-white'
-                            : 'bg-white/5 border-white/8 text-slate-300 hover:bg-white/10'
+                            ? 'bg-blue-50 border-blue-500 text-blue-900 ring-1 ring-blue-500'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                         }`}
                       >
                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${connColor}`}>
@@ -601,7 +602,7 @@ function UploadZone({
                         {p.ip && p.ip !== 'SIMULATOR' && (
                           <span className="text-slate-500 font-mono text-[10px]">{p.ip}:{p.port}</span>
                         )}
-                        {isSelected && <CheckCircle size={12} className="text-emerald-400 flex-shrink-0" />}
+                        {isSelected && <CheckCircle size={12} className="text-emerald-600 flex-shrink-0" />}
                       </button>
                     );
                   })}
@@ -612,45 +613,45 @@ function UploadZone({
             {/* Manual IP + port + DPI */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
               <div>
-                <label className="text-xs text-slate-400 block mb-1">Drucker IP-Adresse</label>
+                <label className="text-xs text-slate-600 block mb-1 font-medium">Drucker IP-Adresse</label>
                 <input
                   type="text"
                   placeholder="z.B. 192.168.1.105"
                   value={scannerIp}
                   onChange={(e) => { setScannerIp(e.target.value); setStatusResult(null); }}
-                  className="w-full px-3 py-1.5 bg-white/8 border border-white/15 rounded-xl text-white text-xs focus:outline-none focus:border-blue-400 font-mono"
+                  className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-blue-500 font-mono shadow-sm"
                 />
               </div>
               <div>
-                <label className="text-xs text-slate-400 block mb-1">Port (HP: 8080 / andere: 80)</label>
+                <label className="text-xs text-slate-600 block mb-1 font-medium">Port (HP: 8080 / andere: 80)</label>
                 <input
                   type="number"
                   placeholder="80"
                   value={scannerPort}
                   onChange={(e) => setScannerPort(parseInt(e.target.value) || 80)}
-                  className="w-full px-3 py-1.5 bg-white/8 border border-white/15 rounded-xl text-white text-xs focus:outline-none focus:border-blue-400"
+                  className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-blue-500 shadow-sm"
                 />
               </div>
               <div>
-                <label className="text-xs text-slate-400 block mb-1">Auflösung (DPI)</label>
+                <label className="text-xs text-slate-600 block mb-1 font-medium">Auflösung (DPI)</label>
                 <select
                   value={scannerDpi}
                   onChange={(e) => setScannerDpi(parseInt(e.target.value))}
-                  className="w-full px-3 py-1.5 bg-white/8 border border-white/15 rounded-xl text-white text-xs focus:outline-none focus:border-blue-400"
+                  className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-blue-500 shadow-sm"
                 >
-                  <option value={150} className="bg-slate-800">150 DPI (Schnell)</option>
-                  <option value={300} className="bg-slate-800">300 DPI (Empfohlen)</option>
-                  <option value={600} className="bg-slate-800">600 DPI (Hohe Qualität)</option>
+                  <option value={150}>150 DPI (Schnell)</option>
+                  <option value={300}>300 DPI (Empfohlen)</option>
+                  <option value={600}>600 DPI (Hohe Qualität)</option>
                 </select>
               </div>
             </div>
 
             {/* Footer: test + status */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-white/10">
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200">
               <button
                 onClick={checkScannerStatus}
                 disabled={checkingStatus || !scannerIp}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-400/30 text-xs font-semibold transition-all disabled:opacity-40 cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold transition-all disabled:opacity-40 cursor-pointer shadow-sm"
               >
                 {checkingStatus ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
                 Verbindung testen
@@ -2463,20 +2464,20 @@ export default function TimesheetsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0f1623] text-white">
+    <div className="min-h-screen bg-white text-slate-900">
       <div className="max-w-5xl mx-auto px-4 py-8">
         {/* Page Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-2xl bg-blue-500/20 border border-blue-400/30">
-                <ScanLine size={24} className="text-blue-400" />
+              <div className="p-3 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200">
+                <ScanLine size={24} className="text-blue-600" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+                <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                   Zeiterfassung & Stundenzettel-Scanner
                 </h1>
-                <p className="text-slate-400 text-sm">
+                <p className="text-slate-500 text-sm">
                   Wochenstundenzettel per Fotos oder direkt vom Netzwerkdrucker erfassen & verwalten
                 </p>
               </div>
@@ -2486,7 +2487,7 @@ export default function TimesheetsPage() {
             {viewMode === 'upload' && activeTab === 'scanner' && (
               <button
                 onClick={() => handlePrinterScan({})}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-400/40 text-sm font-semibold transition-all shadow-md cursor-pointer"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-sm font-semibold transition-all shadow-sm cursor-pointer"
               >
                 <Printer size={16} />
                 <span>Direkt vom Drucker scannen</span>
@@ -2496,7 +2497,7 @@ export default function TimesheetsPage() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex flex-wrap gap-1 p-1 bg-white/5 rounded-xl border border-white/10 mb-6 w-fit">
+        <div className="flex flex-wrap gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 mb-6 w-fit">
           {[
             { key: 'scanner', label: 'Stundenzettel Scannen', icon: ScanLine },
             { key: 'list', label: 'Wochenzettel Übersicht', icon: FileText },
@@ -2510,8 +2511,8 @@ export default function TimesheetsPage() {
               }}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer ${
                 activeTab === key
-                  ? 'bg-blue-600 text-white shadow-lg font-bold'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-blue-600 text-white shadow-md font-bold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
               }`}
             >
               <Icon size={16} />
