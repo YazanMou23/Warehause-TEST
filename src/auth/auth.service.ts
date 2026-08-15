@@ -233,4 +233,45 @@ export class AuthService {
 
     return { message: 'Password reset successfully. You can now log in.' };
   }
+
+  /**
+   * Change password for authenticated user (any role: EMPLOYEE, ADMIN, MANAGER).
+   */
+  async changePassword(userId: string, changePasswordDto: { currentPassword: string; newPassword: string }) {
+    const { currentPassword, newPassword } = changePasswordDto;
+
+    if (!newPassword || newPassword.length < 8) {
+      throw new BadRequestException('New password must be at least 8 characters long.');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user || !user.isActive || user.deletedAt !== null) {
+      throw new NotFoundException('User not found or account is inactive.');
+    }
+
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isCurrentPasswordValid) {
+      throw new BadRequestException('Current password is incorrect.');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+
+    await this.prisma.actionLog.create({
+      data: {
+        userId: user.id,
+        action: 'PASSWORD_CHANGED',
+        details: `Password changed by user ${user.name} (${user.username}, Role: ${user.role})`,
+      },
+    });
+
+    return { message: 'Password changed successfully.' };
+  }
 }

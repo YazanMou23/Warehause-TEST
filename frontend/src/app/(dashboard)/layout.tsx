@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Calendar,
@@ -26,6 +26,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { useTranslation } from "../i18n/LanguageContext";
+import { getAuthToken, clearAuthToken } from "../utils/auth";
 
 interface SidebarLink {
   name: string;
@@ -55,6 +56,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { t } = useTranslation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
 
   const [userName, setUserName] = useState("M. Warehouse");
   const [userRole, setUserRole] = useState("MANAGER");
@@ -67,7 +69,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [showNotifications, setShowNotifications] = useState(false);
 
   const fetchNotifications = async () => {
-    const token = localStorage.getItem("accessToken");
+    const token = getAuthToken();
     if (!token) return;
     try {
       const res = await fetch(
@@ -92,7 +94,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, []);
 
   const markAllRead = async () => {
-    const token = localStorage.getItem("accessToken");
+    const token = getAuthToken();
     if (!token) return;
     try {
       const res = await fetch(
@@ -109,7 +111,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   const markRead = async (id: string) => {
-    const token = localStorage.getItem("accessToken");
+    const token = getAuthToken();
     if (!token) return;
     try {
       const res = await fetch(
@@ -129,7 +131,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     setMounted(true);
-    const token = localStorage.getItem("accessToken");
+    const token = getAuthToken();
     if (token) {
       try {
         const payload = JSON.parse(atob(token.split(".")[1]));
@@ -148,11 +150,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       } catch (e) {
         console.error("Failed to decode token", e);
       }
+    } else {
+      router.push("/login");
     }
 
     const handleProfileUpdate = () => {
-      setPhotoTrigger(prev => prev + 1);
-      const updatedToken = localStorage.getItem("accessToken");
+      setPhotoTrigger((prev) => prev + 1);
+      const updatedToken = getAuthToken();
       if (updatedToken) {
         try {
           const payload = JSON.parse(atob(updatedToken.split(".")[1]));
@@ -162,10 +166,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     };
     window.addEventListener("profile-updated", handleProfileUpdate);
     return () => window.removeEventListener("profile-updated", handleProfileUpdate);
-  }, []);
+  }, [router]);
 
   const handleLogout = async () => {
-    const token = localStorage.getItem("accessToken");
+    const token = getAuthToken();
     if (token) {
       try {
         await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/auth/logout`, {
@@ -174,40 +178,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         });
       } catch (e) {}
     }
-    localStorage.removeItem("accessToken");
+    clearAuthToken();
     window.location.href = "/login";
   };
-
-  // ── Auto-logout after 1 minute when user closes / hides the tab ──
-  const logoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    const LOGOUT_DELAY_MS = 60_000; // 1 minute
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") {
-        // Tab was closed or backgrounded — start the countdown
-        logoutTimerRef.current = setTimeout(() => {
-          handleLogout();
-        }, LOGOUT_DELAY_MS);
-      } else {
-        // User returned to the tab — cancel the countdown
-        if (logoutTimerRef.current !== null) {
-          clearTimeout(logoutTimerRef.current);
-          logoutTimerRef.current = null;
-        }
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      if (logoutTimerRef.current !== null) {
-        clearTimeout(logoutTimerRef.current);
-      }
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const getTranslationKey = (name: string): any => {
     const map: Record<string, string> = {

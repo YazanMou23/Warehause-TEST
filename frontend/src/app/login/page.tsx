@@ -17,6 +17,12 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useTranslation } from "../i18n/LanguageContext";
+import {
+  getAuthToken,
+  setAuthToken,
+  getRememberedUser,
+  setRememberedUser,
+} from "../utils/auth";
 
 type View = "login" | "forgot" | "forgot-sent";
 
@@ -27,6 +33,7 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
 
@@ -39,10 +46,15 @@ export default function LoginPage() {
 
   useEffect(() => {
     setMounted(true);
+    const { username: savedUsername, rememberMe: savedRemember } = getRememberedUser();
+    if (savedRemember && savedUsername) {
+      setUsername(savedUsername);
+      setRememberMe(true);
+    }
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem("accessToken");
+    const token = getAuthToken();
     if (token) router.push("/");
   }, [router]);
 
@@ -61,7 +73,12 @@ export default function LoginPage() {
       );
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || t("loginError"));
-      localStorage.setItem("accessToken", data.accessToken);
+
+      // Store token (localStorage if rememberMe is true, sessionStorage if false)
+      setAuthToken(data.accessToken, rememberMe);
+      // Persist / clear remembered user login credentials preference
+      setRememberedUser(username, rememberMe);
+
       router.push("/");
     } catch (err: any) {
       setLoginError(err.message || t("loginError"));
@@ -228,14 +245,14 @@ export default function LoginPage() {
               </div>
 
               <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 text-xs text-[#64748b] cursor-pointer select-none">
+                <label className="flex items-center gap-2 text-xs text-[#64748b] hover:text-[#374151] cursor-pointer select-none">
                   <input
                     type="checkbox"
-                    checked={showPassword}
-                    onChange={() => setShowPassword(!showPassword)}
-                    className="w-3.5 h-3.5 rounded border-[#d1d5db] accent-[#1d4ed8] cursor-pointer"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="w-4 h-4 rounded border-[#d1d5db] text-[#1d4ed8] accent-[#1d4ed8] focus:ring-[#1d4ed8]/20 cursor-pointer"
                   />
-                  {t("showPassword")}
+                  <span className="font-medium">{t("rememberMe")}</span>
                 </label>
                 <button
                   type="button"

@@ -18,6 +18,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useTranslation } from "../../i18n/LanguageContext";
+import { getAuthToken, updateDecodedTokenName } from "../../utils/auth";
 
 interface UserProfile {
   id: string;
@@ -108,7 +109,7 @@ export default function ProfilePage() {
   };
 
   useEffect(() => {
-    const token = localStorage.getItem("accessToken");
+    const token = getAuthToken();
     if (!token) {
       router.push("/login");
       return;
@@ -134,7 +135,7 @@ export default function ProfilePage() {
     setUpdateSuccess("");
     setUpdateError("");
 
-    const token = localStorage.getItem("accessToken");
+    const token = getAuthToken();
     if (!token || !profile) return;
 
     if (isOffline) {
@@ -142,15 +143,8 @@ export default function ProfilePage() {
       setUpdateSuccess(language === "de" ? "Profildaten erfolgreich aktualisiert (Offline-Modus)." : "Profile details updated successfully (Offline Mode).");
       setUpdateLoading(false);
       
-      // Update local storage representation (simulated)
-      try {
-        const parts = token.split(".");
-        const payload = JSON.parse(atob(parts[1]));
-        payload.name = name;
-        const newPayload = btoa(JSON.stringify(payload));
-        localStorage.setItem("accessToken", `${parts[0]}.${newPayload}.${parts[2]}`);
-        window.dispatchEvent(new Event("profile-updated"));
-      } catch (e) {}
+      updateDecodedTokenName(name);
+      window.dispatchEvent(new Event("profile-updated"));
       return;
     }
 
@@ -175,13 +169,7 @@ export default function ProfilePage() {
         const updatedUser = await res.json();
         setUpdateSuccess(language === "de" ? "Profildaten erfolgreich aktualisiert." : "Profile details updated successfully.");
         
-        // Update name in local storage JWT token
-        const parts = token.split(".");
-        const payload = JSON.parse(atob(parts[1]));
-        payload.name = updatedUser.name;
-        const newPayload = btoa(JSON.stringify(payload));
-        localStorage.setItem("accessToken", `${parts[0]}.${newPayload}.${parts[2]}`);
-        
+        updateDecodedTokenName(updatedUser.name);
         window.dispatchEvent(new Event("profile-updated"));
         fetchProfile(profile.id, token);
       } else {
@@ -201,13 +189,25 @@ export default function ProfilePage() {
     setPasswordSuccess("");
     setPasswordError("");
 
-    if (newPassword !== confirmPassword) {
-      setPasswordError(language === "de" ? "Die neuen Passwörter stimmen nicht überein." : "New passwords do not match.");
+    if (!currentPassword) {
+      setPasswordError(language === "de" ? "Bitte geben Sie Ihr aktuelles Passwort ein." : "Please enter your current password.");
       setPasswordLoading(false);
       return;
     }
 
-    const token = localStorage.getItem("accessToken");
+    if (newPassword !== confirmPassword) {
+      setPasswordError(t("passwordsDoNotMatch"));
+      setPasswordLoading(false);
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setPasswordError(t("passwordMinLength"));
+      setPasswordLoading(false);
+      return;
+    }
+
+    const token = getAuthToken();
     if (!token || !profile) return;
 
     if (isOffline) {
@@ -221,27 +221,29 @@ export default function ProfilePage() {
 
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${profile.id}`,
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/auth/change-password`,
         {
-          method: "PATCH",
+          method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            password: newPassword, // Password will be hashed by the backend
+            currentPassword,
+            newPassword,
           }),
         }
       );
 
+      const data = await res.json();
+
       if (res.ok) {
-        setPasswordSuccess(language === "de" ? "Passwort erfolgreich geändert." : "Password changed successfully.");
+        setPasswordSuccess(t("passwordChangedSuccess"));
         setCurrentPassword("");
         setNewPassword("");
         setConfirmPassword("");
       } else {
-        const errJson = await res.json();
-        throw new Error(errJson.message || "Failed to change password");
+        throw new Error(data.message || (language === "de" ? "Passwortänderung fehlgeschlagen." : "Failed to change password."));
       }
     } catch (err: any) {
       setPasswordError(err.message || "Network error occurred.");
@@ -267,7 +269,7 @@ export default function ProfilePage() {
       return;
     }
 
-    const token = localStorage.getItem("accessToken");
+    const token = getAuthToken();
     if (!token) return;
 
     const formData = new FormData();
@@ -527,79 +529,78 @@ export default function ProfilePage() {
             </form>
           </div>
 
-          {/* Change Password Card - HIDDEN for EMPLOYEE role as per security requirements */}
-          {userRole !== "EMPLOYEE" && (
-            <div className="bg-white border border-outline-variant p-stack-md rounded-xl shadow-sm space-y-stack-md">
-              <h4 className="font-bold text-body-lg text-on-surface flex items-center gap-2">
-                <Lock className="w-5 h-5 text-secondary" /> {t("updatePassword")}
-              </h4>
+          {/* Change Password Card - Available for all roles (EMPLOYEE, ADMIN, MANAGER) */}
+          <div className="bg-white border border-outline-variant p-stack-md rounded-xl shadow-sm space-y-stack-md">
+            <h4 className="font-bold text-body-lg text-on-surface flex items-center gap-2">
+              <Lock className="w-5 h-5 text-secondary" /> {t("updatePassword")}
+            </h4>
 
-              <form onSubmit={handleChangePassword} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-1">
-                      {language === "de" ? "Aktuelles Passwort" : "Current Password"}
-                    </label>
-                    <input
-                      type="password"
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="w-full px-3.5 py-2 border border-outline-variant rounded-lg text-body-sm focus:ring-1 focus:ring-secondary focus:border-secondary outline-none bg-surface-container-low text-on-surface"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-1">
-                      {language === "de" ? "Neues Passwort" : "New Password"}
-                    </label>
-                    <input
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full px-3.5 py-2 border border-outline-variant rounded-lg text-body-sm focus:ring-1 focus:ring-secondary focus:border-secondary outline-none bg-surface-container-low text-on-surface"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-1">
-                      {language === "de" ? "Passwort bestätigen" : "Confirm Password"}
-                    </label>
-                    <input
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full px-3.5 py-2 border border-outline-variant rounded-lg text-body-sm focus:ring-1 focus:ring-secondary focus:border-secondary outline-none bg-surface-container-low text-on-surface"
-                      required
-                    />
-                  </div>
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-1">
+                    {t("currentPasswordLabel")}
+                  </label>
+                  <input
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="w-full px-3.5 py-2 border border-outline-variant rounded-lg text-body-sm focus:ring-1 focus:ring-secondary focus:border-secondary outline-none bg-surface-container-low text-on-surface"
+                    required
+                  />
                 </div>
-
-                {passwordSuccess && (
-                  <div className="bg-emerald-50 border border-emerald-500/10 text-emerald-800 px-3 py-2 rounded-lg text-xs flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>{passwordSuccess}</span>
-                  </div>
-                )}
-
-                {passwordError && (
-                  <div className="bg-error-container text-on-error-container px-3 py-2 rounded-lg text-xs flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
-                    <span>{passwordError}</span>
-                  </div>
-                )}
-
-                <div className="flex justify-end pt-2">
-                  <button
-                    type="submit"
-                    disabled={passwordLoading}
-                    className="bg-primary text-on-primary hover:bg-neutral-800 px-5 py-2 rounded-lg text-label-md transition-colors font-bold uppercase tracking-wider text-xs disabled:opacity-50 cursor-pointer"
-                  >
-                    {passwordLoading ? (language === "de" ? "Wird aktualisiert..." : "Updating...") : t("updatePassword")}
-                  </button>
+                <div>
+                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-1">
+                    {t("newPasswordLabel")}
+                  </label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder={t("newPasswordPlaceholder")}
+                    className="w-full px-3.5 py-2 border border-outline-variant rounded-lg text-body-sm focus:ring-1 focus:ring-secondary focus:border-secondary outline-none bg-surface-container-low text-on-surface"
+                    required
+                  />
                 </div>
-              </form>
-            </div>
-          )}
+                <div>
+                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-1">
+                    {t("confirmPasswordLabel")}
+                  </label>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full px-3.5 py-2 border border-outline-variant rounded-lg text-body-sm focus:ring-1 focus:ring-secondary focus:border-secondary outline-none bg-surface-container-low text-on-surface"
+                    required
+                  />
+                </div>
+              </div>
+
+              {passwordSuccess && (
+                <div className="bg-emerald-50 border border-emerald-500/10 text-emerald-800 px-3 py-2 rounded-lg text-xs flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{passwordSuccess}</span>
+                </div>
+              )}
+
+              {passwordError && (
+                <div className="bg-error-container text-on-error-container px-3 py-2 rounded-lg text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>{passwordError}</span>
+                </div>
+              )}
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  disabled={passwordLoading}
+                  className="bg-primary text-on-primary hover:bg-neutral-800 px-5 py-2 rounded-lg text-label-md transition-colors font-bold uppercase tracking-wider text-xs disabled:opacity-50 cursor-pointer"
+                >
+                  {passwordLoading ? (language === "de" ? "Wird aktualisiert..." : "Updating...") : t("updatePassword")}
+                </button>
+              </div>
+            </form>
+          </div>
 
         </div>
 
