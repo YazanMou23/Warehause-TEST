@@ -92,6 +92,8 @@ model User {
   workedContainers    ContainerEmployee[]
   documentBatches     DocumentBatch[]
   universalDocuments  UniversalDocument[]
+  scannerDevices      ScannerDevice[]
+  scanJobs            ScanJob[]
 
   @@index([warehouseId])
   @@index([hallId])
@@ -454,4 +456,88 @@ model DocumentAuditLog {
   @@index([timestamp])
 }
 
+
+// ─── Scanner Device Registry ─────────────────────────────────────────────────
+
+/// Persists discovered/connected network and USB scanners per user.
+/// IP is stored as lastKnownIp — not used as the primary identifier.
+model ScannerDevice {
+  id               String   @id @default(uuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Stable identifier derived from serial number or device model+IP combo
+  deviceIdentifier String
+  manufacturer     String?
+  model            String?
+  deviceName       String
+
+  /// Last known network location — updated on each discovery
+  lastKnownIp      String?
+  port             Int?     @default(80)
+
+  /// "ESCL" | "WIA" | "SIMULATOR" | "IPP"
+  protocol         String   @default("ESCL")
+
+  /// Full capability set from eSCL ScannerCapabilities XML
+  capabilities     Json?
+
+  isScanner        Boolean  @default(true)
+  isPrinter        Boolean  @default(false)
+  hasAdf           Boolean  @default(false)
+  hasFlatbed       Boolean  @default(true)
+
+  /// "UNKNOWN" | "READY" | "BUSY" | "OFFLINE" | "ERROR"
+  status           String   @default("UNKNOWN")
+  isConnected      Boolean  @default(false)
+  lastSeen         DateTime @default(now())
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  scanJobs         ScanJob[]
+
+  @@unique([userId, deviceIdentifier])
+  @@index([userId])
+  @@index([deviceIdentifier])
+  @@index([isConnected])
+}
+
+/// Tracks a single scan job lifecycle (one or many ADF pages).
+model ScanJob {
+  id             String         @id @default(uuid())
+  userId         String
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId       String?
+  device         ScannerDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  /// Linked document batch created from this scan
+  batchId        String?
+
+  /// QUEUED | CONNECTING | SCANNING | UPLOADING | PROCESSING | COMPLETED | FAILED | CANCELLED
+  status         String   @default("QUEUED")
+
+  /// Scan settings used
+  inputSource    String   @default("Platen")
+  colorMode      String   @default("Grayscale")
+  dpi            Int      @default(300)
+  format         String   @default("jpeg")
+  batchScan      Boolean  @default(false)
+
+  /// Progress tracking
+  totalPages     Int      @default(0)
+  processedPages Int      @default(0)
+
+  errorMessage   String?
+
+  createdAt      DateTime  @default(now())
+  startedAt      DateTime?
+  completedAt    DateTime?
+  updatedAt      DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([deviceId])
+  @@index([status])
+  @@index([createdAt])
+}
 

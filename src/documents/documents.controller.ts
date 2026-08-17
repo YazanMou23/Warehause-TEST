@@ -18,10 +18,10 @@ import { DocumentsService } from './documents.service';
 import { DocumentQueueService, DocumentQueueEvent } from './document-queue.service';
 import { ScannerBridgeService } from './scanner-bridge.service';
 import { IngestBatchPayloadDto } from './dto/ingest-documents.dto';
-import { TriggerScanOptionsDto } from './dto/trigger-scan.dto';
+import { SaveScannerDeviceDto, TriggerScanOptionsDto } from './dto/scanner-device.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { Observable, map } from 'rxjs';
+import { Observable, merge, map } from 'rxjs';
 
 @Controller('documents')
 export class DocumentsController {
@@ -31,20 +31,24 @@ export class DocumentsController {
     private readonly scannerBridge: ScannerBridgeService,
   ) {}
 
+  // ─── SSE Event Stream ────────────────────────────────────────────────────
+
   /**
-   * SSE Real-time Event Stream for live progress updates across batches, documents, and scanners.
-   * Route: GET /documents/events
+   * GET /documents/events
+   * Real-time SSE stream for document queue + scanner scan job progress.
    */
   @Sse('events')
-  streamEvents(): Observable<{ data: DocumentQueueEvent }> {
-    return this.queueService.getEventStream().pipe(
-      map((event) => ({ data: event })),
-    );
+  streamEvents(): Observable<{ data: DocumentQueueEvent | any }> {
+    return merge(
+      this.queueService.getEventStream(),
+      this.scannerBridge.getScanEventStream(),
+    ).pipe(map((event) => ({ data: event })));
   }
+
+  // ─── Document Batches ────────────────────────────────────────────────────
 
   /**
    * POST /documents/batches
-   * Create a new document batch container.
    */
   @Post('batches')
   @UseGuards(JwtAuthGuard)
@@ -57,7 +61,6 @@ export class DocumentsController {
 
   /**
    * GET /documents/batches
-   * List all batches for current user / system.
    */
   @Get('batches')
   @UseGuards(JwtAuthGuard)
@@ -67,7 +70,6 @@ export class DocumentsController {
 
   /**
    * GET /documents/batches/:id
-   * Get full details of a batch, including all documents, pages, and queue progress.
    */
   @Get('batches/:id')
   @UseGuards(JwtAuthGuard)
@@ -77,7 +79,6 @@ export class DocumentsController {
 
   /**
    * POST /documents/ingest
-   * Ingest structured document payload (Camera captures, Uploaded files, Scanned batches, Drag & Drop).
    */
   @Post('ingest')
   @UseGuards(JwtAuthGuard)
@@ -86,14 +87,12 @@ export class DocumentsController {
     @Body() payload: IngestBatchPayloadDto,
   ) {
     const result = await this.documentsService.ingestDocuments(user.id, payload);
-    // Automatically trigger queue processing for this batch
     await this.queueService.triggerBatchProcessing(result.batch.id);
     return result;
   }
 
   /**
    * POST /documents/ingest/upload
-   * Multipart file upload helper for standard file inputs.
    */
   @Post('ingest/upload')
   @UseGuards(JwtAuthGuard)
@@ -190,28 +189,46 @@ export class DocumentsController {
 
   /**
    * GET /documents/documents/:id/file
-   * Download / preview original or processed document.
    */
   @Get('documents/:id/file')
   @UseGuards(JwtAuthGuard)
   async getDocumentFile(@Param('id') id: string, @Res() res: Response) {
     const file = await this.documentsService.getDocumentFile(id);
     res.set({
-      'Content-Type': file.mimeType,
+      'Content-Type':        file.mimeType,
       'Content-Disposition': `inline; filename="${file.filename}"`,
-      'Content-Length': file.buffer.length,
+      'Content-Length':      file.buffer.length,
     });
     res.end(file.buffer);
   }
 
+  // ─── Scanner Discovery ───────────────────────────────────────────────────
+
   /**
    * GET /documents/scanner/discover
-   * Discover real network scanners (eSCL/AirScan) and USB scanners (WIA).
+   * Discover network and USB scanners (delegates to local agent when available).
    */
   @Get('scanner/discover')
   @UseGuards(JwtAuthGuard)
   discoverScanners() {
     return this.scannerBridge.discoverScanners();
+  }
+
+  /**
+   * GET /documents/scanner/agent-status
+   * Check if local scanner agent is running.
+   */
+  @Get('scanner/agent-status')
+  @UseGuards(JwtAuthGuard)
+  async getAgentStatus() {
+    const available = await this.scannerBridge.isLocalAgentAvailable();
+    return {
+      agentAvailable: available,
+      agentUrl:       'http://127.0.0.1:48281',
+      message: available
+        ? 'Local Scanner Agent ist aktiv — LAN-Scanner werden erkannt.'
+        : 'Local Scanner Agent nicht gefunden. Starte scanner-agent/index.js auf deinem PC für automatische Netzwerkerkennung.',
+    };
   }
 
   /**
@@ -232,16 +249,117 @@ export class DocumentsController {
    */
   @Post('scanner/scan')
   @UseGuards(JwtAuthGuard)
-  async triggerScannerScan(@Body() options: TriggerScanOptionsDto) {
-    const result = await this.scannerBridge.triggerScan(options);
-    return {
-      success: true,
-      pageCount: result.pages.length,
-      pages: result.pages.map((p, idx) => ({
-        pageNumber: idx + 1,
-        mimeType: p.mimeType,
-        base64Data: p.buffer.toString('base64'),
-      })),
-    };
+  async triggerScannerScan(
+    @Body() options: TriggerScanOptionsDto,
+    @CurrentUser() user: any,
+  ) {
+    // Create scan job for tracking
+    const job = await this.scannerBridge.createScanJob(user.id, options.deviceId ?? null, options);
+
+    try {
+      await this.scannerBridge.updateScanJob(job.id, { status: 'SCANNING', startedAt: new Date() });
+      const result = await this.scannerBridge.triggerScan(options);
+
+      await this.scannerBridge.updateScanJob(job.id, {
+        status:        'COMPLETED',
+        totalPages:    result.pages.length,
+        processedPages: result.pages.length,
+        completedAt:   new Date(),
+      });
+
+      return {
+        success:   true,
+        jobId:     job.id,
+        pageCount: result.pages.length,
+        pages:     result.pages.map((p, idx) => ({
+          pageNumber: idx + 1,
+          mimeType:   p.mimeType,
+          base64Data: p.buffer.toString('base64'),
+        })),
+      };
+    } catch (err: any) {
+      await this.scannerBridge.updateScanJob(job.id, {
+        status:       'FAILED',
+        errorMessage: err.message,
+        completedAt:  new Date(),
+      });
+      throw err;
+    }
+  }
+
+  // ─── Device Registry ─────────────────────────────────────────────────────
+
+  /**
+   * GET /documents/scanner/devices
+   * List all saved/connected devices for the current user.
+   */
+  @Get('scanner/devices')
+  @UseGuards(JwtAuthGuard)
+  getConnectedDevices(@CurrentUser() user: any) {
+    return this.scannerBridge.getConnectedDevices(user.id);
+  }
+
+  /**
+   * POST /documents/scanner/devices
+   * Save (connect) a discovered device for the current user.
+   */
+  @Post('scanner/devices')
+  @UseGuards(JwtAuthGuard)
+  connectDevice(
+    @CurrentUser() user: any,
+    @Body() dto: SaveScannerDeviceDto,
+  ) {
+    return this.scannerBridge.connectDevice(user.id, {
+      deviceIdentifier: dto.deviceIdentifier,
+      manufacturer:     dto.manufacturer,
+      model:            dto.model,
+      deviceName:       dto.deviceName,
+      lastKnownIp:      dto.lastKnownIp,
+      port:             dto.port,
+      protocol:         dto.protocol,
+      capabilities:     dto.capabilities,
+      hasAdf:           dto.capabilities?.hasAdf ?? dto.hasAdf ?? false,
+      hasFlatbed:       dto.capabilities?.hasFlatbed ?? dto.hasFlatbed ?? true,
+    });
+  }
+
+  /**
+   * GET /documents/scanner/devices/:id/status
+   * Real-time status check for a saved device.
+   */
+  @Get('scanner/devices/:id/status')
+  @UseGuards(JwtAuthGuard)
+  getDeviceStatus(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.scannerBridge.getDeviceStatus(user.id, id);
+  }
+
+  /**
+   * DELETE /documents/scanner/devices/:id
+   * Disconnect / remove a saved device.
+   */
+  @Delete('scanner/devices/:id')
+  @UseGuards(JwtAuthGuard)
+  disconnectDevice(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.scannerBridge.disconnectDevice(user.id, id);
+  }
+
+  // ─── Scan Jobs ───────────────────────────────────────────────────────────
+
+  /**
+   * GET /documents/scanner/jobs/:jobId
+   */
+  @Get('scanner/jobs/:jobId')
+  @UseGuards(JwtAuthGuard)
+  getScanJob(@Param('jobId') jobId: string, @CurrentUser() user: any) {
+    return this.scannerBridge.getScanJob(user.id, jobId);
+  }
+
+  /**
+   * POST /documents/scanner/jobs/:jobId/cancel
+   */
+  @Post('scanner/jobs/:jobId/cancel')
+  @UseGuards(JwtAuthGuard)
+  cancelScanJob(@Param('jobId') jobId: string, @CurrentUser() user: any) {
+    return this.scannerBridge.cancelScanJob(user.id, jobId);
   }
 }

@@ -180,7 +180,7 @@ function ConfidenceBadge({ confidence }: { confidence: 'exact' | 'fuzzy' | 'none
   }
   if (confidence === 'fuzzy') {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/25 text-amber-400 border border-amber-500/50 hover:bg-amber-500/35 transition-colors">
         <Search size={10} /> Ähnlicher Treffer
       </span>
     );
@@ -2547,146 +2547,151 @@ export default function TimesheetsPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              {/* Error Message */}
-              {error && (
-                <div className="flex items-center gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/30 mb-6">
-                  <AlertCircle size={18} className="text-red-400 flex-shrink-0" />
-                  <p className="text-red-300 text-sm">{error}</p>
-                  <button
-                    onClick={() => setError(null)}
-                    className="ml-auto text-red-400 hover:text-red-200"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              )}
+              {/* Dark card wrapper — scanner content uses dark-mode colors */}
+              <div className="bg-slate-900 rounded-2xl p-6 shadow-xl border border-slate-700/60">
 
-              {/* Queue Progress Bar */}
-              {hasQueue && (
-                <div className="mb-5 p-4 rounded-2xl bg-white/5 border border-white/10">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                      <Images size={16} className="text-blue-400" />
-                      <span>Foto-Warteschlange</span>
-                      <span className="px-2 py-0.5 rounded-full bg-blue-600/30 text-blue-300 text-xs font-bold border border-blue-400/30">
-                        {queueIndex + 1} / {fileQueue.length}
-                      </span>
-                    </div>
-                    {viewMode === 'review' && !isLastInQueue && (
-                      <button
-                        onClick={skipCurrent}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-700/60 hover:bg-slate-600/60 text-slate-300 hover:text-white text-xs border border-white/10 transition-colors cursor-pointer"
-                      >
-                        <SkipForward size={12} /> Foto überspringen
-                      </button>
-                    )}
+                {/* Error Message */}
+                {error && (
+                  <div className="flex items-center gap-3 p-4 rounded-xl bg-red-500/15 border border-red-500/40 mb-6">
+                    <AlertCircle size={18} className="text-red-400 flex-shrink-0" />
+                    <p className="text-red-300 text-sm">{error}</p>
+                    <button
+                      onClick={() => setError(null)}
+                      className="ml-auto text-red-400 hover:text-red-200"
+                    >
+                      <X size={16} />
+                    </button>
                   </div>
+                )}
 
-                  {/* Progress dots */}
-                  <div className="flex gap-1.5 flex-wrap">
-                    {fileQueue.map((f, i) => {
-                      const st = queueStatuses[i] ?? 'waiting';
-                      const isActive = i === queueIndex;
-                      const dotColor =
-                        st === 'done'    ? 'bg-emerald-400 border-emerald-300' :
-                        st === 'error'   ? 'bg-red-400 border-red-300' :
-                        st === 'skipped' ? 'bg-slate-500 border-slate-400' :
-                        st === 'scanning'|| st === 'review' ? (isActive ? 'bg-blue-400 border-blue-300 animate-pulse' : 'bg-blue-400 border-blue-300') :
-                        'bg-white/20 border-white/10';
-                      return (
-                        <div
-                          key={i}
-                          title={`${f.name} — ${st}`}
-                          className={`h-2.5 flex-1 min-w-[20px] max-w-[60px] rounded-full border transition-all ${
-                            dotColor
-                          }`}
-                        />
-                      );
-                    })}
-                  </div>
-
-                  {/* File names strip */}
-                  <div className="flex gap-1.5 mt-2 flex-wrap">
-                    {fileQueue.map((f, i) => {
-                      const st = queueStatuses[i] ?? 'waiting';
-                      const isActive = i === queueIndex;
-                      return (
-                        <span
-                          key={i}
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] border ${
-                            isActive
-                              ? 'bg-blue-600/30 text-blue-200 border-blue-400/40 font-semibold'
-                              : st === 'done'
-                              ? 'bg-emerald-500/15 text-emerald-400 border-emerald-400/20'
-                              : st === 'error'
-                              ? 'bg-red-500/15 text-red-400 border-red-400/20'
-                              : st === 'skipped'
-                              ? 'bg-slate-500/15 text-slate-500 border-slate-500/20 line-through'
-                              : 'bg-white/5 text-slate-500 border-white/8'
-                          }`}
-                        >
-                          {st === 'done'    && <CheckCircle size={8} />}
-                          {st === 'error'   && <AlertCircle size={8} />}
-                          {st === 'scanning'&& <Loader2 size={8} className="animate-spin" />}
-                          {f.name.length > 18 ? f.name.slice(0, 15) + '...' : f.name}
+                {/* Queue Progress Bar */}
+                {hasQueue && (
+                  <div className="mb-5 p-4 rounded-2xl bg-white/5 border border-white/10">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                        <Images size={16} className="text-blue-400" />
+                        <span>Foto-Warteschlange</span>
+                        <span className="px-2 py-0.5 rounded-full bg-blue-600/30 text-blue-300 text-xs font-bold border border-blue-400/30">
+                          {queueIndex + 1} / {fileQueue.length}
                         </span>
+                      </div>
+                      {viewMode === 'review' && !isLastInQueue && (
+                        <button
+                          onClick={skipCurrent}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-700/60 hover:bg-slate-600/60 text-slate-300 hover:text-white text-xs border border-white/10 transition-colors cursor-pointer"
+                        >
+                          <SkipForward size={12} /> Foto überspringen
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Progress dots */}
+                    <div className="flex gap-1.5 flex-wrap">
+                      {fileQueue.map((f, i) => {
+                        const st = queueStatuses[i] ?? 'waiting';
+                        const isActive = i === queueIndex;
+                        const dotColor =
+                          st === 'done'    ? 'bg-emerald-400 border-emerald-300' :
+                          st === 'error'   ? 'bg-red-400 border-red-300' :
+                          st === 'skipped' ? 'bg-slate-500 border-slate-400' :
+                          st === 'scanning'|| st === 'review' ? (isActive ? 'bg-blue-400 border-blue-300 animate-pulse' : 'bg-blue-400 border-blue-300') :
+                          'bg-white/20 border-white/10';
+                        return (
+                          <div
+                            key={i}
+                            title={`${f.name} — ${st}`}
+                            className={`h-2.5 flex-1 min-w-[20px] max-w-[60px] rounded-full border transition-all ${
+                              dotColor
+                            }`}
+                          />
+                        );
+                      })}
+                    </div>
+
+                    {/* File names strip */}
+                    <div className="flex gap-1.5 mt-2 flex-wrap">
+                      {fileQueue.map((f, i) => {
+                        const st = queueStatuses[i] ?? 'waiting';
+                        const isActive = i === queueIndex;
+                        return (
+                          <span
+                            key={i}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] border ${
+                              isActive
+                                ? 'bg-blue-600/30 text-blue-200 border-blue-400/40 font-semibold'
+                                : st === 'done'
+                                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-400/20'
+                                : st === 'error'
+                                ? 'bg-red-500/15 text-red-400 border-red-400/20'
+                                : st === 'skipped'
+                                ? 'bg-slate-500/15 text-slate-500 border-slate-500/20 line-through'
+                                : 'bg-white/5 text-slate-400 border-white/8'
+                            }`}
+                          >
+                            {st === 'done'    && <CheckCircle size={8} />}
+                            {st === 'error'   && <AlertCircle size={8} />}
+                            {st === 'scanning'&& <Loader2 size={8} className="animate-spin" />}
+                            {f.name.length > 18 ? f.name.slice(0, 15) + '...' : f.name}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Step Indicator */}
+                {(viewMode === 'upload' || viewMode === 'review') && (
+                  <div className="flex items-center gap-2 mb-6 text-xs text-slate-400">
+                    {['Erfassen (Upload / Drucker)', 'KI-Analyse', 'Prüfen & Speichern'].map((step, i) => {
+                      const stepIndex = viewMode === 'upload' ? 0 : viewMode === 'review' ? 2 : 1;
+                      const isActive = i === stepIndex;
+                      const isDone = i < stepIndex;
+                      return (
+                        <div key={step} className="flex items-center gap-2">
+                          <div
+                            className={`flex items-center gap-1.5 ${
+                              isActive ? 'text-blue-300 font-semibold' : isDone ? 'text-emerald-400' : 'text-slate-500'
+                            }`}
+                          >
+                            {isDone ? <CheckCircle size={12} /> : <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-blue-400' : 'bg-slate-600'}`} />}
+                            {step}
+                          </div>
+                          {i < 2 && <div className="w-8 h-px bg-white/15" />}
+                        </div>
                       );
                     })}
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Step Indicator */}
-              {(viewMode === 'upload' || viewMode === 'review') && (
-                <div className="flex items-center gap-2 mb-6 text-xs text-slate-500">
-                  {['Erfassen (Upload / Drucker)', 'KI-Analyse', 'Prüfen & Speichern'].map((step, i) => {
-                    const stepIndex = viewMode === 'upload' ? 0 : viewMode === 'review' ? 2 : 1;
-                    const isActive = i === stepIndex;
-                    const isDone = i < stepIndex;
-                    return (
-                      <div key={step} className="flex items-center gap-2">
-                        <div
-                          className={`flex items-center gap-1.5 ${
-                            isActive ? 'text-blue-300 font-semibold' : isDone ? 'text-emerald-400' : 'text-slate-600'
-                          }`}
-                        >
-                          {isDone ? <CheckCircle size={12} /> : <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-blue-400' : 'bg-slate-600'}`} />}
-                          {step}
-                        </div>
-                        {i < 2 && <div className="w-8 h-px bg-white/10" />}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                {/* View States */}
+                {viewMode === 'upload' && (
+                  <UploadZone
+                    onFileSelect={handleFileSelect}
+                    onFilesSelect={handleFilesSelect}
+                    onPrinterScan={handlePrinterScan}
+                    isLoading={isLoading}
+                  />
+                )}
+                {viewMode === 'scanning' && (
+                  <ScanningView fileName={currentFileName} isPrinterScan={isPrinterScan} />
+                )}
+                {viewMode === 'review' && scanResult && (
+                  <ReviewView
+                    scanResult={scanResult}
+                    onConfirm={handleConfirm}
+                    onDiscard={resetScanner}
+                    isLoading={isLoading}
+                  />
+                )}
+                {viewMode === 'saved' && savedId && (
+                  <SavedView
+                    timesheetId={savedId}
+                    employeeName={savedName}
+                    onScanAnother={resetScanner}
+                  />
+                )}
 
-              {/* View States */}
-              {viewMode === 'upload' && (
-                <UploadZone
-                  onFileSelect={handleFileSelect}
-                  onFilesSelect={handleFilesSelect}
-                  onPrinterScan={handlePrinterScan}
-                  isLoading={isLoading}
-                />
-              )}
-              {viewMode === 'scanning' && (
-                <ScanningView fileName={currentFileName} isPrinterScan={isPrinterScan} />
-              )}
-              {viewMode === 'review' && scanResult && (
-                <ReviewView
-                  scanResult={scanResult}
-                  onConfirm={handleConfirm}
-                  onDiscard={resetScanner}
-                  isLoading={isLoading}
-                />
-              )}
-              {viewMode === 'saved' && savedId && (
-                <SavedView
-                  timesheetId={savedId}
-                  employeeName={savedName}
-                  onScanAnother={resetScanner}
-                />
-              )}
+              </div>
             </motion.div>
           )}
 

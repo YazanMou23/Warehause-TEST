@@ -1,0 +1,15 @@
+{
+  "name": "logiflow-scanner-agent",
+  "version": "1.0.0",
+  "description": "Local Scanner Bridge Agent — discovers printers/scanners on your LAN and bridges them to the LogiFlow web app.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "start:dev": "node --watch index.js"
+  },
+  "keywords": ["scanner", "escl", "airscan", "logiflow"],
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

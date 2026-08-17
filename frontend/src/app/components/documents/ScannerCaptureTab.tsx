@@ -1,36 +1,33 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Printer,
   RefreshCw,
-  Sliders,
-  CheckCircle2,
-  AlertTriangle,
-  FileCheck,
-  ChevronRight,
-  Wifi,
-  Usb,
   Play,
   HelpCircle,
+  CheckCircle2,
+  AlertTriangle,
+  Sliders,
+  Settings2,
+  Wifi,
+  Usb,
+  Loader2,
+  ScanLine,
+  ChevronRight,
+  Layers,
+  ZapOff,
 } from "lucide-react";
 import { API_URL } from "../../../config/api";
+import DeviceManagerModal, { type SavedDevice } from "./DeviceManagerModal";
 
-interface ScannerDevice {
-  id: string;
-  name: string;
-  connectionType: "WIFI" | "USB" | "LAN" | "UNKNOWN";
-  ip?: string;
-  port?: number;
-  status: string;
-  statusDetails?: string;
-  capabilities?: {
-    hasAdf: boolean;
-    hasFlatbed: boolean;
-    supportedDpi: number[];
-    colorModes: string[];
-    documentFormats: string[];
-  };
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface ScanPage {
+  pageNumber: number;
+  mimeType: string;
+  base64Data: string;
 }
 
 interface ScannerCaptureTabProps {
@@ -38,213 +35,249 @@ interface ScannerCaptureTabProps {
     originalFileName: string;
     source: "SCANNER";
     mimeType: string;
-    pages: { pageNumber: number; base64Data: string; mimeType: string }[];
+    pages: ScanPage[];
   }) => void;
 }
 
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export default function ScannerCaptureTab({ onScanCompleted }: ScannerCaptureTabProps) {
-  const [scanners, setScanners] = useState<ScannerDevice[]>([]);
-  const [selectedScannerId, setSelectedScannerId] = useState<string>("");
-  const [discovering, setDiscovering] = useState<boolean>(false);
-  const [scanning, setScanning] = useState<boolean>(false);
-  const [errorMsg, setErrorMsg] = useState<string>("");
-  const [successMsg, setSuccessMsg] = useState<string>("");
+  const [selectedDevice, setSelectedDevice] = useState<SavedDevice | null>(null);
+  const [isModalOpen, setIsModalOpen]       = useState(false);
+  const [scanning, setScanning]             = useState(false);
+  const [errorMsg, setErrorMsg]             = useState("");
+  const [successMsg, setSuccessMsg]         = useState("");
+  const [showTroubleshoot, setShowTroubleshoot] = useState(false);
 
-  // Scan options
+  // Scan settings
   const [inputSource, setInputSource] = useState<"Platen" | "Feeder">("Platen");
-  const [colorMode, setColorMode] = useState<"Color" | "Grayscale" | "BlackAndWhite">("Color");
-  const [dpi, setDpi] = useState<number>(300);
-  const [batchScan, setBatchScan] = useState<boolean>(true);
-  const [showTroubleshoot, setShowTroubleshoot] = useState<boolean>(false);
+  const [colorMode, setColorMode]     = useState<"Color" | "Grayscale" | "BlackAndWhite">("Grayscale");
+  const [dpi, setDpi]                 = useState<number>(300);
+  const [batchScan, setBatchScan]     = useState<boolean>(true);
 
+  // Page progress
+  const [scanJobId, setScanJobId]     = useState<string | null>(null);
+
+  // Auto-select ADF source if device supports it
   useEffect(() => {
-    discoverScanners();
+    if (selectedDevice?.hasAdf) setInputSource("Feeder");
+    else setInputSource("Platen");
+  }, [selectedDevice]);
+
+  // Load last-used device from saved devices on mount
+  useEffect(() => {
+    const loadLastDevice = async () => {
+      try {
+        const token = localStorage.getItem("accessToken");
+        const res   = await fetch(`${API_URL}/documents/scanner/devices`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const devices: SavedDevice[] = await res.json();
+          const connected = devices.find((d) => d.isConnected);
+          if (connected) setSelectedDevice(connected);
+        }
+      } catch {}
+    };
+    loadLastDevice();
   }, []);
 
-  const discoverScanners = async () => {
-    setDiscovering(true);
+  const handleDeviceSelected = useCallback((device: SavedDevice) => {
+    setSelectedDevice(device);
     setErrorMsg("");
-    try {
-      const token = localStorage.getItem("accessToken");
-      const res = await fetch(`${API_URL}/documents/scanner/discover`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setScanners(data);
-        if (data.length > 0) {
-          setSelectedScannerId(data[0].id);
-          if (data[0].capabilities?.hasAdf) {
-            setInputSource("Feeder");
-          }
-        }
-      } else {
-        throw new Error(`Fehler bei Scanner-Suche (HTTP ${res.status})`);
-      }
-    } catch (err: any) {
-      setErrorMsg(err.message || "Netzwerkscanner konnten nicht ermittelt werden.");
-    } finally {
-      setDiscovering(false);
-    }
-  };
-
-  const selectedScanner = scanners.find((s) => s.id === selectedScannerId);
+    setSuccessMsg("");
+  }, []);
 
   const handleStartScan = async () => {
-    if (!selectedScanner) {
-      setErrorMsg("Bitte wähle einen Scanner aus.");
+    if (!selectedDevice) {
+      setErrorMsg("Bitte wähle zuerst einen Scanner aus.");
       return;
     }
 
     setScanning(true);
     setErrorMsg("");
     setSuccessMsg("");
+    setScanJobId(null);
 
     try {
       const token = localStorage.getItem("accessToken");
-      const res = await fetch(`${API_URL}/documents/scanner/scan`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+      const res   = await fetch(`${API_URL}/documents/scanner/scan`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          scannerIp: selectedScanner.ip,
-          scannerPort: selectedScanner.port,
+          deviceId:    selectedDevice.id,
+          scannerIp:   selectedDevice.lastKnownIp,
+          scannerPort: selectedDevice.port,
           colorMode,
           dpi,
-          format: "jpeg",
+          format:      "jpeg",
           inputSource,
-          batchScan,
+          batchScan:   inputSource === "Feeder" ? batchScan : false,
         }),
       });
 
       if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.message || `Scan fehlgeschlagen (HTTP ${res.status})`);
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || `Scan fehlgeschlagen (HTTP ${res.status})`);
       }
 
-      const scanResult = await res.json();
-      if (!scanResult.pages || scanResult.pages.length === 0) {
+      const data = await res.json();
+      setScanJobId(data.jobId || null);
+
+      if (!data.pages || data.pages.length === 0) {
         throw new Error("Keine Seiten vom Scanner empfangen.");
       }
 
-      setSuccessMsg(`${scanResult.pages.length} Seite(n) erfolgreich vom Scanner erfasst!`);
+      setSuccessMsg(`✓ ${data.pages.length} Seite(n) erfolgreich gescannt!`);
 
       onScanCompleted({
         originalFileName: `Scan_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.jpg`,
-        source: "SCANNER",
-        mimeType: "image/jpeg",
-        pages: scanResult.pages,
+        source:           "SCANNER",
+        mimeType:         "image/jpeg",
+        pages:            data.pages,
       });
-    } catch (err: any) {
-      setErrorMsg(err.message || "Scanvorgang abgebrochen oder fehlgeschlagen.");
+    } catch (e: any) {
+      setErrorMsg(e.message || "Scanvorgang fehlgeschlagen.");
     } finally {
       setScanning(false);
     }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Top Banner: Scanner Selector & Discovery */}
-      <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center space-x-3">
-            <div className="p-3 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg">
-              <Printer className="w-6 h-6" />
+    <div className="space-y-5">
+      {/* Device Selector */}
+      <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-xl">
+              <Printer className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-semibold text-slate-100 flex items-center gap-2">
-                Hardware-Scanner (WLAN / AirScan & USB)
+              <h3 className="font-semibold text-slate-100 text-sm flex items-center gap-2">
+                Hardware-Scanner
                 <span className="text-xs px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full">
                   eSCL / WIA
                 </span>
               </h3>
-              <p className="text-xs text-slate-400">
-                Erkennt Brother, HP, Canon, Epson, Lexmark & USB-Scanner im lokalen Netzwerk.
-              </p>
+              <p className="text-xs text-slate-400">Brother, HP, Canon, Epson, Lexmark &amp; USB-Scanner</p>
             </div>
           </div>
-
           <button
-            type="button"
-            onClick={discoverScanners}
-            disabled={discovering || scanning}
-            className="flex items-center space-x-2 px-3 py-2 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors disabled:opacity-50"
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl transition-colors"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${discovering ? "animate-spin text-blue-400" : ""}`} />
-            <span>{discovering ? "Suche Geräte..." : "Neu scannen"}</span>
+            <Settings2 className="w-4 h-4" />
+            Geräte verwalten
           </button>
         </div>
 
-        {/* Scanner Selection List */}
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {scanners.map((dev) => (
-            <div
-              key={dev.id}
-              onClick={() => setSelectedScannerId(dev.id)}
-              className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                selectedScannerId === dev.id
-                  ? "bg-blue-600/15 border-blue-500 text-white ring-1 ring-blue-500"
-                  : "bg-slate-950/40 border-slate-800 text-slate-300 hover:border-slate-700"
-              }`}
+        {/* Selected device */}
+        <AnimatePresence>
+          {selectedDevice ? (
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              className="mt-4 flex items-center justify-between p-3 rounded-xl bg-blue-500/8 border border-blue-500/25"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  {dev.connectionType === "USB" ? (
-                    <Usb className="w-4 h-4 text-purple-400" />
+              <div className="flex items-center gap-2.5">
+                <div className="p-1.5 rounded-lg bg-blue-500/15">
+                  {selectedDevice.protocol === "WIA" ? (
+                    <Usb className="w-3.5 h-3.5 text-purple-400" />
                   ) : (
-                    <Wifi className="w-4 h-4 text-cyan-400" />
+                    <Wifi className="w-3.5 h-3.5 text-cyan-400" />
                   )}
-                  <span className="font-medium text-sm truncate max-w-[180px]">{dev.name}</span>
                 </div>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  {dev.status}
-                </span>
+                <div>
+                  <p className="text-sm font-semibold text-slate-100">{selectedDevice.deviceName}</p>
+                  <p className="text-xs text-slate-400">
+                    {selectedDevice.lastKnownIp
+                      ? `${selectedDevice.lastKnownIp}:${selectedDevice.port}`
+                      : selectedDevice.protocol}
+                    {selectedDevice.hasAdf && " · ADF"}
+                    {selectedDevice.hasFlatbed && " · Flachbett"}
+                  </p>
+                </div>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1 truncate">
-                {dev.statusDetails || (dev.ip ? `IP: ${dev.ip}` : "Lokal")}
-              </p>
-            </div>
-          ))}
-
-          {scanners.length === 0 && !discovering && (
-            <div className="col-span-2 text-center py-6 text-slate-400 bg-slate-950/30 rounded-lg border border-dashed border-slate-800 text-xs">
-              Kein aktiver Netzwerkscanner gefunden. Stelle sicher, dass der Scanner eingeschaltet und im selben WLAN ist.
-            </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-[11px] px-2 py-0.5 rounded-full border font-medium ${
+                  selectedDevice.status === "READY" || selectedDevice.status === "UNKNOWN"
+                    ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/25"
+                    : "text-amber-400 bg-amber-500/10 border-amber-500/25"
+                }`}>
+                  {selectedDevice.status === "UNKNOWN" ? "Bereit" : selectedDevice.status}
+                </span>
+                <button
+                  onClick={() => setIsModalOpen(true)}
+                  className="text-xs text-slate-500 hover:text-slate-300 transition-colors underline"
+                >
+                  Ändern
+                </button>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              onClick={() => setIsModalOpen(true)}
+              className="mt-4 w-full flex items-center justify-between p-3.5 rounded-xl border border-dashed border-slate-700 hover:border-blue-500/50 hover:bg-blue-500/5 transition-all group"
+            >
+              <span className="text-sm text-slate-400 group-hover:text-slate-300">
+                Keinen Scanner ausgewählt
+              </span>
+              <div className="flex items-center gap-1.5 text-blue-400 text-sm font-medium">
+                <Search className="w-4 h-4" />
+                Gerät auswählen
+                <ChevronRight className="w-4 h-4" />
+              </div>
+            </motion.button>
           )}
-        </div>
+        </AnimatePresence>
       </div>
 
-      {/* Scanner Options */}
-      {selectedScanner && (
-        <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-4 space-y-4">
-          <div className="flex items-center space-x-2 text-sm font-semibold text-slate-200">
+      {/* Scan Settings */}
+      {selectedDevice && (
+        <motion.div
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-slate-900/40 border border-slate-800 rounded-2xl p-4 space-y-4"
+        >
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-200">
             <Sliders className="w-4 h-4 text-blue-400" />
-            <span>Scan-Einstellungen</span>
+            Scan-Einstellungen
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {/* Input Source */}
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Papiereinzug</label>
+              <label className="block text-xs font-medium text-slate-400 mb-1.5">Papiereinzug</label>
               <select
                 value={inputSource}
-                onChange={(e) => setInputSource(e.target.value as any)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                onChange={(e) => setInputSource(e.target.value as "Platen" | "Feeder")}
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500 transition-colors"
               >
-                <option value="Platen">Flachbett (Glas / Einzelblatt)</option>
-                <option value="Feeder">Automatischer Einzug (ADF Stapel)</option>
+                {selectedDevice.hasFlatbed && (
+                  <option value="Platen">Flachbett (Einzelblatt)</option>
+                )}
+                {selectedDevice.hasAdf && (
+                  <option value="Feeder">Automatik-Einzug (ADF)</option>
+                )}
+                {!selectedDevice.hasAdf && !selectedDevice.hasFlatbed && (
+                  <>
+                    <option value="Platen">Flachbett</option>
+                    <option value="Feeder">ADF-Einzug</option>
+                  </>
+                )}
               </select>
             </div>
 
             {/* Color Mode */}
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Farbmodus</label>
+              <label className="block text-xs font-medium text-slate-400 mb-1.5">Farbmodus</label>
               <select
                 value={colorMode}
                 onChange={(e) => setColorMode(e.target.value as any)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500 transition-colors"
               >
                 <option value="Color">Vollfarbe (RGB)</option>
                 <option value="Grayscale">Graustufen (Schneller)</option>
@@ -254,11 +287,11 @@ export default function ScannerCaptureTab({ onScanCompleted }: ScannerCaptureTab
 
             {/* Resolution */}
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Auflösung (DPI)</label>
+              <label className="block text-xs font-medium text-slate-400 mb-1.5">Auflösung (DPI)</label>
               <select
                 value={dpi}
                 onChange={(e) => setDpi(Number(e.target.value))}
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500 transition-colors"
               >
                 <option value={150}>150 DPI (Schnell)</option>
                 <option value={300}>300 DPI (Empfohlen für OCR)</option>
@@ -267,77 +300,133 @@ export default function ScannerCaptureTab({ onScanCompleted }: ScannerCaptureTab
             </div>
           </div>
 
+          {/* ADF Batch mode */}
           {inputSource === "Feeder" && (
-            <label className="flex items-center space-x-2 text-xs text-slate-300 cursor-pointer pt-1">
+            <motion.label
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex items-center gap-2.5 text-xs text-slate-300 cursor-pointer select-none"
+            >
               <input
                 type="checkbox"
                 checked={batchScan}
                 onChange={(e) => setBatchScan(e.target.checked)}
-                className="rounded border-slate-700 text-blue-600 focus:ring-0 bg-slate-950"
+                className="w-3.5 h-3.5 rounded border-slate-700 text-blue-600 focus:ring-0 bg-slate-950"
               />
-              <span>Stapel-Modus: Alle Blätter aus dem ADF nacheinander einziehen</span>
-            </label>
+              <div className="flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-blue-400" />
+                Stapel-Modus: Alle Seiten aus dem ADF nacheinander einziehen
+              </div>
+            </motion.label>
           )}
-        </div>
+        </motion.div>
       )}
 
       {/* Messages */}
-      {errorMsg && (
-        <div className="flex items-center space-x-2 p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-xs">
-          <AlertTriangle className="w-4 h-4 shrink-0" />
-          <span>{errorMsg}</span>
-        </div>
-      )}
+      <AnimatePresence>
+        {errorMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="flex items-start gap-2.5 p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-xs"
+          >
+            <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <span>{errorMsg}</span>
+          </motion.div>
+        )}
+        {successMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="flex items-center gap-2.5 p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-xs"
+          >
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+            <span>{successMsg}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {successMsg && (
-        <div className="flex items-center space-x-2 p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-xs">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{successMsg}</span>
-        </div>
-      )}
-
-      {/* Action Button */}
-      <div className="flex items-center justify-between pt-2">
+      {/* Action Row */}
+      <div className="flex items-center justify-between gap-3 pt-1">
         <button
-          type="button"
-          onClick={() => setShowTroubleshoot(!showTroubleshoot)}
-          className="flex items-center space-x-1.5 text-xs text-slate-400 hover:text-slate-300 transition-colors"
+          onClick={() => setShowTroubleshoot((v) => !v)}
+          className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-300 transition-colors"
         >
           <HelpCircle className="w-4 h-4" />
-          <span>Scanner nicht erreichbar?</span>
+          Scanner nicht erreichbar?
         </button>
 
         <button
-          type="button"
           onClick={handleStartScan}
-          disabled={scanning || !selectedScanner}
-          className="flex items-center space-x-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm rounded-lg transition-all shadow-lg shadow-blue-600/20 disabled:opacity-50"
+          disabled={scanning || !selectedDevice}
+          className="flex items-center gap-2.5 px-7 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm rounded-xl transition-all shadow-lg shadow-blue-600/20 disabled:opacity-50 cursor-pointer"
         >
           {scanning ? (
             <>
-              <RefreshCw className="w-4 h-4 animate-spin" />
-              <span>Scan läuft (bitte warten)...</span>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Scan läuft…
             </>
           ) : (
             <>
-              <Play className="w-4 h-4" />
-              <span>Scanvorgang starten</span>
+              <ScanLine className="w-4 h-4" />
+              Scannen starten
             </>
           )}
         </button>
       </div>
 
-      {/* Troubleshooting guide accordion */}
-      {showTroubleshoot && (
-        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 text-xs text-slate-400 space-y-2">
-          <p className="font-semibold text-slate-200">Hinweise zur Scanner-Einrichtung:</p>
-          <ul className="list-disc pl-4 space-y-1">
-            <li>Stelle sicher, dass AirScan / eSCL oder Web Services am Drucker im Browser-Menü aktiviert ist.</li>
-            <li>Bei USB-Verbindung muss der Windows-WIA-Dienst gestartet sein.</li>
-            <li>Wenn der Server auf einer Cloud-Umgebung läuft, kannst du die Begleiter-App (Scanner Bridge) auf deinem Arbeitsplatz-PC starten.</li>
-          </ul>
-        </div>
-      )}
+      {/* Troubleshooting */}
+      <AnimatePresence>
+        {showTroubleshoot && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 text-xs text-slate-400 space-y-2">
+              <p className="font-semibold text-slate-300 flex items-center gap-1.5">
+                <ZapOff className="w-3.5 h-3.5 text-amber-400" />
+                Hinweise zur Scanner-Einrichtung:
+              </p>
+              <ul className="list-disc pl-4 space-y-1.5">
+                <li>Stelle sicher, dass <strong>AirScan / eSCL</strong> am Drucker im Browser-Menü aktiviert ist.</li>
+                <li>Scanner und dieser PC müssen im <strong>gleichen WLAN</strong> sein.</li>
+                <li>
+                  Für automatische LAN-Erkennung: Starte den{" "}
+                  <code className="bg-slate-800 px-1 rounded font-mono text-slate-300">scanner-agent/index.js</code>{" "}
+                  lokal auf deinem PC.
+                </li>
+                <li>
+                  <strong>HP</strong>: Port 8080 &nbsp;|&nbsp;
+                  <strong>Brother/Canon/Epson</strong>: Port 80 &nbsp;|&nbsp;
+                  <strong>Verschlüsselt</strong>: Port 443
+                </li>
+              </ul>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Device Manager Modal */}
+      <DeviceManagerModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onDeviceSelected={handleDeviceSelected}
+        selectedDeviceId={selectedDevice?.id}
+      />
     </div>
+  );
+}
+
+// Needed since we reference it in JSX without import
+function Search({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <circle cx={11} cy={11} r={8} />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35" />
+    </svg>
   );
 }
