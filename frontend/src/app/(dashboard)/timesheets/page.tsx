@@ -320,48 +320,48 @@ function UploadZone({
       className="flex flex-col gap-6 items-center w-full"
     >
       {/* Action Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-5xl">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-5xl">
         
         {/* 1. Direct Printer Scanner Action Card */}
-        <div className="relative rounded-2xl border border-blue-200 bg-blue-50/40 p-6 flex flex-col justify-between items-center text-center shadow-sm hover:border-blue-300 transition-all group">
+        <div className="relative rounded-3xl border-2 border-blue-300 bg-blue-50/40 p-6 flex flex-col justify-between items-center text-center shadow-sm hover:border-blue-500 hover:shadow-md transition-all group">
           {/* Status dot + badge */}
           <div className="absolute top-4 right-4 flex items-center gap-2">
             {statusResult && (
               <span className={`w-2.5 h-2.5 rounded-full animate-pulse ${
-                statusResult.online ? 'bg-emerald-500' : 'bg-red-500'
+                statusResult.online ? 'bg-emerald-600' : 'bg-red-600'
               }`} />
             )}
-            <span className="flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold border border-blue-200 shadow-xs">
-              <Printer size={13} className="shrink-0" />
+            <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 text-blue-900 text-xs font-bold border border-blue-300 shadow-xs">
+              <Printer size={13} className="shrink-0 text-blue-800" />
               <span>WLAN / USB</span>
             </span>
           </div>
 
-          <div className="p-4 rounded-2xl bg-blue-100 text-blue-600 border border-blue-200 mt-8 mb-4 group-hover:scale-105 transition-transform">
-            <Printer size={40} />
+          <div className="p-4 rounded-2xl bg-blue-100 text-blue-800 border-2 border-blue-200 mt-8 mb-4 group-hover:scale-105 transition-transform shadow-xs">
+            <Printer size={40} className="text-blue-800" />
           </div>
 
           <div className="w-full">
             <h3 className="text-slate-900 font-bold text-lg mb-1">Vom Drucker scannen</h3>
-            <p className="text-slate-600 text-xs leading-relaxed mb-2">
+            <p className="text-slate-700 text-xs font-medium leading-relaxed mb-3">
               Netzwerkdrucker per AirScan / eSCL — WLAN oder USB-Kabel.
             </p>
 
             {/* Inline status */}
             {statusResult && (
-              <div className={`mb-3 flex items-center justify-center gap-1.5 text-xs font-medium ${
-                statusResult.online ? 'text-emerald-600' : 'text-red-600'
+              <div className={`mb-3 flex items-center justify-center gap-1.5 text-xs font-bold ${
+                statusResult.online ? 'text-emerald-800' : 'text-red-700'
               }`}>
                 {statusResult.online ? (
-                  <><CheckCircle size={11} /> Online{statusResult.model ? ` · ${statusResult.model}` : ''} ({statusResult.state})</>
+                  <><CheckCircle size={12} className="text-emerald-700" /> Online{statusResult.model ? ` · ${statusResult.model}` : ''} ({statusResult.state})</>
                 ) : (
-                  <><AlertCircle size={11} /> {statusResult.error?.slice(0, 48)}</>
+                  <><AlertCircle size={12} className="text-red-600" /> {statusResult.error?.slice(0, 48)}</>
                 )}
               </div>
             )}
             {!statusResult && scannerIp && !checkingStatus && (
-              <div className="mb-3 text-xs text-slate-500 flex items-center justify-center gap-1">
-                <Hash size={10} /> IP: {scannerIp}:{scannerPort}
+              <div className="mb-3 text-xs text-slate-700 font-mono font-bold flex items-center justify-center gap-1">
+                <Hash size={11} /> IP: {scannerIp}:{scannerPort}
               </div>
             )}
           </div>
@@ -370,28 +370,28 @@ function UploadZone({
             <button
               onClick={() => onPrinterScan({ scannerIp, scannerPort, dpi: scannerDpi })}
               disabled={isLoading}
-              className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-md hover:shadow-blue-500/20 transition-all text-sm disabled:opacity-50 cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md transition-all text-sm disabled:opacity-50 cursor-pointer"
             >
               {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Printer size={18} />}
               <span>Jetzt scannen</span>
             </button>
 
             {/* Quick test + settings row */}
-            <div className="flex gap-1.5">
+            <div className="flex gap-2">
               <button
                 onClick={checkScannerStatus}
                 disabled={checkingStatus || !scannerIp}
                 title={scannerIp ? 'Verbindung testen' : 'Erst IP in Einstellungen eingeben'}
-                className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 text-xs border border-slate-200 transition-colors disabled:opacity-40 cursor-pointer shadow-sm"
+                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold border-2 border-slate-300 transition-colors disabled:opacity-40 cursor-pointer shadow-xs"
               >
-                {checkingStatus ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
+                {checkingStatus ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
                 Testen
               </button>
               <button
                 onClick={() => setShowPrinterSettings(!showPrinterSettings)}
-                className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 text-xs border border-slate-200 transition-colors cursor-pointer shadow-sm"
+                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold border-2 border-slate-300 transition-colors cursor-pointer shadow-xs"
               >
-                <Settings size={11} />
+                <Settings size={12} />
                 {showPrinterSettings ? 'Schließen' : 'Einstellungen'}
               </button>
             </div>
@@ -408,38 +408,38 @@ function UploadZone({
           onDrop={handleDrop}
           onClick={() => !isLoading && inputRef.current?.click()}
           className={`
-            relative cursor-pointer rounded-2xl border-2 border-dashed
-            transition-all duration-300 p-6 flex flex-col justify-between items-center text-center
+            relative cursor-pointer rounded-3xl border-2 border-dashed
+            transition-all duration-300 p-6 flex flex-col justify-between items-center text-center shadow-sm
             ${isDragOver
-              ? 'border-blue-500 bg-blue-50 scale-[1.01]'
-              : 'border-slate-300 bg-slate-50/70 hover:border-blue-400 hover:bg-blue-50/30'
+              ? 'border-blue-600 bg-blue-50/80 scale-[1.01]'
+              : 'border-slate-300 bg-slate-50 hover:border-blue-500 hover:bg-blue-50/30'
             }
           `}
         >
-          <div className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1 rounded-full bg-slate-200/80 text-slate-700 text-xs font-semibold border border-slate-300">
-            <Upload size={12} />
+          <div className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-200 text-slate-900 text-xs font-bold border border-slate-300 shadow-xs">
+            <Upload size={12} className="text-slate-800" />
             <span>Datei-Upload</span>
           </div>
 
-          <div className={`p-4 rounded-2xl transition-colors mt-8 mb-4 ${isDragOver ? 'bg-blue-100 text-blue-600' : 'bg-slate-200/60 text-slate-600'}`}>
-            <ScanLine size={44} className={isDragOver ? 'text-blue-600' : 'text-slate-600'} />
+          <div className={`p-4 rounded-2xl border-2 transition-colors mt-8 mb-4 shadow-xs ${isDragOver ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-slate-200 border-slate-300 text-slate-800'}`}>
+            <ScanLine size={44} className={isDragOver ? 'text-blue-800' : 'text-slate-800'} />
           </div>
 
           <div>
             <h3 className="text-slate-900 font-bold text-lg mb-1">
               {isDragOver ? 'Datei hier ablegen' : 'Datei / Dokument hochladen'}
             </h3>
-            <p className="text-slate-500 text-xs max-w-xs mb-4">
+            <p className="text-slate-700 text-xs font-medium max-w-xs mb-4">
               PNG, JPG, JPEG oder PDF per Drag & Drop ziehen oder Durchsuchen klicken.
             </p>
           </div>
 
           <div className="w-full">
-            <div className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-semibold text-sm border border-slate-200 shadow-sm transition-all flex items-center justify-center gap-2">
-              <Upload size={16} />
+            <div className="px-4 py-2.5 rounded-2xl bg-white hover:bg-slate-100 text-slate-900 font-bold text-sm border-2 border-slate-300 shadow-xs transition-all flex items-center justify-center gap-2">
+              <Upload size={16} className="text-slate-800" />
               <span>Datei auswählen</span>
             </div>
-            <p className="text-slate-500 text-[11px] mt-2">Max. 15 MB (PNG, JPG, JPEG, PDF)</p>
+            <p className="text-slate-600 text-[11px] font-semibold mt-2">Max. 15 MB (PNG, JPG, JPEG, PDF)</p>
           </div>
 
           <input
@@ -463,30 +463,30 @@ function UploadZone({
         {/* 3. Camera Capture Card */}
         <div
           onClick={() => !isLoading && cameraRef.current?.click()}
-          className="relative cursor-pointer rounded-2xl border-2 border-dashed border-emerald-300 bg-emerald-50/40 p-6 flex flex-col justify-between items-center text-center shadow-sm hover:border-emerald-400 transition-all group"
+          className="relative cursor-pointer rounded-3xl border-2 border-dashed border-emerald-400 bg-emerald-50/40 p-6 flex flex-col justify-between items-center text-center shadow-sm hover:border-emerald-600 hover:bg-emerald-50/70 transition-all group"
         >
-          <div className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-200">
-            <Camera size={12} />
+          <div className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-900 text-xs font-bold border border-emerald-300 shadow-xs">
+            <Camera size={12} className="text-emerald-800" />
             <span>Kamera</span>
           </div>
 
-          <div className="p-4 rounded-2xl bg-emerald-100 text-emerald-600 border border-emerald-200 mt-8 mb-4 group-hover:scale-105 transition-transform">
-            <Camera size={44} />
+          <div className="p-4 rounded-2xl bg-emerald-100 text-emerald-800 border-2 border-emerald-300 mt-8 mb-4 group-hover:scale-105 transition-transform shadow-xs">
+            <Camera size={44} className="text-emerald-800" />
           </div>
 
           <div>
             <h3 className="text-slate-900 font-bold text-lg mb-1">Kamera aufnehmen</h3>
-            <p className="text-slate-600 text-xs leading-relaxed max-w-xs mb-4">
+            <p className="text-slate-700 text-xs font-medium leading-relaxed max-w-xs mb-4">
               Stundenzettel direkt mit der Handy- oder Laptop-Kamera fotografieren und sofort scannen.
             </p>
           </div>
 
           <div className="w-full">
-            <div className="px-4 py-2.5 rounded-xl bg-white hover:bg-emerald-50 text-emerald-700 font-semibold text-sm border border-emerald-200 shadow-sm transition-all flex items-center justify-center gap-2">
-              {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
+            <div className="px-4 py-2.5 rounded-2xl bg-white hover:bg-emerald-100 text-emerald-900 font-bold text-sm border-2 border-emerald-300 shadow-xs transition-all flex items-center justify-center gap-2">
+              {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} className="text-emerald-800" />}
               <span>Kamera öffnen</span>
             </div>
-            <p className="text-slate-500 text-[11px] mt-2">Foto, Handy oder Webcam</p>
+            <p className="text-slate-600 text-[11px] font-semibold mt-2">Foto, Handy oder Webcam</p>
           </div>
 
           <input
@@ -509,8 +509,8 @@ function UploadZone({
         </div>
 
         {/* 3-card hint: multi-photo */}
-        <div className="col-span-1 md:col-span-3 flex items-center gap-2 text-xs text-slate-500 justify-center">
-          <Images size={13} className="text-blue-500" />
+        <div className="col-span-1 md:col-span-3 flex items-center gap-2 text-xs text-slate-700 font-medium justify-center bg-slate-50 border border-slate-200 py-2 px-4 rounded-xl shadow-xs">
+          <Images size={14} className="text-blue-600" />
           <span>Mehrere Dateien auswählen (PNG, JPG, JPEG, PDF): Strg+Klick (Desktop) oder Mehrfach-Auswahl — alle werden nacheinander analysiert.</span>
         </div>
 
@@ -2547,38 +2547,38 @@ export default function TimesheetsPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              {/* Dark card wrapper — scanner content uses dark-mode colors */}
-              <div className="bg-slate-900 rounded-2xl p-6 shadow-xl border border-slate-700/60">
+              {/* Light card wrapper with crisp dark border */}
+              <div className="bg-white rounded-3xl p-6 shadow-sm border-2 border-slate-300">
 
                 {/* Error Message */}
                 {error && (
-                  <div className="flex items-center gap-3 p-4 rounded-xl bg-red-500/15 border border-red-500/40 mb-6">
-                    <AlertCircle size={18} className="text-red-400 flex-shrink-0" />
-                    <p className="text-red-300 text-sm">{error}</p>
+                  <div className="flex items-center gap-3 p-4 rounded-2xl bg-red-50 border-2 border-red-300 mb-6 shadow-xs">
+                    <AlertCircle size={20} className="text-red-600 flex-shrink-0" />
+                    <p className="text-red-800 text-sm font-bold">{error}</p>
                     <button
                       onClick={() => setError(null)}
-                      className="ml-auto text-red-400 hover:text-red-200"
+                      className="ml-auto text-red-500 hover:text-red-800 cursor-pointer"
                     >
-                      <X size={16} />
+                      <X size={18} />
                     </button>
                   </div>
                 )}
 
                 {/* Queue Progress Bar */}
                 {hasQueue && (
-                  <div className="mb-5 p-4 rounded-2xl bg-white/5 border border-white/10">
+                  <div className="mb-6 p-4 rounded-2xl bg-slate-50 border-2 border-slate-300 shadow-xs">
                     <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                        <Images size={16} className="text-blue-400" />
+                      <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                        <Images size={18} className="text-blue-600" />
                         <span>Foto-Warteschlange</span>
-                        <span className="px-2 py-0.5 rounded-full bg-blue-600/30 text-blue-300 text-xs font-bold border border-blue-400/30">
+                        <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-900 text-xs font-bold border border-blue-300">
                           {queueIndex + 1} / {fileQueue.length}
                         </span>
                       </div>
                       {viewMode === 'review' && !isLastInQueue && (
                         <button
                           onClick={skipCurrent}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-700/60 hover:bg-slate-600/60 text-slate-300 hover:text-white text-xs border border-white/10 transition-colors cursor-pointer"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold border-2 border-slate-300 transition-colors shadow-xs cursor-pointer"
                         >
                           <SkipForward size={12} /> Foto überspringen
                         </button>
@@ -2591,11 +2591,11 @@ export default function TimesheetsPage() {
                         const st = queueStatuses[i] ?? 'waiting';
                         const isActive = i === queueIndex;
                         const dotColor =
-                          st === 'done'    ? 'bg-emerald-400 border-emerald-300' :
-                          st === 'error'   ? 'bg-red-400 border-red-300' :
-                          st === 'skipped' ? 'bg-slate-500 border-slate-400' :
-                          st === 'scanning'|| st === 'review' ? (isActive ? 'bg-blue-400 border-blue-300 animate-pulse' : 'bg-blue-400 border-blue-300') :
-                          'bg-white/20 border-white/10';
+                          st === 'done'    ? 'bg-emerald-500 border-emerald-400' :
+                          st === 'error'   ? 'bg-red-500 border-red-400' :
+                          st === 'skipped' ? 'bg-slate-400 border-slate-300' :
+                          st === 'scanning'|| st === 'review' ? (isActive ? 'bg-blue-600 border-blue-500 animate-pulse' : 'bg-blue-600 border-blue-500') :
+                          'bg-slate-200 border-slate-300';
                         return (
                           <div
                             key={i}
@@ -2616,21 +2616,21 @@ export default function TimesheetsPage() {
                         return (
                           <span
                             key={i}
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] border ${
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs border ${
                               isActive
-                                ? 'bg-blue-600/30 text-blue-200 border-blue-400/40 font-semibold'
+                                ? 'bg-blue-100 text-blue-900 border-blue-300 font-bold shadow-xs'
                                 : st === 'done'
-                                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-400/20'
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 font-medium'
                                 : st === 'error'
-                                ? 'bg-red-500/15 text-red-400 border-red-400/20'
+                                ? 'bg-red-50 text-red-800 border-red-300 font-medium'
                                 : st === 'skipped'
-                                ? 'bg-slate-500/15 text-slate-500 border-slate-500/20 line-through'
-                                : 'bg-white/5 text-slate-400 border-white/8'
+                                ? 'bg-slate-100 text-slate-500 border-slate-300 line-through'
+                                : 'bg-white text-slate-700 border-slate-200'
                             }`}
                           >
-                            {st === 'done'    && <CheckCircle size={8} />}
-                            {st === 'error'   && <AlertCircle size={8} />}
-                            {st === 'scanning'&& <Loader2 size={8} className="animate-spin" />}
+                            {st === 'done'    && <CheckCircle size={10} className="text-emerald-700" />}
+                            {st === 'error'   && <AlertCircle size={10} className="text-red-700" />}
+                            {st === 'scanning'&& <Loader2 size={10} className="animate-spin text-blue-700" />}
                             {f.name.length > 18 ? f.name.slice(0, 15) + '...' : f.name}
                           </span>
                         );
@@ -2641,7 +2641,7 @@ export default function TimesheetsPage() {
 
                 {/* Step Indicator */}
                 {(viewMode === 'upload' || viewMode === 'review') && (
-                  <div className="flex items-center gap-2 mb-6 text-xs text-slate-400">
+                  <div className="flex items-center gap-2 mb-6 text-xs text-slate-600 bg-slate-50 p-3 rounded-2xl border border-slate-200">
                     {['Erfassen (Upload / Drucker)', 'KI-Analyse', 'Prüfen & Speichern'].map((step, i) => {
                       const stepIndex = viewMode === 'upload' ? 0 : viewMode === 'review' ? 2 : 1;
                       const isActive = i === stepIndex;
@@ -2649,14 +2649,14 @@ export default function TimesheetsPage() {
                       return (
                         <div key={step} className="flex items-center gap-2">
                           <div
-                            className={`flex items-center gap-1.5 ${
-                              isActive ? 'text-blue-300 font-semibold' : isDone ? 'text-emerald-400' : 'text-slate-500'
+                            className={`flex items-center gap-1.5 font-bold ${
+                              isActive ? 'text-blue-700' : isDone ? 'text-emerald-700' : 'text-slate-400'
                             }`}
                           >
-                            {isDone ? <CheckCircle size={12} /> : <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-blue-400' : 'bg-slate-600'}`} />}
+                            {isDone ? <CheckCircle size={14} className="text-emerald-700" /> : <div className={`w-2.5 h-2.5 rounded-full ${isActive ? 'bg-blue-600' : 'bg-slate-300'}`} />}
                             {step}
                           </div>
-                          {i < 2 && <div className="w-8 h-px bg-white/15" />}
+                          {i < 2 && <div className="w-8 h-0.5 bg-slate-300" />}
                         </div>
                       );
                     })}
