@@ -23,6 +23,7 @@ const { exec }    = require('child_process');
 const { promisify } = require('util');
 const fs          = require('fs');
 const path        = require('path');
+const zlib        = require('zlib');
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const PORT         = parseInt(process.env.SCANNER_AGENT_PORT || '48281', 10);
@@ -454,17 +455,54 @@ async function triggerEsclScan(ip, port, options) {
   return pages;
 }
 
+function generateSampleDocumentPng(width = 600, height = 800) {
+  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  function chunk(type, data) {
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(data.length);
+    const typeBuf = Buffer.from(type, 'ascii');
+    const crcVal = zlib.crc32(Buffer.concat([typeBuf, data]));
+    const crcBuf = Buffer.alloc(4);
+    crcBuf.writeUInt32BE(crcVal >>> 0);
+    return Buffer.concat([len, typeBuf, data, crcBuf]);
+  }
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 2;
+  ihdr[10] = 0;
+  ihdr[11] = 0;
+  ihdr[12] = 0;
+  const stride = 1 + width * 3;
+  const raw = Buffer.alloc(height * stride, 255);
+  for (let y = 0; y < height; y++) {
+    const rowOffset = y * stride;
+    raw[rowOffset] = 0;
+    if (y >= 40 && y <= 90) {
+      for (let x = 40; x < width - 40; x++) {
+        const px = rowOffset + 1 + x * 3;
+        raw[px] = 30; raw[px + 1] = 58; raw[px + 2] = 138;
+      }
+    }
+    if ((y >= 160 && y <= 162) || (y >= 220 && y <= 221) || (y >= 280 && y <= 281) || (y >= 340 && y <= 341) || (y >= 400 && y <= 401)) {
+      for (let x = 40; x < width - 40; x++) {
+        const px = rowOffset + 1 + x * 3;
+        raw[px] = 210; raw[px + 1] = 215; raw[px + 2] = 225;
+      }
+    }
+  }
+  const compressed = zlib.deflateSync(raw, { level: 6 });
+  return Buffer.concat([signature, chunk('IHDR', ihdr), chunk('IDAT', compressed), chunk('IEND', Buffer.alloc(0))]);
+}
+
 async function executeScan(options) {
   const { scannerIp, scannerPort = 80 } = options;
 
   // Simulator
   if (!scannerIp || scannerIp === 'SIMULATOR') {
-    log('log', 'Simulator scan requested — returning dummy image.');
-    const dummyJpeg = Buffer.from(
-      '/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=',
-      'base64',
-    );
-    return [{ buffer: dummyJpeg, mimeType: 'image/jpeg' }];
+    log('log', 'Simulator scan requested — returning valid sample document PNG.');
+    return [{ buffer: generateSampleDocumentPng(600, 800), mimeType: 'image/png' }];
   }
 
   // USB / WIA

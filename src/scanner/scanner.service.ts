@@ -5,9 +5,11 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../prisma/prisma.service';
+import { TimesheetMatcherService } from '../timesheet/timesheet-matcher.service';
 import { TimesheetService } from '../timesheet/timesheet.service';
 import { TimesheetOcrService } from '../timesheet/timesheet-ocr.service';
-import { TimesheetMatcherService } from '../timesheet/timesheet-matcher.service';
+import { generateSampleDocumentPng } from '../common/utils/sample-document.util';
 import { ScanSettingsDto, ColorMode, ScanFormat } from './dto/scan-settings.dto';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -530,7 +532,7 @@ export class ScannerService {
     // ── Simulator / Demo mode ─────────────────────────────────────────────────
     if (targetIp === 'SIMULATOR' || targetIp === 'DEMO' || targetIp === 'MOCK') {
       this.logger.log('Executing simulated scan (DEMO/SIMULATOR mode)...');
-      return { buffer: Buffer.from('FFD8FFE0', 'hex'), mimeType: 'image/jpeg' };
+      return { buffer: generateSampleDocumentPng(600, 800), mimeType: 'image/png' };
     }
 
     // ── USB / WIA scan ────────────────────────────────────────────────────────
@@ -551,7 +553,7 @@ export class ScannerService {
         this.logger.log(`Auto-discovered WiFi scanner at ${targetIp}:${settings.scannerPort}`);
       } else {
         this.logger.log('No physical scanner found — falling back to Simulator mode.');
-        return { buffer: Buffer.from('FFD8FFE0', 'hex'), mimeType: 'image/jpeg' };
+        return { buffer: generateSampleDocumentPng(600, 800), mimeType: 'image/png' };
       }
     }
 

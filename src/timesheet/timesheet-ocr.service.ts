@@ -56,7 +56,15 @@ export class TimesheetOcrService {
       return await this.callVisionApi(file, apiKey);
     } catch (error: any) {
       this.logger.error(`OCR-Extraktion fehlgeschlagen: ${error.message}`);
-      return this.getSandboxFallback(`API-Fehler: ${error.message}`);
+      let userFriendlyWarning = 'OCR-Verarbeitung konnte das Dokument nicht analysieren. Demo-Daten werden angezeigt.';
+      if (error.message?.includes('image_parse_error') || error.message?.includes('unsupported image')) {
+        userFriendlyWarning = 'Das gescannte Bild konnte nicht verarbeitet werden. Bitte Dokument erneut scannen oder ein anderes Bild hochladen.';
+      } else if (error.message?.includes('401') || error.message?.includes('invalid_api_key')) {
+        userFriendlyWarning = 'OpenAI API-Schlüssel ist ungültig oder abgelaufen.';
+      } else if (error.message?.includes('429')) {
+        userFriendlyWarning = 'OpenAI API-Ratenlimit erreicht. Bitte in Kürze erneut versuchen.';
+      }
+      return this.getSandboxFallback(userFriendlyWarning);
     }
   }
 

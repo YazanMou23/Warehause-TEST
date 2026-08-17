@@ -14,6 +14,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as net from 'net';
 import { Subject, Observable } from 'rxjs';
+import { generateSampleDocumentPng } from '../common/utils/sample-document.util';
 
 const execAsync = promisify(exec);
 
@@ -556,11 +557,7 @@ export class ScannerBridgeService {
     // ── Simulator ─────────────────────────────────────────────────────────
     if (ip === 'SIMULATOR' || !ip) {
       this.logger.log('Simulator scan.');
-      const dummyJpeg = Buffer.from(
-        '/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=',
-        'base64',
-      );
-      return { pages: [{ buffer: dummyJpeg, mimeType: 'image/jpeg' }] };
+      return { pages: [{ buffer: generateSampleDocumentPng(600, 800), mimeType: 'image/png' }] };
     }
 
     // ── USB / WIA ─────────────────────────────────────────────────────────

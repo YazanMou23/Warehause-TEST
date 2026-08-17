@@ -186,11 +186,18 @@ AUSGABE — NUR dieses JSON, keine Erklärungen:
     return null;
   }
 
-  // ─── Sandbox fallback ─────────────────────────────────────────────────────
-
   private getSandboxFallback(filename: string, type: OcrExtractionType, errorMessage?: string) {
-    const warning = errorMessage
-      ? `API fehlgeschlagen (${errorMessage}). Demo-Daten werden angezeigt.`
+    let friendlyMessage = errorMessage;
+    if (errorMessage?.includes('image_parse_error') || errorMessage?.includes('unsupported image')) {
+      friendlyMessage = 'Das gescannte Dokument konnte nicht verarbeitet werden. Bitte erneut scannen.';
+    } else if (errorMessage?.includes('401') || errorMessage?.includes('invalid_api_key')) {
+      friendlyMessage = 'OpenAI API-Schlüssel ungültig.';
+    } else if (errorMessage?.includes('429')) {
+      friendlyMessage = 'OpenAI Ratenlimit erreicht.';
+    }
+
+    const warning = friendlyMessage
+      ? `OCR-Hinweis: ${friendlyMessage} Demo-Daten werden angezeigt.`
       : 'Sandbox-Modus aktiv.';
 
     if (type === OcrExtractionType.CONTAINERS) {
