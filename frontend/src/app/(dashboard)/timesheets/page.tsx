@@ -173,21 +173,21 @@ function getKw(weekStart: string): string {
 function ConfidenceBadge({ confidence }: { confidence: 'exact' | 'fuzzy' | 'none' }) {
   if (confidence === 'exact') {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-        <CheckCircle size={10} /> Exakter Treffer
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-xs">
+        <CheckCircle size={12} className="text-emerald-700" /> Exakter Treffer
       </span>
     );
   }
   if (confidence === 'fuzzy') {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/25 text-amber-400 border border-amber-500/50 hover:bg-amber-500/35 transition-colors">
-        <Search size={10} /> Ähnlicher Treffer
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 transition-colors shadow-xs">
+        <Search size={12} className="text-amber-800" /> Ähnlicher Treffer
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/20 text-red-300 border border-red-500/30">
-      <UserPlus size={10} /> Nicht gefunden
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-300 shadow-xs">
+      <UserPlus size={12} className="text-red-700" /> Nicht gefunden
     </span>
   );
 }
@@ -195,14 +195,14 @@ function ConfidenceBadge({ confidence }: { confidence: 'exact' | 'fuzzy' | 'none
 function StatusBadge({ status }: { status: string }) {
   if (status === 'CONFIRMED') {
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-        <CheckCircle size={11} /> Bestätigt
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-xs">
+        <CheckCircle size={11} className="text-emerald-700" /> Bestätigt
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30">
-      <Clock size={11} /> Ausstehend
+    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-xs">
+      <Clock size={11} className="text-amber-800" /> Ausstehend
     </span>
   );
 }
@@ -690,37 +690,37 @@ function ScanningView({ fileName, isPrinterScan }: { fileName: string; isPrinter
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="flex flex-col items-center justify-center gap-8 py-16"
+      className="flex flex-col items-center justify-center gap-8 py-16 bg-white border-2 border-slate-300 rounded-3xl shadow-sm my-4"
     >
       <div className="relative">
-        <div className="w-24 h-24 rounded-2xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center">
+        <div className="w-24 h-24 rounded-2xl bg-blue-50 border-2 border-blue-200 flex items-center justify-center shadow-xs">
           {isPrinterScan ? (
-            <Printer size={40} className="text-blue-400 animate-pulse" />
+            <Printer size={40} className="text-blue-600 animate-pulse" />
           ) : (
-            <FileText size={36} className="text-blue-400" />
+            <FileText size={36} className="text-blue-600" />
           )}
         </div>
         <motion.div
           animate={{ y: ['0%', '100%', '0%'] }}
           transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute left-0 right-0 h-0.5 bg-blue-400 shadow-[0_0_12px_2px_rgba(96,165,250,0.6)]"
+          className="absolute left-0 right-0 h-0.5 bg-blue-600 shadow-[0_0_12px_2px_rgba(37,99,235,0.4)]"
           style={{ top: '0%' }}
         />
       </div>
 
       <div className="text-center">
         <div className="flex items-center gap-2 justify-center mb-2">
-          <Loader2 size={18} className="text-blue-400 animate-spin" />
-          <p className="text-white font-semibold">
+          <Loader2 size={18} className="text-blue-600 animate-spin" />
+          <p className="text-slate-900 font-bold text-lg">
             {isPrinterScan ? 'Verbindung zum Drucker hergestellt. Scanne Dokument...' : 'KI analysiert Stundenzettel...'}
           </p>
         </div>
-        <p className="text-slate-400 text-sm">{fileName}</p>
+        <p className="text-slate-600 text-sm font-medium">{fileName}</p>
       </div>
 
-      <div className="flex flex-col gap-2 w-72">
+      <div className="flex flex-col gap-2 w-80 bg-slate-50 p-4 rounded-xl border border-slate-200">
         {[
-          isPrinterScan ? 'Empfange Bild vom Netzwerkschreibdrucker' : 'Bild wird verarbeitet',
+          isPrinterScan ? 'Empfange Bild vom Netzwerkdrucker' : 'Bild wird verarbeitet',
           'Handschrift & Zeiten werden erkannt',
           'Mitarbeiter wird in Datenbank gesucht',
         ].map((step, i) => (
@@ -729,12 +729,12 @@ function ScanningView({ fileName, isPrinterScan }: { fileName: string; isPrinter
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: i * 0.5 + 0.3 }}
-            className="flex items-center gap-2 text-sm text-slate-400"
+            className="flex items-center gap-2.5 text-sm text-slate-700 font-medium"
           >
             <motion.div
               animate={{ opacity: [0.3, 1, 0.3] }}
               transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.5 }}
-              className="w-1.5 h-1.5 rounded-full bg-blue-400"
+              className="w-2 h-2 rounded-full bg-blue-600 shrink-0"
             />
             {step}
           </motion.div>
@@ -897,52 +897,52 @@ function ReviewView({
     >
       {/* OCR Warning */}
       {scanResult.ocrWarning && (
-        <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
-          <AlertCircle size={18} className="text-amber-400 flex-shrink-0 mt-0.5" />
-          <p className="text-amber-300 text-sm">{scanResult.ocrWarning}</p>
+        <div className="flex items-start gap-3 p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-900 shadow-xs">
+          <AlertCircle size={20} className="text-amber-700 flex-shrink-0 mt-0.5" />
+          <p className="text-amber-900 text-sm font-medium">{scanResult.ocrWarning}</p>
         </div>
       )}
 
       {scanResult.sandbox && (
-        <div className="flex items-start gap-3 p-4 rounded-xl bg-blue-500/10 border border-blue-500/30">
-          <AlertCircle size={18} className="text-blue-400 flex-shrink-0 mt-0.5" />
-          <p className="text-blue-300 text-sm">
+        <div className="flex items-start gap-3 p-4 rounded-2xl bg-blue-50 border-2 border-blue-300 text-blue-900 shadow-xs">
+          <AlertCircle size={20} className="text-blue-700 flex-shrink-0 mt-0.5" />
+          <p className="text-blue-900 text-sm">
             <strong>Demo-Modus:</strong> Diese Daten sind Beispieldaten.
           </p>
         </div>
       )}
 
       {/* Mitarbeiter-Block */}
-      <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-        <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-          <User size={16} className="text-blue-400" />
+      <div className="bg-white border-2 border-slate-300 rounded-3xl p-6 shadow-sm">
+        <h3 className="text-slate-900 font-bold text-base mb-4 flex items-center gap-2">
+          <User size={18} className="text-blue-600" />
           Mitarbeiter-Zuordnung
         </h3>
 
         <div className="flex items-center gap-3 mb-4">
-          <div className="flex-1 px-3 py-2 bg-white/8 rounded-xl border border-white/10 focus-within:border-blue-500/40 transition-colors">
-            <p className="text-xs text-slate-400 mb-0.5">OCR-erkannter Name (bearbeitbar)</p>
+          <div className="flex-1 px-3.5 py-2.5 bg-slate-50 rounded-xl border-2 border-slate-300 focus-within:border-blue-600 focus-within:bg-white transition-colors shadow-xs">
+            <p className="text-xs text-slate-600 font-semibold mb-0.5">OCR-erkannter Name (bearbeitbar)</p>
             <input
               type="text"
               value={employeeName}
               onChange={(e) => setEmployeeName(e.target.value)}
-              className="w-full bg-transparent text-white font-medium focus:outline-none border-b border-transparent focus:border-blue-400/40 py-0.5"
+              className="w-full bg-transparent text-slate-900 font-bold text-base focus:outline-none border-b-2 border-transparent focus:border-blue-600 py-0.5"
             />
           </div>
           <ConfidenceBadge confidence={scanResult.employeeMatch.confidence} />
         </div>
 
         {scanResult.employeeMatch.found && !createNew ? (
-          <div className="flex items-center justify-between p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-            <div className="flex items-center gap-2">
-              <CheckCircle size={16} className="text-emerald-400" />
-              <span className="text-emerald-300 text-sm">
-                Mitarbeiter zugeordnet: <strong>{selectedEmployeeObj?.name || scanResult.employeeMatch.matchedName}</strong>
+          <div className="flex items-center justify-between p-3.5 bg-emerald-50 border-2 border-emerald-300 rounded-xl">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle size={18} className="text-emerald-700" />
+              <span className="text-emerald-900 text-sm font-medium">
+                Mitarbeiter zugeordnet: <strong className="font-bold text-emerald-950">{selectedEmployeeObj?.name || scanResult.employeeMatch.matchedName}</strong>
               </span>
             </div>
             <button
               onClick={() => setCreateNew(true)}
-              className="text-xs text-slate-400 hover:text-white transition-colors"
+              className="text-xs text-emerald-800 hover:text-emerald-950 font-bold underline transition-colors cursor-pointer"
             >
               Anderen wählen
             </button>
@@ -952,10 +952,10 @@ function ReviewView({
             <div className="flex gap-2">
               <button
                 onClick={() => setCreateNew(false)}
-                className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium border transition-all ${
+                className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-bold border-2 transition-all cursor-pointer ${
                   !createNew
-                    ? 'bg-blue-500/20 border-blue-400/50 text-blue-300'
-                    : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/20'
+                    ? 'bg-blue-50 border-blue-600 text-blue-900 shadow-xs'
+                    : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
                 }`}
               >
                 <User size={14} className="inline mr-1" />
@@ -963,10 +963,10 @@ function ReviewView({
               </button>
               <button
                 onClick={() => setCreateNew(true)}
-                className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium border transition-all ${
+                className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-bold border-2 transition-all cursor-pointer ${
                   createNew
-                    ? 'bg-blue-500/20 border-blue-400/50 text-blue-300'
-                    : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/20'
+                    ? 'bg-blue-50 border-blue-600 text-blue-900 shadow-xs'
+                    : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
                 }`}
               >
                 <UserPlus size={14} className="inline mr-1" />
@@ -979,23 +979,23 @@ function ReviewView({
               <div className="relative">
                 <div
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                  className="w-full px-3 py-2.5 bg-white/8 border border-white/15 rounded-xl text-white text-sm flex items-center justify-between cursor-pointer hover:border-blue-400/50 transition-colors"
+                  className="w-full px-3.5 py-2.5 bg-white border-2 border-slate-300 rounded-xl text-slate-900 text-sm flex items-center justify-between cursor-pointer hover:border-blue-600 transition-colors shadow-xs"
                 >
                   {selectedEmployeeObj ? (
                     <span className="flex items-center gap-2">
-                      <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono text-xs font-bold">
+                      <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-mono text-xs font-bold border border-blue-200">
                         #{dbEmployees.findIndex(e => e.id === selectedEmployeeObj.id) + 1}
                       </span>
-                      <span className="font-medium">{selectedEmployeeObj.name}</span>
+                      <span className="font-bold text-slate-900">{selectedEmployeeObj.name}</span>
                     </span>
                   ) : (
-                    <span className="text-slate-400">Mitarbeiter suchen oder wählen...</span>
+                    <span className="text-slate-500 font-medium">Mitarbeiter suchen oder wählen...</span>
                   )}
-                  <ChevronDown size={16} className="text-slate-400" />
+                  <ChevronDown size={16} className="text-slate-500" />
                 </div>
 
                 {isDropdownOpen && (
-                  <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-slate-900 border border-white/15 rounded-xl shadow-2xl overflow-hidden p-2">
+                  <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border-2 border-slate-300 rounded-2xl shadow-2xl overflow-hidden p-2">
                     <div className="relative mb-2">
                       <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
@@ -1003,7 +1003,7 @@ function ReviewView({
                         placeholder="Name suchen..."
                         value={employeeSearch}
                         onChange={(e) => setEmployeeSearch(e.target.value)}
-                        className="w-full pl-8 pr-3 py-1.5 bg-white/10 border border-white/10 rounded-lg text-xs text-white placeholder-slate-400 focus:outline-none focus:border-blue-400"
+                        className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600"
                         autoFocus
                       />
                     </div>
@@ -1021,16 +1021,16 @@ function ReviewView({
                               setIsDropdownOpen(false);
                             }}
                             className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs cursor-pointer transition-colors ${
-                              employeeId === emp.id ? 'bg-blue-600 text-white font-semibold' : 'text-slate-300 hover:bg-white/10'
+                              employeeId === emp.id ? 'bg-blue-600 text-white font-bold' : 'text-slate-800 hover:bg-slate-100'
                             }`}
                           >
                             <span className="flex items-center gap-2">
-                              <span className="px-1.5 py-0.5 rounded bg-white/10 font-mono font-bold text-[10px]">
+                              <span className={`px-1.5 py-0.5 rounded font-mono font-bold text-[10px] ${employeeId === emp.id ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>
                                 #{index + 1}
                               </span>
-                              <span>{emp.name}</span>
+                              <span className="font-semibold">{emp.name}</span>
                             </span>
-                            <span className="text-[10px] opacity-60">@{emp.username}</span>
+                            <span className={`text-[10px] ${employeeId === emp.id ? 'text-blue-100' : 'text-slate-400'}`}>@{emp.username}</span>
                           </div>
                         ))
                       )}
@@ -1047,13 +1047,13 @@ function ReviewView({
                   { key: 'password', label: 'Passwort', placeholder: 'Temporäres Passwort' },
                 ].map(({ key, label, placeholder }) => (
                   <div key={key}>
-                    <label className="text-xs text-slate-400 mb-1 block">{label}</label>
+                    <label className="text-xs text-slate-700 font-bold mb-1 block">{label}</label>
                     <input
                       type={key === 'password' ? 'password' : 'text'}
                       placeholder={placeholder}
                       value={(newEmployee as any)[key]}
                       onChange={(e) => setNewEmployee((p) => ({ ...p, [key]: e.target.value }))}
-                      className="w-full px-3 py-2 bg-white/8 border border-white/15 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-400/60"
+                      className="w-full px-3 py-2 bg-white border-2 border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:border-blue-600 shadow-xs font-medium"
                     />
                   </div>
                 ))}
@@ -1064,36 +1064,36 @@ function ReviewView({
       </div>
 
       {/* Stundenzettel-Tabelle */}
-      <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-        <div className="flex items-center justify-between p-5 border-b border-white/10">
+      <div className="bg-white border-2 border-slate-300 rounded-3xl overflow-hidden shadow-sm">
+        <div className="flex items-center justify-between p-5 bg-slate-50 border-b-2 border-slate-300">
           <div className="flex flex-wrap items-center gap-3">
-            <h3 className="text-white font-semibold flex items-center gap-2">
-              <Calendar size={16} className="text-blue-400" />
+            <h3 className="text-slate-900 font-bold flex items-center gap-2 text-base">
+              <Calendar size={18} className="text-blue-600" />
               Arbeitszeiten (Wochenstart):
             </h3>
             <input
               type="date"
               value={weekStartDate ? weekStartDate.split('T')[0] : ''}
               onChange={(e) => setWeekStartDate(e.target.value)}
-              className="px-2.5 py-1 bg-white/8 border border-white/15 rounded-xl text-xs text-white focus:outline-none focus:border-blue-400/60 font-mono"
+              className="px-3 py-1.5 bg-white border-2 border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-600 font-mono font-bold shadow-xs"
             />
-            <span className="text-xs text-slate-400 font-normal font-mono">({getKw(weekStartDate)})</span>
+            <span className="text-xs text-slate-600 font-bold font-mono">({getKw(weekStartDate)})</span>
           </div>
-          <div className="text-sm font-mono text-blue-300 bg-blue-500/15 px-3 py-1 rounded-lg border border-blue-400/20">
+          <div className="text-sm font-mono font-bold text-blue-900 bg-blue-100 px-3.5 py-1.5 rounded-xl border border-blue-300 shadow-xs">
             Gesamt: {totalHours.toFixed(2)} h
           </div>
         </div>
 
         {/* Table Header */}
-        <div className="grid grid-cols-[40px_120px_100px_72px_72px_80px_80px_1fr] gap-2 px-4 py-2.5 bg-white/5 border-b border-white/8 text-xs font-medium text-slate-400">
+        <div className="grid grid-cols-[40px_120px_100px_72px_72px_80px_80px_1fr] gap-2 px-4 py-3 bg-slate-100 border-b-2 border-slate-300 text-xs font-bold text-slate-700 uppercase tracking-wider">
           <div className="font-mono text-center">#</div>
-          <div className="flex items-center gap-1"><Clock size={10} />Wochentag</div>
+          <div className="flex items-center gap-1"><Clock size={11} />Wochentag</div>
           <div>Datum</div>
           <div>Von</div>
           <div>Bis</div>
-          <div><Coffee size={10} className="inline mr-0.5" />Pause</div>
+          <div><Coffee size={11} className="inline mr-0.5" />Pause</div>
           <div>Gesamt</div>
-          <div className="flex items-center gap-1"><MapPin size={10} className="inline mr-0.5" />Halle(n)</div>
+          <div className="flex items-center gap-1"><MapPin size={11} className="inline mr-0.5" />Halle(n)</div>
         </div>
 
         {/* Table Rows with Numeric Index 1, 2, 3... */}
@@ -1104,22 +1104,22 @@ function ReviewView({
           return (
             <div
               key={entry.weekday}
-              className={`grid grid-cols-[40px_120px_100px_72px_72px_80px_80px_1fr] gap-2 px-4 py-2 border-b border-white/5 transition-colors items-center ${
-                isWeekend ? 'bg-white/3' : 'hover:bg-white/4'
-              } ${!hasData && !isWeekend ? 'opacity-60' : ''}`}
+              className={`grid grid-cols-[40px_120px_100px_72px_72px_80px_80px_1fr] gap-2 px-4 py-2.5 border-b border-slate-200 transition-colors items-center ${
+                isWeekend ? 'bg-slate-50/80' : 'bg-white hover:bg-blue-50/40'
+              } ${!hasData && !isWeekend ? 'opacity-70' : ''}`}
             >
               {/* Numeric Index Badge 1,2,3... */}
-              <div className="font-mono text-xs font-bold text-slate-400 text-center bg-white/5 py-0.5 rounded border border-white/10">
+              <div className="font-mono text-xs font-bold text-slate-700 text-center bg-slate-100 py-1 rounded border border-slate-300 shadow-xs">
                 {idx + 1}
               </div>
 
               <div className="flex items-center gap-1.5">
                 <span
-                  className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                    hasData ? 'bg-blue-400' : 'bg-slate-600'
+                  className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                    hasData ? 'bg-blue-600' : 'bg-slate-400'
                   }`}
                 />
-                <span className={`text-sm font-medium ${isWeekend ? 'text-slate-500' : 'text-white'}`}>
+                <span className={`text-sm font-bold ${isWeekend ? 'text-slate-500' : 'text-slate-900'}`}>
                   {entry.weekday.substring(0, 2)}
                   <span className="hidden sm:inline">{entry.weekday.substring(2)}</span>
                 </span>
@@ -1129,7 +1129,7 @@ function ReviewView({
                 type="date"
                 value={entry.date ? entry.date.split('T')[0] : ''}
                 onChange={(e) => updateEntry(idx, 'date', e.target.value)}
-                className="px-2 py-1 bg-white/8 border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-blue-400/60 w-full"
+                className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full shadow-xs"
               />
 
               {['startTime', 'endTime'].map((field) => (
@@ -1138,7 +1138,7 @@ function ReviewView({
                   type="time"
                   value={(entry as any)[field]}
                   onChange={(e) => updateEntry(idx, field as keyof TimesheetEntry, e.target.value)}
-                  className="px-2 py-1 bg-white/8 border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-blue-400/60 w-full"
+                  className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full shadow-xs"
                 />
               ))}
 
@@ -1148,7 +1148,7 @@ function ReviewView({
                 value={entry.breakMinutes || ''}
                 placeholder="0"
                 onChange={(e) => updateEntry(idx, 'breakMinutes', parseInt(e.target.value) || 0)}
-                className="px-2 py-1 bg-white/8 border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-blue-400/60 w-full text-center"
+                className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full text-center shadow-xs"
               />
 
               <input
@@ -1158,7 +1158,7 @@ function ReviewView({
                 value={entry.totalHours || ''}
                 placeholder="0"
                 onChange={(e) => updateEntry(idx, 'totalHours', parseFloat(e.target.value) || 0)}
-                className="px-2 py-1 bg-white/8 border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-blue-400/60 w-full text-center font-mono"
+                className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full text-center font-mono shadow-xs"
               />
 
               {/* Multi-Hall Selector */}
@@ -1166,15 +1166,15 @@ function ReviewView({
                 {/* Selected halls as chips */}
                 <div
                   onClick={() => setOpenHallDropdown(openHallDropdown === idx ? null : idx)}
-                  className="flex flex-wrap gap-1 min-h-[28px] px-2 py-1 bg-white/8 border border-white/10 rounded-lg cursor-pointer hover:border-blue-400/60 transition-colors"
+                  className="flex flex-wrap gap-1 min-h-[30px] px-2 py-1 bg-white border-2 border-slate-300 rounded-lg cursor-pointer hover:border-blue-600 transition-colors shadow-xs items-center"
                 >
                   {entry.location
                     ? entry.location.split(',').filter(Boolean).map((h) => h.trim()).map((hallName, hIdx) => (
                         <span
                           key={hIdx}
-                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-500/25 text-blue-200 text-[10px] font-medium border border-blue-400/30"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-100 text-blue-900 text-[10px] font-bold border border-blue-300"
                         >
-                          <MapPin size={8} />
+                          <MapPin size={9} />
                           {hallName}
                           <button
                             onClick={(e) => {
@@ -1183,20 +1183,20 @@ function ReviewView({
                               const updated = halls.filter((_, i) => i !== hIdx);
                               updateEntry(idx, 'location', updated.join(', '));
                             }}
-                            className="ml-0.5 text-blue-300 hover:text-white"
+                            className="ml-0.5 text-blue-700 hover:text-blue-950 font-bold"
                           >
-                            <X size={8} />
+                            <X size={9} />
                           </button>
                         </span>
                       ))
-                    : <span className="text-slate-600 text-[10px] self-center">Halle(n) wählen...</span>
+                    : <span className="text-slate-400 text-[10px] font-medium self-center">Halle(n) wählen...</span>
                   }
-                  <span className="ml-auto text-slate-500 self-center"><ChevronDown size={10} /></span>
+                  <span className="ml-auto text-slate-500 self-center"><ChevronDown size={12} /></span>
                 </div>
 
                 {/* Hall dropdown */}
                 {openHallDropdown === idx && (
-                  <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-slate-900 border border-white/15 rounded-xl shadow-2xl overflow-hidden p-1.5 max-h-40 overflow-y-auto">
+                  <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border-2 border-slate-300 rounded-2xl shadow-2xl overflow-hidden p-2 max-h-48 overflow-y-auto">
                     {availableHalls.length === 0 ? (
                       <p className="text-xs text-slate-500 text-center py-2">Keine Hallen gefunden</p>
                     ) : (
@@ -1217,17 +1217,17 @@ function ReviewView({
                               updateEntry(idx, 'location', newHalls.join(', '));
                             }}
                             className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors ${
-                              isSelected ? 'bg-blue-600 text-white font-semibold' : 'text-slate-300 hover:bg-white/10'
+                              isSelected ? 'bg-blue-600 text-white font-bold' : 'text-slate-800 hover:bg-slate-100 font-medium'
                             }`}
                           >
-                            <MapPin size={10} className={isSelected ? 'text-white' : 'text-blue-400'} />
+                            <MapPin size={11} className={isSelected ? 'text-white' : 'text-blue-600'} />
                             {hall.name}
-                            {isSelected && <span className="ml-auto text-[9px] font-bold text-blue-200">✓</span>}
+                            {isSelected && <span className="ml-auto text-[10px] font-bold text-white">✓</span>}
                           </div>
                         );
                       })
                     )}
-                    <div className="border-t border-white/10 mt-1 pt-1">
+                    <div className="border-t border-slate-200 mt-1 pt-1">
                       <input
                         type="text"
                         placeholder="Oder manuell eingeben..."
@@ -1238,7 +1238,7 @@ function ReviewView({
                           const combined = [...fromList, ...(manual ? [manual] : [])].join(', ');
                           updateEntry(idx, 'location', combined);
                         }}
-                        className="w-full px-2.5 py-1.5 bg-white/8 border border-white/10 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-400/60"
+                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 font-medium"
                       />
                     </div>
                   </div>
@@ -1251,18 +1251,18 @@ function ReviewView({
 
       {/* Error */}
       {errors.general && (
-        <div className="flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/30">
-          <AlertCircle size={16} className="text-red-400" />
-          <p className="text-red-300 text-sm">{errors.general}</p>
+        <div className="flex items-center gap-2 p-3.5 rounded-2xl bg-red-50 border-2 border-red-300 shadow-xs">
+          <AlertCircle size={18} className="text-red-600" />
+          <p className="text-red-800 text-sm font-bold">{errors.general}</p>
         </div>
       )}
 
       {/* Action Buttons */}
-      <div className="flex gap-3">
+      <div className="flex gap-3 pt-2">
         <button
           onClick={onDiscard}
           disabled={isLoading}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/8 border border-white/15 text-slate-300 hover:bg-white/12 hover:text-white transition-all text-sm"
+          className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 border-2 border-slate-300 text-slate-700 hover:bg-slate-200 hover:text-slate-900 font-bold transition-all text-sm shadow-xs cursor-pointer"
         >
           <X size={16} />
           Verwerfen
@@ -1270,7 +1270,7 @@ function ReviewView({
         <button
           onClick={handleConfirm}
           disabled={isLoading}
-          className="flex-1 flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium transition-all text-sm disabled:opacity-60 cursor-pointer"
+          className="flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all text-sm shadow-md disabled:opacity-60 cursor-pointer"
         >
           {isLoading ? (
             <Loader2 size={16} className="animate-spin" />
@@ -1318,21 +1318,21 @@ function SavedView({
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="flex flex-col items-center gap-6 py-10"
+      className="flex flex-col items-center gap-6 py-12 bg-white border-2 border-slate-300 rounded-3xl p-8 shadow-sm my-4"
     >
       <motion.div
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
         transition={{ type: 'spring', bounce: 0.5 }}
-        className="w-20 h-20 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center"
+        className="w-20 h-20 rounded-full bg-emerald-100 border-2 border-emerald-300 flex items-center justify-center shadow-xs"
       >
-        <CheckCircle size={36} className="text-emerald-400" />
+        <CheckCircle size={36} className="text-emerald-700" />
       </motion.div>
 
       <div className="text-center">
-        <h3 className="text-white text-xl font-bold mb-1">Stundenzettel gespeichert!</h3>
-        <p className="text-slate-400 text-sm">
-          Die Arbeitszeiten für <strong className="text-slate-300">{employeeName}</strong> wurden erfolgreich übernommen.
+        <h3 className="text-slate-900 text-2xl font-bold mb-1">Stundenzettel gespeichert!</h3>
+        <p className="text-slate-600 text-sm">
+          Die Arbeitszeiten für <strong className="text-slate-900 font-bold">{employeeName}</strong> wurden erfolgreich übernommen.
         </p>
       </div>
 
@@ -1340,7 +1340,7 @@ function SavedView({
         <button
           onClick={() => downloadFile('pdf')}
           disabled={!!downloading}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/15 border border-red-400/30 text-red-300 hover:bg-red-500/25 transition-all text-sm"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-50 border-2 border-red-200 text-red-700 hover:bg-red-100 font-bold transition-all text-sm shadow-xs cursor-pointer"
         >
           {downloading === 'pdf' ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
           PDF herunterladen
@@ -1348,7 +1348,7 @@ function SavedView({
         <button
           onClick={() => downloadFile('xlsx')}
           disabled={!!downloading}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 hover:bg-emerald-500/25 transition-all text-sm"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 border-2 border-emerald-200 text-emerald-700 hover:bg-emerald-100 font-bold transition-all text-sm shadow-xs cursor-pointer"
         >
           {downloading === 'xlsx' ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />}
           Excel herunterladen
@@ -1357,7 +1357,7 @@ function SavedView({
 
       <button
         onClick={onScanAnother}
-        className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium transition-all text-sm"
+        className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all text-sm shadow-md cursor-pointer"
       >
         <ScanLine size={16} />
         Weiteren Stundenzettel scannen
