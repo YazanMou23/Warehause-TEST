@@ -309,6 +309,7 @@ model TimesheetEntry {
   breakMinutes Int       @default(0)
   totalHours   Float     // Gesamt ohne Pause
   location     String?   // Lagername / Arbeitsort
+  isActive     Boolean   @default(true)
 
   @@index([timesheetId])
 }

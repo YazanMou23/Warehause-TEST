@@ -6,6 +6,7 @@ import {
   IsNumber,
   Min,
   IsDateString,
+  IsBoolean,
   IsUUID,
   ValidateIf,
 } from 'class-validator';
@@ -40,24 +41,31 @@ export class TimesheetEntryInputDto {
   @IsDateString()
   date: string;
 
+  @IsOptional()
   @IsString()
-  startTime: string; // HH:MM
+  startTime?: string; // HH:MM (optional for inactive days)
 
   @IsOptional()
   @IsString()
   endTime?: string; // HH:MM (optional if open shift)
 
+  @IsOptional()
   @IsNumber()
   @Min(0)
-  breakMinutes: number;
+  breakMinutes?: number;
 
+  @IsOptional()
   @IsNumber()
   @Min(0)
-  totalHours: number;
+  totalHours?: number;
 
   @IsOptional()
   @IsString()
   location?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class ConfirmTimesheetDto {

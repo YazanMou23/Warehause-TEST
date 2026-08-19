@@ -35,10 +35,70 @@ import {
   Images,
   ChevronRight,
   SkipForward,
+  RotateCw,
+  PowerOff,
+  CheckCircle2,
 } from 'lucide-react';
 import { API_URL } from '../../../config/api';
 import CustomAlertModal, { CustomAlertOptions } from '../../components/CustomAlertModal';
 import { useDialog } from '../../components/DialogProvider';
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Returns a new File object with the image physically rotated by rotationDeg.
+ * Used before sending to OCR so OpenAI Vision receives the perfectly upright orientation.
+ */
+async function getRotatedFile(file: File, rotationDeg: number): Promise<File> {
+  const normDeg = ((rotationDeg % 360) + 360) % 360;
+  if (normDeg === 0 || !file.type.startsWith('image/')) {
+    return file;
+  }
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(file);
+        return;
+      }
+
+      const angle = (normDeg * Math.PI) / 180;
+      const is90or270 = normDeg === 90 || normDeg === 270;
+      canvas.width = is90or270 ? img.height : img.width;
+      canvas.height = is90or270 ? img.width : img.height;
+
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(angle);
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            const rotatedFile = new File([blob], file.name, {
+              type: file.type || 'image/jpeg',
+              lastModified: Date.now(),
+            });
+            resolve(rotatedFile);
+          } else {
+            resolve(file);
+          }
+        },
+        file.type || 'image/jpeg',
+        0.95,
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(file);
+    };
+    img.src = objectUrl;
+  });
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -51,6 +111,7 @@ interface TimesheetEntry {
   breakMinutes: number;
   totalHours: number;
   location: string;
+  isActive?: boolean;
 }
 
 interface EmployeeMatch {
@@ -740,6 +801,10 @@ function SinglePhotoViewer({
   status = 'review',
   statusMessage,
   isPrinterScan = false,
+  rotation = 0,
+  onRotate,
+  onReanalyze,
+  isReanalyzing = false,
   onRetry,
   onSkip,
   onManualEntry,
@@ -753,6 +818,10 @@ function SinglePhotoViewer({
   status?: 'scanning' | 'review' | 'saved' | 'error';
   statusMessage?: string;
   isPrinterScan?: boolean;
+  rotation?: number;
+  onRotate?: () => void;
+  onReanalyze?: () => void;
+  isReanalyzing?: boolean;
   onRetry?: () => void;
   onSkip?: () => void;
   onManualEntry?: () => void;
@@ -770,7 +839,7 @@ function SinglePhotoViewer({
 
   return (
     <div className="bg-white border-2 border-slate-300 rounded-3xl p-4 sm:p-5 shadow-sm space-y-3 w-full">
-      {/* Photo Header: Filename, Counter, and Size Controls */}
+      {/* Photo Header: Filename, Counter, Rotate, Re-analyze, and Size Controls */}
       <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200">
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <div className="p-2 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 shrink-0">
@@ -786,8 +855,41 @@ function SinglePhotoViewer({
           </div>
         </div>
 
-        {/* Progress Counter Badge & Visual Size Controls */}
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Action Controls: Rotate, Re-analyze, Progress Badge & Size Controls */}
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {/* Rotate 90° Button */}
+          {onRotate && (
+            <button
+              type="button"
+              onClick={onRotate}
+              disabled={isReanalyzing || status === 'scanning'}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold border-2 border-slate-300 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+              title="Bild um 90° im Uhrzeigersinn drehen"
+            >
+              <RotateCw size={13} className="text-blue-600" />
+              <span>Drehen</span>
+              {rotation ? <span className="text-[11px] text-blue-700 font-mono">({rotation}°)</span> : null}
+            </button>
+          )}
+
+          {/* Re-analyze Button */}
+          {onReanalyze && (
+            <button
+              type="button"
+              onClick={onReanalyze}
+              disabled={isReanalyzing || status === 'scanning'}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-900 text-xs font-bold border-2 border-blue-300 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+              title="Dokument mit OCR & KI erneut analysieren"
+            >
+              {isReanalyzing ? (
+                <Loader2 size={13} className="animate-spin text-blue-600" />
+              ) : (
+                <RefreshCw size={13} className="text-blue-600" />
+              )}
+              <span>{isReanalyzing ? 'Analysiere...' : 'Neu analysieren'}</span>
+            </button>
+          )}
+
           <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-800 text-xs font-bold border border-blue-200">
             Foto {currentNum} / {total}
           </span>
@@ -822,7 +924,8 @@ function SinglePhotoViewer({
           <img
             src={previewUrl}
             alt={fileName}
-            className="w-full h-full object-contain p-2 rounded-2xl select-none"
+            style={{ transform: `rotate(${rotation || 0}deg)` }}
+            className="w-full h-full object-contain p-2 rounded-2xl select-none transition-transform duration-300 ease-out"
           />
         ) : (
           <div className="flex flex-col items-center justify-center gap-2 text-slate-400 p-6 text-center">
@@ -916,6 +1019,7 @@ function ScanningView({
   totalCount = 1,
   photoSize = 'md',
   onSizeChange,
+  rotation = 0,
 }: {
   fileName: string;
   previewUrl?: string | null;
@@ -924,6 +1028,7 @@ function ScanningView({
   totalCount?: number;
   photoSize?: 'sm' | 'md' | 'lg';
   onSizeChange?: (size: 'sm' | 'md' | 'lg') => void;
+  rotation?: number;
 }) {
   return (
     <motion.div
@@ -941,6 +1046,7 @@ function ScanningView({
         onSizeChange={onSizeChange}
         status="scanning"
         isPrinterScan={isPrinterScan}
+        rotation={rotation}
       />
 
       {/* 2. Scanning Steps Box */}
@@ -984,6 +1090,10 @@ function ReviewView({
   photoSize = 'md',
   onPhotoSizeChange,
   isLastInQueue = true,
+  rotation = 0,
+  onRotate,
+  onReanalyze,
+  isReanalyzing = false,
 }: {
   scanResult: ScanResult;
   onConfirm: (payload: any) => void;
@@ -996,20 +1106,146 @@ function ReviewView({
   photoSize?: 'sm' | 'md' | 'lg';
   onPhotoSizeChange?: (size: 'sm' | 'md' | 'lg') => void;
   isLastInQueue?: boolean;
+  rotation?: number;
+  onRotate?: () => void;
+  onReanalyze?: () => void;
+  isReanalyzing?: boolean;
 }) {
-  const [entries, setEntries] = useState<TimesheetEntry[]>(() => {
-    const allWeekdays = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
-    return allWeekdays.map((day) => {
-      const found = scanResult.entries.find((e) => e.weekday === day);
-      return found ?? { weekday: day, date: '', startTime: '', endTime: '', breakMinutes: 0, totalHours: 0, location: '' };
-    });
-  });
+  const allWeekdays = useMemo(() => ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'], []);
   const [employeeName, setEmployeeName] = useState(scanResult.employeeName);
   const [weekStartDate, setWeekStartDate] = useState(scanResult.weekStartDate);
-  // Always start with detected employeeId (if any); user can always change it
+
+  // Initialize all 7 calendar week days (Montag - Sonntag)
+  const [entries, setEntries] = useState<TimesheetEntry[]>(() => {
+    const baseDate = new Date(scanResult.weekStartDate || new Date());
+    return allWeekdays.map((day, i) => {
+      const targetDate = new Date(baseDate);
+      targetDate.setUTCDate(targetDate.getUTCDate() + i);
+      const targetDateStr = targetDate.toISOString().slice(0, 10);
+
+      const found = scanResult.entries?.find(
+        (e) => e.weekday?.toLowerCase() === day.toLowerCase() || e.date?.startsWith(targetDateStr)
+      );
+
+      if (found) {
+        const hasTime = Boolean(found.startTime?.trim());
+        const isActive = (found as any).isActive !== undefined ? (found as any).isActive : hasTime;
+        return {
+          id: found.id,
+          weekday: day,
+          date: found.date ? found.date.split('T')[0] : targetDateStr,
+          startTime: found.startTime || '',
+          endTime: found.endTime || '',
+          breakMinutes: Number(found.breakMinutes) || 0,
+          totalHours: isActive ? (Number(found.totalHours) || 0) : 0,
+          location: found.location || '',
+          isActive,
+        };
+      }
+
+      return {
+        weekday: day,
+        date: targetDateStr,
+        startTime: '',
+        endTime: '',
+        breakMinutes: 0,
+        totalHours: 0,
+        location: '',
+        isActive: false,
+      };
+    });
+  });
+
+  // Re-sync when scanResult updates (e.g. after Re-analyze) without deleting manual entries
+  useEffect(() => {
+    if (!scanResult) return;
+    if (scanResult.employeeName) setEmployeeName(scanResult.employeeName);
+    if (scanResult.weekStartDate) setWeekStartDate(scanResult.weekStartDate);
+    if (scanResult.employeeId) setEmployeeId(scanResult.employeeId);
+
+    const baseDate = new Date(scanResult.weekStartDate || new Date());
+    setEntries((prev) => {
+      return allWeekdays.map((day, i) => {
+        const targetDate = new Date(baseDate);
+        targetDate.setUTCDate(targetDate.getUTCDate() + i);
+        const targetDateStr = targetDate.toISOString().slice(0, 10);
+
+        const found = scanResult.entries?.find(
+          (e) => e.weekday?.toLowerCase() === day.toLowerCase() || e.date?.startsWith(targetDateStr)
+        );
+        const prevEntry = prev.find((p) => p.weekday === day);
+
+        if (found && found.startTime?.trim()) {
+          const isActive = (found as any).isActive !== undefined ? (found as any).isActive : true;
+          return {
+            id: found.id,
+            weekday: day,
+            date: found.date ? found.date.split('T')[0] : targetDateStr,
+            startTime: found.startTime || '',
+            endTime: found.endTime || '',
+            breakMinutes: Number(found.breakMinutes) || 0,
+            totalHours: isActive ? (Number(found.totalHours) || 0) : 0,
+            location: found.location || prevEntry?.location || '',
+            isActive,
+          };
+        } else if (prevEntry) {
+          return {
+            ...prevEntry,
+            date: targetDateStr,
+          };
+        }
+
+        return {
+          weekday: day,
+          date: targetDateStr,
+          startTime: '',
+          endTime: '',
+          breakMinutes: 0,
+          totalHours: 0,
+          location: '',
+          isActive: false,
+        };
+      });
+    });
+  }, [scanResult, allWeekdays]);
+
+  // When week start date is changed by the user, update the dates of all 7 days
+  const handleWeekStartDateChange = (newDateStr: string) => {
+    setWeekStartDate(newDateStr);
+    if (!newDateStr) return;
+    const baseDate = new Date(newDateStr);
+    if (isNaN(baseDate.getTime())) return;
+
+    setEntries((prev) =>
+      prev.map((e, i) => {
+        const dayDate = new Date(baseDate);
+        dayDate.setUTCDate(dayDate.getUTCDate() + i);
+        return {
+          ...e,
+          date: dayDate.toISOString().slice(0, 10),
+        };
+      })
+    );
+  };
+
+  // Toggle active/inactive state for any day independently
+  const toggleDayActive = (idx: number) => {
+    setEntries((prev) => {
+      const updated = [...prev];
+      const current = updated[idx];
+      const nextActive = !current.isActive;
+      updated[idx] = {
+        ...current,
+        isActive: nextActive,
+        totalHours: nextActive
+          ? calculateHours(current.startTime || '', current.endTime || '', Number(current.breakMinutes || 0))
+          : 0,
+      };
+      return updated;
+    });
+  };
+
   const [employeeId, setEmployeeId] = useState<string>(scanResult.employeeId ?? '');
-  // createNew: false = search existing, true = create new employee form
-  // Default to false (existing) so the employee selector is always visible
   const [createNew, setCreateNew] = useState(false);
   const [newEmployee, setNewEmployee] = useState({
     username: '',
@@ -1017,19 +1253,15 @@ function ReviewView({
     password: 'changeme123',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  // Controls whether the employee search dropdown is open
   const [showEmployeeSelector, setShowEmployeeSelector] = useState(
-    // Show selector immediately if no employee was auto-detected
     !scanResult.employeeMatch.found
   );
 
-  // Searchable DB Employee selector state
   const [dbEmployees, setDbEmployees] = useState<DbEmployee[]>([]);
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const employeeDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close employee dropdown on outside click
   useEffect(() => {
     if (!isDropdownOpen) return;
     const handler = (e: MouseEvent) => {
@@ -1058,12 +1290,10 @@ function ReviewView({
     fetchEmployees();
   }, []);
 
-  // Fetch halls for multi-hall selector
   const [availableHalls, setAvailableHalls] = useState<{ id: string; name: string; warehouseId?: string }[]>([]);
   const [openHallDropdown, setOpenHallDropdown] = useState<number | null>(null);
   const hallDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close hall dropdown on outside click or Escape
   useEffect(() => {
     if (openHallDropdown === null) return;
     const handleOutside = (e: MouseEvent) => {
@@ -1123,34 +1353,39 @@ function ReviewView({
       }
 
       if (field === 'startTime' || field === 'endTime' || field === 'breakMinutes') {
-        updated[idx].totalHours = calculateHours(
-          updated[idx].startTime,
-          updated[idx].endTime || '',
-          Number(updated[idx].breakMinutes || 0)
-        );
+        if (updated[idx].isActive !== false) {
+          updated[idx].totalHours = calculateHours(
+            updated[idx].startTime,
+            updated[idx].endTime || '',
+            Number(updated[idx].breakMinutes || 0)
+          );
+        }
       }
 
       return updated;
     });
   };
 
-  const totalHours = entries.reduce((sum, e) => sum + (e.totalHours || 0), 0);
+  const totalHours = entries
+    .filter((e) => e.isActive !== false)
+    .reduce((sum, e) => sum + (e.totalHours || 0), 0);
+
+  const activeDaysCount = entries.filter((e) => e.isActive !== false).length;
 
   const handleConfirm = () => {
     const payload: any = {
       employeeName,
       weekStartDate,
-      entries: entries
-        .filter((e) => e.startTime)
-        .map((e) => ({
-          weekday: e.weekday,
-          date: e.date,
-          startTime: e.startTime,
-          endTime: e.endTime || undefined,
-          breakMinutes: Number(e.breakMinutes),
-          totalHours: Number(e.totalHours),
-          location: e.location || '',
-        })),
+      entries: entries.map((e) => ({
+        weekday: e.weekday,
+        date: e.date,
+        startTime: e.startTime || '',
+        endTime: e.endTime || undefined,
+        breakMinutes: Number(e.breakMinutes) || 0,
+        totalHours: e.isActive !== false ? (Number(e.totalHours) || 0) : 0,
+        location: e.location || '',
+        isActive: e.isActive !== false,
+      })),
     };
 
     if (createNew) {
@@ -1182,7 +1417,7 @@ function ReviewView({
       animate={{ opacity: 1, y: 0 }}
       className="flex flex-col gap-6 w-full"
     >
-      {/* 1. Single Photo Viewer for Current Document */}
+      {/* 1. Single Photo Viewer for Current Document with Rotate & Re-analyze */}
       <SinglePhotoViewer
         fileName={currentFileName || scanResult.employeeName || `Stundenzettel_${String(queueIndex + 1).padStart(2, '0')}.jpg`}
         previewUrl={currentPreviewUrl}
@@ -1191,6 +1426,10 @@ function ReviewView({
         photoSize={photoSize}
         onSizeChange={onPhotoSizeChange}
         status="review"
+        rotation={rotation}
+        onRotate={onRotate}
+        onReanalyze={onReanalyze}
+        isReanalyzing={isReanalyzing}
       />
 
       {/* OCR Warning */}
@@ -1239,7 +1478,6 @@ function ReviewView({
                 Erkannt: <strong className="font-bold text-emerald-950">{selectedEmployeeObj?.name || scanResult.employeeMatch.matchedName}</strong>
               </span>
             </div>
-            {/* Always allow changing — opens existing-employee search, not new-employee form */}
             <button
               onClick={() => { setShowEmployeeSelector(true); setCreateNew(false); }}
               className="text-xs text-emerald-800 hover:text-emerald-950 font-bold underline transition-colors cursor-pointer shrink-0"
@@ -1367,63 +1605,99 @@ function ReviewView({
         )}
       </div>
 
-      {/* Stundenzettel-Tabelle */}
+      {/* ── 7-Day Weekly Timesheet Table (With Active/Inactive Day Toggles) ── */}
       <div className="bg-white border-2 border-slate-300 rounded-3xl overflow-hidden shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:p-5 bg-slate-50 border-b-2 border-slate-300">
           <div className="flex flex-wrap items-center gap-3">
             <h3 className="text-slate-900 font-bold flex items-center gap-2 text-base">
               <Calendar size={18} className="text-blue-600" />
-              Arbeitszeiten (Wochenstart):
+              Wochenzeitraum (7 Tage):
             </h3>
             <input
               type="date"
               value={weekStartDate ? weekStartDate.split('T')[0] : ''}
-              onChange={(e) => setWeekStartDate(e.target.value)}
+              onChange={(e) => handleWeekStartDateChange(e.target.value)}
               className="px-3 py-1.5 bg-white border-2 border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-600 font-mono font-bold shadow-xs"
             />
             <span className="text-xs text-slate-600 font-bold font-mono">({getKw(weekStartDate)})</span>
           </div>
-          <div className="text-sm font-mono font-bold text-blue-900 bg-blue-100 px-3.5 py-1.5 rounded-xl border border-blue-300 shadow-xs">
-            Gesamt: {totalHours.toFixed(2)} h
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-600 font-medium hidden sm:inline">
+              {activeDaysCount} von 7 Tagen aktiv
+            </span>
+            <div className="text-sm font-mono font-bold text-blue-900 bg-blue-100 px-3.5 py-1.5 rounded-xl border border-blue-300 shadow-xs">
+              Gesamt: {totalHours.toFixed(2)} h
+            </div>
           </div>
         </div>
 
         {/* Responsive table — horizontal scroll on mobile */}
         <div className="overflow-x-auto w-full">
-          <div className="min-w-[740px]">
+          <div className="min-w-[840px]">
             {/* Table Header */}
-            <div className="grid grid-cols-[36px_110px_130px_90px_90px_80px_80px_1fr] gap-1.5 px-3 py-3 bg-slate-100 border-b-2 border-slate-300 text-xs font-bold text-slate-700 uppercase tracking-wider">
+            <div className="grid grid-cols-[32px_95px_95px_120px_80px_80px_65px_70px_1fr] gap-1.5 px-3 py-3 bg-slate-100 border-b-2 border-slate-300 text-xs font-bold text-slate-700 uppercase tracking-wider items-center">
               <div className="font-mono text-center">#</div>
+              <div className="text-center">Status</div>
               <div className="flex items-center gap-1"><Clock size={11} />Wochentag</div>
               <div>Datum</div>
               <div>Von</div>
               <div>Bis</div>
-              <div><Coffee size={11} className="inline mr-0.5" />Pause</div>
-              <div>Gesamt</div>
+              <div className="text-center"><Coffee size={11} className="inline mr-0.5" />Pause</div>
+              <div className="text-center">Gesamt</div>
               <div className="flex items-center gap-1"><MapPin size={11} className="inline mr-0.5" />Halle(n)</div>
             </div>
 
-            {/* Table Rows */}
+            {/* Table Rows: 7 Calendar Days */}
             {entries.map((entry, idx) => {
-              const hasData = entry.startTime !== '' || entry.endTime !== '';
+              const isEntryActive = entry.isActive !== false;
               const isWeekend = idx >= 5;
 
               return (
                 <div
                   key={entry.weekday}
-                  className={`grid grid-cols-[36px_110px_130px_90px_90px_80px_80px_1fr] gap-1.5 px-3 py-2.5 border-b border-slate-200 transition-colors items-center ${
-                    isWeekend ? 'bg-slate-50/80' : 'bg-white hover:bg-blue-50/40'
-                  } ${!hasData && !isWeekend ? 'opacity-70' : ''}`}
+                  className={`grid grid-cols-[32px_95px_95px_120px_80px_80px_65px_70px_1fr] gap-1.5 px-3 py-2.5 border-b border-slate-200 transition-colors items-center ${
+                    !isEntryActive
+                      ? 'bg-slate-100/60 opacity-60'
+                      : isWeekend
+                      ? 'bg-slate-50/80 hover:bg-blue-50/30'
+                      : 'bg-white hover:bg-blue-50/40'
+                  }`}
                 >
                   {/* Row index badge */}
-                  <div className="font-mono text-xs font-bold text-slate-700 text-center bg-slate-100 py-1 px-1.5 rounded border border-slate-300 shadow-xs">
+                  <div className="font-mono text-xs font-bold text-slate-700 text-center bg-slate-100 py-1 px-1 rounded border border-slate-300 shadow-xs">
                     {idx + 1}
                   </div>
 
+                  {/* Day Status Active/Inactive Toggle Button */}
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => toggleDayActive(idx)}
+                      className={`w-full py-1 px-2 rounded-lg text-[11px] font-bold border transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                        isEntryActive
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100 shadow-2xs'
+                          : 'bg-slate-200 text-slate-600 border-slate-300 hover:bg-slate-300'
+                      }`}
+                      title={isEntryActive ? 'Tag ist AKTIV (Klicken zum Deaktivieren)' : 'Tag ist INAKTIV (Klicken zum Aktivieren)'}
+                    >
+                      {isEntryActive ? (
+                        <>
+                          <CheckCircle2 size={12} className="text-emerald-700" />
+                          <span>Aktiv</span>
+                        </>
+                      ) : (
+                        <>
+                          <PowerOff size={11} className="text-slate-500" />
+                          <span>Inaktiv</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
                   {/* Weekday */}
-                  <div className="flex items-center gap-1.5">
-                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${hasData ? 'bg-blue-600' : 'bg-slate-400'}`} />
-                    <span className={`text-sm font-bold ${isWeekend ? 'text-slate-500' : 'text-slate-900'}`}>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${isEntryActive ? 'bg-blue-600' : 'bg-slate-300'}`} />
+                    <span className={`text-xs font-bold truncate ${isEntryActive ? 'text-slate-900' : 'text-slate-500'}`}>
                       {entry.weekday}
                     </span>
                   </div>
@@ -1431,58 +1705,57 @@ function ReviewView({
                   {/* Date Input */}
                   <input
                     type="date"
+                    disabled={!isEntryActive}
                     value={entry.date ? entry.date.split('T')[0] : ''}
                     onChange={(e) => updateEntry(idx, 'date', e.target.value)}
-                    className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full shadow-xs"
+                    className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-600 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200 disabled:cursor-not-allowed w-full shadow-xs"
                   />
 
                   {/* Start Time */}
                   <input
                     type="time"
+                    disabled={!isEntryActive}
                     value={entry.startTime}
                     onChange={(e) => updateEntry(idx, 'startTime', e.target.value)}
-                    className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full shadow-xs"
+                    className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-600 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200 disabled:cursor-not-allowed w-full shadow-xs"
                   />
 
                   {/* End Time */}
                   <input
                     type="time"
+                    disabled={!isEntryActive}
                     value={entry.endTime || ''}
                     onChange={(e) => updateEntry(idx, 'endTime', e.target.value)}
-                    className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full shadow-xs"
+                    className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-600 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200 disabled:cursor-not-allowed w-full shadow-xs"
                   />
 
                   {/* Break */}
                   <input
                     type="number"
                     min={0}
-                    value={entry.breakMinutes || ''}
+                    disabled={!isEntryActive}
+                    value={entry.breakMinutes ?? ''}
                     placeholder="0"
                     onChange={(e) => updateEntry(idx, 'breakMinutes', parseInt(e.target.value) || 0)}
-                    className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full text-center shadow-xs"
+                    className="px-1.5 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-600 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200 disabled:cursor-not-allowed w-full text-center shadow-xs"
                   />
 
                   {/* Total Hours */}
-                  <input
-                    type="number"
-                    step="0.05"
-                    min={0}
-                    value={entry.totalHours || ''}
-                    placeholder="0"
-                    onChange={(e) => updateEntry(idx, 'totalHours', parseFloat(e.target.value) || 0)}
-                    className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full text-center font-mono shadow-xs"
-                  />
+                  <div className={`text-xs font-mono font-bold text-center ${isEntryActive ? 'text-blue-900' : 'text-slate-400'}`}>
+                    {isEntryActive ? `${(entry.totalHours || 0).toFixed(2)}h` : '—'}
+                  </div>
 
                   {/* Multi-Hall Selector */}
                   <div className="relative" ref={openHallDropdown === idx ? hallDropdownRef : undefined}>
                     {/* Selected halls as chips */}
                     <button
                       type="button"
+                      disabled={!isEntryActive}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setOpenHallDropdown(openHallDropdown === idx ? null : idx);
+                        if (isEntryActive) setOpenHallDropdown(openHallDropdown === idx ? null : idx);
                       }}
-                      className="w-full flex flex-wrap gap-1 min-h-[30px] px-2 py-1 bg-white border-2 border-slate-300 rounded-lg cursor-pointer hover:border-blue-600 transition-colors shadow-xs items-center text-left"
+                      className="w-full flex flex-wrap gap-1 min-h-[30px] px-2 py-1 bg-white border-2 border-slate-300 rounded-lg cursor-pointer hover:border-blue-600 transition-colors shadow-xs items-center text-left disabled:bg-slate-100 disabled:border-slate-200 disabled:cursor-not-allowed"
                     >
                       {entry.location
                         ? entry.location.split(',').filter(Boolean).map((h) => h.trim()).map((hallName, hIdx) => (
@@ -1492,27 +1765,29 @@ function ReviewView({
                             >
                               <MapPin size={9} />
                               {hallName}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const halls = entry.location.split(',').map(h => h.trim()).filter(Boolean);
-                                  const updated = halls.filter((_, i) => i !== hIdx);
-                                  updateEntry(idx, 'location', updated.join(', '));
-                                }}
-                                className="ml-0.5 text-blue-700 hover:text-blue-950 font-bold"
-                              >
-                                <X size={9} />
-                              </button>
+                              {isEntryActive && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const halls = entry.location.split(',').map(h => h.trim()).filter(Boolean);
+                                    const updated = halls.filter((_, i) => i !== hIdx);
+                                    updateEntry(idx, 'location', updated.join(', '));
+                                  }}
+                                  className="ml-0.5 text-blue-700 hover:text-blue-950 font-bold"
+                                >
+                                  <X size={9} />
+                                </button>
+                              )}
                             </span>
                           ))
-                        : <span className="text-slate-400 text-[10px] font-medium self-center">Halle(n) wählen...</span>
+                        : <span className="text-slate-400 text-[10px] font-medium self-center">{isEntryActive ? 'Halle(n) wählen...' : '—'}</span>
                       }
-                      <span className="ml-auto text-slate-500 self-center"><ChevronDown size={12} /></span>
+                      {isEntryActive && <span className="ml-auto text-slate-500 self-center"><ChevronDown size={12} /></span>}
                     </button>
 
                     {/* Hall dropdown */}
-                    {openHallDropdown === idx && (
+                    {openHallDropdown === idx && isEntryActive && (
                       <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border-2 border-slate-300 rounded-2xl shadow-2xl overflow-hidden p-2 max-h-48 overflow-y-auto">
                         {availableHalls.length === 0 ? (
                           <p className="text-xs text-slate-500 text-center py-2">Keine Hallen gefunden</p>
@@ -2643,6 +2918,10 @@ export default function TimesheetsPage() {
   const [error, setError] = useState<string | null>(null);
   const [refreshListKey, setRefreshListKey] = useState(0);
 
+  // Rotation and re-analysis states
+  const [rotation, setRotation] = useState<number>(0);
+  const [isReanalyzing, setIsReanalyzing] = useState<boolean>(false);
+
   // ── Multi-photo queue ────────────────────────────────────────────────────────
   type QueueStatus = 'waiting' | 'scanning' | 'review' | 'done' | 'error' | 'skipped';
   const [fileQueue, setFileQueue] = useState<File[]>([]);
@@ -2671,6 +2950,7 @@ export default function TimesheetsPage() {
     if (validFiles.length === 0) return;
     setFileQueue(validFiles);
     setQueueIndex(0);
+    setRotation(0);
     setQueueStatuses(validFiles.map(() => 'waiting'));
     processSingleFile(validFiles[0], 0, validFiles);
   };
@@ -2690,6 +2970,51 @@ export default function TimesheetsPage() {
     }
   };
 
+  // Rotate preview angle in 90 degree increments
+  const handleRotate = () => {
+    setRotation((prev) => (prev + 90) % 360);
+  };
+
+  // Re-analyze current photo with correctly oriented image
+  const handleReanalyze = async () => {
+    if (isReanalyzing) return;
+    setIsReanalyzing(true);
+    setError(null);
+
+    try {
+      const currentFile = fileQueue[queueIndex];
+      if (currentFile) {
+        // If rotated, produce a real rotated JPEG via Canvas before sending to OCR
+        const fileToSend = rotation % 360 !== 0
+          ? await getRotatedFile(currentFile, rotation)
+          : currentFile;
+
+        const formData = new FormData();
+        formData.append('file', fileToSend);
+
+        const res = await fetch(`${API_URL}/timesheets/scan`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message ?? 'Fehler bei der erneuten Analyse');
+        }
+
+        const result: ScanResult = await res.json();
+        setScanResult(result);
+      } else if (isPrinterScan) {
+        await handlePrinterScan({});
+      }
+    } catch (e: any) {
+      setError(e.message ?? 'Neu-Analyse fehlgeschlagen');
+    } finally {
+      setIsReanalyzing(false);
+    }
+  };
+
   // Fallback: Manually fill out the timesheet for this photo if OCR fails
   const manualEntryForCurrent = () => {
     setScanResult({
@@ -2706,6 +3031,7 @@ export default function TimesheetsPage() {
 
   // Advance to the next item in the queue
   const advanceQueue = (queue: File[], nextIdx: number) => {
+    setRotation(0);
     if (nextIdx >= queue.length) {
       // All done — show upload zone
       setScanResult(null);
@@ -2723,6 +3049,7 @@ export default function TimesheetsPage() {
     setError(null);
     setViewMode('scanning');
     markStatus(idx, 'scanning');
+    setRotation(0);
 
     // Create preview URL for the single current photo
     try {
@@ -2770,6 +3097,7 @@ export default function TimesheetsPage() {
   const handleFileSelect = async (file: File) => {
     setFileQueue([file]);
     setQueueIndex(0);
+    setRotation(0);
     setQueueStatuses(['waiting']);
     await processSingleFile(file, 0, [file]);
   };
@@ -2782,6 +3110,7 @@ export default function TimesheetsPage() {
     setError(null);
     setViewMode('scanning');
     setIsLoading(true);
+    setRotation(0);
 
     try {
       const res = await fetch(`${API_URL}/scanner/scan-to-timesheet`, {
@@ -2880,6 +3209,7 @@ export default function TimesheetsPage() {
     setCurrentPreviewUrl(null);
     setIsPrinterScan(false);
     setError(null);
+    setRotation(0);
     setFileQueue([]);
     setQueueIndex(0);
     setQueueStatuses([]);
@@ -3014,6 +3344,7 @@ export default function TimesheetsPage() {
                     totalCount={fileQueue.length || 1}
                     photoSize={photoSize}
                     onSizeChange={setPhotoSize}
+                    rotation={rotation}
                   />
                 )}
 
@@ -3030,6 +3361,10 @@ export default function TimesheetsPage() {
                     photoSize={photoSize}
                     onPhotoSizeChange={setPhotoSize}
                     isLastInQueue={isLastInQueue}
+                    rotation={rotation}
+                    onRotate={handleRotate}
+                    onReanalyze={handleReanalyze}
+                    isReanalyzing={isReanalyzing}
                   />
                 )}
 

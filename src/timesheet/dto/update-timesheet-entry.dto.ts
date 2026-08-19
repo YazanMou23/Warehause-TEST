@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsDateString, IsNumber, Min } from 'class-validator';
+import { IsOptional, IsString, IsDateString, IsNumber, IsBoolean, Min } from 'class-validator';
 
 /**
  * Used with PATCH /timesheets/:timesheetId/entries/:entryId
@@ -42,4 +42,8 @@ export class UpdateTimesheetEntryDto {
   @IsOptional()
   @IsString()
   location?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
