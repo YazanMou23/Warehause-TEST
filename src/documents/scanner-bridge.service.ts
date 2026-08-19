@@ -30,20 +30,29 @@ export interface DiscoveredScannerDevice {
   id: string;
   name: string;
   displayName?: string;
+  manufacturer?: string;
+  model?: string;
+  type?: string;
   connectionType: 'WIFI' | 'USB' | 'LAN' | 'UNKNOWN';
   ip?: string;
   port?: number;
   protocol?: string;
   serial?: string | null;
-  status: 'READY' | 'SCANNING' | 'BUSY' | 'OFFLINE' | 'PAPER_JAM' | 'NO_PAPER' | 'COVER_OPEN' | 'ERROR' | 'UNKNOWN';
+  status: string;
   statusDetails?: string;
   isAgentDevice?: boolean;  // discovered via local agent
   capabilities?: {
-    hasAdf: boolean;
-    hasFlatbed: boolean;
-    supportedDpi: number[];
-    colorModes: string[];
-    documentFormats: string[];
+    hasAdf?: boolean;
+    hasFlatbed?: boolean;
+    adf?: boolean;
+    flatbed?: boolean;
+    duplex?: boolean;
+    color?: boolean;
+    grayscale?: boolean;
+    supportedDpi?: number[];
+    colorModes?: string[];
+    documentFormats?: string[];
+    supportedPaperSizes?: string[];
   };
 }
 

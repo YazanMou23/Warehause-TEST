@@ -32,20 +32,29 @@ export interface ScannerDeviceRaw {
   id: string;
   name: string;
   displayName?: string;
+  manufacturer?: string;
+  model?: string;
+  type?: string;
   connectionType: "WIFI" | "USB" | "LAN" | "UNKNOWN";
   ip?: string;
   port?: number;
   protocol?: string;
   serial?: string | null;
-  status: "READY" | "SCANNING" | "BUSY" | "OFFLINE" | "PAPER_JAM" | "NO_PAPER" | "COVER_OPEN" | "ERROR" | "UNKNOWN";
+  status: string;
   statusDetails?: string;
   isAgentDevice?: boolean;
   capabilities?: {
-    hasAdf: boolean;
-    hasFlatbed: boolean;
-    supportedDpi: number[];
-    colorModes: string[];
-    documentFormats: string[];
+    hasAdf?: boolean;
+    hasFlatbed?: boolean;
+    adf?: boolean;
+    flatbed?: boolean;
+    duplex?: boolean;
+    color?: boolean;
+    grayscale?: boolean;
+    supportedDpi?: number[];
+    colorModes?: string[];
+    documentFormats?: string[];
+    supportedPaperSizes?: string[];
   };
 }
 
@@ -83,22 +92,31 @@ function authHeaders() {
 }
 
 function getStatusColor(status: string) {
-  switch (status) {
-    case "READY":      return "text-emerald-400 bg-emerald-500/10 border-emerald-500/30";
+  const s = (status || "").toUpperCase();
+  switch (s) {
+    case "READY":
+    case "AVAILABLE":
+      return "text-emerald-400 bg-emerald-500/10 border-emerald-500/30";
     case "BUSY":
-    case "SCANNING":   return "text-amber-400 bg-amber-500/10 border-amber-500/30";
+    case "SCANNING":
+      return "text-amber-400 bg-amber-500/10 border-amber-500/30";
     case "PAPER_JAM":
     case "NO_PAPER":
     case "COVER_OPEN":
-    case "ERROR":      return "text-red-400 bg-red-500/10 border-red-500/30";
-    case "OFFLINE":    return "text-slate-400 bg-slate-500/10 border-slate-500/30";
-    default:           return "text-slate-400 bg-slate-500/10 border-slate-500/30";
+    case "ERROR":
+      return "text-red-400 bg-red-500/10 border-red-500/30";
+    case "OFFLINE":
+      return "text-slate-400 bg-slate-500/10 border-slate-500/30";
+    default:
+      return "text-emerald-400 bg-emerald-500/10 border-emerald-500/30";
   }
 }
 
 function getStatusLabel(status: string) {
+  const s = (status || "").toUpperCase();
   const labels: Record<string, string> = {
     READY:      "Bereit",
+    AVAILABLE:  "Bereit",
     BUSY:       "Beschäftigt",
     SCANNING:   "Scannt",
     PAPER_JAM:  "Papierstau",
@@ -106,9 +124,9 @@ function getStatusLabel(status: string) {
     COVER_OPEN: "Abdeckung offen",
     ERROR:      "Fehler",
     OFFLINE:    "Offline",
-    UNKNOWN:    "Unbekannt",
+    UNKNOWN:    "Bereit",
   };
-  return labels[status] ?? status;
+  return labels[s] ?? status;
 }
 
 function getProtocolIcon(protocol?: string, connectionType?: string) {
@@ -229,12 +247,12 @@ function DiscoveredDeviceCard({
         {device.capabilities && (
           <div className="mt-3 flex flex-wrap gap-1.5">
             <CapabilityBadge label="Scanner"    active={true} />
-            <CapabilityBadge label="ADF"        active={device.capabilities.hasAdf} />
-            <CapabilityBadge label="Flachbett"  active={device.capabilities.hasFlatbed} />
-            <CapabilityBadge label="Farbe"      active={device.capabilities.colorModes.some(m => /rgb|color/i.test(m))} />
-            {device.capabilities.supportedDpi.length > 0 && (
+            <CapabilityBadge label="ADF"        active={Boolean(device.capabilities.hasAdf ?? device.capabilities.adf)} />
+            <CapabilityBadge label="Flachbett"  active={Boolean(device.capabilities.hasFlatbed ?? device.capabilities.flatbed ?? true)} />
+            <CapabilityBadge label="Farbe"      active={Boolean(device.capabilities.color ?? device.capabilities.colorModes?.some(m => /rgb|color/i.test(m)) ?? true)} />
+            {(device.capabilities.supportedDpi?.length ?? 0) > 0 && (
               <span className="text-[10px] px-2 py-0.5 rounded-full border border-slate-600/40 bg-slate-700/30 text-slate-400">
-                bis {Math.max(...device.capabilities.supportedDpi)} DPI
+                bis {Math.max(...(device.capabilities.supportedDpi || [300]))} DPI
               </span>
             )}
           </div>

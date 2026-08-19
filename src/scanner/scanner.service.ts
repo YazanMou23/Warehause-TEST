@@ -381,6 +381,37 @@ export class ScannerService {
     const discovered: DiscoveredPrinter[] = [];
     const seenIds = new Set<string>();
 
+    // ── 0. Query Local Scanner Agent (127.0.0.1:48281) if active ─────────────
+    try {
+      const agentRes = await fetch('http://127.0.0.1:48281/scanners', {
+        signal: AbortSignal.timeout(1800),
+      });
+      if (agentRes.ok) {
+        const agentDevices: any[] = await agentRes.json();
+        for (const dev of agentDevices) {
+          if (!seenIds.has(dev.id)) {
+            seenIds.add(dev.id);
+            discovered.push({
+              id:             dev.id,
+              name:           dev.displayName || dev.name,
+              connectionType: dev.connectionType || 'WIFI',
+              ip:             dev.ip,
+              port:           dev.port || 80,
+              status:         dev.status === 'available' || dev.status === 'READY'
+                ? `Bereit (${dev.displayName || dev.name})`
+                : (dev.statusDetails || dev.status || 'Bereit'),
+            });
+          }
+        }
+        if (discovered.length > 0) {
+          this.logger.log(`Local agent returned ${discovered.length} discovered device(s).`);
+          return discovered;
+        }
+      }
+    } catch {
+      // Local agent not available — continue to server-side discovery
+    }
+
     // ── 1. Windows WMI / PnP (USB cable + installed network printers) ────────
     try {
       const cmd = `powershell -NoProfile -Command "Get-CimInstance Win32_PnPEntity | Where-Object { $_.PNPClass -eq 'Image' -or $_.PNPClass -eq 'Printer' -or $_.Name -like '*Scanner*' -or $_.Name -like '*Drucker*' -or $_.Service -eq 'stisvc' -or $_.Service -eq 'usbscan' } | Select-Object Name, PNPClass, Status, DeviceID | ConvertTo-Json"`;
@@ -539,6 +570,38 @@ export class ScannerService {
     if (targetIp && (targetIp.startsWith('USB_') || targetIp.startsWith('WIA_') || targetIp === 'USB')) {
       this.logger.log(`Executing local USB/WIA scan for device: ${targetIp}`);
       return this.triggerLocalUsbScan(settings);
+    }
+
+    // ── Try Local Agent (127.0.0.1:48281) first ──────────────────────────────
+    try {
+      const agentRes = await fetch('http://127.0.0.1:48281/health', { signal: AbortSignal.timeout(1200) });
+      if (agentRes.ok) {
+        this.logger.log(`Delegating scan to local agent (127.0.0.1:48281) for target ${targetIp || 'auto'}`);
+        const scanRes = await fetch('http://127.0.0.1:48281/scan', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            scannerIp:   targetIp,
+            scannerPort: settings.scannerPort ?? 80,
+            dpi:         settings.dpi ?? 300,
+            colorMode:   settings.colorMode ?? 'Grayscale',
+            format:      settings.format ?? 'jpeg',
+            inputSource: settings.inputSource ?? 'Platen',
+          }),
+          signal: AbortSignal.timeout(120_000),
+        });
+        if (scanRes.ok) {
+          const data = (await scanRes.json()) as { pages?: { base64Data: string; mimeType: string }[] };
+          if (data.pages && data.pages.length > 0) {
+            return {
+              buffer:   Buffer.from(data.pages[0].base64Data, 'base64'),
+              mimeType: data.pages[0].mimeType || 'image/jpeg',
+            };
+          }
+        }
+      }
+    } catch {
+      // Continue to direct scan
     }
 
     // ── Auto-discovery if no IP provided ─────────────────────────────────────

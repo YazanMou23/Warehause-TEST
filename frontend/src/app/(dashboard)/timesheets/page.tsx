@@ -207,7 +207,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// ─── Upload Zone & Direct Scanner ─────────────────────────────────────────────
+// ─── Upload Zone & Direct Zero-Config Scanner ──────────────────────────────────
 
 function UploadZone({
   onFileSelect,
@@ -221,51 +221,132 @@ function UploadZone({
   isLoading: boolean;
 }) {
   const [isDragOver, setIsDragOver] = useState(false);
-  const [showPrinterSettings, setShowPrinterSettings] = useState(false);
-  const [scannerIp, setScannerIp] = useState('');
-  const [scannerPort, setScannerPort] = useState(80);
-  const [scannerDpi, setScannerDpi] = useState(300);
+  const [discovering, setDiscovering] = useState(false);
+  const [discoveredPrinters, setDiscoveredPrinters] = useState<Array<{
+    id: string;
+    name: string;
+    displayName?: string;
+    manufacturer?: string;
+    model?: string;
+    connectionType: string;
+    ip?: string;
+    port?: number;
+    protocol?: string;
+    status: string;
+    capabilities?: any;
+  }>>([]);
+  const [selectedPrinter, setSelectedPrinter] = useState<{
+    id: string;
+    name: string;
+    displayName?: string;
+    manufacturer?: string;
+    connectionType: string;
+    ip?: string;
+    port?: number;
+    hasAdf?: boolean;
+  } | null>(null);
+
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [statusResult, setStatusResult] = useState<{ online?: boolean; state?: string; model?: string; error?: string } | null>(null);
-  const [discovering, setDiscovering] = useState(false);
-  const [discoveredPrinters, setDiscoveredPrinters] = useState<Array<{ id: string; name: string; connectionType: string; ip?: string; port?: number; status: string }>>([]);
-  const [subnetScan, setSubnetScan] = useState(true);
+  const [showDeviceList, setShowDeviceList] = useState(false);
+  const [showManualFallback, setShowManualFallback] = useState(false);
+  const [manualIp, setManualIp] = useState('');
+  const [manualPort, setManualPort] = useState(80);
+  const [scannerDpi, setScannerDpi] = useState(300);
 
   const cameraRef = useRef<HTMLInputElement>(null);
+  const inputRef  = useRef<HTMLInputElement>(null);
 
-  // ── Auto-check printer status on mount if IP is already configured ──────────
+  // ── Automatic Initial Discovery on Mount ────────────────────────────────────
   useEffect(() => {
-    if (scannerIp) {
-      checkScannerStatus();
-    }
+    discoverPrinters(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const discoverPrinters = async () => {
+  const discoverPrinters = async (openModalOnDone = true) => {
     setDiscovering(true);
+    setStatusResult(null);
     try {
+      // Try scanner endpoint
       const res = await fetch(`${API_URL}/scanner/discover`, { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
-        setDiscoveredPrinters(data || []);
-        // Auto-select first real (non-simulator) printer
-        const real = (data || []).find((p: any) => p.ip && p.ip !== 'SIMULATOR');
-        const first = real || data?.[0];
-        if (first) {
-          setScannerIp(first.ip || first.id);
-          if (first.port) setScannerPort(first.port);
-          // Immediately check the selected printer status
-          setTimeout(() => checkScannerStatus(), 400);
+        const list = Array.isArray(data) ? data : [];
+        setDiscoveredPrinters(list);
+
+        // Auto-select first real (non-simulator) device if none selected
+        if (!selectedPrinter) {
+          const real = list.find((p: any) => p.ip && p.ip !== 'SIMULATOR');
+          const first = real || list[0];
+          if (first) {
+            setSelectedPrinter({
+              id:             first.id,
+              name:           first.displayName || first.name,
+              displayName:    first.displayName || first.name,
+              manufacturer:   first.manufacturer,
+              connectionType: first.connectionType || 'WIFI',
+              ip:             first.ip,
+              port:           first.port || 80,
+              hasAdf:         first.capabilities?.hasAdf ?? first.capabilities?.adf,
+            });
+            setTimeout(() => checkPrinterStatus(first.ip, first.port || 80), 300);
+          }
         }
+        if (openModalOnDone) setShowDeviceList(true);
       }
     } catch (err) {
-      console.error('Fehler bei der Druckersuche:', err);
+      console.error('Fehler bei der automatischen Druckersuche:', err);
     } finally {
       setDiscovering(false);
     }
   };
 
-  const inputRef = useRef<HTMLInputElement>(null);
+  const checkPrinterStatus = async (ip?: string, port = 80) => {
+    const targetIp = ip || selectedPrinter?.ip;
+    if (!targetIp || targetIp === 'SIMULATOR') {
+      setStatusResult({ online: true, state: 'Bereit', model: 'Test-Scanner' });
+      return;
+    }
+    setCheckingStatus(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('ip', targetIp);
+      params.set('port', String(port || selectedPrinter?.port || 80));
+
+      const res = await fetch(`${API_URL}/scanner/status?${params}`, {
+        headers: getAuthHeaders(),
+      });
+      const data = await res.json();
+      setStatusResult(data);
+    } catch (err: any) {
+      setStatusResult({ online: false, error: err.message || 'Verbindung fehlgeschlagen' });
+    } finally {
+      setCheckingStatus(false);
+    }
+  };
+
+  const handleSelectPrinter = (printer: any) => {
+    setSelectedPrinter({
+      id:             printer.id,
+      name:           printer.displayName || printer.name,
+      displayName:    printer.displayName || printer.name,
+      manufacturer:   printer.manufacturer,
+      connectionType: printer.connectionType || 'WIFI',
+      ip:             printer.ip,
+      port:           printer.port || 80,
+      hasAdf:         printer.capabilities?.hasAdf ?? printer.capabilities?.adf,
+    });
+    setShowDeviceList(false);
+    checkPrinterStatus(printer.ip, printer.port || 80);
+  };
+
+  const handleStartScan = () => {
+    onPrinterScan({
+      scannerIp:   selectedPrinter?.ip || (discoveredPrinters[0]?.ip ?? undefined),
+      scannerPort: selectedPrinter?.port ?? 80,
+      dpi:         scannerDpi,
+    });
+  };
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -283,48 +364,18 @@ function UploadZone({
     [onFileSelect, onFilesSelect],
   );
 
-  const checkScannerStatus = async () => {
-    if (!scannerIp) return;
-    setCheckingStatus(true);
-    setStatusResult(null);
-    try {
-      const params = new URLSearchParams();
-      params.set('ip', scannerIp);
-      params.set('port', String(scannerPort));
-
-      const res = await fetch(`${API_URL}/scanner/status?${params}`, {
-        headers: getAuthHeaders(),
-      });
-      const data = await res.json();
-      setStatusResult(data);
-    } catch (err: any) {
-      setStatusResult({ online: false, error: err.message || 'Verbindung fehlgeschlagen' });
-    } finally {
-      setCheckingStatus(false);
-    }
-  };
-
-  // Per-brand port hints
-  const brandHints = [
-    { brand: 'HP',      port: 8080, color: 'text-blue-700',   bg: 'bg-blue-100 border-blue-200' },
-    { brand: 'Brother', port: 80,   color: 'text-purple-700', bg: 'bg-purple-100 border-purple-200' },
-    { brand: 'Canon',   port: 80,   color: 'text-red-700',    bg: 'bg-red-100 border-red-200' },
-    { brand: 'Epson',   port: 80,   color: 'text-cyan-700',   bg: 'bg-cyan-100 border-cyan-200' },
-    { brand: 'Lexmark', port: 80,   color: 'text-amber-700',  bg: 'bg-amber-100 border-amber-200' },
-  ];
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="flex flex-col gap-6 items-center w-full"
     >
-      {/* Action Cards Grid */}
+      {/* 3-Column Action Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-5xl">
         
-        {/* 1. Direct Printer Scanner Action Card */}
+        {/* 1. Direct Zero-Config Printer Scanner Action Card */}
         <div className="relative rounded-3xl border-2 border-blue-300 bg-blue-50/40 p-6 flex flex-col justify-between items-center text-center shadow-sm hover:border-blue-500 hover:shadow-md transition-all group">
-          {/* Status dot + badge */}
+          {/* Top Badge */}
           <div className="absolute top-4 right-4 flex items-center gap-2">
             {statusResult && (
               <span className={`w-2.5 h-2.5 rounded-full animate-pulse ${
@@ -333,7 +384,7 @@ function UploadZone({
             )}
             <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 text-blue-900 text-xs font-bold border border-blue-300 shadow-xs">
               <Printer size={13} className="shrink-0 text-blue-800" />
-              <span>WLAN / USB</span>
+              <span>{selectedPrinter ? selectedPrinter.connectionType : 'WLAN / USB'}</span>
             </span>
           </div>
 
@@ -343,58 +394,76 @@ function UploadZone({
 
           <div className="w-full">
             <h3 className="text-slate-900 font-bold text-lg mb-1">Vom Drucker scannen</h3>
-            <p className="text-slate-700 text-xs font-medium leading-relaxed mb-3">
-              Netzwerkdrucker per AirScan / eSCL — WLAN oder USB-Kabel.
-            </p>
-
-            {/* Inline status */}
-            {statusResult && (
-              <div className={`mb-3 flex items-center justify-center gap-1.5 text-xs font-bold ${
-                statusResult.online ? 'text-emerald-800' : 'text-red-700'
-              }`}>
-                {statusResult.online ? (
-                  <><CheckCircle size={12} className="text-emerald-700" /> Online{statusResult.model ? ` · ${statusResult.model}` : ''} ({statusResult.state})</>
-                ) : (
-                  <><AlertCircle size={12} className="text-red-600" /> {statusResult.error?.slice(0, 48)}</>
+            
+            {/* Device Info or Search trigger */}
+            {selectedPrinter ? (
+              <div className="mb-3 space-y-1">
+                <p className="text-slate-900 font-bold text-sm truncate px-2">
+                  {selectedPrinter.displayName || selectedPrinter.name}
+                </p>
+                <p className="text-slate-600 text-xs font-medium">
+                  {selectedPrinter.connectionType === 'USB' ? 'USB-Kabel' : 'WLAN AirScan / eSCL'}
+                  {selectedPrinter.hasAdf && ' · ADF Einzug'}
+                </p>
+                {statusResult && (
+                  <div className={`flex items-center justify-center gap-1 text-xs font-bold ${
+                    statusResult.online ? 'text-emerald-800' : 'text-red-700'
+                  }`}>
+                    {statusResult.online ? (
+                      <><CheckCircle size={12} className="text-emerald-700" /> Verbunden & Bereit</>
+                    ) : (
+                      <><AlertCircle size={12} className="text-red-600" /> {statusResult.error?.slice(0, 40) || 'Nicht erreichbar'}</>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-            {!statusResult && scannerIp && !checkingStatus && (
-              <div className="mb-3 text-xs text-slate-700 font-mono font-bold flex items-center justify-center gap-1">
-                <Hash size={11} /> IP: {scannerIp}:{scannerPort}
-              </div>
+            ) : (
+              <p className="text-slate-700 text-xs font-medium leading-relaxed mb-3">
+                Automatische Erkennung aller Brother, HP, Canon, Epson & USB-Scanner im WLAN.
+              </p>
             )}
           </div>
 
           <div className="w-full space-y-2">
-            <button
-              onClick={() => onPrinterScan({ scannerIp, scannerPort, dpi: scannerDpi })}
-              disabled={isLoading}
-              className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md transition-all text-sm disabled:opacity-50 cursor-pointer"
-            >
-              {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Printer size={18} />}
-              <span>Jetzt scannen</span>
-            </button>
+            {selectedPrinter ? (
+              <>
+                <button
+                  onClick={handleStartScan}
+                  disabled={isLoading}
+                  className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md transition-all text-sm disabled:opacity-50 cursor-pointer"
+                >
+                  {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Printer size={18} />}
+                  <span>Jetzt scannen</span>
+                </button>
 
-            {/* Quick test + settings row */}
-            <div className="flex gap-2">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => discoverPrinters(true)}
+                    disabled={discovering}
+                    className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold border-2 border-slate-300 transition-colors cursor-pointer shadow-xs"
+                  >
+                    {discovering ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                    <span>Drucker suchen</span>
+                  </button>
+                  <button
+                    onClick={() => setShowDeviceList(!showDeviceList)}
+                    className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold border-2 border-slate-300 transition-colors cursor-pointer shadow-xs"
+                  >
+                    <Settings size={12} />
+                    <span>Auswahl ({discoveredPrinters.length})</span>
+                  </button>
+                </div>
+              </>
+            ) : (
               <button
-                onClick={checkScannerStatus}
-                disabled={checkingStatus || !scannerIp}
-                title={scannerIp ? 'Verbindung testen' : 'Erst IP in Einstellungen eingeben'}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold border-2 border-slate-300 transition-colors disabled:opacity-40 cursor-pointer shadow-xs"
+                onClick={() => discoverPrinters(true)}
+                disabled={discovering}
+                className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md transition-all text-sm disabled:opacity-50 cursor-pointer"
               >
-                {checkingStatus ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                Testen
+                {discovering ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
+                <span>{discovering ? 'Suche im Netzwerk…' : 'Drucker im Netzwerk suchen'}</span>
               </button>
-              <button
-                onClick={() => setShowPrinterSettings(!showPrinterSettings)}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold border-2 border-slate-300 transition-colors cursor-pointer shadow-xs"
-              >
-                <Settings size={12} />
-                {showPrinterSettings ? 'Schließen' : 'Einstellungen'}
-              </button>
-            </div>
+            )}
           </div>
         </div>
 
@@ -508,173 +577,149 @@ function UploadZone({
           />
         </div>
 
-        {/* 3-card hint: multi-photo */}
-        <div className="col-span-1 md:col-span-3 flex items-center gap-2 text-xs text-slate-700 font-medium justify-center bg-slate-50 border border-slate-200 py-2 px-4 rounded-xl shadow-xs">
-          <Images size={14} className="text-blue-600" />
-          <span>Mehrere Dateien auswählen (PNG, JPG, JPEG, PDF): Strg+Klick (Desktop) oder Mehrfach-Auswahl — alle werden nacheinander analysiert.</span>
-        </div>
-
       </div>
 
-      {/* Expandable Printer Settings Panel */}
+      {/* Discovered Devices Expandable List */}
       <AnimatePresence>
-        {showPrinterSettings && (
+        {showDeviceList && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="w-full max-w-4xl bg-slate-50 border border-slate-200 rounded-2xl p-5 overflow-hidden shadow-sm"
+            className="w-full max-w-4xl bg-white border-2 border-blue-200 rounded-3xl p-5 overflow-hidden shadow-md"
           >
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4 pb-3 border-b border-slate-200">
-              <h4 className="text-slate-900 font-semibold text-sm flex items-center gap-2">
-                <Settings size={15} className="text-blue-600" />
-                WLAN-Drucker / Scanner Einstellungen
-              </h4>
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <Printer className="text-blue-600" size={18} />
+                <h4 className="font-bold text-slate-900 text-sm">
+                  Verfügbare Geräte im lokalen Netzwerk ({discoveredPrinters.length})
+                </h4>
+              </div>
               <button
-                onClick={discoverPrinters}
+                onClick={() => discoverPrinters(true)}
                 disabled={discovering}
-                className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold transition-all shadow-sm cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-colors cursor-pointer"
               >
                 {discovering ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-                <span>Drucker im Netzwerk suchen</span>
+                <span>Aktualisieren</span>
               </button>
             </div>
 
-            {/* WiFi Setup Guide */}
-            <div className="mb-4 p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs text-slate-700 space-y-1">
-              <p className="text-blue-700 font-semibold flex items-center gap-1.5 mb-2">
-                <RefreshCw size={11} /> WLAN-Drucker verbinden — Kurzanleitung:
-              </p>
-              <p>① Drucker & dieses Gerät im gleichen WLAN-Netzwerk.</p>
-              <p>② IP-Adresse am Drucker-Display ablesen (oder Konfigurationsseite drucken).</p>
-              <p>③ IP unten eingeben → "Verbindung testen" klicken.</p>
-              <p className="text-slate-500 pt-1">eSCL/AirScan ist aktiviert auf allen modernen HP-, Brother-, Canon-, Epson- und Lexmark-Druckern.</p>
-            </div>
-
-            {/* Brand port hints */}
-            <div className="flex flex-wrap gap-2 mb-4">
-              <span className="text-xs text-slate-500 self-center">Port-Schnellwahl:</span>
-              {brandHints.map(({ brand, port, color, bg }) => (
-                <button
-                  key={brand}
-                  onClick={() => setScannerPort(port)}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-xs font-medium cursor-pointer transition-all hover:opacity-80 ${bg} ${color} ${
-                    scannerPort === port ? 'ring-2 ring-blue-500' : ''
-                  }`}
-                >
-                  <span>{brand}</span>
-                  <span className="opacity-70">:{port}</span>
-                </button>
-              ))}
-            </div>
-
-            {/* Discovered printers */}
-            {discoveredPrinters.length > 0 && (
-              <div className="mb-4 p-3 rounded-xl bg-white border border-slate-200 text-xs space-y-2 shadow-sm">
-                <label className="text-slate-800 font-semibold flex items-center gap-1.5 mb-2">
-                  <CheckCircle size={13} className="text-emerald-600" />
-                  Gefundene Drucker & Scanner ({discoveredPrinters.length}):
-                </label>
-                <div className="space-y-1.5">
-                  {discoveredPrinters.map((p) => {
-                    const isSelected = scannerIp === (p.ip || p.id);
-                    const connColor = p.connectionType === 'USB'
-                      ? 'bg-amber-100 text-amber-800 border-amber-200'
-                      : p.id === 'SIMULATOR'
-                      ? 'bg-slate-100 text-slate-600 border-slate-200'
-                      : 'bg-emerald-100 text-emerald-800 border-emerald-200';
-                    return (
-                      <button
-                        key={p.id}
-                        onClick={() => {
-                          setScannerIp(p.ip || p.id);
-                          if (p.port) setScannerPort(p.port);
-                          setTimeout(() => checkScannerStatus(), 300);
-                        }}
-                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all text-left ${
-                          isSelected
-                            ? 'bg-blue-50 border-blue-500 text-blue-900 ring-1 ring-blue-500'
-                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${connColor}`}>
-                          {p.connectionType}
+            {discoveredPrinters.length === 0 ? (
+              <div className="py-8 text-center">
+                <AlertCircle className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                <p className="text-sm font-bold text-slate-800">Keine Drucker oder Scanner gefunden</p>
+                <p className="text-xs text-slate-600 mt-1 max-w-md mx-auto">
+                  Stelle sicher, dass der Drucker eingeschaltet ist und sich dein Gerät im gleichen WLAN-Netzwerk befindet.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                {discoveredPrinters.map((p) => {
+                  const isSelected = selectedPrinter?.id === p.id || selectedPrinter?.ip === p.ip;
+                  const isUsb = p.connectionType === 'USB';
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => handleSelectPrinter(p)}
+                      className={`p-3.5 rounded-2xl border-2 text-left transition-all flex items-start justify-between gap-3 cursor-pointer ${
+                        isSelected
+                          ? 'border-blue-600 bg-blue-50/80 ring-2 ring-blue-500/20'
+                          : 'border-slate-200 bg-slate-50 hover:border-blue-400 hover:bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2.5 rounded-xl border ${
+                          isUsb ? 'bg-purple-100 text-purple-800 border-purple-200' : 'bg-blue-100 text-blue-800 border-blue-200'
+                        }`}>
+                          <Printer size={20} />
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-900 text-sm">
+                            {p.displayName || p.name}
+                          </p>
+                          <div className="flex items-center gap-1.5 mt-0.5 text-xs text-slate-600">
+                            <span className="font-medium">{isUsb ? 'USB-Kabel' : 'WLAN'}</span>
+                            {p.ip && p.ip !== 'SIMULATOR' && (
+                              <span className="font-mono text-[11px] text-slate-500">· {p.ip}</span>
+                            )}
+                            {(p.capabilities?.hasAdf || p.capabilities?.adf) && (
+                              <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-bold text-[10px]">ADF</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {isSelected ? (
+                        <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900 text-xs font-bold border border-emerald-300">
+                          Aktiv
                         </span>
-                        <span className="flex-1 truncate font-medium">{p.name}</span>
-                        {p.ip && p.ip !== 'SIMULATOR' && (
-                          <span className="text-slate-500 font-mono text-[10px]">{p.ip}:{p.port}</span>
-                        )}
-                        {isSelected && <CheckCircle size={12} className="text-emerald-600 flex-shrink-0" />}
-                      </button>
-                    );
-                  })}
-                </div>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-full bg-white text-slate-700 text-xs font-bold border border-slate-300 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-colors">
+                          Wählen
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             )}
 
-            {/* Manual IP + port + DPI */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-              <div>
-                <label className="text-xs text-slate-600 block mb-1 font-medium">Drucker IP-Adresse</label>
-                <input
-                  type="text"
-                  placeholder="z.B. 192.168.1.105"
-                  value={scannerIp}
-                  onChange={(e) => { setScannerIp(e.target.value); setStatusResult(null); }}
-                  className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-blue-500 font-mono shadow-sm"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-slate-600 block mb-1 font-medium">Port (HP: 8080 / andere: 80)</label>
-                <input
-                  type="number"
-                  placeholder="80"
-                  value={scannerPort}
-                  onChange={(e) => setScannerPort(parseInt(e.target.value) || 80)}
-                  className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-blue-500 shadow-sm"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-slate-600 block mb-1 font-medium">Auflösung (DPI)</label>
-                <select
-                  value={scannerDpi}
-                  onChange={(e) => setScannerDpi(parseInt(e.target.value))}
-                  className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-blue-500 shadow-sm"
-                >
-                  <option value={150}>150 DPI (Schnell)</option>
-                  <option value={300}>300 DPI (Empfohlen)</option>
-                  <option value={600}>600 DPI (Hohe Qualität)</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Footer: test + status */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200">
+            {/* Advanced / Fallback Manual IP Toggle */}
+            <div className="pt-2 border-t border-slate-200 flex flex-col items-center">
               <button
-                onClick={checkScannerStatus}
-                disabled={checkingStatus || !scannerIp}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold transition-all disabled:opacity-40 cursor-pointer shadow-sm"
+                onClick={() => setShowManualFallback(!showManualFallback)}
+                className="text-xs text-slate-500 hover:text-slate-800 font-medium transition-colors underline cursor-pointer"
               >
-                {checkingStatus ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-                Verbindung testen
+                {showManualFallback ? 'Erweiterte Einstellungen ausblenden' : 'Gerät wird nicht gefunden? Manuelle IP-Verbindung'}
               </button>
 
-              {statusResult && (
-                <div className="text-xs flex items-center gap-2">
-                  {statusResult.online ? (
-                    <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
-                      <CheckCircle size={13} />
-                      Online{statusResult.model ? ` · ${statusResult.model}` : ''} — {statusResult.state}
-                    </span>
-                  ) : (
-                    <span className="text-red-400 font-medium flex items-center gap-1.5">
-                      <AlertCircle size={13} />
-                      {statusResult.error}
-                    </span>
-                  )}
-                </div>
-              )}
+              <AnimatePresence>
+                {showManualFallback && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="w-full mt-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3"
+                  >
+                    <p className="text-xs text-slate-600">
+                      Gib die IP-Adresse des Druckers manuell ein (z.B. vom Druckerdisplay ablesen):
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <input
+                        type="text"
+                        placeholder="192.168.1.100"
+                        value={manualIp}
+                        onChange={(e) => setManualIp(e.target.value)}
+                        className="flex-1 min-w-[140px] px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900"
+                      />
+                      <input
+                        type="number"
+                        placeholder="80"
+                        value={manualPort}
+                        onChange={(e) => setManualPort(parseInt(e.target.value) || 80)}
+                        className="w-20 px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900"
+                      />
+                      <button
+                        onClick={() => {
+                          if (manualIp.trim()) {
+                            handleSelectPrinter({
+                              id: `MANUAL_${manualIp}`,
+                              name: `Drucker (${manualIp})`,
+                              displayName: `Drucker (${manualIp})`,
+                              connectionType: 'WIFI',
+                              ip: manualIp.trim(),
+                              port: manualPort,
+                            });
+                          }
+                        }}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold cursor-pointer"
+                      >
+                        Verbinden
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </motion.div>
         )}
@@ -718,7 +763,7 @@ function ScanningView({ fileName, isPrinterScan }: { fileName: string; isPrinter
         <p className="text-slate-600 text-sm font-medium">{fileName}</p>
       </div>
 
-      <div className="flex flex-col gap-2 w-80 bg-slate-50 p-4 rounded-xl border border-slate-200">
+      <div className="flex flex-col gap-2 w-full max-w-xs bg-slate-50 p-4 rounded-xl border border-slate-200">
         {[
           isPrinterScan ? 'Empfange Bild vom Netzwerkdrucker' : 'Bild wird verarbeitet',
           'Handschrift & Zeiten werden erkannt',
@@ -1138,183 +1183,183 @@ function ReviewView({
         </div>
 
         {/* Responsive table — horizontal scroll on mobile */}
-        <div className="overflow-x-auto">
-        {/* Table Header — hidden on very small screens (cards shown instead) */}
-        <div className="hidden sm:grid sm:grid-cols-[32px_100px_90px_68px_68px_72px_72px_1fr] gap-1.5 px-3 py-3 bg-slate-100 border-b-2 border-slate-300 text-xs font-bold text-slate-700 uppercase tracking-wider min-w-[600px]">
-          <div className="font-mono text-center">#</div>
-          <div className="flex items-center gap-1"><Clock size={11} />Wochentag</div>
-          <div>Datum</div>
-          <div>Von</div>
-          <div>Bis</div>
-          <div><Coffee size={11} className="inline mr-0.5" />Pause</div>
-          <div>Gesamt</div>
-          <div className="flex items-center gap-1"><MapPin size={11} className="inline mr-0.5" />Halle(n)</div>
-        </div>
+        <div className="overflow-x-auto w-full">
+          <div className="min-w-[740px]">
+            {/* Table Header */}
+            <div className="grid grid-cols-[36px_110px_130px_90px_90px_80px_80px_1fr] gap-1.5 px-3 py-3 bg-slate-100 border-b-2 border-slate-300 text-xs font-bold text-slate-700 uppercase tracking-wider">
+              <div className="font-mono text-center">#</div>
+              <div className="flex items-center gap-1"><Clock size={11} />Wochentag</div>
+              <div>Datum</div>
+              <div>Von</div>
+              <div>Bis</div>
+              <div><Coffee size={11} className="inline mr-0.5" />Pause</div>
+              <div>Gesamt</div>
+              <div className="flex items-center gap-1"><MapPin size={11} className="inline mr-0.5" />Halle(n)</div>
+            </div>
 
-        {/* Table Rows — Desktop: grid, Mobile: card per row */}
-        <div className="min-w-[600px]">
-        {entries.map((entry, idx) => {
-          const hasData = entry.startTime !== '' || entry.endTime !== '';
-          const isWeekend = idx >= 5;
+            {/* Table Rows */}
+            {entries.map((entry, idx) => {
+              const hasData = entry.startTime !== '' || entry.endTime !== '';
+              const isWeekend = idx >= 5;
 
-          return (
-            <div
-              key={entry.weekday}
-              className={`grid sm:grid-cols-[32px_100px_90px_68px_68px_72px_72px_1fr] grid-cols-1 gap-1.5 px-3 py-2.5 border-b border-slate-200 transition-colors ${
-                isWeekend ? 'bg-slate-50/80' : 'bg-white hover:bg-blue-50/40'
-              } ${!hasData && !isWeekend ? 'opacity-70' : ''}`}
-            >
-              {/* Row label (mobile: inline, desktop: index badge) */}
-              <div className="flex sm:block items-center gap-2 sm:gap-0">
-                <div className="font-mono text-xs font-bold text-slate-700 text-center bg-slate-100 py-1 px-1.5 rounded border border-slate-300 shadow-xs sm:w-full">
-                  {idx + 1}
-                </div>
-                {/* Mobile-only weekday label next to number */}
-                <span className={`sm:hidden text-sm font-bold ${isWeekend ? 'text-slate-500' : 'text-slate-900'}`}>
-                  <span className={`w-2 h-2 rounded-full inline-block mr-1.5 ${hasData ? 'bg-blue-600' : 'bg-slate-400'}`} />
-                  {entry.weekday}
-                </span>
-              </div>
+              return (
+                <div
+                  key={entry.weekday}
+                  className={`grid grid-cols-[36px_110px_130px_90px_90px_80px_80px_1fr] gap-1.5 px-3 py-2.5 border-b border-slate-200 transition-colors items-center ${
+                    isWeekend ? 'bg-slate-50/80' : 'bg-white hover:bg-blue-50/40'
+                  } ${!hasData && !isWeekend ? 'opacity-70' : ''}`}
+                >
+                  {/* Row index badge */}
+                  <div className="font-mono text-xs font-bold text-slate-700 text-center bg-slate-100 py-1 px-1.5 rounded border border-slate-300 shadow-xs">
+                    {idx + 1}
+                  </div>
 
-              <div className="hidden sm:flex items-center gap-1.5">
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${hasData ? 'bg-blue-600' : 'bg-slate-400'}`} />
-                <span className={`text-sm font-bold ${isWeekend ? 'text-slate-500' : 'text-slate-900'}`}>
-                  {entry.weekday}
-                </span>
-              </div>
+                  {/* Weekday */}
+                  <div className="flex items-center gap-1.5">
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${hasData ? 'bg-blue-600' : 'bg-slate-400'}`} />
+                    <span className={`text-sm font-bold ${isWeekend ? 'text-slate-500' : 'text-slate-900'}`}>
+                      {entry.weekday}
+                    </span>
+                  </div>
 
-              <div className="grid grid-cols-2 sm:contents gap-1.5">
-                <input
-                  type="date"
-                  value={entry.date ? entry.date.split('T')[0] : ''}
-                  onChange={(e) => updateEntry(idx, 'date', e.target.value)}
-                  className="col-span-2 sm:col-span-1 px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full shadow-xs"
-                />
-
-                {(['startTime', 'endTime'] as const).map((field) => (
+                  {/* Date Input */}
                   <input
-                    key={field}
-                    type="time"
-                    value={(entry as any)[field]}
-                    onChange={(e) => updateEntry(idx, field as keyof TimesheetEntry, e.target.value)}
+                    type="date"
+                    value={entry.date ? entry.date.split('T')[0] : ''}
+                    onChange={(e) => updateEntry(idx, 'date', e.target.value)}
                     className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full shadow-xs"
                   />
-                ))}
 
-                <input
-                  type="number"
-                  min={0}
-                  value={entry.breakMinutes || ''}
-                  placeholder="0"
-                  onChange={(e) => updateEntry(idx, 'breakMinutes', parseInt(e.target.value) || 0)}
-                  className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full text-center shadow-xs"
-                />
+                  {/* Start Time */}
+                  <input
+                    type="time"
+                    value={entry.startTime}
+                    onChange={(e) => updateEntry(idx, 'startTime', e.target.value)}
+                    className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full shadow-xs"
+                  />
 
-                <input
-                  type="number"
-                  step="0.05"
-                  min={0}
-                  value={entry.totalHours || ''}
-                  placeholder="0"
-                  onChange={(e) => updateEntry(idx, 'totalHours', parseFloat(e.target.value) || 0)}
-                  className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full text-center font-mono shadow-xs"
-                />
+                  {/* End Time */}
+                  <input
+                    type="time"
+                    value={entry.endTime || ''}
+                    onChange={(e) => updateEntry(idx, 'endTime', e.target.value)}
+                    className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full shadow-xs"
+                  />
 
-                {/* Multi-Hall Selector */}
-                <div className="col-span-2 sm:col-span-1 relative" ref={openHallDropdown === idx ? hallDropdownRef : undefined}>
-                  {/* Selected halls as chips */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenHallDropdown(openHallDropdown === idx ? null : idx);
-                    }}
-                    className="w-full flex flex-wrap gap-1 min-h-[30px] px-2 py-1 bg-white border-2 border-slate-300 rounded-lg cursor-pointer hover:border-blue-600 transition-colors shadow-xs items-center text-left"
-                  >
-                    {entry.location
-                      ? entry.location.split(',').filter(Boolean).map((h) => h.trim()).map((hallName, hIdx) => (
-                          <span
-                            key={hIdx}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-100 text-blue-900 text-[10px] font-bold border border-blue-300"
-                          >
-                            <MapPin size={9} />
-                            {hallName}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const halls = entry.location.split(',').map(h => h.trim()).filter(Boolean);
-                                const updated = halls.filter((_, i) => i !== hIdx);
-                                updateEntry(idx, 'location', updated.join(', '));
-                              }}
-                              className="ml-0.5 text-blue-700 hover:text-blue-950 font-bold"
+                  {/* Break */}
+                  <input
+                    type="number"
+                    min={0}
+                    value={entry.breakMinutes || ''}
+                    placeholder="0"
+                    onChange={(e) => updateEntry(idx, 'breakMinutes', parseInt(e.target.value) || 0)}
+                    className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full text-center shadow-xs"
+                  />
+
+                  {/* Total Hours */}
+                  <input
+                    type="number"
+                    step="0.05"
+                    min={0}
+                    value={entry.totalHours || ''}
+                    placeholder="0"
+                    onChange={(e) => updateEntry(idx, 'totalHours', parseFloat(e.target.value) || 0)}
+                    className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full text-center font-mono shadow-xs"
+                  />
+
+                  {/* Multi-Hall Selector */}
+                  <div className="relative" ref={openHallDropdown === idx ? hallDropdownRef : undefined}>
+                    {/* Selected halls as chips */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenHallDropdown(openHallDropdown === idx ? null : idx);
+                      }}
+                      className="w-full flex flex-wrap gap-1 min-h-[30px] px-2 py-1 bg-white border-2 border-slate-300 rounded-lg cursor-pointer hover:border-blue-600 transition-colors shadow-xs items-center text-left"
+                    >
+                      {entry.location
+                        ? entry.location.split(',').filter(Boolean).map((h) => h.trim()).map((hallName, hIdx) => (
+                            <span
+                              key={hIdx}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-100 text-blue-900 text-[10px] font-bold border border-blue-300"
                             >
-                              <X size={9} />
-                            </button>
-                          </span>
-                        ))
-                      : <span className="text-slate-400 text-[10px] font-medium self-center">Halle(n) wählen...</span>
-                    }
-                    <span className="ml-auto text-slate-500 self-center"><ChevronDown size={12} /></span>
-                  </button>
+                              <MapPin size={9} />
+                              {hallName}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const halls = entry.location.split(',').map(h => h.trim()).filter(Boolean);
+                                  const updated = halls.filter((_, i) => i !== hIdx);
+                                  updateEntry(idx, 'location', updated.join(', '));
+                                }}
+                                className="ml-0.5 text-blue-700 hover:text-blue-950 font-bold"
+                              >
+                                <X size={9} />
+                              </button>
+                            </span>
+                          ))
+                        : <span className="text-slate-400 text-[10px] font-medium self-center">Halle(n) wählen...</span>
+                      }
+                      <span className="ml-auto text-slate-500 self-center"><ChevronDown size={12} /></span>
+                    </button>
 
-                  {/* Hall dropdown — closes on selection, Escape, outside click (handled by useEffect) */}
-                  {openHallDropdown === idx && (
-                    <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border-2 border-slate-300 rounded-2xl shadow-2xl overflow-hidden p-2 max-h-48 overflow-y-auto">
-                      {availableHalls.length === 0 ? (
-                        <p className="text-xs text-slate-500 text-center py-2">Keine Hallen gefunden</p>
-                      ) : (
-                        availableHalls.map((hall) => {
-                          const selectedNames = entry.location ? entry.location.split(',').map(h => h.trim()).filter(Boolean) : [];
-                          const isSelected = selectedNames.includes(hall.name);
-                          return (
-                            <button
-                              key={hall.id}
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const currentHalls = entry.location ? entry.location.split(',').map(h => h.trim()).filter(Boolean) : [];
-                                const newHalls = isSelected
-                                  ? currentHalls.filter(h => h !== hall.name)
-                                  : [...currentHalls, hall.name];
-                                updateEntry(idx, 'location', newHalls.join(', '));
-                                // Close after single-select; multi-select stays open
-                                if (!isSelected) setOpenHallDropdown(null);
-                              }}
-                              className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors text-left ${
-                                isSelected ? 'bg-blue-600 text-white font-bold' : 'text-slate-800 hover:bg-slate-100 font-medium'
-                              }`}
-                            >
-                              <MapPin size={11} className={isSelected ? 'text-white' : 'text-blue-600'} />
-                              {hall.name}
-                              {isSelected && <span className="ml-auto text-[10px] font-bold text-white">✓</span>}
-                            </button>
-                          );
-                        })
-                      )}
-                      <div className="border-t border-slate-200 mt-1 pt-1">
-                        <input
-                          type="text"
-                          placeholder="Oder manuell eingeben..."
-                          value={entry.location && !entry.location.split(',').every(h => availableHalls.some(ah => ah.name === h.trim())) ? entry.location.split(',').filter(h => !availableHalls.some(ah => ah.name === h.trim())).join(', ') : ''}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => {
-                            const manual = e.target.value;
-                            const fromList = entry.location ? entry.location.split(',').map(h => h.trim()).filter(h => availableHalls.some(ah => ah.name === h)) : [];
-                            const combined = [...fromList, ...(manual ? [manual] : [])].join(', ');
-                            updateEntry(idx, 'location', combined);
-                          }}
-                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 font-medium"
-                        />
+                    {/* Hall dropdown */}
+                    {openHallDropdown === idx && (
+                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border-2 border-slate-300 rounded-2xl shadow-2xl overflow-hidden p-2 max-h-48 overflow-y-auto">
+                        {availableHalls.length === 0 ? (
+                          <p className="text-xs text-slate-500 text-center py-2">Keine Hallen gefunden</p>
+                        ) : (
+                          availableHalls.map((hall) => {
+                            const selectedNames = entry.location ? entry.location.split(',').map(h => h.trim()).filter(Boolean) : [];
+                            const isSelected = selectedNames.includes(hall.name);
+                            return (
+                              <button
+                                key={hall.id}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const currentHalls = entry.location ? entry.location.split(',').map(h => h.trim()).filter(Boolean) : [];
+                                  const newHalls = isSelected
+                                    ? currentHalls.filter(h => h !== hall.name)
+                                    : [...currentHalls, hall.name];
+                                  updateEntry(idx, 'location', newHalls.join(', '));
+                                  if (!isSelected) setOpenHallDropdown(null);
+                                }}
+                                className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors text-left ${
+                                  isSelected ? 'bg-blue-600 text-white font-bold' : 'text-slate-800 hover:bg-slate-100 font-medium'
+                                }`}
+                              >
+                                <MapPin size={11} className={isSelected ? 'text-white' : 'text-blue-600'} />
+                                {hall.name}
+                                {isSelected && <span className="ml-auto text-[10px] font-bold text-white">✓</span>}
+                              </button>
+                            );
+                          })
+                        )}
+                        <div className="border-t border-slate-200 mt-1 pt-1">
+                          <input
+                            type="text"
+                            placeholder="Oder manuell eingeben..."
+                            value={entry.location && !entry.location.split(',').every(h => availableHalls.some(ah => ah.name === h.trim())) ? entry.location.split(',').filter(h => !availableHalls.some(ah => ah.name === h.trim())).join(', ') : ''}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => {
+                              const manual = e.target.value;
+                              const fromList = entry.location ? entry.location.split(',').map(h => h.trim()).filter(h => availableHalls.some(ah => ah.name === h)) : [];
+                              const combined = [...fromList, ...(manual ? [manual] : [])].join(', ');
+                              updateEntry(idx, 'location', combined);
+                            }}
+                            className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 font-medium"
+                          />
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
-            </div>
-          );
-        })}
-        </div>
+              );
+            })}
+          </div>
         </div>{/* end overflow-x-auto */}
       </div>
 
@@ -1327,11 +1372,11 @@ function ReviewView({
       )}
 
       {/* Action Buttons */}
-      <div className="flex flex-wrap gap-3 pt-2">
+      <div className="flex flex-col sm:flex-row gap-3 pt-2">
         <button
           onClick={onDiscard}
           disabled={isLoading}
-          className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 border-2 border-slate-300 text-slate-700 hover:bg-slate-200 hover:text-slate-900 font-bold transition-all text-sm shadow-xs cursor-pointer"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 border-2 border-slate-300 text-slate-700 hover:bg-slate-200 hover:text-slate-900 font-bold transition-all text-sm shadow-xs cursor-pointer"
         >
           <X size={16} />
           Verwerfen
@@ -1339,7 +1384,7 @@ function ReviewView({
         <button
           onClick={handleConfirm}
           disabled={isLoading}
-          className="flex-1 min-w-[200px] flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all text-sm shadow-md disabled:opacity-60 cursor-pointer"
+          className="w-full sm:flex-1 min-w-0 flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all text-sm shadow-md disabled:opacity-60 cursor-pointer"
         >
           {isLoading ? (
             <Loader2 size={16} className="animate-spin" />
@@ -1582,11 +1627,11 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
         </div>
 
         {/* Status Filter Dropdown */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 text-sm focus:outline-none focus:border-blue-400 shadow-sm"
+            className="flex-1 sm:flex-none px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 text-sm focus:outline-none focus:border-blue-400 shadow-sm"
           >
             <option value="">Alle Status (Gesamt)</option>
             <option value="PENDING_REVIEW">Ausstehend (PENDING_REVIEW)</option>
@@ -1597,11 +1642,11 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
           <button
             onClick={loadList}
             disabled={loading}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 text-sm font-medium shadow-sm cursor-pointer disabled:opacity-50"
+            className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 text-sm font-medium shadow-sm cursor-pointer disabled:opacity-50"
             title="Liste neu laden"
           >
             <RefreshCw size={14} className={loading ? 'animate-spin text-blue-500' : 'text-slate-500'} />
-            <span>Aktualisieren</span>
+            <span className="hidden sm:inline">Aktualisieren</span>
           </button>
         </div>
       </div>
@@ -1624,7 +1669,7 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
         <div className="flex flex-col gap-3">
           <div className="text-xs text-slate-500 px-1 font-mono flex items-center justify-between">
             <span>{filtered.length} Stundenzettel gefunden</span>
-            <span>Klicke auf den Pfeil zum Aufklappen der Tagesstunden</span>
+            <span className="hidden sm:inline">Klicke auf den Pfeil zum Aufklappen der Tagesstunden</span>
           </div>
 
           {filtered.map((item, index) => {
@@ -1638,28 +1683,30 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
                 className="flex flex-col bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-blue-300 transition-colors overflow-hidden group min-w-0"
               >
                 {/* Header Row */}
-                <div className="flex flex-wrap items-center gap-3 p-3 sm:p-4">
-                  {/* Numeric Index Badge (#1, #2, #3...) */}
-                  <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 font-mono font-bold text-xs flex items-center justify-center shrink-0">
-                    #{index + 1}
-                  </div>
-
-                  {/* Timesheet Employee info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                      <p className="text-slate-900 font-semibold text-sm truncate">
-                        {item.employee?.name ?? item.employeeName}
-                      </p>
-                      <StatusBadge status={item.status} />
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3 sm:p-4">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    {/* Numeric Index Badge (#1, #2, #3...) */}
+                    <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 font-mono font-bold text-xs flex items-center justify-center shrink-0">
+                      #{index + 1}
                     </div>
-                    <p className="text-slate-500 text-xs flex flex-wrap items-center gap-2">
-                      <span>📅 {getWeekRange(item.weekStartDate)}</span>
-                      <span>⏱️ {item.entryCount} Tage ({item.totalHours.toFixed(2)} h)</span>
-                    </p>
+
+                    {/* Timesheet Employee info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <p className="text-slate-900 font-semibold text-sm truncate">
+                          {item.employee?.name ?? item.employeeName}
+                        </p>
+                        <StatusBadge status={item.status} />
+                      </div>
+                      <p className="text-slate-500 text-xs flex flex-wrap items-center gap-2">
+                        <span>📅 {getWeekRange(item.weekStartDate)}</span>
+                        <span>⏱️ {item.entryCount} Tage ({item.totalHours.toFixed(2)} h)</span>
+                      </p>
+                    </div>
                   </div>
 
                   {/* Action Buttons — wrap on mobile */}
-                  <div className="flex flex-wrap items-center gap-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                     {/* Expand Details Button */}
                     <button
                       onClick={() => setExpandedId(isExpanded ? null : item.id)}
@@ -1728,39 +1775,43 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
-                      className="bg-slate-50 border-t border-slate-200 p-4"
+                      className="bg-slate-50 border-t border-slate-200 p-3 sm:p-4"
                     >
                       <h4 className="text-xs font-bold text-blue-700 mb-2 flex items-center gap-1.5">
                         <Clock size={12} /> Detaillierte Tagesstunden für {item.employee?.name ?? item.employeeName}:
                       </h4>
 
-                      <div className="grid grid-cols-[40px_100px_90px_70px_70px_70px_70px_1fr] gap-2 py-1.5 px-3 bg-slate-200/70 rounded-lg text-xs font-semibold text-slate-700">
-                        <div>#</div>
-                        <div>Tag</div>
-                        <div>Datum</div>
-                        <div>Von</div>
-                        <div>Bis</div>
-                        <div>Pause</div>
-                        <div>Stunden</div>
-                        <div>Ort</div>
-                      </div>
-
-                      <div className="divide-y divide-slate-200">
-                        {item.entries.map((entry, eIdx) => (
-                          <div
-                            key={entry.id || eIdx}
-                            className="grid grid-cols-[40px_100px_90px_70px_70px_70px_70px_1fr] gap-2 py-2 px-3 text-xs items-center text-slate-800 hover:bg-slate-100 transition-colors font-mono"
-                          >
-                            <div className="font-bold text-blue-600">#{eIdx + 1}</div>
-                            <div className="font-sans font-medium text-slate-900">{entry.weekday}</div>
-                            <div>{formatDate(entry.date)}</div>
-                            <div className="text-emerald-700 font-semibold">{entry.startTime || '—'}</div>
-                            <div className="text-slate-700">{entry.endTime || '—'}</div>
-                            <div>{entry.breakMinutes ? `${entry.breakMinutes}m` : '0m'}</div>
-                            <div className="font-bold text-blue-700">{entry.totalHours ? `${entry.totalHours.toFixed(2)}h` : '0h'}</div>
-                            <div className="font-sans text-slate-600 truncate">{entry.location || 'Standard-Lager'}</div>
+                      <div className="overflow-x-auto w-full">
+                        <div className="min-w-[600px]">
+                          <div className="grid grid-cols-[40px_100px_90px_70px_70px_70px_70px_1fr] gap-2 py-1.5 px-3 bg-slate-200/70 rounded-lg text-xs font-semibold text-slate-700">
+                            <div>#</div>
+                            <div>Tag</div>
+                            <div>Datum</div>
+                            <div>Von</div>
+                            <div>Bis</div>
+                            <div>Pause</div>
+                            <div>Stunden</div>
+                            <div>Ort</div>
                           </div>
-                        ))}
+
+                          <div className="divide-y divide-slate-200">
+                            {item.entries.map((entry, eIdx) => (
+                              <div
+                                key={entry.id || eIdx}
+                                className="grid grid-cols-[40px_100px_90px_70px_70px_70px_70px_1fr] gap-2 py-2 px-3 text-xs items-center text-slate-800 hover:bg-slate-100 transition-colors font-mono"
+                              >
+                                <div className="font-bold text-blue-600">#{eIdx + 1}</div>
+                                <div className="font-sans font-medium text-slate-900">{entry.weekday}</div>
+                                <div>{formatDate(entry.date)}</div>
+                                <div className="text-emerald-700 font-semibold">{entry.startTime || '—'}</div>
+                                <div className="text-slate-700">{entry.endTime || '—'}</div>
+                                <div>{entry.breakMinutes ? `${entry.breakMinutes}m` : '0m'}</div>
+                                <div className="font-bold text-blue-700">{entry.totalHours ? `${entry.totalHours.toFixed(2)}h` : '0h'}</div>
+                                <div className="font-sans text-slate-600 truncate">{entry.location || 'Standard-Lager'}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     </motion.div>
                   )}
@@ -2027,10 +2078,12 @@ function DailyAttendanceView() {
   return (
     <div className="flex flex-col gap-4">
       {/* Date selector and stats bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-sm">
-        <div className="flex items-center gap-3">
-          <Calendar size={18} className="text-blue-600" />
-          <span className="text-slate-900 font-semibold text-sm">Datum wählen:</span>
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-50 p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2">
+            <Calendar size={18} className="text-blue-600" />
+            <span className="text-slate-900 font-semibold text-sm">Datum:</span>
+          </div>
           <input
             type="date"
             value={selectedDate}
@@ -2047,21 +2100,21 @@ function DailyAttendanceView() {
           </button>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-4 text-xs font-mono">
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-between lg:justify-end">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs font-mono">
             <div className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 font-semibold">
               <Users size={12} className="inline mr-1.5" />
-              Mitarbeiter am Tag: <strong className="text-blue-900">{records.length}</strong>
+              Mitarbeiter: <strong className="text-blue-900">{records.length}</strong>
             </div>
             <div className="px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold">
               <Clock size={12} className="inline mr-1.5" />
-              Gesamte Schichtstunden: <strong className="text-emerald-900">{totalShiftHours.toFixed(2)} h</strong>
+              Schichtstunden: <strong className="text-emerald-900">{totalShiftHours.toFixed(2)} h</strong>
             </div>
           </div>
 
           <button
             onClick={() => setShowManualModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-sm transition-colors cursor-pointer"
+            className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-sm transition-colors cursor-pointer w-full sm:w-auto"
           >
             <Plus size={14} />
             <span>Manuelle Schicht eintragen</span>
@@ -2566,20 +2619,20 @@ export default function TimesheetsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white text-slate-900">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+    <div className="min-h-screen bg-white text-slate-900 overflow-x-hidden">
+      <div className="max-w-5xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
         {/* Page Header */}
-        <div className="mb-6 sm:mb-8">
+        <div className="mb-5 sm:mb-8">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200">
-                <ScanLine size={24} className="text-blue-600" />
+              <div className="p-2.5 sm:p-3 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200 shrink-0">
+                <ScanLine size={22} className="text-blue-600" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-bold text-slate-900 flex items-center gap-2">
                   Zeiterfassung & Stundenzettel-Scanner
                 </h1>
-                <p className="text-slate-500 text-sm">
+                <p className="text-slate-500 text-xs sm:text-sm">
                   Wochenstundenzettel per Fotos oder direkt vom Netzwerkdrucker erfassen & verwalten
                 </p>
               </div>
@@ -2589,7 +2642,7 @@ export default function TimesheetsPage() {
             {viewMode === 'upload' && activeTab === 'scanner' && (
               <button
                 onClick={() => handlePrinterScan({})}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-sm font-semibold transition-all shadow-sm cursor-pointer"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-sm font-semibold transition-all shadow-sm cursor-pointer"
               >
                 <Printer size={16} />
                 <span>Direkt vom Drucker scannen</span>
@@ -2634,7 +2687,7 @@ export default function TimesheetsPage() {
               exit={{ opacity: 0 }}
             >
               {/* Light card wrapper with crisp dark border */}
-              <div className="bg-white rounded-3xl p-6 shadow-sm border-2 border-slate-300">
+              <div className="bg-white rounded-3xl p-3.5 sm:p-6 shadow-sm border-2 border-slate-300">
 
                 {/* Error Message */}
                 {error && (
@@ -2727,13 +2780,13 @@ export default function TimesheetsPage() {
 
                 {/* Step Indicator */}
                 {(viewMode === 'upload' || viewMode === 'review') && (
-                  <div className="flex items-center gap-2 mb-6 text-xs text-slate-600 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                  <div className="flex items-center gap-2 mb-6 text-xs text-slate-600 bg-slate-50 p-3 rounded-2xl border border-slate-200 overflow-x-auto whitespace-nowrap">
                     {['Erfassen (Upload / Drucker)', 'KI-Analyse', 'Prüfen & Speichern'].map((step, i) => {
                       const stepIndex = viewMode === 'upload' ? 0 : viewMode === 'review' ? 2 : 1;
                       const isActive = i === stepIndex;
                       const isDone = i < stepIndex;
                       return (
-                        <div key={step} className="flex items-center gap-2">
+                        <div key={step} className="flex items-center gap-2 shrink-0">
                           <div
                             className={`flex items-center gap-1.5 font-bold ${
                               isActive ? 'text-blue-700' : isDone ? 'text-emerald-700' : 'text-slate-400'
