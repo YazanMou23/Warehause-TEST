@@ -86,18 +86,20 @@ export class OcrService {
   private async processContainers(file: Express.Multer.File, apiKey: string) {
     const base64Data = file.buffer.toString('base64');
 
-    const prompt = `Du bist ein hochpräzises Extraktionssystem für Logistikdokumente (Containerlisten, Ladelisten, Lieferscheine).
+    const systemPrompt = `Du bist ein hochpräzises Extraktionssystem für Logistikdokumente (Containerlisten, Ladelisten, Lieferscheine).
+AUFGABE: Extrahiere ALLE Containerinformationen aus dem Dokument als JSON.
+WENN keine Containerdaten erkennbar sind, gib { "type": "CONTAINERS", "data": [] } zurück.`;
 
-AUFGABE: Extrahiere ALLE Containerinformationen aus dem Dokument.
+    const userPrompt = `Extrahiere alle Containerdaten aus diesem Dokument:
 
 CONTAINERREGELN:
 - containerNumber: 4 Buchstaben + 7 Ziffern (ISO 6346), z.B. HLXU8472910. Leerzeichen entfernen. GROSSBUCHSTABEN.
 - status: "FULL" oder "EMPTY". Wenn unklar → "FULL"
-- arrivalDate: Ausgabe YYYY-MM-DD. Eingabe kann DD.MM.YYYY oder DD.MM.YY sein → umrechnen
+- arrivalDate: Ausgabe YYYY-MM-DD.
 - hall: Hallen- oder Lagerbezeichnung wenn sichtbar (z.B. "Halle 1", "H3", "A2")
 - notes: Zusätzliche Hinweise oder Bemerkungen zum Container
 
-AUSGABE — NUR dieses JSON, keine Erklärungen:
+AUSGABEFORMAT (NUR JSON):
 {
   "type": "CONTAINERS",
   "data": [
@@ -121,14 +123,15 @@ AUSGABE — NUR dieses JSON, keine Erklärungen:
         body: JSON.stringify({
           model: 'gpt-4o',
           messages: [
+            { role: 'system', content: systemPrompt },
             {
               role: 'user',
               content: [
-                { type: 'text', text: prompt },
+                { type: 'text', text: userPrompt },
                 {
                   type: 'image_url',
                   image_url: {
-                    url: `data:${file.mimetype};base64,${base64Data}`,
+                    url: `data:${file.mimetype || 'image/jpeg'};base64,${base64Data}`,
                     detail: 'high',
                   },
                 },

@@ -75,37 +75,36 @@ export class TimesheetOcrService {
     apiKey: string,
   ): Promise<OcrTimesheetResult> {
     const base64Data = file.buffer.toString('base64');
+    const mimeType = file.mimetype && file.mimetype.startsWith('image/') ? file.mimetype : 'image/jpeg';
 
-    const prompt = `Du bist ein hochpräzises Extraktionssystem für handgeschriebene und gedruckte deutsche Wochenarbeitszeitblätter (Stundenzettel).
+    const systemPrompt = `Du bist ein hochpräzises Extraktionssystem für handgeschriebene und gedruckte deutsche Wochenarbeitszeitblätter (Stundenzettel).
+Deine Aufgabe ist es, Arbeitszeiten, Datum, Mitarbeitername und Hallen/Einsatzorte strukturiert als JSON zu extrahieren.
+WENN keine Tabelle, kein Text oder ein leeres Bild übergeben wird, antworte immer mit dem Standard-JSON (kein Fehler, keine Weigerung):
+{
+  "employeeName": "",
+  "weekStartDate": "",
+  "entries": []
+}`;
+
+    const userPrompt = `Analysiere diesen Stundenzettel und extrahiere alle Einträge:
 
 ═══════════ DATUMSFORMATE — ALLE AKZEPTIEREN ═══════════
-Eingabe kann sein: TT.MM.JJJJ · TT.MM.JJ · TT/MM/JJJJ · TT/MM/JJ · TT.MM (nur Tag+Monat)
-Ausgabe IMMER: YYYY-MM-DD
-Beispiele: 16.07.2026 → 2026-07-16 | 16.07.26 → 2026-07-16 | 16/07 → ${new Date().getUTCFullYear()}-07-16
+Eingabe: TT.MM.JJJJ · TT.MM.JJ · TT/MM/JJJJ · TT/MM/JJ · TT.MM
+Ausgabe IMMER: YYYY-MM-DD (z.B. 16.07.2026 → 2026-07-16)
 
 ═══════════ ZEITFORMATE — ALLE AKZEPTIEREN ═══════════
-Eingabe kann sein: HH:MM · HH.MM · HHMM · HHhMM · HH h MM · H:MM
-Ausgabe IMMER: HH:MM (24h-Format, zweistellig)
-Beispiele: 8:0 → 08:00 | 17.30 → 17:30 | 1730 → 17:30 | 7h30 → 07:30
+Eingabe: HH:MM · HH.MM · HHMM · HHhMM · HH h MM · H:MM
+Ausgabe IMMER: HH:MM (24h-Format, zweistellig, z.B. 08:00, 16:30)
 
 ═══════════ STUNDEN (totalHours) ═══════════
-- Komma als Dezimaltrennzeichen: 8,5 = 8.5 | 7,75 = 7.75
-- Immer Netto-Stunden (ohne Pause) als Dezimalzahl
-- Wenn nicht lesbar: selbst aus Startzeit - Endzeit - Pause berechnen
+- Netto-Stunden (ohne Pause) als Dezimalzahl (z.B. 8.5)
+- Wenn nicht lesbar: aus Startzeit - Endzeit - Pause berechnen
 
 ═══════════ NAME BEREINIGEN ═══════════
-- Prefixe ENTFERNEN: "Name:", "Mitarbeiter:", "AN:", "MA:", "Arbeitnehmer:"
-- Nur den reinen Vor- und Nachnamen extrahieren
-- Reihenfolge egal (Vorname Nachname ODER Nachname, Vorname)
+- Prefixe entfernen: "Name:", "Mitarbeiter:", "AN:", "MA:"
+- Nur reinen Vor- und Nachnamen extrahieren
 
-═══════════ WEITERE REGELN ═══════════
-1. DURCHGESTRICHENE Werte → IGNORIEREN, nur gültigen Wert nehmen
-2. Unterschriften → KOMPLETT IGNORIEREN
-3. Tage ohne Eintrag (leer) → WEGLASSEN
-4. Bei unlesbaren Zeichen → beste Schätzung abgeben, kein leeres Feld
-5. weekStartDate = der MONTAG der Arbeitswoche (aus Kopfzeile oder berechnet)
-
-═══════════ AUSGABEFORMAT (NUR dieses JSON, KEINE Erklärungen) ═══════════
+═══════════ AUSGABEFORMAT (NUR JSON) ═══════════
 {
   "employeeName": "Vorname Nachname",
   "weekStartDate": "YYYY-MM-DD",
@@ -113,11 +112,11 @@ Beispiele: 8:0 → 08:00 | 17.30 → 17:30 | 1730 → 17:30 | 7h30 → 07:30
     {
       "weekday": "Montag",
       "date": "YYYY-MM-DD",
-      "startTime": "HH:MM",
-      "endTime": "HH:MM",
+      "startTime": "08:00",
+      "endTime": "16:30",
       "breakMinutes": 30,
       "totalHours": 8.0,
-      "location": "Lager Nord"
+      "location": "Halle 1"
     }
   ]
 }`;
@@ -131,14 +130,15 @@ Beispiele: 8:0 → 08:00 | 17.30 → 17:30 | 1730 → 17:30 | 7h30 → 07:30
       body: JSON.stringify({
         model: 'gpt-4o',
         messages: [
+          { role: 'system', content: systemPrompt },
           {
             role: 'user',
             content: [
-              { type: 'text', text: prompt },
+              { type: 'text', text: userPrompt },
               {
                 type: 'image_url',
                 image_url: {
-                  url: `data:${file.mimetype};base64,${base64Data}`,
+                  url: `data:${mimeType};base64,${base64Data}`,
                   detail: 'high',
                 },
               },
@@ -156,10 +156,22 @@ Beispiele: 8:0 → 08:00 | 17.30 → 17:30 | 1730 → 17:30 | 7h30 → 07:30
     }
 
     const result = await response.json();
-    const contentStr = result.choices?.[0]?.message?.content;
-    if (!contentStr) throw new Error('Keine Antwort von OpenAI Vision API');
+    const message = result.choices?.[0]?.message;
+    const contentStr = message?.content;
 
-    const parsed = JSON.parse(contentStr) as any;
+    if (!contentStr) {
+      if (message?.refusal) {
+        this.logger.warn(`OpenAI hat das Bild abgelehnt: ${message.refusal}`);
+      }
+      throw new Error('Keine lesbaren Stundenzettel-Daten auf dem Dokument erkannt');
+    }
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(contentStr);
+    } catch {
+      throw new Error('Ungültiges Antwortformat von OCR-API erhalten');
+    }
 
     // ── Sanitize ─────────────────────────────────────────────────────────────
     const employeeName = this.cleanEmployeeName(parsed.employeeName);
