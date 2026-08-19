@@ -109,7 +109,7 @@ interface DailyAttendanceRecord {
   date: string;
 }
 
-type ViewMode = 'upload' | 'scanning' | 'review' | 'saved';
+type ViewMode = 'upload' | 'scanning' | 'review' | 'saved' | 'error';
 type ActiveTab = 'scanner' | 'list' | 'daily';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -728,57 +728,238 @@ function UploadZone({
   );
 }
 
-// ─── Scanning Animation ───────────────────────────────────────────────────────
+// ─── Single Photo Viewer (Sequential Queue Display) ───────────────────────────
 
-function ScanningView({ fileName, isPrinterScan }: { fileName: string; isPrinterScan?: boolean }) {
+function SinglePhotoViewer({
+  fileName,
+  previewUrl,
+  currentIndex = 0,
+  totalCount = 1,
+  photoSize = 'md',
+  onSizeChange,
+  status = 'review',
+  statusMessage,
+  isPrinterScan = false,
+  onRetry,
+  onSkip,
+  onManualEntry,
+}: {
+  fileName: string;
+  previewUrl?: string | null;
+  currentIndex?: number;
+  totalCount?: number;
+  photoSize?: 'sm' | 'md' | 'lg';
+  onSizeChange?: (size: 'sm' | 'md' | 'lg') => void;
+  status?: 'scanning' | 'review' | 'saved' | 'error';
+  statusMessage?: string;
+  isPrinterScan?: boolean;
+  onRetry?: () => void;
+  onSkip?: () => void;
+  onManualEntry?: () => void;
+}) {
+  const currentNum = currentIndex + 1;
+  const total = totalCount > 0 ? totalCount : 1;
+  const size = photoSize || 'md';
+
+  // CSS height map for preview size control (does not modify or resize the original image)
+  const heightClasses = {
+    sm: 'h-48 sm:h-60',
+    md: 'h-64 sm:h-80 md:h-96',
+    lg: 'h-96 sm:h-[480px] md:h-[560px]',
+  };
+
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="flex flex-col items-center justify-center gap-8 py-16 bg-white border-2 border-slate-300 rounded-3xl shadow-sm my-4"
-    >
-      <div className="relative">
-        <div className="w-24 h-24 rounded-2xl bg-blue-50 border-2 border-blue-200 flex items-center justify-center shadow-xs">
-          {isPrinterScan ? (
-            <Printer size={40} className="text-blue-600 animate-pulse" />
-          ) : (
-            <FileText size={36} className="text-blue-600" />
+    <div className="bg-white border-2 border-slate-300 rounded-3xl p-4 sm:p-5 shadow-sm space-y-3 w-full">
+      {/* Photo Header: Filename, Counter, and Size Controls */}
+      <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <div className="p-2 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 shrink-0">
+            {isPrinterScan ? <Printer size={16} /> : <FileText size={16} />}
+          </div>
+          <div className="min-w-0">
+            <p className="text-slate-900 font-bold text-sm sm:text-base truncate" title={fileName}>
+              {fileName || `Stundenzettel_${String(currentNum).padStart(2, '0')}.jpg`}
+            </p>
+            <p className="text-slate-500 text-xs font-mono">
+              Foto <strong className="text-blue-700 font-bold">{currentNum}</strong> von <strong className="text-slate-700">{total}</strong>
+            </p>
+          </div>
+        </div>
+
+        {/* Progress Counter Badge & Visual Size Controls */}
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-800 text-xs font-bold border border-blue-200">
+            Foto {currentNum} / {total}
+          </span>
+
+          {onSizeChange && (
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-300 text-xs font-semibold">
+              <span className="text-[11px] text-slate-500 px-2 hidden sm:inline">Vorschau:</span>
+              {(['sm', 'md', 'lg'] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => onSizeChange(s)}
+                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                    size === s
+                      ? 'bg-white text-blue-700 shadow-xs font-bold border border-slate-200'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title={s === 'sm' ? 'Kleine Vorschau' : s === 'md' ? 'Mittlere Vorschau' : 'Große Vorschau'}
+                >
+                  {s === 'sm' ? 'Klein' : s === 'md' ? 'Mittel' : 'Groß'}
+                </button>
+              ))}
+            </div>
           )}
         </div>
-        <motion.div
-          animate={{ y: ['0%', '100%', '0%'] }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute left-0 right-0 h-0.5 bg-blue-600 shadow-[0_0_12px_2px_rgba(37,99,235,0.4)]"
-          style={{ top: '0%' }}
-        />
       </div>
 
-      <div className="text-center">
-        <div className="flex items-center gap-2 justify-center mb-2">
-          <Loader2 size={18} className="text-blue-600 animate-spin" />
-          <p className="text-slate-900 font-bold text-lg">
-            {isPrinterScan ? 'Verbindung zum Drucker hergestellt. Scanne Dokument...' : 'KI analysiert Stundenzettel...'}
-          </p>
-        </div>
-        <p className="text-slate-600 text-sm font-medium">{fileName}</p>
-      </div>
+      {/* Main Single Photo Display Container */}
+      <div className={`relative w-full ${heightClasses[size]} rounded-2xl bg-slate-900/5 border border-slate-200 overflow-hidden flex items-center justify-center`}>
+        {previewUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={previewUrl}
+            alt={fileName}
+            className="w-full h-full object-contain p-2 rounded-2xl select-none"
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-2 text-slate-400 p-6 text-center">
+            <FileText size={44} className="text-blue-500/60" />
+            <p className="text-slate-700 font-bold text-sm">{fileName}</p>
+            <p className="text-xs text-slate-500 font-mono">
+              {isPrinterScan ? 'Netzwerkdrucker-Dokument erfasst' : 'Dokument wird verarbeitet'}
+            </p>
+          </div>
+        )}
 
-      <div className="flex flex-col gap-2 w-full max-w-xs bg-slate-50 p-4 rounded-xl border border-slate-200">
+        {/* Scanning Laser Animation Overlay */}
+        {status === 'scanning' && (
+          <div className="absolute inset-0 bg-slate-900/35 backdrop-blur-[2px] flex flex-col items-center justify-center p-4">
+            <motion.div
+              animate={{ y: ['-120%', '120%'] }}
+              transition={{ duration: 2.2, repeat: Infinity, ease: 'linear' }}
+              className="absolute left-0 right-0 h-1 bg-blue-500 shadow-[0_0_16px_3px_rgba(59,130,246,0.8)]"
+              style={{ top: '50%' }}
+            />
+            <div className="bg-white/95 px-4 py-3 rounded-2xl shadow-lg border border-blue-200 flex items-center gap-3 z-10">
+              <Loader2 size={20} className="animate-spin text-blue-600 shrink-0" />
+              <div>
+                <p className="text-slate-900 font-bold text-sm">Dokument wird analysiert...</p>
+                <p className="text-slate-500 text-xs font-mono">Foto {currentNum} von {total} • Bitte warten</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Error Overlay with Retry / Skip / Manual Entry */}
+        {status === 'error' && (
+          <div className="absolute inset-0 bg-red-950/75 backdrop-blur-[2px] flex flex-col items-center justify-center p-4 text-center z-10">
+            <div className="bg-white p-5 rounded-3xl shadow-xl border-2 border-red-300 max-w-md w-full space-y-3">
+              <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+                <AlertCircle size={24} />
+              </div>
+              <div>
+                <h4 className="text-slate-900 font-bold text-base">Analyse fehlgeschlagen</h4>
+                <p className="text-slate-600 text-xs mt-1">
+                  {statusMessage || 'Dieses Dokument konnte nicht automatisch analysiert werden.'}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 pt-2">
+                {onRetry && (
+                  <button
+                    type="button"
+                    onClick={onRetry}
+                    className="flex-1 min-w-[120px] py-2 px-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <RefreshCw size={13} />
+                    Wiederholen
+                  </button>
+                )}
+                {onSkip && (
+                  <button
+                    type="button"
+                    onClick={onSkip}
+                    className="flex-1 min-w-[120px] py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer border border-slate-300"
+                  >
+                    <SkipForward size={13} />
+                    Foto überspringen
+                  </button>
+                )}
+                {onManualEntry && (
+                  <button
+                    type="button"
+                    onClick={onManualEntry}
+                    className="w-full py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer border border-amber-300"
+                  >
+                    <Edit size={13} />
+                    Manuell für dieses Foto ausfüllen
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Scanning View (Single Photo Viewer + Progress) ───────────────────────────
+
+function ScanningView({
+  fileName,
+  previewUrl,
+  isPrinterScan,
+  currentIndex = 0,
+  totalCount = 1,
+  photoSize = 'md',
+  onSizeChange,
+}: {
+  fileName: string;
+  previewUrl?: string | null;
+  isPrinterScan?: boolean;
+  currentIndex?: number;
+  totalCount?: number;
+  photoSize?: 'sm' | 'md' | 'lg';
+  onSizeChange?: (size: 'sm' | 'md' | 'lg') => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.98 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="flex flex-col gap-5 my-2 w-full"
+    >
+      {/* 1. Single Photo Viewer with Active Scan Beam */}
+      <SinglePhotoViewer
+        fileName={fileName}
+        previewUrl={previewUrl}
+        currentIndex={currentIndex}
+        totalCount={totalCount}
+        photoSize={photoSize}
+        onSizeChange={onSizeChange}
+        status="scanning"
+        isPrinterScan={isPrinterScan}
+      />
+
+      {/* 2. Scanning Steps Box */}
+      <div className="flex flex-col gap-2.5 w-full max-w-md mx-auto bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-xs">
         {[
-          isPrinterScan ? 'Empfange Bild vom Netzwerkdrucker' : 'Bild wird verarbeitet',
-          'Handschrift & Zeiten werden erkannt',
+          isPrinterScan ? 'Empfange Bild vom Netzwerkdrucker' : 'Bild wird verarbeitet & optimiert',
+          'Handschrift & Zeiten werden per KI erkannt',
           'Mitarbeiter wird in Datenbank gesucht',
         ].map((step, i) => (
           <motion.div
             key={step}
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.5 + 0.3 }}
-            className="flex items-center gap-2.5 text-sm text-slate-700 font-medium"
+            transition={{ delay: i * 0.4 + 0.2 }}
+            className="flex items-center gap-2.5 text-xs sm:text-sm text-slate-700 font-medium"
           >
             <motion.div
               animate={{ opacity: [0.3, 1, 0.3] }}
-              transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.5 }}
+              transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.4 }}
               className="w-2 h-2 rounded-full bg-blue-600 shrink-0"
             />
             {step}
@@ -796,11 +977,25 @@ function ReviewView({
   onConfirm,
   onDiscard,
   isLoading,
+  currentFileName,
+  currentPreviewUrl,
+  queueIndex = 0,
+  totalQueueCount = 1,
+  photoSize = 'md',
+  onPhotoSizeChange,
+  isLastInQueue = true,
 }: {
   scanResult: ScanResult;
   onConfirm: (payload: any) => void;
   onDiscard: () => void;
   isLoading: boolean;
+  currentFileName?: string;
+  currentPreviewUrl?: string | null;
+  queueIndex?: number;
+  totalQueueCount?: number;
+  photoSize?: 'sm' | 'md' | 'lg';
+  onPhotoSizeChange?: (size: 'sm' | 'md' | 'lg') => void;
+  isLastInQueue?: boolean;
 }) {
   const [entries, setEntries] = useState<TimesheetEntry[]>(() => {
     const allWeekdays = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
@@ -987,6 +1182,17 @@ function ReviewView({
       animate={{ opacity: 1, y: 0 }}
       className="flex flex-col gap-6 w-full"
     >
+      {/* 1. Single Photo Viewer for Current Document */}
+      <SinglePhotoViewer
+        fileName={currentFileName || scanResult.employeeName || `Stundenzettel_${String(queueIndex + 1).padStart(2, '0')}.jpg`}
+        previewUrl={currentPreviewUrl}
+        currentIndex={queueIndex}
+        totalCount={totalQueueCount}
+        photoSize={photoSize}
+        onSizeChange={onPhotoSizeChange}
+        status="review"
+      />
+
       {/* OCR Warning */}
       {scanResult.ocrWarning && (
         <div className="flex items-start gap-3 p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-900 shadow-xs">
@@ -1338,19 +1544,13 @@ function ReviewView({
                             );
                           })
                         )}
-                        <div className="border-t border-slate-200 mt-1 pt-1">
+                        <div className="pt-1.5 border-t border-slate-200">
                           <input
                             type="text"
-                            placeholder="Oder manuell eingeben..."
-                            value={entry.location && !entry.location.split(',').every(h => availableHalls.some(ah => ah.name === h.trim())) ? entry.location.split(',').filter(h => !availableHalls.some(ah => ah.name === h.trim())).join(', ') : ''}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={(e) => {
-                              const manual = e.target.value;
-                              const fromList = entry.location ? entry.location.split(',').map(h => h.trim()).filter(h => availableHalls.some(ah => ah.name === h)) : [];
-                              const combined = [...fromList, ...(manual ? [manual] : [])].join(', ');
-                              updateEntry(idx, 'location', combined);
-                            }}
-                            className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 font-medium"
+                            placeholder="Oder Freitext (z.B. Außenbereich)..."
+                            value={entry.location || ''}
+                            onChange={(e) => updateEntry(idx, 'location', e.target.value)}
+                            className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600"
                           />
                         </div>
                       </div>
@@ -1360,28 +1560,28 @@ function ReviewView({
               );
             })}
           </div>
-        </div>{/* end overflow-x-auto */}
+        </div>
       </div>
 
-      {/* Error */}
       {errors.general && (
         <div className="flex items-center gap-2 p-3.5 rounded-2xl bg-red-50 border-2 border-red-300 shadow-xs">
-          <AlertCircle size={18} className="text-red-600" />
+          <AlertCircle size={18} className="text-red-600 shrink-0" />
           <p className="text-red-800 text-sm font-bold">{errors.general}</p>
         </div>
       )}
 
-      {/* Action Buttons */}
       <div className="flex flex-col sm:flex-row gap-3 pt-2">
         <button
+          type="button"
           onClick={onDiscard}
           disabled={isLoading}
           className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 border-2 border-slate-300 text-slate-700 hover:bg-slate-200 hover:text-slate-900 font-bold transition-all text-sm shadow-xs cursor-pointer"
         >
           <X size={16} />
-          Verwerfen
+          {totalQueueCount > 1 && !isLastInQueue ? 'Foto überspringen' : 'Verwerfen'}
         </button>
         <button
+          type="button"
           onClick={handleConfirm}
           disabled={isLoading}
           className="w-full sm:flex-1 min-w-0 flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all text-sm shadow-md disabled:opacity-60 cursor-pointer"
@@ -1391,7 +1591,13 @@ function ReviewView({
           ) : (
             <CheckCircle size={16} />
           )}
-          {isLoading ? 'Wird gespeichert...' : 'Bestätigen & Speichern'}
+          <span>
+            {isLoading
+              ? 'Wird gespeichert...'
+              : totalQueueCount > 1 && !isLastInQueue
+              ? `Bestätigen & Weiter zu Foto ${queueIndex + 2}`
+              : 'Bestätigen & Speichern'}
+          </span>
         </button>
       </div>
     </motion.div>
@@ -1404,10 +1610,20 @@ function SavedView({
   timesheetId,
   employeeName,
   onScanAnother,
+  hasQueue,
+  isLastInQueue,
+  queueIndex = 0,
+  totalCount = 1,
+  onContinueNext,
 }: {
   timesheetId: string;
   employeeName: string;
   onScanAnother: () => void;
+  hasQueue?: boolean;
+  isLastInQueue?: boolean;
+  queueIndex?: number;
+  totalCount?: number;
+  onContinueNext?: () => void;
 }) {
   const [downloading, setDownloading] = useState<'pdf' | 'xlsx' | null>(null);
 
@@ -1444,13 +1660,17 @@ function SavedView({
       </motion.div>
 
       <div className="text-center">
-        <h3 className="text-slate-900 text-2xl font-bold mb-1">Stundenzettel gespeichert!</h3>
+        <h3 className="text-slate-900 text-2xl font-bold mb-1">
+          {hasQueue && !isLastInQueue
+            ? `Foto ${queueIndex + 1} von ${totalCount} gespeichert!`
+            : 'Stundenzettel gespeichert!'}
+        </h3>
         <p className="text-slate-600 text-sm">
           Die Arbeitszeiten für <strong className="text-slate-900 font-bold">{employeeName}</strong> wurden erfolgreich übernommen.
         </p>
       </div>
 
-      <div className="flex gap-3">
+      <div className="flex flex-wrap justify-center gap-3">
         <button
           onClick={() => downloadFile('pdf')}
           disabled={!!downloading}
@@ -1469,13 +1689,25 @@ function SavedView({
         </button>
       </div>
 
-      <button
-        onClick={onScanAnother}
-        className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all text-sm shadow-md cursor-pointer"
-      >
-        <ScanLine size={16} />
-        Weiteren Stundenzettel scannen
-      </button>
+      <div className="flex flex-col sm:flex-row gap-3 pt-2">
+        {hasQueue && !isLastInQueue && onContinueNext ? (
+          <button
+            onClick={onContinueNext}
+            className="flex items-center justify-center gap-2 px-7 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all text-sm shadow-md cursor-pointer"
+          >
+            <span>Weiter zu Foto {queueIndex + 2} von {totalCount}</span>
+            <ChevronRight size={16} />
+          </button>
+        ) : (
+          <button
+            onClick={onScanAnother}
+            className="flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all text-sm shadow-md cursor-pointer"
+          >
+            <ScanLine size={16} />
+            Weiteren Stundenzettel scannen
+          </button>
+        )}
+      </div>
     </motion.div>
   );
 }
@@ -2404,6 +2636,8 @@ export default function TimesheetsPage() {
   const [savedId, setSavedId] = useState<string | null>(null);
   const [savedName, setSavedName] = useState<string>('');
   const [currentFileName, setCurrentFileName] = useState('');
+  const [currentPreviewUrl, setCurrentPreviewUrl] = useState<string | null>(null);
+  const [photoSize, setPhotoSize] = useState<'sm' | 'md' | 'lg'>('md');
   const [isPrinterScan, setIsPrinterScan] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -2418,6 +2652,15 @@ export default function TimesheetsPage() {
   const hasQueue = fileQueue.length > 1;
   const isLastInQueue = queueIndex >= fileQueue.length - 1;
 
+  // Clean up object URLs on unmount
+  useEffect(() => {
+    return () => {
+      if (currentPreviewUrl && currentPreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(currentPreviewUrl);
+      }
+    };
+  }, [currentPreviewUrl]);
+
   // Mark status of a specific queue item
   const markStatus = (idx: number, status: QueueStatus) =>
     setQueueStatuses(prev => { const next = [...prev]; next[idx] = status; return next; });
@@ -2426,29 +2669,39 @@ export default function TimesheetsPage() {
   const handleFilesSelect = (files: File[]) => {
     const validFiles = files.filter(f => f.type.startsWith('image/') || f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
     if (validFiles.length === 0) return;
-    if (validFiles.length === 1) {
-      // Single file — bypass queue
-      handleFileSelect(validFiles[0]);
-      return;
-    }
     setFileQueue(validFiles);
     setQueueIndex(0);
     setQueueStatuses(validFiles.map(() => 'waiting'));
     processSingleFile(validFiles[0], 0, validFiles);
   };
 
-  // Add more files to an existing queue mid-flow
-  const addToQueue = (files: File[]) => {
-    const valid = files.filter(f => f.type.startsWith('image/') || f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
-    if (!valid.length) return;
-    setFileQueue(prev => [...prev, ...valid]);
-    setQueueStatuses(prev => [...prev, ...valid.map(() => 'waiting' as QueueStatus)]);
-  };
-
   // Skip current photo and advance to next
   const skipCurrent = () => {
     markStatus(queueIndex, 'skipped');
     advanceQueue(fileQueue, queueIndex + 1);
+  };
+
+  // Retry the current photo
+  const retryCurrent = () => {
+    if (fileQueue[queueIndex]) {
+      processSingleFile(fileQueue[queueIndex], queueIndex, fileQueue);
+    } else if (isPrinterScan) {
+      handlePrinterScan({});
+    }
+  };
+
+  // Fallback: Manually fill out the timesheet for this photo if OCR fails
+  const manualEntryForCurrent = () => {
+    setScanResult({
+      id: 'manual-' + Date.now(),
+      employeeName: '',
+      employeeId: null,
+      weekStartDate: new Date().toISOString().slice(0, 10),
+      status: 'PENDING_REVIEW',
+      entries: [],
+      employeeMatch: { found: false, confidence: 'none', isNewEmployee: true },
+    });
+    setViewMode('review');
   };
 
   // Advance to the next item in the queue
@@ -2471,6 +2724,21 @@ export default function TimesheetsPage() {
     setViewMode('scanning');
     markStatus(idx, 'scanning');
 
+    // Create preview URL for the single current photo
+    try {
+      if (currentPreviewUrl && currentPreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(currentPreviewUrl);
+      }
+      if (file.type.startsWith('image/')) {
+        const url = URL.createObjectURL(file);
+        setCurrentPreviewUrl(url);
+      } else {
+        setCurrentPreviewUrl(null);
+      }
+    } catch {
+      setCurrentPreviewUrl(null);
+    }
+
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -2492,28 +2760,25 @@ export default function TimesheetsPage() {
       setViewMode('review');
     } catch (e: any) {
       markStatus(idx, 'error');
-      setError(e.message ?? 'Unbekannter Fehler');
-      // On error: stay in queue, allow skip or retry
-      setViewMode('upload');
+      setError(e.message ?? 'Dokument konnte nicht analysiert werden.');
+      // Stay on single photo viewer with clear Retry / Skip controls
+      setViewMode('error');
     }
   };
 
-  // File-upload Handler (single file — also used by queue processor)
+  // File-upload Handler (single file)
   const handleFileSelect = async (file: File) => {
-    // If there's no active queue, process as standalone
-    if (fileQueue.length <= 1) {
-      setFileQueue([file]);
-      setQueueIndex(0);
-      setQueueStatuses(['scanning']);
-      await processSingleFile(file, 0, [file]);
-    }
-    // If queue is active, processSingleFile is called directly by advanceQueue
+    setFileQueue([file]);
+    setQueueIndex(0);
+    setQueueStatuses(['waiting']);
+    await processSingleFile(file, 0, [file]);
   };
 
   // Direct Printer Scanner Handler
   const handlePrinterScan = async (settings: { scannerIp?: string; scannerPort?: number; dpi?: number }) => {
     setCurrentFileName('Direkt-Scan vom Netzwerkdrucker');
     setIsPrinterScan(true);
+    setCurrentPreviewUrl(null);
     setError(null);
     setViewMode('scanning');
     setIsLoading(true);
@@ -2538,7 +2803,7 @@ export default function TimesheetsPage() {
       setViewMode('review');
     } catch (e: any) {
       setError(e.message ?? 'Drucker-Verbindung fehlgeschlagen.');
-      setViewMode('upload');
+      setViewMode('error');
     } finally {
       setIsLoading(false);
     }
@@ -2547,7 +2812,6 @@ export default function TimesheetsPage() {
   // Translate raw API error messages to user-friendly German
   const translateApiError = (raw: string): string => {
     if (!raw) return 'Unbekannter Fehler beim Speichern.';
-    // Backend sends DUPLICATE_DATE:YYYY-MM-DD sentinel
     const dupMatch = raw.match(/DUPLICATE_DATE:(\d{4}-\d{2}-\d{2})/);
     if (dupMatch) {
       const d = new Date(dupMatch[1]);
@@ -2594,7 +2858,7 @@ export default function TimesheetsPage() {
           setSavedId(null);
           setSavedName('');
           advanceQueue(fileQueue, queueIndex + 1);
-        }, 1800);
+        }, 1600);
       } else {
         setViewMode('saved');
       }
@@ -2606,10 +2870,14 @@ export default function TimesheetsPage() {
   };
 
   const resetScanner = () => {
+    if (currentPreviewUrl && currentPreviewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(currentPreviewUrl);
+    }
     setScanResult(null);
     setSavedId(null);
     setSavedName('');
     setCurrentFileName('');
+    setCurrentPreviewUrl(null);
     setIsPrinterScan(false);
     setError(null);
     setFileQueue([]);
@@ -2633,7 +2901,7 @@ export default function TimesheetsPage() {
                   Zeiterfassung & Stundenzettel-Scanner
                 </h1>
                 <p className="text-slate-500 text-xs sm:text-sm">
-                  Wochenstundenzettel per Fotos oder direkt vom Netzwerkdrucker erfassen & verwalten
+                  Wochenstundenzettel per Fotos oder direkt vom Netzwerkdrucker nacheinander erfassen & verwalten
                 </p>
               </div>
             </div>
@@ -2689,8 +2957,8 @@ export default function TimesheetsPage() {
               {/* Light card wrapper with crisp dark border */}
               <div className="bg-white rounded-3xl p-3.5 sm:p-6 shadow-sm border-2 border-slate-300">
 
-                {/* Error Message */}
-                {error && (
+                {/* Error Message banner (if any general error outside single photo viewer) */}
+                {error && viewMode !== 'error' && (
                   <div className="flex items-center gap-3 p-4 rounded-2xl bg-red-50 border-2 border-red-300 mb-6 shadow-xs">
                     <AlertCircle size={20} className="text-red-600 flex-shrink-0" />
                     <p className="text-red-800 text-sm font-bold">{error}</p>
@@ -2703,83 +2971,8 @@ export default function TimesheetsPage() {
                   </div>
                 )}
 
-                {/* Queue Progress Bar */}
-                {hasQueue && (
-                  <div className="mb-6 p-4 rounded-2xl bg-slate-50 border-2 border-slate-300 shadow-xs">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
-                        <Images size={18} className="text-blue-600" />
-                        <span>Foto-Warteschlange</span>
-                        <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-900 text-xs font-bold border border-blue-300">
-                          {queueIndex + 1} / {fileQueue.length}
-                        </span>
-                      </div>
-                      {viewMode === 'review' && !isLastInQueue && (
-                        <button
-                          onClick={skipCurrent}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold border-2 border-slate-300 transition-colors shadow-xs cursor-pointer"
-                        >
-                          <SkipForward size={12} /> Foto überspringen
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Progress dots */}
-                    <div className="flex gap-1.5 flex-wrap">
-                      {fileQueue.map((f, i) => {
-                        const st = queueStatuses[i] ?? 'waiting';
-                        const isActive = i === queueIndex;
-                        const dotColor =
-                          st === 'done'    ? 'bg-emerald-500 border-emerald-400' :
-                          st === 'error'   ? 'bg-red-500 border-red-400' :
-                          st === 'skipped' ? 'bg-slate-400 border-slate-300' :
-                          st === 'scanning'|| st === 'review' ? (isActive ? 'bg-blue-600 border-blue-500 animate-pulse' : 'bg-blue-600 border-blue-500') :
-                          'bg-slate-200 border-slate-300';
-                        return (
-                          <div
-                            key={i}
-                            title={`${f.name} — ${st}`}
-                            className={`h-2.5 flex-1 min-w-[20px] max-w-[60px] rounded-full border transition-all ${
-                              dotColor
-                            }`}
-                          />
-                        );
-                      })}
-                    </div>
-
-                    {/* File names strip */}
-                    <div className="flex gap-1.5 mt-2 flex-wrap">
-                      {fileQueue.map((f, i) => {
-                        const st = queueStatuses[i] ?? 'waiting';
-                        const isActive = i === queueIndex;
-                        return (
-                          <span
-                            key={i}
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs border ${
-                              isActive
-                                ? 'bg-blue-100 text-blue-900 border-blue-300 font-bold shadow-xs'
-                                : st === 'done'
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 font-medium'
-                                : st === 'error'
-                                ? 'bg-red-50 text-red-800 border-red-300 font-medium'
-                                : st === 'skipped'
-                                ? 'bg-slate-100 text-slate-500 border-slate-300 line-through'
-                                : 'bg-white text-slate-700 border-slate-200'
-                            }`}
-                          >
-                            {st === 'done'    && <CheckCircle size={10} className="text-emerald-700" />}
-                            {st === 'error'   && <AlertCircle size={10} className="text-red-700" />}
-                            {st === 'scanning'&& <Loader2 size={10} className="animate-spin text-blue-700" />}
-                            {f.name.length > 18 ? f.name.slice(0, 15) + '...' : f.name}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
                 {/* Step Indicator */}
-                {(viewMode === 'upload' || viewMode === 'review') && (
+                {(viewMode === 'upload' || viewMode === 'review' || viewMode === 'error') && (
                   <div className="flex items-center gap-2 mb-6 text-xs text-slate-600 bg-slate-50 p-3 rounded-2xl border border-slate-200 overflow-x-auto whitespace-nowrap">
                     {['Erfassen (Upload / Drucker)', 'KI-Analyse', 'Prüfen & Speichern'].map((step, i) => {
                       const stepIndex = viewMode === 'upload' ? 0 : viewMode === 'review' ? 2 : 1;
@@ -2811,23 +3004,65 @@ export default function TimesheetsPage() {
                     isLoading={isLoading}
                   />
                 )}
+
                 {viewMode === 'scanning' && (
-                  <ScanningView fileName={currentFileName} isPrinterScan={isPrinterScan} />
+                  <ScanningView
+                    fileName={currentFileName}
+                    previewUrl={currentPreviewUrl}
+                    isPrinterScan={isPrinterScan}
+                    currentIndex={queueIndex}
+                    totalCount={fileQueue.length || 1}
+                    photoSize={photoSize}
+                    onSizeChange={setPhotoSize}
+                  />
                 )}
+
                 {viewMode === 'review' && scanResult && (
                   <ReviewView
                     scanResult={scanResult}
                     onConfirm={handleConfirm}
-                    onDiscard={resetScanner}
+                    onDiscard={hasQueue && !isLastInQueue ? skipCurrent : resetScanner}
                     isLoading={isLoading}
+                    currentFileName={currentFileName}
+                    currentPreviewUrl={currentPreviewUrl}
+                    queueIndex={queueIndex}
+                    totalQueueCount={fileQueue.length || 1}
+                    photoSize={photoSize}
+                    onPhotoSizeChange={setPhotoSize}
+                    isLastInQueue={isLastInQueue}
                   />
                 )}
+
                 {viewMode === 'saved' && savedId && (
                   <SavedView
                     timesheetId={savedId}
                     employeeName={savedName}
                     onScanAnother={resetScanner}
+                    hasQueue={hasQueue}
+                    isLastInQueue={isLastInQueue}
+                    queueIndex={queueIndex}
+                    totalCount={fileQueue.length || 1}
+                    onContinueNext={() => advanceQueue(fileQueue, queueIndex + 1)}
                   />
+                )}
+
+                {viewMode === 'error' && (
+                  <div className="flex flex-col gap-4 my-2">
+                    <SinglePhotoViewer
+                      fileName={currentFileName || `Stundenzettel_${String(queueIndex + 1).padStart(2, '0')}.jpg`}
+                      previewUrl={currentPreviewUrl}
+                      currentIndex={queueIndex}
+                      totalCount={fileQueue.length || 1}
+                      photoSize={photoSize}
+                      onSizeChange={setPhotoSize}
+                      status="error"
+                      statusMessage={error || 'Dieses Dokument konnte nicht analysiert werden.'}
+                      onRetry={retryCurrent}
+                      onSkip={hasQueue && !isLastInQueue ? skipCurrent : resetScanner}
+                      onManualEntry={manualEntryForCurrent}
+                      isPrinterScan={isPrinterScan}
+                    />
+                  </div>
                 )}
 
               </div>
