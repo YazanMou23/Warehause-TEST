@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Upload,
@@ -766,19 +766,40 @@ function ReviewView({
   });
   const [employeeName, setEmployeeName] = useState(scanResult.employeeName);
   const [weekStartDate, setWeekStartDate] = useState(scanResult.weekStartDate);
+  // Always start with detected employeeId (if any); user can always change it
   const [employeeId, setEmployeeId] = useState<string>(scanResult.employeeId ?? '');
-  const [createNew, setCreateNew] = useState(!scanResult.employeeMatch.found);
+  // createNew: false = search existing, true = create new employee form
+  // Default to false (existing) so the employee selector is always visible
+  const [createNew, setCreateNew] = useState(false);
   const [newEmployee, setNewEmployee] = useState({
     username: '',
     phone: '',
     password: 'changeme123',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  
+  // Controls whether the employee search dropdown is open
+  const [showEmployeeSelector, setShowEmployeeSelector] = useState(
+    // Show selector immediately if no employee was auto-detected
+    !scanResult.employeeMatch.found
+  );
+
   // Searchable DB Employee selector state
   const [dbEmployees, setDbEmployees] = useState<DbEmployee[]>([]);
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const employeeDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close employee dropdown on outside click
+  useEffect(() => {
+    if (!isDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (employeeDropdownRef.current && !employeeDropdownRef.current.contains(e.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isDropdownOpen]);
 
   useEffect(() => {
     const fetchEmployees = async () => {
@@ -800,6 +821,26 @@ function ReviewView({
   // Fetch halls for multi-hall selector
   const [availableHalls, setAvailableHalls] = useState<{ id: string; name: string; warehouseId?: string }[]>([]);
   const [openHallDropdown, setOpenHallDropdown] = useState<number | null>(null);
+  const hallDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close hall dropdown on outside click or Escape
+  useEffect(() => {
+    if (openHallDropdown === null) return;
+    const handleOutside = (e: MouseEvent) => {
+      if (hallDropdownRef.current && !hallDropdownRef.current.contains(e.target as Node)) {
+        setOpenHallDropdown(null);
+      }
+    };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpenHallDropdown(null);
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [openHallDropdown]);
 
   useEffect(() => {
     const fetchHalls = async () => {
@@ -816,12 +857,18 @@ function ReviewView({
     fetchHalls();
   }, []);
 
-  const filteredEmployees = dbEmployees.filter((emp) =>
-    emp.name.toLowerCase().includes(employeeSearch.toLowerCase()) ||
-    emp.username?.toLowerCase().includes(employeeSearch.toLowerCase())
+  const filteredEmployees = useMemo(() =>
+    dbEmployees.filter((emp) =>
+      emp.name.toLowerCase().includes(employeeSearch.toLowerCase()) ||
+      emp.username?.toLowerCase().includes(employeeSearch.toLowerCase())
+    ),
+    [dbEmployees, employeeSearch]
   );
 
-  const selectedEmployeeObj = dbEmployees.find((e) => e.id === employeeId);
+  const selectedEmployeeObj = useMemo(
+    () => dbEmployees.find((e) => e.id === employeeId),
+    [dbEmployees, employeeId]
+  );
 
   const updateEntry = (idx: number, field: keyof TimesheetEntry, value: string | number) => {
     setEntries((prev) => {
@@ -875,14 +922,14 @@ function ReviewView({
         ...newEmployee,
         name: employeeName,
       };
-      delete payload.employeeId; // Ensure employeeId is not sent when createNew is active
+      delete payload.employeeId;
     } else {
       if (!employeeId) {
-        setErrors({ general: 'Bitte einen Mitarbeiter aus der Datenbank auswählen' });
+        setErrors({ general: 'Bitte einen Mitarbeiter aus der Datenbank auswählen oder einen neuen anlegen.' });
         return;
       }
       payload.employeeId = employeeId;
-      delete payload.createNewEmployee; // Ensure createNewEmployee is not sent when employeeId is set
+      delete payload.createNewEmployee;
     }
 
     setErrors({});
@@ -913,14 +960,14 @@ function ReviewView({
       )}
 
       {/* Mitarbeiter-Block */}
-      <div className="bg-white border-2 border-slate-300 rounded-3xl p-6 shadow-sm">
+      <div className="bg-white border-2 border-slate-300 rounded-3xl p-4 sm:p-6 shadow-sm">
         <h3 className="text-slate-900 font-bold text-base mb-4 flex items-center gap-2">
           <User size={18} className="text-blue-600" />
           Mitarbeiter-Zuordnung
         </h3>
 
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex-1 px-3.5 py-2.5 bg-slate-50 rounded-xl border-2 border-slate-300 focus-within:border-blue-600 focus-within:bg-white transition-colors shadow-xs">
+        <div className="flex flex-wrap items-start gap-3 mb-4">
+          <div className="flex-1 min-w-0 px-3.5 py-2.5 bg-slate-50 rounded-xl border-2 border-slate-300 focus-within:border-blue-600 focus-within:bg-white transition-colors shadow-xs">
             <p className="text-xs text-slate-600 font-semibold mb-0.5">OCR-erkannter Name (bearbeitbar)</p>
             <input
               type="text"
@@ -932,23 +979,26 @@ function ReviewView({
           <ConfidenceBadge confidence={scanResult.employeeMatch.confidence} />
         </div>
 
-        {scanResult.employeeMatch.found && !createNew ? (
-          <div className="flex items-center justify-between p-3.5 bg-emerald-50 border-2 border-emerald-300 rounded-xl">
-            <div className="flex items-center gap-2.5">
-              <CheckCircle size={18} className="text-emerald-700" />
-              <span className="text-emerald-900 text-sm font-medium">
-                Mitarbeiter zugeordnet: <strong className="font-bold text-emerald-950">{selectedEmployeeObj?.name || scanResult.employeeMatch.matchedName}</strong>
+        {/* Auto-detected match banner — always shows a Change button */}
+        {scanResult.employeeMatch.found && !showEmployeeSelector ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 p-3.5 bg-emerald-50 border-2 border-emerald-300 rounded-xl">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <CheckCircle size={18} className="text-emerald-700 shrink-0" />
+              <span className="text-emerald-900 text-sm font-medium truncate">
+                Erkannt: <strong className="font-bold text-emerald-950">{selectedEmployeeObj?.name || scanResult.employeeMatch.matchedName}</strong>
               </span>
             </div>
+            {/* Always allow changing — opens existing-employee search, not new-employee form */}
             <button
-              onClick={() => setCreateNew(true)}
-              className="text-xs text-emerald-800 hover:text-emerald-950 font-bold underline transition-colors cursor-pointer"
+              onClick={() => { setShowEmployeeSelector(true); setCreateNew(false); }}
+              className="text-xs text-emerald-800 hover:text-emerald-950 font-bold underline transition-colors cursor-pointer shrink-0"
             >
               Anderen wählen
             </button>
           </div>
         ) : (
           <div className="space-y-3">
+            {/* Mode tabs: existing vs. new */}
             <div className="flex gap-2">
               <button
                 onClick={() => setCreateNew(false)}
@@ -975,24 +1025,25 @@ function ReviewView({
             </div>
 
             {!createNew ? (
-              /* Searchable Mitarbeiter Dropdown with Numeric Index 1,2,3... */
-              <div className="relative">
-                <div
-                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              /* Searchable Mitarbeiter Dropdown */
+              <div className="relative" ref={employeeDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsDropdownOpen((o) => !o)}
                   className="w-full px-3.5 py-2.5 bg-white border-2 border-slate-300 rounded-xl text-slate-900 text-sm flex items-center justify-between cursor-pointer hover:border-blue-600 transition-colors shadow-xs"
                 >
                   {selectedEmployeeObj ? (
-                    <span className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-mono text-xs font-bold border border-blue-200">
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-mono text-xs font-bold border border-blue-200 shrink-0">
                         #{dbEmployees.findIndex(e => e.id === selectedEmployeeObj.id) + 1}
                       </span>
-                      <span className="font-bold text-slate-900">{selectedEmployeeObj.name}</span>
+                      <span className="font-bold text-slate-900 truncate">{selectedEmployeeObj.name}</span>
                     </span>
                   ) : (
                     <span className="text-slate-500 font-medium">Mitarbeiter suchen oder wählen...</span>
                   )}
-                  <ChevronDown size={16} className="text-slate-500" />
-                </div>
+                  <ChevronDown size={16} className="text-slate-500 shrink-0" />
+                </button>
 
                 {isDropdownOpen && (
                   <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border-2 border-slate-300 rounded-2xl shadow-2xl overflow-hidden p-2">
@@ -1013,25 +1064,27 @@ function ReviewView({
                         <p className="text-xs text-slate-500 text-center py-3">Kein Mitarbeiter gefunden</p>
                       ) : (
                         filteredEmployees.map((emp, index) => (
-                          <div
+                          <button
                             key={emp.id}
-                            onClick={() => {
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setEmployeeId(emp.id);
                               setEmployeeName(emp.name);
                               setIsDropdownOpen(false);
                             }}
-                            className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs cursor-pointer transition-colors ${
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs cursor-pointer transition-colors ${
                               employeeId === emp.id ? 'bg-blue-600 text-white font-bold' : 'text-slate-800 hover:bg-slate-100'
                             }`}
                           >
-                            <span className="flex items-center gap-2">
-                              <span className={`px-1.5 py-0.5 rounded font-mono font-bold text-[10px] ${employeeId === emp.id ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>
+                            <span className="flex items-center gap-2 min-w-0">
+                              <span className={`px-1.5 py-0.5 rounded font-mono font-bold text-[10px] shrink-0 ${employeeId === emp.id ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>
                                 #{index + 1}
                               </span>
-                              <span className="font-semibold">{emp.name}</span>
+                              <span className="font-semibold truncate">{emp.name}</span>
                             </span>
-                            <span className={`text-[10px] ${employeeId === emp.id ? 'text-blue-100' : 'text-slate-400'}`}>@{emp.username}</span>
-                          </div>
+                            <span className={`text-[10px] shrink-0 ${employeeId === emp.id ? 'text-blue-100' : 'text-slate-400'}`}>@{emp.username}</span>
+                          </button>
                         ))
                       )}
                     </div>
@@ -1039,7 +1092,7 @@ function ReviewView({
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
                   { key: 'name', label: 'Vollständiger Name', placeholder: scanResult.employeeName },
                   { key: 'username', label: 'Benutzername', placeholder: 'max.mustermann' },
@@ -1065,7 +1118,7 @@ function ReviewView({
 
       {/* Stundenzettel-Tabelle */}
       <div className="bg-white border-2 border-slate-300 rounded-3xl overflow-hidden shadow-sm">
-        <div className="flex items-center justify-between p-5 bg-slate-50 border-b-2 border-slate-300">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:p-5 bg-slate-50 border-b-2 border-slate-300">
           <div className="flex flex-wrap items-center gap-3">
             <h3 className="text-slate-900 font-bold flex items-center gap-2 text-base">
               <Calendar size={18} className="text-blue-600" />
@@ -1084,8 +1137,10 @@ function ReviewView({
           </div>
         </div>
 
-        {/* Table Header */}
-        <div className="grid grid-cols-[40px_120px_100px_72px_72px_80px_80px_1fr] gap-2 px-4 py-3 bg-slate-100 border-b-2 border-slate-300 text-xs font-bold text-slate-700 uppercase tracking-wider">
+        {/* Responsive table — horizontal scroll on mobile */}
+        <div className="overflow-x-auto">
+        {/* Table Header — hidden on very small screens (cards shown instead) */}
+        <div className="hidden sm:grid sm:grid-cols-[32px_100px_90px_68px_68px_72px_72px_1fr] gap-1.5 px-3 py-3 bg-slate-100 border-b-2 border-slate-300 text-xs font-bold text-slate-700 uppercase tracking-wider min-w-[600px]">
           <div className="font-mono text-center">#</div>
           <div className="flex items-center gap-1"><Clock size={11} />Wochentag</div>
           <div>Datum</div>
@@ -1096,7 +1151,8 @@ function ReviewView({
           <div className="flex items-center gap-1"><MapPin size={11} className="inline mr-0.5" />Halle(n)</div>
         </div>
 
-        {/* Table Rows with Numeric Index 1, 2, 3... */}
+        {/* Table Rows — Desktop: grid, Mobile: card per row */}
+        <div className="min-w-[600px]">
         {entries.map((entry, idx) => {
           const hasData = entry.startTime !== '' || entry.endTime !== '';
           const isWeekend = idx >= 5;
@@ -1104,149 +1160,162 @@ function ReviewView({
           return (
             <div
               key={entry.weekday}
-              className={`grid grid-cols-[40px_120px_100px_72px_72px_80px_80px_1fr] gap-2 px-4 py-2.5 border-b border-slate-200 transition-colors items-center ${
+              className={`grid sm:grid-cols-[32px_100px_90px_68px_68px_72px_72px_1fr] grid-cols-1 gap-1.5 px-3 py-2.5 border-b border-slate-200 transition-colors ${
                 isWeekend ? 'bg-slate-50/80' : 'bg-white hover:bg-blue-50/40'
               } ${!hasData && !isWeekend ? 'opacity-70' : ''}`}
             >
-              {/* Numeric Index Badge 1,2,3... */}
-              <div className="font-mono text-xs font-bold text-slate-700 text-center bg-slate-100 py-1 rounded border border-slate-300 shadow-xs">
-                {idx + 1}
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                <span
-                  className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                    hasData ? 'bg-blue-600' : 'bg-slate-400'
-                  }`}
-                />
-                <span className={`text-sm font-bold ${isWeekend ? 'text-slate-500' : 'text-slate-900'}`}>
-                  {entry.weekday.substring(0, 2)}
-                  <span className="hidden sm:inline">{entry.weekday.substring(2)}</span>
+              {/* Row label (mobile: inline, desktop: index badge) */}
+              <div className="flex sm:block items-center gap-2 sm:gap-0">
+                <div className="font-mono text-xs font-bold text-slate-700 text-center bg-slate-100 py-1 px-1.5 rounded border border-slate-300 shadow-xs sm:w-full">
+                  {idx + 1}
+                </div>
+                {/* Mobile-only weekday label next to number */}
+                <span className={`sm:hidden text-sm font-bold ${isWeekend ? 'text-slate-500' : 'text-slate-900'}`}>
+                  <span className={`w-2 h-2 rounded-full inline-block mr-1.5 ${hasData ? 'bg-blue-600' : 'bg-slate-400'}`} />
+                  {entry.weekday}
                 </span>
               </div>
 
-              <input
-                type="date"
-                value={entry.date ? entry.date.split('T')[0] : ''}
-                onChange={(e) => updateEntry(idx, 'date', e.target.value)}
-                className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full shadow-xs"
-              />
+              <div className="hidden sm:flex items-center gap-1.5">
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${hasData ? 'bg-blue-600' : 'bg-slate-400'}`} />
+                <span className={`text-sm font-bold ${isWeekend ? 'text-slate-500' : 'text-slate-900'}`}>
+                  {entry.weekday}
+                </span>
+              </div>
 
-              {['startTime', 'endTime'].map((field) => (
+              <div className="grid grid-cols-2 sm:contents gap-1.5">
                 <input
-                  key={field}
-                  type="time"
-                  value={(entry as any)[field]}
-                  onChange={(e) => updateEntry(idx, field as keyof TimesheetEntry, e.target.value)}
-                  className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full shadow-xs"
+                  type="date"
+                  value={entry.date ? entry.date.split('T')[0] : ''}
+                  onChange={(e) => updateEntry(idx, 'date', e.target.value)}
+                  className="col-span-2 sm:col-span-1 px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full shadow-xs"
                 />
-              ))}
 
-              <input
-                type="number"
-                min={0}
-                value={entry.breakMinutes || ''}
-                placeholder="0"
-                onChange={(e) => updateEntry(idx, 'breakMinutes', parseInt(e.target.value) || 0)}
-                className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full text-center shadow-xs"
-              />
+                {(['startTime', 'endTime'] as const).map((field) => (
+                  <input
+                    key={field}
+                    type="time"
+                    value={(entry as any)[field]}
+                    onChange={(e) => updateEntry(idx, field as keyof TimesheetEntry, e.target.value)}
+                    className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full shadow-xs"
+                  />
+                ))}
 
-              <input
-                type="number"
-                step="0.05"
-                min={0}
-                value={entry.totalHours || ''}
-                placeholder="0"
-                onChange={(e) => updateEntry(idx, 'totalHours', parseFloat(e.target.value) || 0)}
-                className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full text-center font-mono shadow-xs"
-              />
+                <input
+                  type="number"
+                  min={0}
+                  value={entry.breakMinutes || ''}
+                  placeholder="0"
+                  onChange={(e) => updateEntry(idx, 'breakMinutes', parseInt(e.target.value) || 0)}
+                  className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full text-center shadow-xs"
+                />
 
-              {/* Multi-Hall Selector */}
-              <div className="relative">
-                {/* Selected halls as chips */}
-                <div
-                  onClick={() => setOpenHallDropdown(openHallDropdown === idx ? null : idx)}
-                  className="flex flex-wrap gap-1 min-h-[30px] px-2 py-1 bg-white border-2 border-slate-300 rounded-lg cursor-pointer hover:border-blue-600 transition-colors shadow-xs items-center"
-                >
-                  {entry.location
-                    ? entry.location.split(',').filter(Boolean).map((h) => h.trim()).map((hallName, hIdx) => (
-                        <span
-                          key={hIdx}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-100 text-blue-900 text-[10px] font-bold border border-blue-300"
-                        >
-                          <MapPin size={9} />
-                          {hallName}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const halls = entry.location.split(',').map(h => h.trim()).filter(Boolean);
-                              const updated = halls.filter((_, i) => i !== hIdx);
-                              updateEntry(idx, 'location', updated.join(', '));
-                            }}
-                            className="ml-0.5 text-blue-700 hover:text-blue-950 font-bold"
+                <input
+                  type="number"
+                  step="0.05"
+                  min={0}
+                  value={entry.totalHours || ''}
+                  placeholder="0"
+                  onChange={(e) => updateEntry(idx, 'totalHours', parseFloat(e.target.value) || 0)}
+                  className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 w-full text-center font-mono shadow-xs"
+                />
+
+                {/* Multi-Hall Selector */}
+                <div className="col-span-2 sm:col-span-1 relative" ref={openHallDropdown === idx ? hallDropdownRef : undefined}>
+                  {/* Selected halls as chips */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenHallDropdown(openHallDropdown === idx ? null : idx);
+                    }}
+                    className="w-full flex flex-wrap gap-1 min-h-[30px] px-2 py-1 bg-white border-2 border-slate-300 rounded-lg cursor-pointer hover:border-blue-600 transition-colors shadow-xs items-center text-left"
+                  >
+                    {entry.location
+                      ? entry.location.split(',').filter(Boolean).map((h) => h.trim()).map((hallName, hIdx) => (
+                          <span
+                            key={hIdx}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-100 text-blue-900 text-[10px] font-bold border border-blue-300"
                           >
-                            <X size={9} />
-                          </button>
-                        </span>
-                      ))
-                    : <span className="text-slate-400 text-[10px] font-medium self-center">Halle(n) wählen...</span>
-                  }
-                  <span className="ml-auto text-slate-500 self-center"><ChevronDown size={12} /></span>
-                </div>
+                            <MapPin size={9} />
+                            {hallName}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const halls = entry.location.split(',').map(h => h.trim()).filter(Boolean);
+                                const updated = halls.filter((_, i) => i !== hIdx);
+                                updateEntry(idx, 'location', updated.join(', '));
+                              }}
+                              className="ml-0.5 text-blue-700 hover:text-blue-950 font-bold"
+                            >
+                              <X size={9} />
+                            </button>
+                          </span>
+                        ))
+                      : <span className="text-slate-400 text-[10px] font-medium self-center">Halle(n) wählen...</span>
+                    }
+                    <span className="ml-auto text-slate-500 self-center"><ChevronDown size={12} /></span>
+                  </button>
 
-                {/* Hall dropdown */}
-                {openHallDropdown === idx && (
-                  <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border-2 border-slate-300 rounded-2xl shadow-2xl overflow-hidden p-2 max-h-48 overflow-y-auto">
-                    {availableHalls.length === 0 ? (
-                      <p className="text-xs text-slate-500 text-center py-2">Keine Hallen gefunden</p>
-                    ) : (
-                      availableHalls.map((hall) => {
-                        const selectedNames = entry.location ? entry.location.split(',').map(h => h.trim()).filter(Boolean) : [];
-                        const isSelected = selectedNames.includes(hall.name);
-                        return (
-                          <div
-                            key={hall.id}
-                            onClick={() => {
-                              const currentHalls = entry.location ? entry.location.split(',').map(h => h.trim()).filter(Boolean) : [];
-                              let newHalls: string[];
-                              if (isSelected) {
-                                newHalls = currentHalls.filter(h => h !== hall.name);
-                              } else {
-                                newHalls = [...currentHalls, hall.name];
-                              }
-                              updateEntry(idx, 'location', newHalls.join(', '));
-                            }}
-                            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors ${
-                              isSelected ? 'bg-blue-600 text-white font-bold' : 'text-slate-800 hover:bg-slate-100 font-medium'
-                            }`}
-                          >
-                            <MapPin size={11} className={isSelected ? 'text-white' : 'text-blue-600'} />
-                            {hall.name}
-                            {isSelected && <span className="ml-auto text-[10px] font-bold text-white">✓</span>}
-                          </div>
-                        );
-                      })
-                    )}
-                    <div className="border-t border-slate-200 mt-1 pt-1">
-                      <input
-                        type="text"
-                        placeholder="Oder manuell eingeben..."
-                        value={entry.location && !entry.location.split(',').every(h => availableHalls.some(ah => ah.name === h.trim())) ? entry.location.split(',').filter(h => !availableHalls.some(ah => ah.name === h.trim())).join(', ') : ''}
-                        onChange={(e) => {
-                          const manual = e.target.value;
-                          const fromList = entry.location ? entry.location.split(',').map(h => h.trim()).filter(h => availableHalls.some(ah => ah.name === h)) : [];
-                          const combined = [...fromList, ...(manual ? [manual] : [])].join(', ');
-                          updateEntry(idx, 'location', combined);
-                        }}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 font-medium"
-                      />
+                  {/* Hall dropdown — closes on selection, Escape, outside click (handled by useEffect) */}
+                  {openHallDropdown === idx && (
+                    <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border-2 border-slate-300 rounded-2xl shadow-2xl overflow-hidden p-2 max-h-48 overflow-y-auto">
+                      {availableHalls.length === 0 ? (
+                        <p className="text-xs text-slate-500 text-center py-2">Keine Hallen gefunden</p>
+                      ) : (
+                        availableHalls.map((hall) => {
+                          const selectedNames = entry.location ? entry.location.split(',').map(h => h.trim()).filter(Boolean) : [];
+                          const isSelected = selectedNames.includes(hall.name);
+                          return (
+                            <button
+                              key={hall.id}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const currentHalls = entry.location ? entry.location.split(',').map(h => h.trim()).filter(Boolean) : [];
+                                const newHalls = isSelected
+                                  ? currentHalls.filter(h => h !== hall.name)
+                                  : [...currentHalls, hall.name];
+                                updateEntry(idx, 'location', newHalls.join(', '));
+                                // Close after single-select; multi-select stays open
+                                if (!isSelected) setOpenHallDropdown(null);
+                              }}
+                              className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors text-left ${
+                                isSelected ? 'bg-blue-600 text-white font-bold' : 'text-slate-800 hover:bg-slate-100 font-medium'
+                              }`}
+                            >
+                              <MapPin size={11} className={isSelected ? 'text-white' : 'text-blue-600'} />
+                              {hall.name}
+                              {isSelected && <span className="ml-auto text-[10px] font-bold text-white">✓</span>}
+                            </button>
+                          );
+                        })
+                      )}
+                      <div className="border-t border-slate-200 mt-1 pt-1">
+                        <input
+                          type="text"
+                          placeholder="Oder manuell eingeben..."
+                          value={entry.location && !entry.location.split(',').every(h => availableHalls.some(ah => ah.name === h.trim())) ? entry.location.split(',').filter(h => !availableHalls.some(ah => ah.name === h.trim())).join(', ') : ''}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            const manual = e.target.value;
+                            const fromList = entry.location ? entry.location.split(',').map(h => h.trim()).filter(h => availableHalls.some(ah => ah.name === h)) : [];
+                            const combined = [...fromList, ...(manual ? [manual] : [])].join(', ');
+                            updateEntry(idx, 'location', combined);
+                          }}
+                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 font-medium"
+                        />
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
           );
         })}
+        </div>
+        </div>{/* end overflow-x-auto */}
       </div>
 
       {/* Error */}
@@ -1258,7 +1327,7 @@ function ReviewView({
       )}
 
       {/* Action Buttons */}
-      <div className="flex gap-3 pt-2">
+      <div className="flex flex-wrap gap-3 pt-2">
         <button
           onClick={onDiscard}
           disabled={isLoading}
@@ -1270,7 +1339,7 @@ function ReviewView({
         <button
           onClick={handleConfirm}
           disabled={isLoading}
-          className="flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all text-sm shadow-md disabled:opacity-60 cursor-pointer"
+          className="flex-1 min-w-[200px] flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all text-sm shadow-md disabled:opacity-60 cursor-pointer"
         >
           {isLoading ? (
             <Loader2 size={16} className="animate-spin" />
@@ -1566,10 +1635,10 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
                 layout
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="flex flex-col bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-blue-300 transition-colors overflow-hidden group"
+                className="flex flex-col bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-blue-300 transition-colors overflow-hidden group min-w-0"
               >
                 {/* Header Row */}
-                <div className="flex items-center gap-4 p-4">
+                <div className="flex flex-wrap items-center gap-3 p-3 sm:p-4">
                   {/* Numeric Index Badge (#1, #2, #3...) */}
                   <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 font-mono font-bold text-xs flex items-center justify-center shrink-0">
                     #{index + 1}
@@ -1577,26 +1646,26 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
 
                   {/* Timesheet Employee info */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
                       <p className="text-slate-900 font-semibold text-sm truncate">
                         {item.employee?.name ?? item.employeeName}
                       </p>
                       <StatusBadge status={item.status} />
                     </div>
-                    <p className="text-slate-500 text-xs flex items-center gap-3">
+                    <p className="text-slate-500 text-xs flex flex-wrap items-center gap-2">
                       <span>📅 {getWeekRange(item.weekStartDate)}</span>
                       <span>⏱️ {item.entryCount} Tage ({item.totalHours.toFixed(2)} h)</span>
                     </p>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex items-center gap-2">
+                  {/* Action Buttons — wrap on mobile */}
+                  <div className="flex flex-wrap items-center gap-1.5">
                     {/* Expand Details Button */}
                     <button
                       onClick={() => setExpandedId(isExpanded ? null : item.id)}
                       className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors text-xs font-medium cursor-pointer"
                     >
-                      <span>Tageszeiten</span>
+                      <span className="hidden sm:inline">Tageszeiten</span>
                       {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     </button>
 
@@ -1623,7 +1692,7 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
                           {downloading?.id === item.id && downloading.fmt === 'pdf'
                             ? <Loader2 size={13} className="animate-spin" />
                             : <FileText size={13} />}
-                          <span>PDF</span>
+                          <span className="hidden sm:inline">PDF</span>
                         </button>
                         <button
                           onClick={() => downloadFile(item.id, 'xlsx')}
@@ -1634,7 +1703,7 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
                           {downloading?.id === item.id && downloading.fmt === 'xlsx'
                             ? <Loader2 size={13} className="animate-spin" />
                             : <FileSpreadsheet size={13} />}
-                          <span>Excel</span>
+                          <span className="hidden sm:inline">Excel</span>
                         </button>
                       </>
                     )}
@@ -2422,6 +2491,22 @@ export default function TimesheetsPage() {
     }
   };
 
+  // Translate raw API error messages to user-friendly German
+  const translateApiError = (raw: string): string => {
+    if (!raw) return 'Unbekannter Fehler beim Speichern.';
+    // Backend sends DUPLICATE_DATE:YYYY-MM-DD sentinel
+    const dupMatch = raw.match(/DUPLICATE_DATE:(\d{4}-\d{2}-\d{2})/);
+    if (dupMatch) {
+      const d = new Date(dupMatch[1]);
+      const formatted = d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      return `Für diesen Mitarbeiter existiert bereits ein Stundenzettel für dieses Datum (${formatted}).`;
+    }
+    if (raw.toLowerCase().includes('duplicate') || raw.toLowerCase().includes('exists')) {
+      return 'Für diesen Mitarbeiter existiert bereits ein Stundenzettel für dieses Datum.';
+    }
+    return raw;
+  };
+
   const handleConfirm = async (payload: any) => {
     if (!scanResult) return;
     setIsLoading(true);
@@ -2439,7 +2524,7 @@ export default function TimesheetsPage() {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.message ?? 'Fehler beim Speichern');
+        throw new Error(translateApiError(err.message ?? ''));
       }
 
       const confirmed = await res.json();
@@ -2482,9 +2567,9 @@ export default function TimesheetsPage() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900">
-      <div className="max-w-5xl mx-auto px-4 py-8">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {/* Page Header */}
-        <div className="mb-8">
+        <div className="mb-6 sm:mb-8">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-3">
               <div className="p-3 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200">
@@ -2513,27 +2598,28 @@ export default function TimesheetsPage() {
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex flex-wrap gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 mb-6 w-fit">
+        {/* Tab Navigation — scrollable on mobile */}
+        <div className="flex gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 mb-5 sm:mb-6 overflow-x-auto">
           {[
-            { key: 'scanner', label: 'Stundenzettel Scannen', icon: ScanLine },
-            { key: 'list', label: 'Wochenzettel Übersicht', icon: FileText },
-            { key: 'daily', label: 'Tages-Übersicht (Alle Mitarbeiter)', icon: Users },
-          ].map(({ key, label, icon: Icon }) => (
+            { key: 'scanner', label: 'Stundenzettel Scannen', shortLabel: 'Scannen', icon: ScanLine },
+            { key: 'list', label: 'Wochenzettel Übersicht', shortLabel: 'Übersicht', icon: FileText },
+            { key: 'daily', label: 'Tages-Übersicht', shortLabel: 'Tages-Ansicht', icon: Users },
+          ].map(({ key, label, shortLabel, icon: Icon }) => (
             <button
               key={key}
               onClick={() => {
                 setActiveTab(key as ActiveTab);
                 if (key === 'list') setRefreshListKey((prev) => prev + 1);
               }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === key
                   ? 'bg-blue-600 text-white shadow-md font-bold'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
               }`}
             >
-              <Icon size={16} />
-              {label}
+              <Icon size={15} />
+              <span className="sm:hidden">{shortLabel}</span>
+              <span className="hidden sm:inline">{label}</span>
             </button>
           ))}
         </div>

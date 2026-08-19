@@ -163,24 +163,35 @@ export class TimesheetService {
       );
     }
 
-    // ── Check duplicate confirmed timesheet for same employee + week ─────────
+    // ── Check per-date duplicates: employee + work date must be unique ────────
+    // Uniqueness rule: Employee + Work Date (NOT employee + calendar week).
+    // Multiple days in the same week are allowed; the same date twice is not.
     const weekStart = dto.weekStartDate ? new Date(dto.weekStartDate) : timesheet.weekStartDate;
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekEnd.getDate() + 7);
 
-    const duplicate = await this.prisma.timesheet.findFirst({
-      where: {
-        id: { not: id },
-        employeeId,
-        status: TimesheetStatus.CONFIRMED,
-        weekStartDate: { gte: weekStart, lt: weekEnd },
-      },
-    });
+    const entryDates = validEntries
+      .filter((e) => e.date)
+      .map((e) => new Date(e.date));
 
-    if (duplicate) {
-      throw new ConflictException(
-        'Für diesen Mitarbeiter existiert bereits ein bestätigter Stundenzettel für diese Woche',
-      );
+    if (entryDates.length > 0) {
+      const conflictingEntry = await this.prisma.timesheetEntry.findFirst({
+        where: {
+          date: { in: entryDates },
+          timesheet: {
+            id: { not: id }, // exclude the timesheet being edited from self-check
+            employeeId,
+            status: TimesheetStatus.CONFIRMED,
+          },
+        },
+        include: { timesheet: { select: { id: true } } },
+      });
+
+      if (conflictingEntry) {
+        // Format the conflicting date as YYYY-MM-DD for the error message
+        const conflictDate = conflictingEntry.date.toISOString().split('T')[0];
+        throw new ConflictException(
+          `DUPLICATE_DATE:${conflictDate}`,
+        );
+      }
     }
 
     // ── Persist in transaction ───────────────────────────────────────────────
