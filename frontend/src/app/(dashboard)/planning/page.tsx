@@ -258,7 +258,7 @@ function PlanningPageContent() {
           fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/halls`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/users/employees`, {
+          fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees?limit=1000`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
         ]);
@@ -268,9 +268,9 @@ function PlanningPageContent() {
           const hallsData = await resHalls.json();
           const empData = await resEmp.json();
 
-          setWarehouses(whData);
-          setHalls(hallsData);
-          setEmployees(empData);
+          setWarehouses(Array.isArray(whData?.data) ? whData.data : (Array.isArray(whData) ? whData : []));
+          setHalls(Array.isArray(hallsData?.data) ? hallsData.data : (Array.isArray(hallsData) ? hallsData : []));
+          setEmployees(Array.isArray(empData?.data) ? empData.data : (Array.isArray(empData) ? empData : []));
 
           if (qWh && qHall && hallsData.some((h: any) => h.id === qHall)) {
             setSelectedLocations([{ warehouseId: qWh, hallId: qHall }]);
