@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import { IsArray, IsDateString, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { LocationDto } from './create-plan.dto';
+import { EmployeeSegmentDto } from './employee-segment.dto';
 
 export class UpdatePlanDto {
   @IsOptional()
@@ -67,5 +68,12 @@ export class UpdatePlanDto {
   @IsArray()
   @IsString({ each: true })
   assignedContainerNumbers?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EmployeeSegmentDto)
+  employeeSegments?: EmployeeSegmentDto[];
 }
+
 

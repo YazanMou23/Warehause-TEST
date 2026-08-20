@@ -65,6 +65,17 @@ interface EmployeeData {
   role: string;
 }
 
+interface AbsenceRecord {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  employeePhone?: string;
+  date: string;
+  status: "NICHT_GEARBEITET" | "KRANK" | "ABWESEND_GRUND";
+  reason?: string | null;
+  notes?: string | null;
+}
+
 export default function AttendancePage() {
   const router = useRouter();
 
@@ -73,6 +84,7 @@ export default function AttendancePage() {
   const [halls, setHalls] = useState<HallData[]>([]);
   const [employees, setEmployees] = useState<EmployeeData[]>([]);
   const [logs, setLogs] = useState<AttendanceRecord[]>([]);
+  const [absences, setAbsences] = useState<AbsenceRecord[]>([]);
 
   // Filter Mode
   const [timeframe, setTimeframe] = useState<"daily" | "weekly" | "monthly">("weekly");
@@ -223,6 +235,7 @@ export default function AttendancePage() {
 
       const json = await res.json();
       const rawLogs = json.logs ?? [];
+      const rawAbsences = json.absences ?? [];
 
       const parsedLogs = rawLogs.map((a: any) => ({
         id: a.id,
@@ -242,12 +255,24 @@ export default function AttendancePage() {
         timesheetId: a.timesheetId || null,
       }));
 
+      const parsedAbsences = rawAbsences.map((a: any) => ({
+        id: a.id,
+        employeeId: a.employeeId,
+        employeeName: a.employee?.name || "Unknown Staff",
+        employeePhone: a.employee?.phone || "",
+        date: a.date ? a.date.split("T")[0] : "",
+        status: a.status,
+        reason: a.reason,
+        notes: a.notes,
+      }));
+
       // Sort logs alphabetically A-Z by employee name
       parsedLogs.sort((a: any, b: any) =>
         (a.employeeName || "").localeCompare(b.employeeName || "", "de", { sensitivity: "base" })
       );
 
       setLogs(parsedLogs);
+      setAbsences(parsedAbsences);
     } catch (err) {
       console.error("Failed to load report logs", err);
       setMessage({ text: "Verbindung zum Server fehlgeschlagen. Zeige lokale Daten.", type: "error" });
@@ -727,6 +752,42 @@ export default function AttendancePage() {
                       </tr>
                     );
                   })}
+
+                  {/* Absences for current date */}
+                  {absences.map((abs) => (
+                    <tr key={`abs-${abs.id}`} className="bg-slate-50/60 opacity-85">
+                      <td className="px-6 py-3.5 font-semibold text-slate-700">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-[10px]">
+                            {abs.employeeName.split(" ").map((n) => n[0]).join("")}
+                          </div>
+                          {abs.employeeName}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5 font-mono text-xs">{formatDateLabel(abs.date)}</td>
+                      <td className="px-4 py-3.5" colSpan={2}>
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                            abs.status === "KRANK"
+                              ? "bg-amber-50 text-amber-900 border-amber-300"
+                              : abs.status === "NICHT_GEARBEITET"
+                              ? "bg-red-50 text-red-900 border-red-300"
+                              : "bg-blue-50 text-blue-900 border-blue-300"
+                          }`}
+                        >
+                          {abs.status === "KRANK"
+                            ? "🟡 Krank"
+                            : abs.status === "NICHT_GEARBEITET"
+                            ? "🔴 Nicht gearbeitet"
+                            : `🔵 Abwesend (${abs.reason || "Grund"})`}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 font-mono font-bold text-slate-400">0.00 h</td>
+                      <td className="px-4 py-3.5 text-xs text-slate-400 italic" colSpan={3}>
+                        Abwesend (0 Std. Arbeitszeit)
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             )}
@@ -776,6 +837,7 @@ export default function AttendancePage() {
 
                             {daysOfWeekList.map((dayStr) => {
                               const cellRecord = getLogForCell(emp.id, dayStr);
+                              const absRecord = absences.find((a) => a.employeeId === emp.id && a.date === dayStr);
                               const isSelected = selectedCell?.employeeId === emp.id && selectedCell?.date === dayStr;
 
                               if (cellRecord) {
@@ -800,6 +862,23 @@ export default function AttendancePage() {
                                         {cellRecord.source === "SCAN" ? "Scan" : "Man."}
                                       </span>
                                     </div>
+                                  ) : absRecord ? (
+                                    <span
+                                      className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                        absRecord.status === "KRANK"
+                                          ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                          : absRecord.status === "NICHT_GEARBEITET"
+                                          ? "bg-red-100 text-red-900 border border-red-300"
+                                          : "bg-blue-100 text-blue-900 border border-blue-300"
+                                      }`}
+                                      title={absRecord.reason || absRecord.status}
+                                    >
+                                      {absRecord.status === "KRANK"
+                                        ? "🟡 Krank"
+                                        : absRecord.status === "NICHT_GEARBEITET"
+                                        ? "🔴 Nicht g."
+                                        : "🔵 Abwesend"}
+                                    </span>
                                   ) : (
                                     <span className="text-slate-400 font-normal">—</span>
                                   )}
@@ -904,6 +983,7 @@ export default function AttendancePage() {
                             year={filterYear}
                             displayEmployees={displayEmployees}
                             logs={logs}
+                            absences={absences}
                             selectedCell={selectedCell}
                             onCellSelect={handleCellSelect}
                             downloadTsFile={downloadTsFile}
@@ -1148,6 +1228,7 @@ interface WeeklyMatrixTableProps {
   year: number;
   displayEmployees: EmployeeData[];
   logs: AttendanceRecord[];
+  absences?: AbsenceRecord[];
   selectedCell: { employeeId: string; date: string } | null;
   onCellSelect: (empId: string, dateStr: string) => void;
   downloadTsFile: (id: string, format: "pdf" | "xlsx") => void;
@@ -1159,6 +1240,7 @@ function WeeklyMatrixTable({
   year,
   displayEmployees,
   logs,
+  absences = [],
   selectedCell,
   onCellSelect,
   downloadTsFile,
@@ -1227,6 +1309,7 @@ function WeeklyMatrixTable({
 
               {daysOfWeekList.map((dayStr) => {
                 const cellRecord = getLogForCell(emp.id, dayStr);
+                const absRecord = absences.find((a) => a.employeeId === emp.id && a.date === dayStr);
                 const isSelected = selectedCell?.employeeId === emp.id && selectedCell?.date === dayStr;
 
                 if (cellRecord) {
@@ -1244,7 +1327,27 @@ function WeeklyMatrixTable({
                         : "hover:bg-slate-50"
                     }`}
                   >
-                    {cellRecord ? `${cellRecord.totalHours?.toFixed(1)} h` : <span className="text-slate-400">—</span>}
+                    {cellRecord ? (
+                      `${cellRecord.totalHours?.toFixed(1)} h`
+                    ) : absRecord ? (
+                      <span
+                        className={`inline-block px-1 py-0.2 rounded text-[8px] font-bold ${
+                          absRecord.status === "KRANK"
+                            ? "bg-amber-100 text-amber-900 border border-amber-300"
+                            : absRecord.status === "NICHT_GEARBEITET"
+                            ? "bg-red-100 text-red-900 border border-red-300"
+                            : "bg-blue-100 text-blue-900 border border-blue-300"
+                        }`}
+                      >
+                        {absRecord.status === "KRANK"
+                          ? "Krank"
+                          : absRecord.status === "NICHT_GEARBEITET"
+                          ? "Nicht g."
+                          : "Abwesend"}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">—</span>
+                    )}
                   </td>
                 );
               })}

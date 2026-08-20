@@ -81,6 +81,15 @@ export class AttendanceController {
     return this.attendanceService.getAttendanceReport(query);
   }
 
+  @Get('analytics')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  async getAnalytics(
+    @Query('timeframe') timeframe?: 'weekly' | 'monthly',
+    @Query('date') date?: string,
+  ) {
+    return this.attendanceService.getDashboardAnalytics(timeframe || 'weekly', date);
+  }
+
   @Put(':id')
   @Roles(Role.MANAGER, Role.ADMIN)
   async update(@Param('id') id: string, @Body() dto: UpdateAttendanceDto) {

@@ -20,6 +20,11 @@ import {
   Check,
   ShieldAlert,
   Package,
+  Plus,
+  AlertCircle,
+  UserX,
+  HeartPulse,
+  HelpCircle,
 } from "lucide-react";
 import CustomAlertModal, { CustomAlertOptions } from "../../components/CustomAlertModal";
 
@@ -49,6 +54,27 @@ interface SelectedLocation {
   hallId: string;
 }
 
+export interface EmployeePlanSegmentItem {
+  id?: string;
+  employeeId: string;
+  treffpunkt: string;
+  treffpunktTime?: string;
+  startTime: string;
+  endTime: string;
+  notes?: string;
+  order?: number;
+}
+
+export interface EmployeeAbsenceItem {
+  id: string;
+  employeeId: string;
+  date: string;
+  status: "NICHT_GEARBEITET" | "KRANK" | "ABWESEND_GRUND";
+  reason?: string | null;
+  notes?: string | null;
+  employee?: { id: string; name: string };
+}
+
 function PlanningPageContent() {
   const [date, setDate] = useState("");
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -76,6 +102,19 @@ function PlanningPageContent() {
   const [assignedContainerNumbers, setAssignedContainerNumbers] = useState<string[]>([]);
   const [typedContainerNumber, setTypedContainerNumber] = useState("");
   const [containerCountInput, setContainerCountInput] = useState("");
+
+  // ── Per-Employee Multi-Segment Planning State ──
+  const [employeeSegments, setEmployeeSegments] = useState<Record<string, EmployeePlanSegmentItem[]>>({});
+
+  // ── Employee Absence / Status State ──
+  const [absences, setAbsences] = useState<EmployeeAbsenceItem[]>([]);
+  const [absenceModalOpen, setAbsenceModalOpen] = useState(false);
+  const [selectedEmployeeForAbsence, setSelectedEmployeeForAbsence] = useState<Employee | null>(null);
+  const [absenceStatusInput, setAbsenceStatusInput] = useState<"NICHT_GEARBEITET" | "KRANK" | "ABWESEND_GRUND">("NICHT_GEARBEITET");
+  const [absenceReasonCategory, setAbsenceReasonCategory] = useState("Arzttermin");
+  const [absenceCustomReason, setAbsenceCustomReason] = useState("");
+  const [absenceNotesInput, setAbsenceNotesInput] = useState("");
+  const [isSavingAbsence, setIsSavingAbsence] = useState(false);
 
   // Helper to parse shift string into start/end time and preset
   const applyShiftString = (rawShift: string) => {
@@ -152,6 +191,47 @@ function PlanningPageContent() {
 
   const router = useRouter();
 
+  // Helper to calculate segment working hours (excluding treffzeit)
+  const calculateSegmentHours = (start?: string, end?: string): number => {
+    if (!start || !end) return 0;
+    const [h1, m1] = start.split(":").map(Number);
+    const [h2, m2] = end.split(":").map(Number);
+    if (isNaN(h1) || isNaN(m1) || isNaN(h2) || isNaN(m2)) return 0;
+    let diffMin = (h2 * 60 + m2) - (h1 * 60 + m1);
+    if (diffMin < 0) diffMin += 24 * 60; // overnight support
+    return Math.round((diffMin / 60) * 100) / 100;
+  };
+
+  // Helper to check segment time overlaps for an employee
+  const checkEmployeeOverlap = (segments: EmployeePlanSegmentItem[]): string | null => {
+    if (!segments || segments.length <= 1) return null;
+    const toMinutes = (timeStr?: string) => {
+      if (!timeStr) return null;
+      const parts = timeStr.split(":");
+      if (parts.length < 2) return null;
+      const h = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      return isNaN(h) || isNaN(m) ? null : h * 60 + m;
+    };
+
+    for (let i = 0; i < segments.length; i++) {
+      const s1 = toMinutes(segments[i].startTime);
+      const e1 = toMinutes(segments[i].endTime);
+      if (s1 === null || e1 === null) continue;
+
+      for (let j = i + 1; j < segments.length; j++) {
+        const s2 = toMinutes(segments[j].startTime);
+        const e2 = toMinutes(segments[j].endTime);
+        if (s2 === null || e2 === null) continue;
+
+        if (s1 < e2 && e1 > s2) {
+          return `Überlappung zwischen Abschnitt ${i + 1} (${segments[i].startTime}-${segments[i].endTime}) und Abschnitt ${j + 1} (${segments[j].startTime}-${segments[j].endTime})`;
+        }
+      }
+    }
+    return null;
+  };
+
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
     if (!token) {
@@ -171,32 +251,38 @@ function PlanningPageContent() {
       }
 
       try {
-        const headers = { Authorization: `Bearer ${token}` };
+        const [resWH, resHalls, resEmp] = await Promise.all([
+          fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/warehouses`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/halls`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/users/employees`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
 
-        // Fetch warehouses
-        const whRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/warehouses`, { headers });
-        const whJson = whRes.ok ? await whRes.json() : null;
-        const whData = whJson && Array.isArray(whJson.data) ? whJson.data : (Array.isArray(whJson) ? whJson : []);
-        setWarehouses(whData);
+        if (resWH.ok && resHalls.ok && resEmp.ok) {
+          const whData = await resWH.json();
+          const hallsData = await resHalls.json();
+          const empData = await resEmp.json();
 
-        // Fetch halls
-        const hallRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/halls`, { headers });
-        const hallJson = hallRes.ok ? await hallRes.json() : null;
-        const hallData = hallJson && Array.isArray(hallJson.data) ? hallJson.data : (Array.isArray(hallJson) ? hallJson : []);
-        setHalls(hallData);
+          setWarehouses(whData);
+          setHalls(hallsData);
+          setEmployees(empData);
 
-        if (qWh && qHall && hallData.some((h: any) => h.id === qHall)) {
-          setSelectedLocations([{ warehouseId: qWh, hallId: qHall }]);
-        } else if (hallData.length > 0) {
-          setSelectedLocations([{ warehouseId: hallData[0].warehouseId, hallId: hallData[0].id }]);
+          if (qWh && qHall && hallsData.some((h: any) => h.id === qHall)) {
+            setSelectedLocations([{ warehouseId: qWh, hallId: qHall }]);
+          } else if (whData.length > 0) {
+            const firstWhHalls = hallsData.filter((h: any) => h.warehouseId === whData[0].id);
+            if (firstWhHalls.length > 0) {
+              setSelectedLocations([{ warehouseId: whData[0].id, hallId: firstWhHalls[0].id }]);
+            }
+          }
+        } else {
+          throw new Error("API failed");
         }
-
-        // Fetch all employees (limit=10000 to prevent pagination hiding employees)
-        const empRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees?limit=10000`, { headers });
-        const empJson = empRes.ok ? await empRes.json() : null;
-        const empData = empJson && Array.isArray(empJson.data) ? empJson.data : (Array.isArray(empJson) ? empJson : []);
-        setEmployees(empData.filter((u: any) => u.role !== "ADMIN"));
-
         setIsOffline(false);
       } catch (err) {
         setIsOffline(true);
@@ -235,37 +321,45 @@ function PlanningPageContent() {
     }
   }, [router, searchParams]);
 
-  // Fetch all plans for the selected date whenever date changes
+  // Fetch all plans and absences for the selected date whenever date changes
   useEffect(() => {
     if (!date) return;
-    const fetchExistingPlans = async () => {
+    const fetchExistingPlansAndAbsences = async () => {
       const token = localStorage.getItem("accessToken");
       if (!token || isOffline) return;
 
       setIsLoading(true);
       try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/query?date=${date}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
+        const [plansRes, absencesRes] = await Promise.all([
+          fetch(
+            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/query?date=${date}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          ),
+          fetch(
+            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/absences?date=${date}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          ),
+        ]);
 
-        if (res.ok) {
-          const plans = await res.json();
+        if (plansRes.ok) {
+          const plans = await plansRes.json();
           setAllCreatedPlans(plans);
         }
+        if (absencesRes.ok) {
+          const abs = await absencesRes.json();
+          setAbsences(abs);
+        }
       } catch (err) {
-        console.warn("Could not query plans from API");
+        console.warn("Could not query plans/absences from API");
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchExistingPlans();
+    fetchExistingPlansAndAbsences();
   }, [date, isOffline]);
 
-  // Auto-load plan into edit mode when planId is provided in the URL (e.g. from Dashboard "Plan verwalten")
+  // Auto-load plan into edit mode when planId is provided in URL
   useEffect(() => {
     if (autoEditDone.current) return;
     if (!hasInitializedFromQuery) return;
@@ -280,12 +374,48 @@ function PlanningPageContent() {
     autoEditDone.current = true;
     isEditingRef.current = true;
     setPlanId(plan.id);
-    setAssignedEmployeeIds(plan.assignedEmployees?.map((e: any) => e.id) || []);
+    const empIds = plan.assignedEmployees?.map((e: any) => e.id) || [];
+    setAssignedEmployeeIds(empIds);
     applyShiftString(plan.shift || "Frühschicht");
     setTreffpunktTime(plan.treffpunktTime || "05:30");
     setTreffpunkt(plan.treffpunkt || "");
     setNotes(plan.notes || "");
     setAssignedContainerNumbers(plan.assignedContainers?.map((c: any) => c.containerNumber) || []);
+
+    // Load segments
+    const segMap: Record<string, EmployeePlanSegmentItem[]> = {};
+    if (plan.employeeSegments && Array.isArray(plan.employeeSegments) && plan.employeeSegments.length > 0) {
+      plan.employeeSegments.forEach((seg: any) => {
+        if (!segMap[seg.employeeId]) segMap[seg.employeeId] = [];
+        segMap[seg.employeeId].push({
+          id: seg.id,
+          employeeId: seg.employeeId,
+          treffpunkt: seg.treffpunkt,
+          treffpunktTime: seg.treffpunktTime || "",
+          startTime: seg.startTime,
+          endTime: seg.endTime || "",
+          notes: seg.notes || "",
+          order: seg.order || 0,
+        });
+      });
+    }
+    // For any assigned employees without explicit segments, initialize default segment
+    empIds.forEach((id: string) => {
+      if (!segMap[id] || segMap[id].length === 0) {
+        segMap[id] = [
+          {
+            employeeId: id,
+            treffpunkt: plan.treffpunkt || "",
+            treffpunktTime: plan.treffpunktTime || "05:30",
+            startTime: plan.startTime ? new Date(plan.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:00",
+            endTime: plan.endTime ? new Date(plan.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "14:00",
+            notes: "",
+            order: 0,
+          },
+        ];
+      }
+    });
+    setEmployeeSegments(segMap);
 
     if (plan.locations && Array.isArray(plan.locations) && plan.locations.length > 0) {
       setSelectedLocations(plan.locations.map((l: any) => ({
@@ -303,13 +433,23 @@ function PlanningPageContent() {
     const token = localStorage.getItem("accessToken");
     if (!token || isOffline) return;
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/query?date=${date}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (res.ok) {
-        const plans = await res.json();
+      const [resPlans, resAbs] = await Promise.all([
+        fetch(
+          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/query?date=${date}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        ),
+        fetch(
+          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/absences?date=${date}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        ),
+      ]);
+      if (resPlans.ok) {
+        const plans = await resPlans.json();
         setAllCreatedPlans(plans);
+      }
+      if (resAbs.ok) {
+        const abs = await resAbs.json();
+        setAbsences(abs);
       }
     } catch (e) {}
   };
@@ -334,9 +474,93 @@ function PlanningPageContent() {
   };
 
   const toggleEmployee = (empId: string) => {
-    setAssignedEmployeeIds((prev) =>
-      prev.includes(empId) ? prev.filter((id) => id !== empId) : [...prev, empId]
-    );
+    // Check if employee is absent
+    const isAbsent = absences.some((a) => a.employeeId === empId);
+    if (!assignedEmployeeIds.includes(empId) && isAbsent) {
+      const absRecord = absences.find((a) => a.employeeId === empId);
+      showAlert({
+        title: "⚠️ Mitarbeiter als abwesend markiert",
+        message: `Dieser Mitarbeiter ist am ${date} als "${absRecord?.status === 'KRANK' ? 'Krank' : absRecord?.status === 'NICHT_GEARBEITET' ? 'Nicht gearbeitet' : 'Abwesend'}" markiert. Möchten Sie ihn dennoch einplanen?`,
+        type: "warning",
+      });
+    }
+
+    setAssignedEmployeeIds((prev) => {
+      const isCurrentlyAssigned = prev.includes(empId);
+      if (isCurrentlyAssigned) {
+        // Remove employee and their segments
+        setEmployeeSegments((segMap) => {
+          const next = { ...segMap };
+          delete next[empId];
+          return next;
+        });
+        return prev.filter((id) => id !== empId);
+      } else {
+        // Add employee and initialize default segment
+        const emp = employees.find((e) => e.id === empId);
+        setEmployeeSegments((segMap) => ({
+          ...segMap,
+          [empId]: segMap[empId] && segMap[empId].length > 0
+            ? segMap[empId]
+            : [
+                {
+                  employeeId: empId,
+                  treffpunkt: emp?.treffpunkt || treffpunkt || "Büro",
+                  treffpunktTime: emp?.treffpunktTime || treffpunktTime || "05:30",
+                  startTime: startTime || "06:00",
+                  endTime: endTimeOpen ? "" : (endTime || "14:00"),
+                  notes: "",
+                  order: 0,
+                },
+              ],
+        }));
+        return [...prev, empId];
+      }
+    });
+  };
+
+  const handleAddSegmentForEmployee = (empId: string) => {
+    const currentSegs = employeeSegments[empId] || [];
+    const lastSeg = currentSegs[currentSegs.length - 1];
+    const newStart = lastSeg ? lastSeg.endTime || "10:00" : "10:00";
+    const newEnd = "14:00";
+
+    const newSeg: EmployeePlanSegmentItem = {
+      employeeId: empId,
+      treffpunkt: "Baustelle A",
+      treffpunktTime: "09:45",
+      startTime: newStart,
+      endTime: newEnd,
+      notes: "",
+      order: currentSegs.length,
+    };
+
+    setEmployeeSegments((prev) => ({
+      ...prev,
+      [empId]: [...(prev[empId] || []), newSeg],
+    }));
+  };
+
+  const handleUpdateSegment = (
+    empId: string,
+    segIdx: number,
+    field: keyof EmployeePlanSegmentItem,
+    value: any
+  ) => {
+    setEmployeeSegments((prev) => {
+      const segs = [...(prev[empId] || [])];
+      if (segs[segIdx]) {
+        segs[segIdx] = { ...segs[segIdx], [field]: value };
+      }
+      return { ...prev, [empId]: segs };
+    });
+  };
+
+  const handleRemoveSegment = (empId: string, segIdx: number) => {
+    setEmployeeSegments((prev) => {
+      const segs = (prev[empId] || []).filter((_, i) => i !== segIdx);
+      return { ...prev, [empId]: segs };
+    });
   };
 
   const handleCancelEdit = () => {
@@ -344,56 +568,59 @@ function PlanningPageContent() {
     setPlanId(null);
     setNotes("");
     setAssignedEmployeeIds([]);
+    setEmployeeSegments({});
     setAssignedContainerNumbers([]);
     setContainerCountInput("");
     applyShiftString("Frühschicht");
     showAlert({
-      title: "Bearbeiten abgebrochen",
-      message: "Sie erstellen nun wieder einen neuen Schichtplan-Entwurf.",
+      title: "Bearbeitung beendet",
+      message: "Der Editor wurde auf den Neuanlage-Modus zurückgesetzt.",
       type: "info",
     });
   };
 
-  const handleDeletePlan = async (targetPlanId: string, e?: React.MouseEvent) => {
+  const handleDeletePlan = async (idToDelete: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    const token = localStorage.getItem("accessToken");
-    if (!token) return;
-
     showAlert({
-      title: "Schichtplan löschen",
-      message: "Möchten Sie diesen Schichtplan wirklich löschen/deaktivieren?",
+      title: "Plan löschen?",
+      message: "Möchten Sie diesen Schichtplan wirklich unwiderruflich löschen?",
       type: "warning",
-      confirmText: "Löschen",
+      confirmText: "Ja, Plan löschen",
       cancelText: "Abbrechen",
       onConfirm: async () => {
+        const token = localStorage.getItem("accessToken");
+        if (!token) return;
+
         setIsLoading(true);
         try {
-          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/${targetPlanId}`, {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (!res.ok) {
-            const data = await res.json().catch(() => ({}));
-            throw new Error(data.message || "Fehler beim Löschen des Schichtplans");
+          if (!isOffline) {
+            const res = await fetch(
+              `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/${idToDelete}`,
+              {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` },
+              }
+            );
+            if (!res.ok) {
+              const err = await res.json();
+              throw new Error(err.message || "Fehler beim Löschen des Plans");
+            }
           }
+
+          setAllCreatedPlans((prev) => prev.filter((p: any) => p.id !== idToDelete));
+          if (planId === idToDelete) {
+            handleCancelEdit();
+          }
+
           showAlert({
-            title: "Schichtplan gelöscht",
-            message: "Der Schichtplan wurde erfolgreich gelöscht.",
+            title: "Plan gelöscht",
+            message: "Der Schichtplan wurde erfolgreich entfernt.",
             type: "success",
           });
-          if (planId === targetPlanId) {
-            isEditingRef.current = false;
-            setPlanId(null);
-            setAssignedEmployeeIds([]);
-            setAssignedContainerNumbers([]);
-          }
-          // Immediately update local state without waiting for page reload or network delay
-          setAllCreatedPlans((prev) => prev.filter((p: any) => p.id !== targetPlanId));
-          await fetchExistingPlanManual();
         } catch (err: any) {
           showAlert({
-            title: "Fehler beim Löschen",
-            message: err.message || "Plan konnte nicht gelöscht werden.",
+            title: "Fehler",
+            message: err.message || "Plan konnte nicht gelöscht werden",
             type: "error",
           });
         } finally {
@@ -433,9 +660,53 @@ function PlanningPageContent() {
       return;
     }
 
+    // Overlap validation across employee segments
+    for (const empId of assignedEmployeeIds) {
+      const segs = employeeSegments[empId] || [];
+      const overlapErr = checkEmployeeOverlap(segs);
+      if (overlapErr) {
+        const empName = employees.find((e) => e.id === empId)?.name || empId;
+        showAlert({
+          title: `⚠️ Zeitüberschneidung bei ${empName}`,
+          message: `${overlapErr}. Bitte passen Sie die Arbeitszeiten der Abschnitte so an, dass sie sich nicht überschneiden.`,
+          type: "error",
+        });
+        return;
+      }
+    }
+
     const executeSavePlan = async () => {
       setIsLoading(true);
       const formattedShift = getFormattedShift();
+
+      // Flatten employee segments
+      const allSegments: EmployeePlanSegmentItem[] = [];
+      assignedEmployeeIds.forEach((empId) => {
+        const segs = employeeSegments[empId] && employeeSegments[empId].length > 0
+          ? employeeSegments[empId]
+          : [
+              {
+                employeeId: empId,
+                treffpunkt: treffpunkt || "Büro",
+                treffpunktTime: treffpunktTime || "05:30",
+                startTime: startTime || "06:00",
+                endTime: endTimeOpen ? "" : (endTime || "14:00"),
+                notes: "",
+                order: 0,
+              },
+            ];
+        segs.forEach((s, idx) => {
+          allSegments.push({
+            employeeId: empId,
+            treffpunkt: s.treffpunkt || treffpunkt || "Büro",
+            treffpunktTime: s.treffpunktTime || null as any,
+            startTime: s.startTime || startTime || "06:00",
+            endTime: s.endTime || (endTimeOpen ? null as any : endTime),
+            notes: s.notes || null as any,
+            order: idx,
+          });
+        });
+      });
 
       if (isOffline) {
         setTimeout(() => {
@@ -452,6 +723,7 @@ function PlanningPageContent() {
             locations: selectedLocations,
             assignedEmployees: employees.filter((e) => assignedEmployeeIds.includes(e.id)),
             assignedContainers: assignedContainerNumbers.map((c) => ({ containerNumber: c })),
+            employeeSegments: allSegments,
           };
           setAllCreatedPlans((prev) => {
             const exists = prev.some((p: any) => p.id === mockPlan.id);
@@ -463,6 +735,7 @@ function PlanningPageContent() {
           setPlanId(null);
           setNotes("");
           setAssignedEmployeeIds([]);
+          setEmployeeSegments({});
           setAssignedContainerNumbers([]);
           showAlert({
             title: "Schichtplan gespeichert",
@@ -480,10 +753,8 @@ function PlanningPageContent() {
       const primaryLocation = selectedLocations[0];
       const payload = {
         date,
-        // Backward compatible scalar fallback
         warehouseId: primaryLocation?.warehouseId,
         hallId: primaryLocation?.hallId,
-        // Multi-location payload array for new backend
         locations: selectedLocations.map((loc) => ({
           warehouseId: loc.warehouseId,
           hallId: loc.hallId,
@@ -495,12 +766,12 @@ function PlanningPageContent() {
         treffpunkt,
         treffpunktTime,
         notes,
+        employeeSegments: allSegments,
       };
 
       try {
         let res;
         if (planId) {
-          // Update existing plan
           res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/${planId}`, {
             method: "PATCH",
             headers: {
@@ -510,7 +781,6 @@ function PlanningPageContent() {
             body: JSON.stringify(payload),
           });
         } else {
-          // Create new plan
           res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning`, {
             method: "POST",
             headers: {
@@ -521,56 +791,44 @@ function PlanningPageContent() {
           });
         }
 
-        const data = await res.json().catch(() => ({}));
+        const data = await res.json();
         if (!res.ok) {
-          const errText = data.message || "Failed to save plan";
-          if (res.status === 409 || (typeof errText === "string" && (errText.toLowerCase().includes("overlap") || errText.toLowerCase().includes("conflict") || errText.toLowerCase().includes("überschreit")))) {
-            throw new Error(
-              `⚠️ SCHICHTÜBERSCHREITUNG ERKANNT\n\n` +
-              `Ein oder mehrere der ausgewählten Mitarbeiter sind im gewählten Zeitraum bereits in einer anderen Schicht oder an einem anderen Standort eingeplant.\n\n` +
-              `Details:\n• ${errText}\n\n` +
-              `Bitte korrigieren Sie die Arbeitszeiten oder entfernen Sie überschneidende Mitarbeiter.`
-            );
-          }
-          throw new Error(errText);
+          throw new Error(data.message || "Fehler beim Speichern des Schichtplans");
         }
 
-        // Immediately update local state so newly created or updated plans appear in the last section instantly
-        if (data && data.id) {
-          setAllCreatedPlans((prev) => {
-            const exists = prev.some((p: any) => p.id === data.id);
-            if (exists) {
-              return prev.map((p: any) => (p.id === data.id ? data : p));
-            }
-            return [data, ...prev];
-          });
-          setLastSavedPlanId(data.id);
-          setFilterWarehouseId("ALL"); // Ensure the newly created or updated plan is visible in the filter
+        const savedPlanId = data.id || planId;
+        setLastSavedPlanId(savedPlanId);
+        setFilterWarehouseId("ALL");
+
+        const qRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/query?date=${date}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (qRes.ok) {
+          const freshPlans = await qRes.json();
+          setAllCreatedPlans(freshPlans);
         }
 
-        // Reset form out of edit mode after saving so user can clearly see the saved plan below or add a new one
         isEditingRef.current = false;
         setPlanId(null);
         setNotes("");
         setAssignedEmployeeIds([]);
+        setEmployeeSegments({});
         setAssignedContainerNumbers([]);
         setContainerCountInput("");
 
         showAlert({
-          title: planId ? "Schichtplan aktualisiert!" : "Schichtplan erfolgreich gespeichert!",
-          message: `Der Schichtplan (${data.shift || formattedShift}) an ${selectedLocations.length} Standort(en) wurde gespeichert. ${(data.assignedEmployees?.length || assignedEmployeeIds.length)} Mitarbeiter benachrichtigt.`,
+          title: "Erfolg!",
+          message: planId ? "Schichtplan wurde erfolgreich aktualisiert." : "Neuer Schichtplan wurde erfolgreich erstellt!",
           type: "success",
         });
 
-        // Background re-fetch to ensure permanent database synchronization without page reload
-        await fetchExistingPlanManual();
         setTimeout(() => {
           createdPlansSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
         }, 300);
       } catch (err: any) {
         showAlert({
           title: "Fehler beim Speichern",
-          message: err.message || "Fehler beim Speichern des Schichtplans.",
+          message: err.message || "Es ist ein unerwarteter Fehler aufgetreten.",
           type: "error",
         });
       } finally {
@@ -578,24 +836,131 @@ function PlanningPageContent() {
       }
     };
 
-    if (assignedEmployeeIds.length === 0) {
-      showAlert({
-        title: "Keine Mitarbeiter zugewiesen",
-        message: "Es wurden noch keine Mitarbeiter zu diesem Schichtplan zugewiesen. Möchten Sie den Plan trotzdem als leeren Entwurf speichern?",
-        type: "warning",
-        confirmText: "Trotzdem speichern",
-        cancelText: "Abbrechen",
-        onConfirm: () => {
-          executeSavePlan();
-        },
-      });
-      return;
-    }
-
     executeSavePlan();
   };
 
-  // Calculate quick stats for the selected date
+  // ── Absence Management Helpers ──
+  const openAbsenceModal = (emp: Employee, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setSelectedEmployeeForAbsence(emp);
+    const existing = absences.find((a) => a.employeeId === emp.id);
+    if (existing) {
+      setAbsenceStatusInput(existing.status);
+      if (existing.status === "ABWESEND_GRUND") {
+        const commonReasons = ["Arzttermin", "Privater Termin", "Behördentermin", "Urlaub", "Sonstiger Grund"];
+        if (commonReasons.includes(existing.reason || "")) {
+          setAbsenceReasonCategory(existing.reason || "Arzttermin");
+          setAbsenceCustomReason("");
+        } else {
+          setAbsenceReasonCategory("Sonstiger Grund");
+          setAbsenceCustomReason(existing.reason || "");
+        }
+      }
+      setAbsenceNotesInput(existing.notes || "");
+    } else {
+      setAbsenceStatusInput("NICHT_GEARBEITET");
+      setAbsenceReasonCategory("Arzttermin");
+      setAbsenceCustomReason("");
+      setAbsenceNotesInput("");
+    }
+    setAbsenceModalOpen(true);
+  };
+
+  const handleSaveAbsence = async () => {
+    if (!selectedEmployeeForAbsence) return;
+    const token = localStorage.getItem("accessToken");
+    if (!token) return;
+
+    setIsSavingAbsence(true);
+    const reason = absenceStatusInput === "ABWESEND_GRUND"
+      ? (absenceReasonCategory === "Sonstiger Grund" && absenceCustomReason ? absenceCustomReason : absenceReasonCategory)
+      : null;
+
+    const payload = {
+      employeeId: selectedEmployeeForAbsence.id,
+      date,
+      status: absenceStatusInput,
+      reason,
+      notes: absenceNotesInput || null,
+    };
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/absences`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Fehler beim Speichern der Abwesenheit");
+      }
+
+      const saved = await res.json();
+      setAbsences((prev) => {
+        const filtered = prev.filter((a) => a.employeeId !== selectedEmployeeForAbsence.id);
+        return [...filtered, saved];
+      });
+
+      setAbsenceModalOpen(false);
+      showAlert({
+        title: "Status gespeichert",
+        message: `Abwesenheitsstatus für ${selectedEmployeeForAbsence.name} wurde erfolgreich aktualisiert.`,
+        type: "success",
+      });
+    } catch (err: any) {
+      showAlert({
+        title: "Fehler",
+        message: err.message || "Status konnte nicht gespeichert werden.",
+        type: "error",
+      });
+    } finally {
+      setIsSavingAbsence(false);
+    }
+  };
+
+  const handleDeleteAbsence = async () => {
+    if (!selectedEmployeeForAbsence) return;
+    const token = localStorage.getItem("accessToken");
+    if (!token) return;
+
+    setIsSavingAbsence(true);
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/absences?employeeId=${selectedEmployeeForAbsence.id}&date=${date}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Fehler beim Entfernen der Abwesenheit");
+      }
+
+      setAbsences((prev) => prev.filter((a) => a.employeeId !== selectedEmployeeForAbsence.id));
+      setAbsenceModalOpen(false);
+      showAlert({
+        title: "Status entfernt",
+        message: `Abwesenheit für ${selectedEmployeeForAbsence.name} wurde aufgehoben.`,
+        type: "success",
+      });
+    } catch (err: any) {
+      showAlert({
+        title: "Fehler",
+        message: err.message || "Abwesenheit konnte nicht gelöscht werden.",
+        type: "error",
+      });
+    } finally {
+      setIsSavingAbsence(false);
+    }
+  };
+
+  // Helper stats
   const uniqueScheduledEmployeeIds = new Set<string>();
   let totalContainersToday = 0;
   allCreatedPlans.forEach((p) => {
@@ -621,10 +986,10 @@ function PlanningPageContent() {
         <div>
           <h3 className="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
             <Layers className="w-7 h-7 text-blue-600" />
-            Schichtplanung (Multi-Warehouse Shift Planning)
+            Schichtplanung & Treffpunkte (Logistics Shift Planning)
           </h3>
           <p className="text-slate-500 text-xs mt-1">
-            Erstellen und verwalten Sie einsatzübergreifende Schichtpläne mit exakter Zeit- und Kollisionsprüfung.
+            Individuelle Treffpunkte, segmentierte Arbeitszeiten pro Mitarbeiter und lückenlose Abwesenheitserfassung.
           </p>
         </div>
       </div>
@@ -739,7 +1104,7 @@ function PlanningPageContent() {
           {/* Shift Preset & Exact Time Section */}
           <div className="space-y-1.5">
             <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-              Schichtvorlage (Preset) *
+              Standard-Schichtvorlage (Preset) *
             </label>
             <select
               value={shiftPreset}
@@ -750,135 +1115,78 @@ function PlanningPageContent() {
                 else if (val === "Spätschicht") { setStartTime("14:00"); setEndTime("22:00"); setEndTimeOpen(false); }
                 else if (val === "Nachtschicht") { setStartTime("22:00"); setEndTime("06:00"); setEndTimeOpen(false); }
               }}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500 focus:bg-white transition-colors shadow-sm cursor-pointer"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white transition-colors shadow-sm"
             >
-              <option value="Frühschicht">Frühschicht (06:00 - 14:00)</option>
-              <option value="Spätschicht">Spätschicht (14:00 - 22:00)</option>
-              <option value="Nachtschicht">Nachtschicht (22:00 - 06:00)</option>
-              <option value="Benutzerdefiniert">Benutzerdefinierte Arbeitszeit...</option>
+              <option value="Frühschicht">Frühschicht (06:00 - 14:00 Uhr)</option>
+              <option value="Spätschicht">Spätschicht (14:00 - 22:00 Uhr)</option>
+              <option value="Nachtschicht">Nachtschicht (22:00 - 06:00 Uhr)</option>
+              <option value="Benutzerdefiniert">Benutzerdefiniert (Eigene Zeiten)</option>
             </select>
           </div>
         </div>
 
-        {/* Multi-Warehouse & Hall Selection UI */}
-        <div className="bg-slate-50/90 border border-slate-200 p-5 rounded-xl space-y-4">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <WarehouseIcon className="w-4 h-4 text-blue-600" />
-                Standort-Zuweisung (Lager & Hallen Mehrfachauswahl) *
-              </h4>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Klicken Sie auf eine oder mehrere Hallen, um sie diesem Schichtplan zuzuordnen.
-              </p>
-            </div>
-            <span className="text-xs font-mono font-bold bg-blue-100 text-blue-800 px-3 py-1 rounded-full border border-blue-200">
-              {selectedLocations.length} Standort{selectedLocations.length !== 1 ? "e" : ""} ausgewählt
+        {/* Multi-Location Selection */}
+        <div className="space-y-3 pt-2">
+          <div className="flex items-center justify-between">
+            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <WarehouseIcon className="w-3.5 h-3.5 text-blue-600" />
+              Einsatz-Standorte / Hallen auswählen (Multi-Location Selection) *
+            </label>
+            <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+              {selectedLocations.length} ausgewählt
             </span>
           </div>
 
-          {/* Grouped by warehouse */}
-          <div className="space-y-4">
-            {warehouses.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">Keine Lager verfügbar.</p>
-            ) : (
-              warehouses.map((wh) => {
-                const whHalls = halls.filter((h) => h.warehouseId === wh.id);
-                return (
-                  <div key={wh.id} className="bg-white p-3.5 rounded-lg border border-slate-200/80 shadow-2xs">
-                    <p className="text-xs font-bold text-slate-700 mb-2.5 flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                      {wh.name}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {whHalls.length === 0 ? (
-                        <span className="text-[11px] text-slate-400 italic">Keine Hallen konfiguriert</span>
-                      ) : (
-                        whHalls.map((h) => {
-                          const isSelected = selectedLocations.some(
-                            (loc) => loc.warehouseId === wh.id && loc.hallId === h.id
-                          );
-                          const hColor = h.color || "#1d4ed8";
-                          return (
-                            <button
-                              key={h.id}
-                              type="button"
-                              onClick={() => toggleLocation(wh.id, h.id)}
-                              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-2xs border ${
-                                isSelected
-                                  ? "bg-blue-600 text-white border-blue-600 ring-2 ring-blue-200"
-                                  : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200/80 hover:border-slate-300"
-                              }`}
-                              style={
-                                isSelected
-                                  ? { borderLeft: `4px solid ${hColor}` }
-                                  : {}
-                              }
-                            >
-                              {isSelected ? (
-                                <Check className="w-3.5 h-3.5" />
-                              ) : (
-                                <span
-                                  className="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs border border-black/10"
-                                  style={{ backgroundColor: hColor }}
-                                />
-                              )}
-                              <span>{h.name}</span>
-                            </button>
-                          );
-                        })
-                      )}
-                    </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {warehouses.map((wh) => {
+              const whHalls = halls.filter((h) => h.warehouseId === wh.id);
+              return (
+                <div key={wh.id} className="border border-slate-200 rounded-xl p-3.5 bg-slate-50/50 space-y-2">
+                  <p className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
+                    <WarehouseIcon className="w-3.5 h-3.5 text-slate-500" />
+                    {wh.name}
+                  </p>
+                  <div className="space-y-1.5">
+                    {whHalls.map((hall) => {
+                      const isSelected = selectedLocations.some(
+                        (loc) => loc.warehouseId === wh.id && loc.hallId === hall.id
+                      );
+                      return (
+                        <div
+                          key={hall.id}
+                          onClick={() => toggleLocation(wh.id, hall.id)}
+                          className={`p-2.5 rounded-lg border text-xs font-semibold flex items-center justify-between cursor-pointer transition-all ${
+                            isSelected
+                              ? "bg-blue-600 border-blue-600 text-white shadow-sm"
+                              : "bg-white border-slate-200 text-slate-700 hover:border-blue-300"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: hall.color || "#3b82f6" }}
+                            />
+                            <span>{hall.name}</span>
+                          </div>
+                          {isSelected && <Check className="w-4 h-4 text-white shrink-0" />}
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })
-            )}
+                </div>
+              );
+            })}
           </div>
-
-          {/* Selected Location Summary Tags */}
-          {selectedLocations.length > 0 && (
-            <div className="pt-3 border-t border-slate-200 flex flex-wrap gap-2 items-center">
-              <span className="text-[11px] font-bold text-slate-500 mr-1">Ausgewählt:</span>
-              {selectedLocations.map((loc) => {
-                const wName = warehouses.find((w) => w.id === loc.warehouseId)?.name || "Lager";
-                const locHall = halls.find((h) => h.id === loc.hallId);
-                const hName = locHall?.name || "Halle";
-                const hColor = locHall?.color || "#3b82f6";
-                return (
-                  <div
-                    key={`${loc.warehouseId}-${loc.hallId}`}
-                    className="flex items-center gap-1.5 px-3 py-1 bg-slate-800 text-white rounded-full text-xs font-medium shadow-2xs"
-                  >
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ backgroundColor: hColor }}
-                    />
-                    <span className="text-slate-300 text-[10px]">{wName}:</span>
-                    <span className="font-bold">{hName}</span>
-                    <button
-                      type="button"
-                      onClick={() => toggleLocation(loc.warehouseId, loc.hallId)}
-                      className="text-slate-400 hover:text-white transition-colors ml-1 p-0.5 rounded-full hover:bg-white/10 cursor-pointer"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
 
-        {/* Exact Start & End Time Inputs */}
-        <div className="space-y-3 bg-slate-50/80 p-4 rounded-xl border border-slate-200/80">
-          <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4 text-blue-600 shrink-0" />
-            <span className="text-xs font-bold text-slate-800">Exakte Arbeitszeit (Exact Shift Time Window):</span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-semibold text-slate-600">Von:</span>
+        {/* Global Shift & Working Time Details */}
+        <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-200/80">
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+            Standard-Arbeitszeit für neue Zuweisungen
+          </p>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-600">Von:</span>
               <input
                 type="time"
                 value={startTime}
@@ -890,13 +1198,11 @@ function PlanningPageContent() {
               />
             </div>
 
-            <span className="text-slate-400 font-bold text-xs">--</span>
-
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-semibold text-slate-600">Bis:</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-600">Bis:</span>
               {endTimeOpen ? (
-                <span className="bg-slate-100 border border-slate-300 rounded-lg px-3.5 py-1.5 text-xs font-bold text-slate-400 italic min-w-[90px] text-center">
-                  offen
+                <span className="px-3 py-1.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-xs font-bold font-mono">
+                  Offen (Open End)
                 </span>
               ) : (
                 <input
@@ -934,12 +1240,17 @@ function PlanningPageContent() {
           </div>
         </div>
 
-        {/* Daily Treffzeit & Treffpunkt Section */}
+        {/* Global Treffzeit & Treffpunkt Defaults */}
         <div className="space-y-1.5 bg-amber-50/70 p-4 rounded-xl border border-amber-200/80 shadow-2xs">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-amber-700 shrink-0" />
-              <span className="text-xs font-bold text-amber-950">Tägliche Treffzeit & Treffpunkt (Pick-up Details):</span>
+              <div>
+                <span className="text-xs font-bold text-amber-950 block">Standard-Treffpunkt & Treffzeit (Vorgabe):</span>
+                <span className="text-[10px] text-amber-700 font-medium">
+                  ⚠️ Treffzeit dient der Logistik/Abholung und wird <strong>NICHT</strong> als Arbeitszeit berechnet.
+                </span>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
@@ -957,18 +1268,12 @@ function PlanningPageContent() {
                 <span className="text-[11px] font-semibold text-amber-900">Treffpunkt:</span>
                 <input
                   type="text"
-                  placeholder="z.B. Hauptbahnhof Duisburg, Eingang Nord"
+                  placeholder="z.B. Hauptbahnhof Duisburg"
                   value={treffpunkt}
                   onChange={(e) => setTreffpunkt(e.target.value)}
-                  className="bg-white border border-amber-300 rounded-lg px-3 py-1 text-xs text-slate-800 outline-none focus:border-amber-500 shadow-2xs min-w-[240px]"
+                  className="bg-white border border-amber-300 rounded-lg px-3 py-1 text-xs text-slate-800 outline-none focus:border-amber-500 shadow-2xs min-w-[220px]"
                 />
               </div>
-
-              {treffpunktTime && (
-                <span className="text-xs font-mono font-bold bg-amber-100 text-amber-950 px-3 py-1 rounded-full border border-amber-300 shadow-2xs">
-                  📍 {treffpunkt || "Treffpunkt"} um ⏰ {treffpunktTime} Uhr
-                </span>
-              )}
             </div>
           </div>
         </div>
@@ -990,7 +1295,6 @@ function PlanningPageContent() {
 
       {/* Container Input Section */}
       <div className="bg-white border border-slate-100 p-6 rounded-xl shadow-sm space-y-5">
-        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
             Geplante Container (Planned Containers)
@@ -1003,7 +1307,6 @@ function PlanningPageContent() {
           )}
         </div>
 
-        {/* Quick-Add by Count */}
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
           <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
             <Package className="w-3.5 h-3.5 text-blue-500" />
@@ -1124,30 +1427,193 @@ function PlanningPageContent() {
         )}
       </div>
 
-      {/* Selected Employees Chips Bar */}
+      {/* ── Individual Employee Segments & Treffpunkte Editor ── */}
       {assignedEmployeeIds.length > 0 && (
-        <div className="bg-white border border-slate-100 p-5 rounded-xl shadow-sm space-y-2.5">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-            <Users className="w-3.5 h-3.5 text-blue-600" />
-            Ausgewählte Mitarbeiter für diesen Schichtplan ({assignedEmployeeIds.length})
-          </p>
-          <div className="flex flex-wrap gap-2">
+        <div className="bg-white border border-slate-100 p-6 rounded-xl shadow-sm space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-3">
+            <div>
+              <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-blue-600" />
+                Mitarbeiter-spezifische Treffpunkte & Arbeitszeit-Abschnitte ({assignedEmployeeIds.length})
+              </h4>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Verwalten Sie individuelle Treffpunkte und mehrteilige Arbeitszeit-Segmente pro Mitarbeiter.
+              </p>
+            </div>
+            <span className="text-xs bg-amber-50 text-amber-900 border border-amber-200 px-3 py-1 rounded-full font-bold">
+              ⏰ Treffzeit ≠ Arbeitszeit (Nur Von-Bis zählt)
+            </span>
+          </div>
+
+          <div className="space-y-4">
             {assignedEmployeeIds.map((empId) => {
               const emp = employees.find((e) => e.id === empId);
               if (!emp) return null;
+              const segs = employeeSegments[empId] || [];
+              const totalHours = segs.reduce(
+                (sum, s) => sum + calculateSegmentHours(s.startTime, s.endTime),
+                0
+              );
+              const overlapWarning = checkEmployeeOverlap(segs);
+
               return (
                 <div
                   key={emp.id}
-                  className="flex items-center gap-2 px-3.5 py-1.5 bg-blue-600 text-white rounded-full text-xs font-bold shadow-sm transition-all hover:bg-blue-700"
+                  className={`border rounded-xl p-4 transition-all space-y-3 ${
+                    overlapWarning
+                      ? "border-red-300 bg-red-50/40"
+                      : "border-slate-200 bg-slate-50/40 hover:border-slate-300"
+                  }`}
                 >
-                  <span>{emp.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => toggleEmployee(emp.id)}
-                    className="text-blue-200 hover:text-white transition-colors p-0.5 rounded-full hover:bg-white/10 cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+                  {/* Card Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-2.5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
+                        {emp.name.substring(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-extrabold text-slate-900">{emp.name}</p>
+                          <span
+                            className={`px-2 py-0.5 rounded text-[9px] font-bold tracking-wider font-mono ${
+                              emp.role === "TEAM_LEADER"
+                                ? "bg-amber-100 text-amber-900 border border-amber-200"
+                                : "bg-slate-200 text-slate-700"
+                            }`}
+                          >
+                            {emp.role === "TEAM_LEADER" ? "Vorarbeiter" : "Mitarbeiter"}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-mono">{emp.phone || "Keine Telefonnummer"}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-extrabold text-blue-900 bg-blue-100/80 px-3 py-1 rounded-full border border-blue-200">
+                        Gesamt-Arbeitszeit: {totalHours.toFixed(1)} Std.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => toggleEmployee(emp.id)}
+                        className="text-slate-400 hover:text-red-600 p-1 rounded-lg hover:bg-slate-200 transition-colors"
+                        title="Mitarbeiter aus Schicht entfernen"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Overlap Error Banner */}
+                  {overlapWarning && (
+                    <div className="bg-red-100 text-red-900 border border-red-200 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                      <span>{overlapWarning}</span>
+                    </div>
+                  )}
+
+                  {/* Segments List */}
+                  <div className="space-y-2.5">
+                    {segs.map((seg, idx) => {
+                      const segHours = calculateSegmentHours(seg.startTime, seg.endTime);
+                      return (
+                        <div
+                          key={idx}
+                          className="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center text-xs shadow-2xs"
+                        >
+                          <div className="sm:col-span-1 flex items-center gap-1">
+                            <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-[10px]">
+                              {idx + 1}
+                            </span>
+                          </div>
+
+                          {/* Treffpunkt */}
+                          <div className="sm:col-span-3 space-y-0.5">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
+                              Treffpunkt:
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="z.B. Büro / Baustelle A"
+                              value={seg.treffpunkt}
+                              onChange={(e) => handleUpdateSegment(emp.id, idx, "treffpunkt", e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-800 outline-none focus:border-blue-500"
+                            />
+                          </div>
+
+                          {/* Treffzeit (Non-working) */}
+                          <div className="sm:col-span-2 space-y-0.5">
+                            <label className="text-[9px] font-bold text-amber-700 uppercase tracking-wider block flex items-center gap-1">
+                              ⏰ Treffzeit:
+                            </label>
+                            <input
+                              type="time"
+                              value={seg.treffpunktTime || ""}
+                              onChange={(e) => handleUpdateSegment(emp.id, idx, "treffpunktTime", e.target.value)}
+                              className="w-full bg-amber-50/60 border border-amber-200 rounded px-2 py-1 text-xs font-bold text-amber-950 outline-none focus:border-amber-400"
+                              title="Treffzeit (wird nicht zur Arbeitszeit gezählt)"
+                            />
+                          </div>
+
+                          {/* Arbeitsbeginn */}
+                          <div className="sm:col-span-2 space-y-0.5">
+                            <label className="text-[9px] font-bold text-slate-600 uppercase tracking-wider block">
+                              Arbeitsbeginn (Von):
+                            </label>
+                            <input
+                              type="time"
+                              value={seg.startTime}
+                              onChange={(e) => handleUpdateSegment(emp.id, idx, "startTime", e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-800 outline-none focus:border-blue-500"
+                            />
+                          </div>
+
+                          {/* Arbeitsende */}
+                          <div className="sm:col-span-2 space-y-0.5">
+                            <label className="text-[9px] font-bold text-slate-600 uppercase tracking-wider block">
+                              Arbeitsende (Bis):
+                            </label>
+                            <input
+                              type="time"
+                              value={seg.endTime}
+                              onChange={(e) => handleUpdateSegment(emp.id, idx, "endTime", e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-800 outline-none focus:border-blue-500"
+                            />
+                          </div>
+
+                          {/* Duration Badge & Remove Action */}
+                          <div className="sm:col-span-2 flex items-center justify-between sm:justify-end gap-2 pt-1 sm:pt-0">
+                            <span className="font-mono font-bold text-[11px] bg-slate-100 text-slate-800 px-2 py-0.5 rounded border border-slate-200">
+                              {segHours.toFixed(1)} h
+                            </span>
+                            {segs.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveSegment(emp.id, idx)}
+                                className="text-slate-400 hover:text-red-600 p-1 rounded hover:bg-slate-100 transition-colors"
+                                title="Abschnitt entfernen"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Add Segment Button */}
+                  <div className="pt-1 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => handleAddSegmentForEmployee(emp.id)}
+                      className="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Weiteren Treffpunkt / Arbeitszeit-Abschnitt hinzufügen
+                    </button>
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      z.B. 08:00–10:00 Büro, danach 10:00–14:00 Baustelle A
+                    </span>
+                  </div>
                 </div>
               );
             })}
@@ -1155,24 +1621,29 @@ function PlanningPageContent() {
         </div>
       )}
 
-      {/* Employees Directory List */}
+      {/* Employees Directory List with Absence Tracking */}
       <div className="bg-white border border-slate-100 rounded-xl flex flex-col shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-100 bg-slate-50/80 flex justify-between items-center">
-          <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-            <Users className="w-4 h-4 text-blue-600" /> Mitarbeiter-Zuweisung (Assign Personnel)
-          </h5>
-          <span className="font-mono text-xs bg-blue-50 text-blue-800 px-3 py-1 rounded-full font-bold border border-blue-200">
+        <div className="p-4 border-b border-slate-100 bg-slate-50/80 flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+          <div>
+            <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+              <Users className="w-4 h-4 text-blue-600" /> Mitarbeiter-Zuweisung & Status-Erfassung
+            </h5>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Wählen Sie Mitarbeiter aus oder erfassen Sie Abwesenheiten (Nicht gearbeitet / Krank / Abwesend).
+            </p>
+          </div>
+          <span className="font-mono text-xs bg-blue-50 text-blue-800 px-3 py-1 rounded-full font-bold border border-blue-200 self-start sm:self-auto">
             {assignedEmployeeIds.length} ausgewählt
           </span>
         </div>
 
-        {/* Search Bar for Mitarbeiter */}
+        {/* Search Bar */}
         <div className="p-3 border-b border-slate-100 bg-white">
           <div className="relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Mitarbeiter direkt suchen (Name, Telefon, Rolle)..."
+              placeholder="Mitarbeiter suchen (Name, Telefon, Rolle)..."
               value={employeeSearchTerm}
               onChange={(e) => setEmployeeSearchTerm(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-10 pr-3 py-2 text-xs font-medium text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-colors shadow-2xs"
@@ -1180,7 +1651,7 @@ function PlanningPageContent() {
           </div>
         </div>
 
-        <div className="overflow-y-auto max-h-[420px] divide-y divide-slate-100 p-3 space-y-1 bg-slate-50/20">
+        <div className="overflow-y-auto max-h-[440px] divide-y divide-slate-100 p-3 space-y-1 bg-slate-50/20">
           {(() => {
             const sortedFiltered = employees
               .filter((emp) =>
@@ -1200,7 +1671,8 @@ function PlanningPageContent() {
 
             return sortedFiltered.map((emp) => {
               const isAssigned = assignedEmployeeIds.includes(emp.id);
-              // Check if employee is already booked in any other plan today
+              const absenceRecord = absences.find((a) => a.employeeId === emp.id);
+
               const existingShiftsForEmp = allCreatedPlans
                 .filter((p) => p.id !== planId && p.assignedEmployees?.some((ae: any) => ae.id === emp.id))
                 .map((p) => p.shift || "Schicht");
@@ -1209,7 +1681,7 @@ function PlanningPageContent() {
                 <div
                   key={emp.id}
                   onClick={() => toggleEmployee(emp.id)}
-                  className={`p-3.5 flex justify-between items-center rounded-xl cursor-pointer transition-all border ${
+                  className={`p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-xl cursor-pointer transition-all border ${
                     isAssigned
                       ? "bg-blue-50/70 border-blue-200 shadow-2xs"
                       : "bg-white hover:bg-slate-50 border-transparent hover:border-slate-200"
@@ -1220,12 +1692,44 @@ function PlanningPageContent() {
                       {isAssigned && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <p className={`text-xs font-bold ${isAssigned ? "text-blue-800" : "text-slate-800"}`}>
                           {emp.name}
                         </p>
+
+                        {/* Absence Badge */}
+                        {absenceRecord && (
+                          <span
+                            onClick={(e) => openAbsenceModal(emp, e)}
+                            className={`text-[10px] px-2.5 py-0.5 font-bold rounded-full border flex items-center gap-1 shadow-2xs hover:opacity-80 transition-opacity ${
+                              absenceRecord.status === "KRANK"
+                                ? "bg-amber-100 text-amber-900 border-amber-300"
+                                : absenceRecord.status === "NICHT_GEARBEITET"
+                                ? "bg-red-100 text-red-900 border-red-300"
+                                : "bg-blue-100 text-blue-900 border-blue-300"
+                            }`}
+                          >
+                            {absenceRecord.status === "KRANK" ? (
+                              <>
+                                <HeartPulse className="w-3 h-3 text-amber-700" />
+                                <span>🟡 Krank</span>
+                              </>
+                            ) : absenceRecord.status === "NICHT_GEARBEITET" ? (
+                              <>
+                                <UserX className="w-3 h-3 text-red-700" />
+                                <span>🔴 Nicht gearbeitet</span>
+                              </>
+                            ) : (
+                              <>
+                                <HelpCircle className="w-3 h-3 text-blue-700" />
+                                <span>🔵 Abwesend ({absenceRecord.reason || "Grund"})</span>
+                              </>
+                            )}
+                          </span>
+                        )}
+
                         {existingShiftsForEmp.length > 0 && (
-                          <span className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-200 font-bold rounded-full flex items-center gap-1">
+                          <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-800 border border-slate-300 font-bold rounded-full flex items-center gap-1">
                             <ShieldAlert className="w-3 h-3 text-amber-600" />
                             Bereits heute eingeplant ({existingShiftsForEmp.join(", ")})
                           </span>
@@ -1234,15 +1738,29 @@ function PlanningPageContent() {
                       <p className="text-[11px] text-slate-400 font-mono mt-0.5">{emp.phone || "Keine Telefonnummer"}</p>
                     </div>
                   </div>
-                  <span
-                    className={`px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider font-mono border ${
-                      emp.role === "TEAM_LEADER"
-                        ? "bg-amber-100/80 text-amber-900 border-amber-200"
-                        : "bg-slate-100 text-slate-700 border-slate-200"
-                    }`}
-                  >
-                    {emp.role === "TEAM_LEADER" ? "Vorarbeiter" : "Mitarbeiter"}
-                  </span>
+
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                    {/* Status/Absence Action Button */}
+                    <button
+                      type="button"
+                      onClick={(e) => openAbsenceModal(emp, e)}
+                      className="px-2.5 py-1 text-[11px] font-bold rounded-lg border bg-white hover:bg-slate-100 text-slate-700 border-slate-200 shadow-2xs transition-colors flex items-center gap-1"
+                      title="Abwesenheitsstatus für diesen Mitarbeiter erfassen"
+                    >
+                      <UserX className="w-3 h-3 text-slate-500" />
+                      <span>{absenceRecord ? "Status bearbeiten" : "Status / Abwesend"}</span>
+                    </button>
+
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider font-mono border ${
+                        emp.role === "TEAM_LEADER"
+                          ? "bg-amber-100/80 text-amber-900 border-amber-200"
+                          : "bg-slate-100 text-slate-700 border-slate-200"
+                      }`}
+                    >
+                      {emp.role === "TEAM_LEADER" ? "Vorarbeiter" : "Mitarbeiter"}
+                    </span>
+                  </div>
                 </div>
               );
             });
@@ -1295,11 +1813,10 @@ function PlanningPageContent() {
               Erstellte Schichtpläne am {date} ({displayedPlans.length})
             </h4>
             <p className="text-slate-500 text-xs mt-0.5">
-              Übersicht aller aktiven Schichtpläne mit zugeordneten Hallen, Mitarbeitern und Arbeitszeiten
+              Übersicht aller aktiven Schichtpläne mit zugeordneten Hallen, Mitarbeitern und individuellen Treffpunkten
             </p>
           </div>
 
-          {/* Warehouse Filter for Plans List */}
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-500 shrink-0">Filter Lager:</span>
             <select
@@ -1332,7 +1849,7 @@ function PlanningPageContent() {
                   key={plan.id}
                   className={`p-5 rounded-xl border transition-all flex flex-col justify-between ${
                     plan.id === lastSavedPlanId
-                      ? "bg-green-50/50 border-green-300 shadow-md ring-2 ring-green-400 animate-pulse-once"
+                      ? "bg-green-50/50 border-green-300 shadow-md ring-2 ring-green-400"
                       : isSelected
                       ? "bg-blue-50/40 border-blue-300 shadow-sm ring-2 ring-blue-300"
                       : "bg-white border-slate-200 hover:border-slate-300 shadow-2xs hover:shadow-sm"
@@ -1367,14 +1884,48 @@ function PlanningPageContent() {
                           onClick={() => {
                             isEditingRef.current = true;
                             setPlanId(plan.id);
-                            setAssignedEmployeeIds(plan.assignedEmployees?.map((e: any) => e.id) || []);
+                            const empIds = plan.assignedEmployees?.map((e: any) => e.id) || [];
+                            setAssignedEmployeeIds(empIds);
                             applyShiftString(plan.shift || "Frühschicht");
                             setTreffpunktTime(plan.treffpunktTime || "05:30");
                             setTreffpunkt(plan.treffpunkt || "");
                             setNotes(plan.notes || "");
                             setAssignedContainerNumbers(plan.assignedContainers?.map((c: any) => c.containerNumber) || []);
                             
-                            // Load locations into state
+                            // Load employee segments
+                            const segMap: Record<string, EmployeePlanSegmentItem[]> = {};
+                            if (plan.employeeSegments && Array.isArray(plan.employeeSegments) && plan.employeeSegments.length > 0) {
+                              plan.employeeSegments.forEach((seg: any) => {
+                                if (!segMap[seg.employeeId]) segMap[seg.employeeId] = [];
+                                segMap[seg.employeeId].push({
+                                  id: seg.id,
+                                  employeeId: seg.employeeId,
+                                  treffpunkt: seg.treffpunkt,
+                                  treffpunktTime: seg.treffpunktTime || "",
+                                  startTime: seg.startTime,
+                                  endTime: seg.endTime || "",
+                                  notes: seg.notes || "",
+                                  order: seg.order || 0,
+                                });
+                              });
+                            }
+                            empIds.forEach((id: string) => {
+                              if (!segMap[id] || segMap[id].length === 0) {
+                                segMap[id] = [
+                                  {
+                                    employeeId: id,
+                                    treffpunkt: plan.treffpunkt || "Büro",
+                                    treffpunktTime: plan.treffpunktTime || "05:30",
+                                    startTime: plan.startTime ? new Date(plan.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:00",
+                                    endTime: plan.endTime ? new Date(plan.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "14:00",
+                                    notes: "",
+                                    order: 0,
+                                  },
+                                ];
+                              }
+                            });
+                            setEmployeeSegments(segMap);
+
                             if (plan.locations && Array.isArray(plan.locations) && plan.locations.length > 0) {
                               setSelectedLocations(plan.locations.map((l: any) => ({
                                 warehouseId: l.warehouseId || l.warehouse?.id || "",
@@ -1400,7 +1951,7 @@ function PlanningPageContent() {
                       </div>
                     </div>
 
-                    {/* Shift & Pick-up Info */}
+                    {/* Shift Info */}
                     <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
                       <span className="font-extrabold text-slate-800 text-xs flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
                         <Clock className="w-3.5 h-3.5 text-blue-600" />
@@ -1420,19 +1971,51 @@ function PlanningPageContent() {
                       )}
                     </div>
 
-                    {/* Employees */}
+                    {/* Employees with Segments Breakdown */}
                     <div className="space-y-1.5 pt-1">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
                         <Users className="w-3 h-3 text-slate-400" />
                         Eingeteilte Mitarbeiter ({plan.assignedEmployees?.length || 0}):
                       </p>
-                      <div className="flex flex-wrap gap-1">
+                      <div className="space-y-1.5">
                         {plan.assignedEmployees && plan.assignedEmployees.length > 0 ? (
-                          plan.assignedEmployees.map((emp: any) => (
-                            <span key={emp.id} className="px-2.5 py-1 bg-slate-100 text-slate-800 rounded-md text-[11px] font-bold border border-slate-200 shadow-2xs">
-                              {emp.name}
-                            </span>
-                          ))
+                          plan.assignedEmployees.map((emp: any) => {
+                            const empSegs = (plan.employeeSegments || []).filter((s: any) => s.employeeId === emp.id);
+                            return (
+                              <div
+                                key={emp.id}
+                                className="bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs space-y-1"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="font-extrabold text-slate-800">{emp.name}</span>
+                                  {empSegs.length > 0 && (
+                                    <span className="text-[10px] font-bold font-mono text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                      {empSegs.length} Abschnitt(e)
+                                    </span>
+                                  )}
+                                </div>
+                                {empSegs.length > 0 ? (
+                                  <div className="grid grid-cols-1 gap-1">
+                                    {empSegs.map((seg: any, sIdx: number) => (
+                                      <div key={sIdx} className="text-[11px] text-slate-600 flex flex-wrap items-center gap-2">
+                                        <span className="font-semibold text-slate-700">📍 {seg.treffpunkt || "Treffpunkt"}</span>
+                                        {seg.treffpunktTime && (
+                                          <span className="text-amber-800 font-mono font-bold bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200 text-[10px]">
+                                            Treff: {seg.treffpunktTime}
+                                          </span>
+                                        )}
+                                        <span className="text-blue-800 font-mono font-bold bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200 text-[10px]">
+                                          Arbeit: {seg.startTime} - {seg.endTime || "offen"}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400">Standard-Planzeiten</span>
+                                )}
+                              </div>
+                            );
+                          })
                         ) : (
                           <span className="text-slate-400 italic text-[11px]">Keine Mitarbeiter zugewiesen</span>
                         )}
@@ -1471,6 +2054,161 @@ function PlanningPageContent() {
           </div>
         )}
       </div>
+
+      {/* ── Modal for Setting Employee Absence / Status ── */}
+      {absenceModalOpen && selectedEmployeeForAbsence && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-5 animate-scaleUp">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h4 className="text-base font-extrabold text-slate-900">
+                  Status & Abwesenheit erfassen
+                </h4>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Für: <strong className="text-slate-800">{selectedEmployeeForAbsence.name}</strong> am <strong>{date}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAbsenceModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Status Selection */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                Status auswählen *
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAbsenceStatusInput("NICHT_GEARBEITET")}
+                  className={`p-3 rounded-xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+                    absenceStatusInput === "NICHT_GEARBEITET"
+                      ? "bg-red-50 border-red-500 text-red-900 ring-2 ring-red-400"
+                      : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  <UserX className="w-5 h-5 text-red-600" />
+                  <span>Nicht gearbeitet</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setAbsenceStatusInput("KRANK")}
+                  className={`p-3 rounded-xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+                    absenceStatusInput === "KRANK"
+                      ? "bg-amber-50 border-amber-500 text-amber-900 ring-2 ring-amber-400"
+                      : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  <HeartPulse className="w-5 h-5 text-amber-600" />
+                  <span>Krank</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setAbsenceStatusInput("ABWESEND_GRUND")}
+                  className={`p-3 rounded-xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+                    absenceStatusInput === "ABWESEND_GRUND"
+                      ? "bg-blue-50 border-blue-500 text-blue-900 ring-2 ring-blue-400"
+                      : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  <HelpCircle className="w-5 h-5 text-blue-600" />
+                  <span>Abwesend (Grund)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Reason Selection if ABWESEND_GRUND */}
+            {absenceStatusInput === "ABWESEND_GRUND" && (
+              <div className="space-y-3 p-3.5 bg-blue-50/50 rounded-xl border border-blue-200/80 animate-fadeIn">
+                <label className="text-[11px] font-bold text-blue-950 uppercase tracking-wider block">
+                  Grund der Abwesenheit *
+                </label>
+                <select
+                  value={absenceReasonCategory}
+                  onChange={(e) => setAbsenceReasonCategory(e.target.value)}
+                  className="w-full bg-white border border-blue-300 rounded-lg px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-blue-500"
+                >
+                  <option value="Arzttermin">Arzttermin</option>
+                  <option value="Privater Termin">Privater Termin</option>
+                  <option value="Behördentermin">Behördentermin</option>
+                  <option value="Urlaub">Urlaub</option>
+                  <option value="Sonstiger Grund">Sonstiger Grund (Manuelle Angabe)</option>
+                </select>
+
+                {absenceReasonCategory === "Sonstiger Grund" && (
+                  <input
+                    type="text"
+                    placeholder="Spezifischen Grund eingeben..."
+                    value={absenceCustomReason}
+                    onChange={(e) => setAbsenceCustomReason(e.target.value)}
+                    className="w-full bg-white border border-blue-300 rounded-lg px-3 py-2 text-xs text-slate-800 outline-none focus:border-blue-500"
+                  />
+                )}
+              </div>
+            )}
+
+            {/* Notes Input */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                Zusätzliche Notizen / Bemerkung
+              </label>
+              <textarea
+                rows={2}
+                value={absenceNotesInput}
+                onChange={(e) => setAbsenceNotesInput(e.target.value)}
+                placeholder="Optionale Notiz zur Abwesenheit..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 outline-none focus:border-blue-500 resize-none"
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-between gap-3 pt-2">
+              {absences.some((a) => a.employeeId === selectedEmployeeForAbsence.id) ? (
+                <button
+                  type="button"
+                  onClick={handleDeleteAbsence}
+                  disabled={isSavingAbsence}
+                  className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Abwesenheit entfernen
+                </button>
+              ) : (
+                <div />
+              )}
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAbsenceModalOpen(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAbsence}
+                  disabled={isSavingAbsence}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isSavingAbsence ? (
+                    <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white"></div>
+                  ) : (
+                    <Check className="w-3.5 h-3.5" />
+                  )}
+                  <span>Status speichern</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Centered Popup Alert Modal */}
       <CustomAlertModal

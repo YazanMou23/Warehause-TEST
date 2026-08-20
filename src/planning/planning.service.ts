@@ -2,6 +2,8 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException, 
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { UpdatePlanDto } from './dto/update-plan.dto';
+import { EmployeeSegmentDto } from './dto/employee-segment.dto';
+import { SetEmployeeAbsenceDto } from './dto/employee-absence.dto';
 import { EmailService } from '../email/email.service';
 import { MessagingService } from '../messaging/messaging.service';
 
@@ -34,6 +36,19 @@ export class PlanningService {
     assignedContainers: {
       include: {
         container: true,
+      },
+    },
+    employeeSegments: {
+      orderBy: { order: 'asc' as const },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            role: true,
+          },
+        },
       },
     },
   };
@@ -114,7 +129,61 @@ export class PlanningService {
       notes: plan.notes,
       assignedEmployees: (plan.assignedEmployees || []).map((ae: any) => ae.employee),
       assignedContainers: (plan.assignedContainers || []).map((ac: any) => ac.container),
+      employeeSegments: (plan.employeeSegments || []).map((seg: any) => ({
+        id: seg.id,
+        employeeId: seg.employeeId,
+        employeeName: seg.employee?.name || '',
+        date: seg.date,
+        planId: seg.planId,
+        treffpunkt: seg.treffpunkt,
+        treffpunktTime: seg.treffpunktTime || null,
+        startTime: seg.startTime,
+        endTime: seg.endTime || null,
+        notes: seg.notes || null,
+        order: seg.order || 0,
+      })),
     };
+  }
+
+  private validateSegmentOverlaps(segments: { employeeId: string; startTime: string; endTime?: string; treffpunkt?: string }[]) {
+    const byEmp: Record<string, typeof segments> = {};
+    for (const seg of segments) {
+      if (!seg || !seg.employeeId) continue;
+      if (!byEmp[seg.employeeId]) byEmp[seg.employeeId] = [];
+      byEmp[seg.employeeId].push(seg);
+    }
+
+    for (const [empId, empSegs] of Object.entries(byEmp)) {
+      if (empSegs.length <= 1) continue;
+
+      const toMinutes = (timeStr?: string) => {
+        if (!timeStr) return null;
+        const parts = timeStr.split(':');
+        if (parts.length < 2) return null;
+        const h = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        return isNaN(h) || isNaN(m) ? null : h * 60 + m;
+      };
+
+      for (let i = 0; i < empSegs.length; i++) {
+        const s1 = toMinutes(empSegs[i].startTime);
+        const e1 = toMinutes(empSegs[i].endTime);
+        if (s1 === null || e1 === null) continue;
+
+        for (let j = i + 1; j < empSegs.length; j++) {
+          const s2 = toMinutes(empSegs[j].startTime);
+          const e2 = toMinutes(empSegs[j].endTime);
+          if (s2 === null || e2 === null) continue;
+
+          // Overlap check on working hours interval [s1, e1) and [s2, e2)
+          if (s1 < e2 && e1 > s2) {
+            throw new ConflictException(
+              `Überlappende Arbeitszeiten für Mitarbeiter (${empSegs[i].startTime}-${empSegs[i].endTime} und ${empSegs[j].startTime}-${empSegs[j].endTime}). Arbeitszeiten desselben Mitarbeiters dürfen sich nicht überschneiden.`
+            );
+          }
+        }
+      }
+    }
   }
 
   private isPlanDataChanged(oldPlan: any, newPlan: any): boolean {
@@ -399,6 +468,27 @@ export class PlanningService {
             containerId: cId,
           })),
         });
+      }
+
+      // 5. Assign employee-specific segments if provided
+      if (createPlanDto.employeeSegments && createPlanDto.employeeSegments.length > 0) {
+        this.validateSegmentOverlaps(createPlanDto.employeeSegments);
+        for (let idx = 0; idx < createPlanDto.employeeSegments.length; idx++) {
+          const seg = createPlanDto.employeeSegments[idx];
+          await tx.employeePlanSegment.create({
+            data: {
+              employeeId: seg.employeeId,
+              date: normalizedDate,
+              planId: newPlan.id,
+              treffpunkt: seg.treffpunkt,
+              treffpunktTime: seg.treffpunktTime || null,
+              startTime: seg.startTime,
+              endTime: seg.endTime || null,
+              notes: seg.notes || null,
+              order: seg.order !== undefined ? seg.order : idx,
+            },
+          });
+        }
       }
 
       return newPlan;
@@ -689,6 +779,30 @@ export class PlanningService {
               containerId: cId,
             })),
           });
+        }
+      }
+
+      // Update employee segments if specified
+      if (updatePlanDto.employeeSegments !== undefined) {
+        await tx.employeePlanSegment.deleteMany({ where: { planId: id } });
+        if (updatePlanDto.employeeSegments && updatePlanDto.employeeSegments.length > 0) {
+          this.validateSegmentOverlaps(updatePlanDto.employeeSegments);
+          for (let idx = 0; idx < updatePlanDto.employeeSegments.length; idx++) {
+            const seg = updatePlanDto.employeeSegments[idx];
+            await tx.employeePlanSegment.create({
+              data: {
+                employeeId: seg.employeeId,
+                date: targetDate,
+                planId: id,
+                treffpunkt: seg.treffpunkt,
+                treffpunktTime: seg.treffpunktTime || null,
+                startTime: seg.startTime,
+                endTime: seg.endTime || null,
+                notes: seg.notes || null,
+                order: seg.order !== undefined ? seg.order : idx,
+              },
+            });
+          }
         }
       }
     });
@@ -1080,4 +1194,171 @@ export class PlanningService {
 
     return { message: `Employees assigned to ${plans.length} daily plans successfully` };
   }
+
+  // ─── Employee Plan Segments ──────────────────────────────────────────────────
+
+  async getEmployeeSegments(dateStr: string, employeeId?: string) {
+    const targetDate = this.normalizeDate(dateStr);
+    const where: any = { date: targetDate };
+    if (employeeId) where.employeeId = employeeId;
+
+    return this.prisma.employeePlanSegment.findMany({
+      where,
+      include: {
+        employee: { select: { id: true, name: true, phone: true, role: true } },
+        plan: { select: { id: true, title: true, shift: true } },
+      },
+      orderBy: [{ employeeId: 'asc' }, { order: 'asc' }, { startTime: 'asc' }],
+    });
+  }
+
+  async saveEmployeeSegments(dateStr: string, segments: EmployeeSegmentDto[], planId?: string) {
+    const targetDate = this.normalizeDate(dateStr);
+    if (!segments || segments.length === 0) return [];
+
+    this.validateSegmentOverlaps(segments);
+
+    return this.prisma.$transaction(async (tx) => {
+      const empIds = Array.from(new Set(segments.map((s) => s.employeeId)));
+
+      const deleteWhere: any = { date: targetDate, employeeId: { in: empIds } };
+      if (planId) deleteWhere.planId = planId;
+      await tx.employeePlanSegment.deleteMany({ where: deleteWhere });
+
+      const created = [];
+      for (let i = 0; i < segments.length; i++) {
+        const s = segments[i];
+        const seg = await tx.employeePlanSegment.create({
+          data: {
+            employeeId: s.employeeId,
+            date: targetDate,
+            planId: s.planId || planId || null,
+            treffpunkt: s.treffpunkt,
+            treffpunktTime: s.treffpunktTime || null,
+            startTime: s.startTime,
+            endTime: s.endTime || null,
+            notes: s.notes || null,
+            order: s.order !== undefined ? s.order : i,
+          },
+          include: {
+            employee: { select: { id: true, name: true } },
+          },
+        });
+        created.push(seg);
+      }
+      return created;
+    });
+  }
+
+  async deleteEmployeeSegment(id: string) {
+    const seg = await this.prisma.employeePlanSegment.findUnique({ where: { id } });
+    if (!seg) throw new NotFoundException(`Segment mit ID ${id} nicht gefunden`);
+    return this.prisma.employeePlanSegment.delete({ where: { id } });
+  }
+
+  // ─── Employee Absence / Status ───────────────────────────────────────────────
+
+  async getAbsences(dateStr?: string, startDateStr?: string, endDateStr?: string, employeeId?: string) {
+    const where: any = {};
+    if (dateStr) {
+      where.date = this.normalizeDate(dateStr);
+    } else if (startDateStr && endDateStr) {
+      where.date = {
+        gte: this.normalizeDate(startDateStr),
+        lte: this.normalizeDate(endDateStr),
+      };
+    }
+    if (employeeId && employeeId !== 'ALL') {
+      where.employeeId = employeeId;
+    }
+
+    return this.prisma.employeeAbsence.findMany({
+      where,
+      include: {
+        employee: { select: { id: true, name: true, phone: true, role: true } },
+        createdBy: { select: { id: true, name: true } },
+      },
+      orderBy: [{ date: 'asc' }, { employee: { name: 'asc' } }],
+    });
+  }
+
+  async setAbsence(dto: SetEmployeeAbsenceDto, actorId?: string) {
+    const targetDate = this.normalizeDate(dto.date);
+
+    const emp = await this.prisma.user.findFirst({
+      where: { id: dto.employeeId, deletedAt: null },
+    });
+    if (!emp) {
+      throw new NotFoundException(`Mitarbeiter mit ID ${dto.employeeId} nicht gefunden`);
+    }
+
+    const absence = await this.prisma.employeeAbsence.upsert({
+      where: {
+        employeeId_date: {
+          employeeId: dto.employeeId,
+          date: targetDate,
+        },
+      },
+      create: {
+        employeeId: dto.employeeId,
+        date: targetDate,
+        status: dto.status,
+        reason: dto.reason || null,
+        notes: dto.notes || null,
+        createdById: actorId || null,
+      },
+      update: {
+        status: dto.status,
+        reason: dto.reason || null,
+        notes: dto.notes || null,
+        createdById: actorId || null,
+      },
+      include: {
+        employee: { select: { id: true, name: true } },
+      },
+    });
+
+    await this.prisma.actionLog.create({
+      data: {
+        userId: actorId || null,
+        action: 'SET_ABSENCE',
+        details: `Abwesenheitsstatus für "${emp.name}" am ${targetDate.toISOString().split('T')[0]} auf "${dto.status}" gesetzt (${dto.reason || 'Kein Grund'})`,
+      },
+    }).catch(() => {});
+
+    return absence;
+  }
+
+  async deleteAbsence(employeeId: string, dateStr: string, actorId?: string) {
+    const targetDate = this.normalizeDate(dateStr);
+
+    const existing = await this.prisma.employeeAbsence.findUnique({
+      where: {
+        employeeId_date: {
+          employeeId,
+          date: targetDate,
+        },
+      },
+      include: { employee: { select: { name: true } } },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Keine Abwesenheit für diesen Mitarbeiter an diesem Datum gefunden');
+    }
+
+    await this.prisma.employeeAbsence.delete({
+      where: { id: existing.id },
+    });
+
+    await this.prisma.actionLog.create({
+      data: {
+        userId: actorId || null,
+        action: 'DELETE_ABSENCE',
+        details: `Abwesenheit für "${existing.employee?.name || employeeId}" am ${dateStr} entfernt`,
+      },
+    }).catch(() => {});
+
+    return { message: 'Abwesenheit erfolgreich entfernt' };
+  }
 }
+

@@ -133,6 +133,68 @@ export class PlanningController {
     return this.planningService.bulkAssignEmployees(ids, employeeIds, actorId);
   }
 
+  // ─── Employee Plan Segments Endpoints ─────────────────────────────────────
+
+  @Get('segments')
+  getSegments(
+    @Query('date') date: string,
+    @Query('employeeId') employeeId?: string,
+  ) {
+    if (!date) throw new BadRequestException('Query parameter "date" is required');
+    return this.planningService.getEmployeeSegments(date, employeeId);
+  }
+
+  @Post('segments')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  saveSegments(
+    @Body('date') date: string,
+    @Body('segments') segments: any[],
+    @Body('planId') planId?: string,
+  ) {
+    if (!date) throw new BadRequestException('Field "date" is required');
+    return this.planningService.saveEmployeeSegments(date, segments || [], planId);
+  }
+
+  @Delete('segments/:id')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  deleteSegment(@Param('id') id: string) {
+    return this.planningService.deleteEmployeeSegment(id);
+  }
+
+  // ─── Employee Absence / Status Endpoints ───────────────────────────────────
+
+  @Get('absences')
+  getAbsences(
+    @Query('date') date?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('employeeId') employeeId?: string,
+  ) {
+    return this.planningService.getAbsences(date, startDate, endDate, employeeId);
+  }
+
+  @Post('absences')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  setAbsence(
+    @Body() dto: any,
+    @CurrentUser('id') actorId: string,
+  ) {
+    return this.planningService.setAbsence(dto, actorId);
+  }
+
+  @Delete('absences')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  deleteAbsence(
+    @Query('employeeId') employeeId: string,
+    @Query('date') date: string,
+    @CurrentUser('id') actorId: string,
+  ) {
+    if (!employeeId || !date) {
+      throw new BadRequestException('Query parameters "employeeId" and "date" are required');
+    }
+    return this.planningService.deleteAbsence(employeeId, date, actorId);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.planningService.findOne(id);
@@ -154,3 +216,4 @@ export class PlanningController {
     return this.planningService.deactivate(id, actorId);
   }
 }
+

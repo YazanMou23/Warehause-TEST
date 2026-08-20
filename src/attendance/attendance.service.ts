@@ -287,24 +287,33 @@ export class AttendanceService {
       },
     };
 
-    if (query.employeeId && query.employeeId !== 'ALL') {
-      where.employeeId = query.employeeId;
-    }
-
-    const logs = await this.prisma.attendance.findMany({
-      where,
-      include: {
-        employee: { select: { id: true, name: true, phone: true } },
-        warehouse: { select: { id: true, name: true } },
-        hall: { select: { id: true, name: true } },
-      },
-      orderBy: { clockIn: 'asc' },
-    });
+    const [logs, absences] = await Promise.all([
+      this.prisma.attendance.findMany({
+        where,
+        include: {
+          employee: { select: { id: true, name: true, phone: true } },
+          warehouse: { select: { id: true, name: true } },
+          hall: { select: { id: true, name: true } },
+        },
+        orderBy: { clockIn: 'asc' },
+      }),
+      this.prisma.employeeAbsence.findMany({
+        where: {
+          date: { gte: start, lte: end },
+          ...(query.employeeId && query.employeeId !== 'ALL' ? { employeeId: query.employeeId } : {}),
+        },
+        include: {
+          employee: { select: { id: true, name: true, phone: true } },
+        },
+        orderBy: { date: 'asc' },
+      }),
+    ]);
 
     return {
       start,
       end,
       logs,
+      absences,
     };
   }
 
@@ -525,5 +534,165 @@ export class AttendanceService {
 
     return { start, end };
   }
+
+  async getDashboardAnalytics(timeframe: 'weekly' | 'monthly' = 'weekly', dateStr?: string) {
+    const baseDate = dateStr ? new Date(dateStr) : new Date();
+    const year = baseDate.getFullYear();
+
+    let start: Date;
+    let end: Date;
+    let rangeLabel = '';
+
+    if (timeframe === 'monthly') {
+      const month = baseDate.getMonth();
+      start = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+      end = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
+      rangeLabel = baseDate.toLocaleString('de-DE', { month: 'long', year: 'numeric' });
+    } else {
+      // Weekly: Monday to Sunday
+      const d = new Date(baseDate);
+      const day = d.getDay();
+      const diffToMonday = day === 0 ? -6 : 1 - day;
+      start = new Date(d);
+      start.setDate(d.getDate() + diffToMonday);
+      start.setUTCHours(0, 0, 0, 0);
+
+      end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      end.setUTCHours(23, 59, 59, 999);
+
+      const d1 = start.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+      const d2 = end.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      rangeLabel = `KW ${this.getIsoWeek(start)} (${d1} - ${d2})`;
+    }
+
+    // 1. All active non-admin employees
+    const employees = await this.prisma.user.findMany({
+      where: { isActive: true, deletedAt: null, role: { not: 'ADMIN' } },
+      select: { id: true, name: true, phone: true, role: true },
+      orderBy: { name: 'asc' },
+    });
+
+    // 2. All attendance records in range
+    const logs = await this.prisma.attendance.findMany({
+      where: {
+        date: { gte: start, lte: end },
+      },
+      include: {
+        employee: { select: { id: true, name: true } },
+      },
+    });
+
+    // 3. All absences in range
+    const absences = await this.prisma.employeeAbsence.findMany({
+      where: {
+        date: { gte: start, lte: end },
+      },
+      include: {
+        employee: { select: { id: true, name: true } },
+      },
+    });
+
+    const defaultSollPerWeek = 40.0;
+    const defaultSollPerMonth = 160.0;
+    const standardSoll = timeframe === 'monthly' ? defaultSollPerMonth : defaultSollPerWeek;
+
+    const employeeStats = employees.map((emp) => {
+      const empLogs = logs.filter((l) => l.employeeId === emp.id);
+      const empAbsences = absences.filter((a) => a.employeeId === emp.id);
+
+      const istHours = Math.round(empLogs.reduce((acc, curr) => acc + (curr.totalHours || 0), 0) * 100) / 100;
+      const sollHours = standardSoll;
+      const diff = Math.round((istHours - sollHours) * 100) / 100;
+      const percentage = sollHours > 0 ? Math.round((istHours / sollHours) * 100) : 0;
+
+      return {
+        id: emp.id,
+        name: emp.name,
+        phone: emp.phone,
+        role: emp.role,
+        soll: sollHours,
+        ist: istHours,
+        diff,
+        percentage,
+        absenceDays: empAbsences.length,
+        absenceDetails: empAbsences.map((a) => ({
+          date: a.date.toISOString().split('T')[0],
+          status: a.status,
+          reason: a.reason,
+        })),
+      };
+    });
+
+    const aggregatedTrend: Array<{ label: string; date?: string; totalHours: number; activeCount: number }> = [];
+
+    if (timeframe === 'weekly') {
+      const weekdaysDe = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+      for (let i = 0; i < 7; i++) {
+        const curDate = new Date(start);
+        curDate.setDate(start.getDate() + i);
+        const dateStr = curDate.toISOString().split('T')[0];
+        const dayLogs = logs.filter((l) => l.date && l.date.toISOString().split('T')[0] === dateStr);
+        const dayHours = Math.round(dayLogs.reduce((acc, curr) => acc + (curr.totalHours || 0), 0) * 100) / 100;
+        const activeEmpIds = new Set(dayLogs.map((l) => l.employeeId));
+
+        aggregatedTrend.push({
+          label: `${weekdaysDe[i]} ${curDate.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}`,
+          date: dateStr,
+          totalHours: dayHours,
+          activeCount: activeEmpIds.size,
+        });
+      }
+    } else {
+      const numDays = new Date(year, baseDate.getMonth() + 1, 0).getDate();
+      const weeksCount = Math.ceil(numDays / 7);
+
+      for (let w = 0; w < weeksCount; w++) {
+        const wStart = new Date(Date.UTC(year, baseDate.getMonth(), w * 7 + 1, 0, 0, 0, 0));
+        const wEndDay = Math.min((w + 1) * 7, numDays);
+        const wEnd = new Date(Date.UTC(year, baseDate.getMonth(), wEndDay, 23, 59, 59, 999));
+
+        const weekLogs = logs.filter((l) => l.date && l.date >= wStart && l.date <= wEnd);
+        const weekHours = Math.round(weekLogs.reduce((acc, curr) => acc + (curr.totalHours || 0), 0) * 100) / 100;
+        const activeEmpIds = new Set(weekLogs.map((l) => l.employeeId));
+
+        aggregatedTrend.push({
+          label: `Woche ${w + 1} (${w * 7 + 1}.-${wEndDay}. ${baseDate.toLocaleString('de-DE', { month: 'short' })})`,
+          totalHours: weekHours,
+          activeCount: activeEmpIds.size,
+        });
+      }
+    }
+
+    const totalIst = Math.round(employeeStats.reduce((acc, curr) => acc + curr.ist, 0) * 100) / 100;
+    const totalSoll = Math.round(employeeStats.reduce((acc, curr) => acc + curr.soll, 0) * 100) / 100;
+
+    return {
+      timeframe,
+      range: {
+        start: start.toISOString(),
+        end: end.toISOString(),
+        label: rangeLabel,
+      },
+      employeeStats,
+      aggregatedTrend,
+      summary: {
+        totalIst,
+        totalSoll,
+        diff: Math.round((totalIst - totalSoll) * 100) / 100,
+        employeesCount: employees.length,
+        activeEmployeesCount: new Set(logs.map((l) => l.employeeId)).size,
+      },
+    };
+  }
+
+  private getIsoWeek(date: Date): number {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  }
 }
+
 

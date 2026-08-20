@@ -116,6 +116,31 @@ export default function DashboardPage() {
   const [bulkAssignEmployeesModalOpen, setBulkAssignEmployeesModalOpen] = useState(false);
   const [bulkSelectedEmployeeIds, setBulkSelectedEmployeeIds] = useState<string[]>([]);
 
+  // Analytics Charts States
+  const [analyticsTimeframe, setAnalyticsTimeframe] = useState<"weekly" | "monthly">("weekly");
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  const fetchAnalytics = async (tf: "weekly" | "monthly") => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) return;
+    setAnalyticsLoading(true);
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/attendance/analytics?timeframe=${tf}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setAnalyticsData(data);
+      }
+    } catch (e) {
+      console.warn("Could not load dashboard analytics", e);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  };
+
   const showAlert = (options: Omit<CustomAlertOptions, "isOpen">) => {
     setAlertConfig({ ...options, isOpen: true });
   };
@@ -644,6 +669,9 @@ export default function DashboardPage() {
             const logsJson = logsRes.ok ? await logsRes.json() : null;
             setRecentActivityLogs(logsJson?.data || []);
           }
+
+          // Fetch dashboard analytics
+          fetchAnalytics("weekly");
 
           setIsOffline(false);
         }
@@ -1283,6 +1311,194 @@ export default function DashboardPage() {
                 </h4>
               </div>
               <p className="text-[10px] text-slate-400 mt-1.5">Assigned staging zones</p>
+            </div>
+          </div>
+
+          {/* ── Dashboard Analytics Charts (Soll vs. Ist & Team Trend) ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Chart 1: Employee Soll vs. Ist Comparison */}
+            <div className="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <div>
+                  <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-blue-600" />
+                    Mitarbeiter-Arbeitszeiten: Soll vs. Ist
+                  </h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    {analyticsData?.range?.label || "Aktueller Zeitraum"} (Soll: {analyticsTimeframe === 'weekly' ? '40h' : '160h'})
+                  </p>
+                </div>
+                <div className="flex bg-slate-100 p-1 rounded-xl shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => { setAnalyticsTimeframe("weekly"); fetchAnalytics("weekly"); }}
+                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      analyticsTimeframe === "weekly" ? "bg-white text-blue-600 shadow-xs" : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    Wöchentlich
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setAnalyticsTimeframe("monthly"); fetchAnalytics("monthly"); }}
+                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      analyticsTimeframe === "monthly" ? "bg-white text-blue-600 shadow-xs" : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    Monatlich
+                  </button>
+                </div>
+              </div>
+
+              {/* Employee rows */}
+              <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
+                {analyticsLoading ? (
+                  <div className="py-12 flex justify-center items-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                  </div>
+                ) : !analyticsData?.employeeStats || analyticsData.employeeStats.length === 0 ? (
+                  <div className="text-center py-10 text-xs text-slate-400 italic">
+                    Keine Mitarbeiterdaten für diesen Zeitraum vorhanden.
+                  </div>
+                ) : (
+                  analyticsData.employeeStats.map((emp: any) => {
+                    const pct = Math.min(100, emp.percentage || 0);
+                    const isOvertime = emp.ist >= emp.soll;
+                    return (
+                      <div key={emp.id} className="p-3 bg-slate-50/70 hover:bg-slate-50 rounded-xl border border-slate-100 space-y-1.5 transition-colors">
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-slate-800">{emp.name}</span>
+                            {emp.absenceDays > 0 && (
+                              <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-200 px-1.5 py-0.2 rounded font-bold">
+                                {emp.absenceDays} Abwesenheit(en)
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-slate-800">
+                              {emp.ist.toFixed(1)} / {emp.soll.toFixed(0)} h
+                            </span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              isOvertime ? "bg-emerald-100 text-emerald-800 font-mono" : emp.ist > 0 ? "bg-blue-100 text-blue-800 font-mono" : "bg-slate-200 text-slate-600"
+                            }`}>
+                              {emp.percentage}%
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Progress bar */}
+                        <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              isOvertime ? "bg-emerald-500" : emp.ist > 0 ? "bg-blue-600" : "bg-slate-300"
+                            }`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Chart 2: Total Working Hours Trend */}
+            <div className="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <div>
+                  <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-emerald-600" />
+                    Gesamtarbeitszeit aller Mitarbeiter
+                  </h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Summierte Teamstunden & Auslastung im Zeitverlauf
+                  </p>
+                </div>
+                <div className="flex bg-slate-100 p-1 rounded-xl shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => { setAnalyticsTimeframe("weekly"); fetchAnalytics("weekly"); }}
+                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      analyticsTimeframe === "weekly" ? "bg-white text-blue-600 shadow-xs" : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    Wöchentlich
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setAnalyticsTimeframe("monthly"); fetchAnalytics("monthly"); }}
+                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      analyticsTimeframe === "monthly" ? "bg-white text-blue-600 shadow-xs" : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    Monatlich
+                  </button>
+                </div>
+              </div>
+
+              {/* Summary metrics header */}
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-blue-50/70 border border-blue-100 p-2.5 rounded-xl">
+                  <p className="text-[10px] font-bold text-blue-800 uppercase tracking-wider">Gesamtstunden</p>
+                  <p className="text-lg font-mono font-extrabold text-blue-950 mt-0.5">
+                    {analyticsData?.summary?.totalIst?.toFixed(1) || "0.0"} h
+                  </p>
+                </div>
+                <div className="bg-emerald-50/70 border border-emerald-100 p-2.5 rounded-xl">
+                  <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">Aktive Mitarbeiter</p>
+                  <p className="text-lg font-mono font-extrabold text-emerald-950 mt-0.5">
+                    {analyticsData?.summary?.activeEmployeesCount || 0}
+                  </p>
+                </div>
+                <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Team Soll-Summe</p>
+                  <p className="text-lg font-mono font-extrabold text-slate-800 mt-0.5">
+                    {analyticsData?.summary?.totalSoll?.toFixed(0) || "0"} h
+                  </p>
+                </div>
+              </div>
+
+              {/* Trend Bars */}
+              <div className="space-y-2.5 pt-1 max-h-[280px] overflow-y-auto pr-1">
+                {analyticsLoading ? (
+                  <div className="py-12 flex justify-center items-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-600"></div>
+                  </div>
+                ) : !analyticsData?.aggregatedTrend || analyticsData.aggregatedTrend.length === 0 ? (
+                  <div className="text-center py-10 text-xs text-slate-400 italic">
+                    Keine Trenddaten für diesen Zeitraum vorhanden.
+                  </div>
+                ) : (
+                  (() => {
+                    const maxH = Math.max(...analyticsData.aggregatedTrend.map((t: any) => t.totalHours), 1);
+                    return analyticsData.aggregatedTrend.map((tItem: any, idx: number) => {
+                      const barWidth = Math.min(100, Math.round((tItem.totalHours / maxH) * 100));
+                      return (
+                        <div key={idx} className="space-y-1">
+                          <div className="flex justify-between text-xs">
+                            <span className="font-semibold text-slate-700">{tItem.label}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-slate-400">
+                                {tItem.activeCount} Mitarbeiter
+                              </span>
+                              <span className="font-mono font-bold text-slate-900">
+                                {tItem.totalHours.toFixed(1)} h
+                              </span>
+                            </div>
+                          </div>
+                          <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-linear-to-r from-blue-500 to-emerald-500 rounded-full transition-all duration-500"
+                              style={{ width: `${barWidth}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()
+                )}
+              </div>
             </div>
           </div>
 

@@ -94,6 +94,9 @@ model User {
   universalDocuments  UniversalDocument[]
   scannerDevices      ScannerDevice[]
   scanJobs            ScanJob[]
+  planSegments        EmployeePlanSegment[] @relation("EmployeePlanSegments")
+  absences            EmployeeAbsence[]     @relation("EmployeeAbsences")
+  createdAbsences     EmployeeAbsence[]     @relation("AbsenceCreatedBy")
 
   @@index([warehouseId])
   @@index([hallId])
@@ -179,6 +182,7 @@ model Plan {
   locations          PlanLocation[]
   assignedEmployees  PlanEmployee[]
   assignedContainers PlanContainer[]
+  employeeSegments   EmployeePlanSegment[]
 
   @@index([date])
   @@index([startTime, endTime])
@@ -540,5 +544,56 @@ model ScanJob {
   @@index([deviceId])
   @@index([status])
   @@index([createdAt])
+}
+
+// ─── Absence Status Enum ─────────────────────────────────────────────────────
+
+enum AbsenceStatus {
+  NICHT_GEARBEITET
+  KRANK
+  ABWESEND_GRUND
+}
+
+// ─── Employee Plan Segments (Individual Treffpunkt & Time Segments) ──────────
+
+model EmployeePlanSegment {
+  id             String    @id @default(uuid())
+  employeeId     String
+  employee       User      @relation("EmployeePlanSegments", fields: [employeeId], references: [id], onDelete: Cascade)
+  date           DateTime  // Normalized UTC midnight date (YYYY-MM-DD)
+  planId         String?
+  plan           Plan?     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  treffpunkt     String    // e.g. "Büro", "Baustelle A", "Adresse B"
+  treffpunktTime String?   // "07:45" (Treffzeit - strictly excluded from working hours)
+  startTime      String    // "08:00" (Arbeitsbeginn)
+  endTime        String?   // "10:00" (Arbeitsende)
+  notes          String?
+  order          Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([employeeId, date])
+  @@index([planId])
+  @@index([date])
+}
+
+// ─── Employee Absence / Status Tracking ──────────────────────────────────────
+
+model EmployeeAbsence {
+  id          String        @id @default(uuid())
+  employeeId  String
+  employee    User          @relation("EmployeeAbsences", fields: [employeeId], references: [id], onDelete: Cascade)
+  date        DateTime      // Normalized UTC midnight date (YYYY-MM-DD)
+  status      AbsenceStatus @default(NICHT_GEARBEITET)
+  reason      String?       // "Arzttermin", "Privater Termin", "Behördentermin", "Urlaub", "Sonstiger Grund", etc.
+  notes       String?
+  createdById String?
+  createdBy   User?         @relation("AbsenceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([employeeId, date])
+  @@index([employeeId, date])
+  @@index([date])
 }
 
