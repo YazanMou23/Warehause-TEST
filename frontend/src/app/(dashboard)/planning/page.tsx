@@ -232,6 +232,50 @@ function PlanningPageContent() {
     return null;
   };
 
+  // Helper to check if segment times stay within the official plan range
+  const isSegmentWithinOfficialPlan = (
+    segStart?: string,
+    segEnd?: string,
+    pStart?: string,
+    pEnd?: string,
+    pOpen?: boolean
+  ): boolean => {
+    if (!segStart || !pStart) return true;
+    const toMinutes = (timeStr?: string) => {
+      if (!timeStr) return null;
+      const parts = timeStr.split(":");
+      if (parts.length < 2) return null;
+      const h = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      return isNaN(h) || isNaN(m) ? null : h * 60 + m;
+    };
+    const sSeg = toMinutes(segStart);
+    const sPlan = toMinutes(pStart);
+    if (sSeg !== null && sPlan !== null && sSeg < sPlan) {
+      return false; // starts earlier than official plan start
+    }
+    if (!pOpen && pEnd && segEnd) {
+      const eSeg = toMinutes(segEnd);
+      const ePlan = toMinutes(pEnd);
+      if (eSeg !== null && ePlan !== null && eSeg > ePlan) {
+        return false; // ends later than official plan end
+      }
+    }
+    return true;
+  };
+
+  // Helper to compute default pickup time (15 mins before work start)
+  const getDefaultPickupTime = (workStart?: string, minusMinutes: number = 15): string => {
+    if (!workStart) return "07:45";
+    const parts = workStart.split(":").map(Number);
+    if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) return "07:45";
+    let totMin = parts[0] * 60 + parts[1] - minusMinutes;
+    if (totMin < 0) totMin += 24 * 60;
+    const h = Math.floor(totMin / 60);
+    const m = totMin % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  };
+
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
     if (!token) {
@@ -498,6 +542,9 @@ function PlanningPageContent() {
       } else {
         // Add employee and initialize default segment
         const emp = employees.find((e) => e.id === empId);
+        const defaultStart = startTime || "08:00";
+        const defaultEnd = endTimeOpen ? "" : (endTime || "14:00");
+        const defaultPickup = getDefaultPickupTime(defaultStart, 15);
         setEmployeeSegments((segMap) => ({
           ...segMap,
           [empId]: segMap[empId] && segMap[empId].length > 0
@@ -505,10 +552,10 @@ function PlanningPageContent() {
             : [
                 {
                   employeeId: empId,
-                  treffpunkt: emp?.treffpunkt || treffpunkt || "Büro",
-                  treffpunktTime: emp?.treffpunktTime || treffpunktTime || "05:30",
-                  startTime: startTime || "06:00",
-                  endTime: endTimeOpen ? "" : (endTime || "14:00"),
+                  treffpunkt: "Büro",
+                  treffpunktTime: defaultPickup,
+                  startTime: defaultStart,
+                  endTime: defaultEnd,
                   notes: "",
                   order: 0,
                 },
@@ -522,13 +569,21 @@ function PlanningPageContent() {
   const handleAddSegmentForEmployee = (empId: string) => {
     const currentSegs = employeeSegments[empId] || [];
     const lastSeg = currentSegs[currentSegs.length - 1];
-    const newStart = lastSeg ? lastSeg.endTime || "10:00" : "10:00";
-    const newEnd = "14:00";
+    const newStart = lastSeg?.endTime || (startTime || "10:00");
+    const newEnd = endTimeOpen ? "" : (endTime || "14:00");
+    const newPickup = getDefaultPickupTime(newStart, 15);
+
+    // Pick a suggestion for Treffpunkt from selected locations or "Baustelle A"
+    let defaultLocName = "Baustelle A";
+    if (selectedLocations.length > 0) {
+      const matchedHall = halls.find((h) => h.id === selectedLocations[0].hallId);
+      if (matchedHall) defaultLocName = matchedHall.name;
+    }
 
     const newSeg: EmployeePlanSegmentItem = {
       employeeId: empId,
-      treffpunkt: "Baustelle A",
-      treffpunktTime: "09:45",
+      treffpunkt: defaultLocName,
+      treffpunktTime: newPickup,
       startTime: newStart,
       endTime: newEnd,
       notes: "",
@@ -1179,14 +1234,28 @@ function PlanningPageContent() {
           </div>
         </div>
 
-        {/* Global Shift & Working Time Details */}
-        <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-200/80">
-          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-            Standard-Arbeitszeit für neue Zuweisungen
-          </p>
-          <div className="flex flex-wrap items-center gap-4">
+        {/* Level 1: Official Plan Master Working Time Window */}
+        <div className="space-y-3 bg-linear-to-r from-blue-50/70 to-slate-50 p-5 rounded-2xl border-2 border-blue-200/80 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-blue-200/60 pb-2.5">
+            <div>
+              <p className="text-xs font-extrabold text-blue-950 uppercase tracking-wider flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-blue-600" />
+                Ebene 1: Offizieller Schichtplan — Master-Arbeitszeit
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Definiert den offiziellen Haupt-Zeitrahmen für diesen Tag. Individuelle Treffpunkte und Arbeitszeit-Abschnitte werden direkt pro Mitarbeiter zugeordnet.
+              </p>
+            </div>
+            <span className={`text-xs font-mono font-extrabold px-3 py-1 rounded-full border shadow-2xs shrink-0 ${
+              endTimeOpen ? "bg-amber-100 text-amber-950 border-amber-300" : "bg-blue-600 text-white border-blue-700"
+            }`}>
+              Offiziell: {getFormattedShift()}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-4 pt-1">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-600">Von:</span>
+              <span className="text-xs font-bold text-slate-700">Plan-Beginn:</span>
               <input
                 type="time"
                 value={startTime}
@@ -1194,14 +1263,14 @@ function PlanningPageContent() {
                   setStartTime(e.target.value);
                   setShiftPreset("Benutzerdefiniert");
                 }}
-                className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-2xs"
+                className="bg-white border-2 border-slate-300 rounded-xl px-3 py-1.5 text-xs font-extrabold text-slate-900 outline-none focus:border-blue-600 shadow-2xs font-mono"
               />
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-600">Bis:</span>
+              <span className="text-xs font-bold text-slate-700">Plan-Ende:</span>
               {endTimeOpen ? (
-                <span className="px-3 py-1.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-xs font-bold font-mono">
+                <span className="px-3.5 py-1.5 bg-amber-100 text-amber-950 border-2 border-amber-300 rounded-xl text-xs font-extrabold font-mono shadow-2xs">
                   Offen (Open End)
                 </span>
               ) : (
@@ -1212,12 +1281,12 @@ function PlanningPageContent() {
                     setEndTime(e.target.value);
                     setShiftPreset("Benutzerdefiniert");
                   }}
-                  className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-2xs"
+                  className="bg-white border-2 border-slate-300 rounded-xl px-3 py-1.5 text-xs font-extrabold text-slate-900 outline-none focus:border-blue-600 shadow-2xs font-mono"
                 />
               )}
             </div>
 
-            <label className="flex items-center gap-2 cursor-pointer select-none bg-white border border-slate-200 rounded-lg px-3 py-1.5 hover:border-blue-300 transition-colors shadow-2xs">
+            <label className="flex items-center gap-2 cursor-pointer select-none bg-white border-2 border-slate-200 rounded-xl px-3.5 py-1.5 hover:border-blue-300 transition-colors shadow-2xs">
               <input
                 type="checkbox"
                 checked={endTimeOpen}
@@ -1229,52 +1298,10 @@ function PlanningPageContent() {
                     setEndTime("14:00");
                   }
                 }}
-                className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
               />
-              <span className="text-[11px] font-semibold text-slate-700">Offene Endzeit (Open End)</span>
+              <span className="text-xs font-bold text-slate-700">Offenes Schichtende (Open End)</span>
             </label>
-
-            <span className={`text-xs font-mono font-bold px-3 py-1 rounded-full border shadow-2xs ${endTimeOpen ? "bg-amber-100 text-amber-900 border-amber-200" : "bg-blue-50 text-blue-800 border-blue-200"}`}>
-              ⏰ {getFormattedShift()}
-            </span>
-          </div>
-        </div>
-
-        {/* Global Treffzeit & Treffpunkt Defaults */}
-        <div className="space-y-1.5 bg-amber-50/70 p-4 rounded-xl border border-amber-200/80 shadow-2xs">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-amber-700 shrink-0" />
-              <div>
-                <span className="text-xs font-bold text-amber-950 block">Standard-Treffpunkt & Treffzeit (Vorgabe):</span>
-                <span className="text-[10px] text-amber-700 font-medium">
-                  ⚠️ Treffzeit dient der Logistik/Abholung und wird <strong>NICHT</strong> als Arbeitszeit berechnet.
-                </span>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-semibold text-amber-900">Treffzeit:</span>
-                <input
-                  type="time"
-                  value={treffpunktTime}
-                  onChange={(e) => setTreffpunktTime(e.target.value)}
-                  className="bg-white border border-amber-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 outline-none focus:border-amber-500 shadow-2xs"
-                />
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-semibold text-amber-900">Treffpunkt:</span>
-                <input
-                  type="text"
-                  placeholder="z.B. Hauptbahnhof Duisburg"
-                  value={treffpunkt}
-                  onChange={(e) => setTreffpunkt(e.target.value)}
-                  className="bg-white border border-amber-300 rounded-lg px-3 py-1 text-xs text-slate-800 outline-none focus:border-amber-500 shadow-2xs min-w-[220px]"
-                />
-              </div>
-            </div>
           </div>
         </div>
 
@@ -1427,25 +1454,25 @@ function PlanningPageContent() {
         )}
       </div>
 
-      {/* ── Individual Employee Segments & Treffpunkte Editor ── */}
+      {/* ── Ebene 2: Individual Employee Segments & Treffpunkte Editor ── */}
       {assignedEmployeeIds.length > 0 && (
-        <div className="bg-white border border-slate-100 p-6 rounded-xl shadow-sm space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-3">
+        <div className="bg-white border-2 border-slate-200 p-6 rounded-2xl shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200 pb-4">
             <div>
-              <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-blue-600" />
-                Mitarbeiter-spezifische Treffpunkte & Arbeitszeit-Abschnitte ({assignedEmployeeIds.length})
+              <h4 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-blue-600" />
+                Ebene 2: Mitarbeiter-Einsatzplanung — Individuelle Treffpunkte & Abschnitte ({assignedEmployeeIds.length})
               </h4>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Verwalten Sie individuelle Treffpunkte und mehrteilige Arbeitszeit-Segmente pro Mitarbeiter.
+              <p className="text-xs text-slate-500 mt-0.5">
+                Jeder Mitarbeiter kann einen oder mehrere Treffpunkte & Arbeitszeit-Abschnitte haben. Offizieller Plan: <strong className="text-slate-800 font-mono">{getFormattedShift()}</strong>
               </p>
             </div>
-            <span className="text-xs bg-amber-50 text-amber-900 border border-amber-200 px-3 py-1 rounded-full font-bold">
-              ⏰ Treffzeit ≠ Arbeitszeit (Nur Von-Bis zählt)
+            <span className="text-xs bg-amber-100 text-amber-950 border border-amber-300 px-3 py-1.5 rounded-xl font-bold shadow-2xs shrink-0">
+              ⚠️ Treffzeit (Abholung) ist <strong>keine Arbeitszeit</strong>
             </span>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-5">
             {assignedEmployeeIds.map((empId) => {
               const emp = employees.find((e) => e.id === empId);
               if (!emp) return null;
@@ -1455,48 +1482,58 @@ function PlanningPageContent() {
                 0
               );
               const overlapWarning = checkEmployeeOverlap(segs);
+              const hasOutOfPlanSegment = segs.some(
+                (s) => !isSegmentWithinOfficialPlan(s.startTime, s.endTime, startTime, endTime, endTimeOpen)
+              );
 
               return (
                 <div
                   key={emp.id}
-                  className={`border rounded-xl p-4 transition-all space-y-3 ${
+                  className={`border-2 rounded-2xl p-4 sm:p-5 transition-all space-y-4 shadow-sm ${
                     overlapWarning
-                      ? "border-red-300 bg-red-50/40"
-                      : "border-slate-200 bg-slate-50/40 hover:border-slate-300"
+                      ? "border-red-300 bg-red-50/50"
+                      : hasOutOfPlanSegment
+                      ? "border-amber-300 bg-amber-50/40"
+                      : "border-slate-200 bg-slate-50/50 hover:border-slate-300"
                   }`}
                 >
                   {/* Card Header */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 pb-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
+                      <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-extrabold text-sm shadow-xs">
                         {emp.name.substring(0, 2).toUpperCase()}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <p className="text-xs font-extrabold text-slate-900">{emp.name}</p>
+                          <p className="text-sm font-extrabold text-slate-900">{emp.name}</p>
                           <span
-                            className={`px-2 py-0.5 rounded text-[9px] font-bold tracking-wider font-mono ${
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider font-mono ${
                               emp.role === "TEAM_LEADER"
-                                ? "bg-amber-100 text-amber-900 border border-amber-200"
-                                : "bg-slate-200 text-slate-700"
+                                ? "bg-amber-100 text-amber-950 border border-amber-300"
+                                : "bg-slate-200 text-slate-800"
                             }`}
                           >
                             {emp.role === "TEAM_LEADER" ? "Vorarbeiter" : "Mitarbeiter"}
                           </span>
                         </div>
-                        <p className="text-[10px] text-slate-400 font-mono">{emp.phone || "Keine Telefonnummer"}</p>
+                        <p className="text-xs text-slate-500 font-mono mt-0.5">{emp.phone || "Keine Telefonnummer"}</p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-extrabold text-blue-900 bg-blue-100/80 px-3 py-1 rounded-full border border-blue-200">
-                        Gesamt-Arbeitszeit: {totalHours.toFixed(1)} Std.
-                      </span>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                          Netto-Arbeitszeit
+                        </span>
+                        <span className="text-sm font-mono font-extrabold text-blue-950 bg-blue-100/90 px-3 py-1 rounded-xl border border-blue-300 inline-block mt-0.5">
+                          {totalHours.toFixed(2)} h (Treffzeit exkl.)
+                        </span>
+                      </div>
                       <button
                         type="button"
                         onClick={() => toggleEmployee(emp.id)}
-                        className="text-slate-400 hover:text-red-600 p-1 rounded-lg hover:bg-slate-200 transition-colors"
-                        title="Mitarbeiter aus Schicht entfernen"
+                        className="text-slate-400 hover:text-red-600 p-2 rounded-xl hover:bg-slate-200 transition-colors cursor-pointer"
+                        title="Mitarbeiter aus Schichtplan entfernen"
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -1505,114 +1542,151 @@ function PlanningPageContent() {
 
                   {/* Overlap Error Banner */}
                   {overlapWarning && (
-                    <div className="bg-red-100 text-red-900 border border-red-200 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2">
+                    <div className="bg-red-100 text-red-900 border-2 border-red-300 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-2xs">
                       <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
                       <span>{overlapWarning}</span>
                     </div>
                   )}
 
-                  {/* Segments List */}
-                  <div className="space-y-2.5">
-                    {segs.map((seg, idx) => {
-                      const segHours = calculateSegmentHours(seg.startTime, seg.endTime);
-                      return (
-                        <div
-                          key={idx}
-                          className="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center text-xs shadow-2xs"
-                        >
-                          <div className="sm:col-span-1 flex items-center gap-1">
-                            <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-[10px]">
-                              {idx + 1}
-                            </span>
-                          </div>
+                  {/* Out of Official Plan Range Warning */}
+                  {hasOutOfPlanSegment && !overlapWarning && (
+                    <div className="bg-amber-100/90 text-amber-950 border border-amber-300 px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-2xs">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>
+                        Hinweis: Einzelne Abschnitte weichen vom offiziellen Plan-Zeitrahmen ({getFormattedShift()}) ab.
+                      </span>
+                    </div>
+                  )}
 
-                          {/* Treffpunkt */}
-                          <div className="sm:col-span-3 space-y-0.5">
-                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
-                              Treffpunkt:
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="z.B. Büro / Baustelle A"
-                              value={seg.treffpunkt}
-                              onChange={(e) => handleUpdateSegment(emp.id, idx, "treffpunkt", e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-800 outline-none focus:border-blue-500"
-                            />
-                          </div>
+                  {/* Segments Table */}
+                  <div className="overflow-x-auto">
+                    <div className="min-w-[680px] space-y-2">
+                      {/* Table Column Headers */}
+                      <div className="grid grid-cols-[36px_140px_1fr_110px_110px_90px_40px] gap-2 px-2 py-1 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider items-center">
+                        <div className="text-center">#</div>
+                        <div className="text-amber-800">⏰ Treffzeit</div>
+                        <div>📍 Treffpunkt / Einsatzort</div>
+                        <div>Von (Arbeit)</div>
+                        <div>Bis (Arbeit)</div>
+                        <div className="text-right">Netto (h)</div>
+                        <div className="text-center">Aktion</div>
+                      </div>
 
-                          {/* Treffzeit (Non-working) */}
-                          <div className="sm:col-span-2 space-y-0.5">
-                            <label className="text-[9px] font-bold text-amber-700 uppercase tracking-wider block flex items-center gap-1">
-                              ⏰ Treffzeit:
-                            </label>
-                            <input
-                              type="time"
-                              value={seg.treffpunktTime || ""}
-                              onChange={(e) => handleUpdateSegment(emp.id, idx, "treffpunktTime", e.target.value)}
-                              className="w-full bg-amber-50/60 border border-amber-200 rounded px-2 py-1 text-xs font-bold text-amber-950 outline-none focus:border-amber-400"
-                              title="Treffzeit (wird nicht zur Arbeitszeit gezählt)"
-                            />
-                          </div>
+                      {segs.map((seg, idx) => {
+                        const segHours = calculateSegmentHours(seg.startTime, seg.endTime);
+                        const isOut = !isSegmentWithinOfficialPlan(seg.startTime, seg.endTime, startTime, endTime, endTimeOpen);
+                        return (
+                          <div
+                            key={idx}
+                            className={`bg-white border rounded-xl p-2.5 grid grid-cols-[36px_140px_1fr_110px_110px_90px_40px] gap-2 items-center text-xs shadow-2xs transition-colors ${
+                              isOut ? "border-amber-300 bg-amber-50/20" : "border-slate-200 hover:border-blue-200"
+                            }`}
+                          >
+                            {/* # Index */}
+                            <div className="flex justify-center">
+                              <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-800 flex items-center justify-center font-extrabold text-[11px] font-mono border border-slate-200">
+                                {idx + 1}
+                              </span>
+                            </div>
 
-                          {/* Arbeitsbeginn */}
-                          <div className="sm:col-span-2 space-y-0.5">
-                            <label className="text-[9px] font-bold text-slate-600 uppercase tracking-wider block">
-                              Arbeitsbeginn (Von):
-                            </label>
-                            <input
-                              type="time"
-                              value={seg.startTime}
-                              onChange={(e) => handleUpdateSegment(emp.id, idx, "startTime", e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-800 outline-none focus:border-blue-500"
-                            />
-                          </div>
+                            {/* Treffzeit (Non-working Pickup) */}
+                            <div>
+                              <input
+                                type="time"
+                                value={seg.treffpunktTime || ""}
+                                onChange={(e) => handleUpdateSegment(emp.id, idx, "treffpunktTime", e.target.value)}
+                                className="w-full bg-amber-50/80 border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-amber-950 outline-none focus:border-amber-500 focus:bg-white font-mono"
+                                title="Treffzeit (wird nicht zur Arbeitszeit gezählt)"
+                              />
+                            </div>
 
-                          {/* Arbeitsende */}
-                          <div className="sm:col-span-2 space-y-0.5">
-                            <label className="text-[9px] font-bold text-slate-600 uppercase tracking-wider block">
-                              Arbeitsende (Bis):
-                            </label>
-                            <input
-                              type="time"
-                              value={seg.endTime}
-                              onChange={(e) => handleUpdateSegment(emp.id, idx, "endTime", e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-800 outline-none focus:border-blue-500"
-                            />
-                          </div>
+                            {/* Treffpunkt */}
+                            <div className="relative">
+                              <input
+                                type="text"
+                                placeholder="z.B. Büro, Baustelle A, Hall X..."
+                                value={seg.treffpunkt}
+                                onChange={(e) => handleUpdateSegment(emp.id, idx, "treffpunkt", e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500 focus:bg-white"
+                              />
+                            </div>
 
-                          {/* Duration Badge & Remove Action */}
-                          <div className="sm:col-span-2 flex items-center justify-between sm:justify-end gap-2 pt-1 sm:pt-0">
-                            <span className="font-mono font-bold text-[11px] bg-slate-100 text-slate-800 px-2 py-0.5 rounded border border-slate-200">
-                              {segHours.toFixed(1)} h
-                            </span>
-                            {segs.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveSegment(emp.id, idx)}
-                                className="text-slate-400 hover:text-red-600 p-1 rounded hover:bg-slate-100 transition-colors"
-                                title="Abschnitt entfernen"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
+                            {/* Arbeitsbeginn */}
+                            <div>
+                              <input
+                                type="time"
+                                value={seg.startTime}
+                                onChange={(e) => handleUpdateSegment(emp.id, idx, "startTime", e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 outline-none focus:border-blue-500 focus:bg-white font-mono"
+                              />
+                            </div>
+
+                            {/* Arbeitsende */}
+                            <div>
+                              <input
+                                type="time"
+                                value={seg.endTime || ""}
+                                onChange={(e) => handleUpdateSegment(emp.id, idx, "endTime", e.target.value)}
+                                placeholder="offen"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 outline-none focus:border-blue-500 focus:bg-white font-mono"
+                              />
+                            </div>
+
+                            {/* Duration Badge */}
+                            <div className="text-right">
+                              <span className="font-mono font-extrabold text-xs bg-slate-100 text-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 inline-block">
+                                {segHours.toFixed(1)} h
+                              </span>
+                            </div>
+
+                            {/* Remove Action */}
+                            <div className="flex justify-center">
+                              {segs.length > 1 ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveSegment(emp.id, idx)}
+                                  className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                                  title="Abschnitt löschen"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              ) : (
+                                <span className="text-slate-200 text-xs">—</span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
 
-                  {/* Add Segment Button */}
-                  <div className="pt-1 flex items-center justify-between">
+                  {/* Add Segment Button & Location Shortcuts */}
+                  <div className="pt-1 flex flex-wrap items-center justify-between gap-2">
                     <button
                       type="button"
                       onClick={() => handleAddSegmentForEmployee(emp.id)}
-                      className="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      className="text-xs font-bold text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-300 px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
                     >
-                      <Plus className="w-3.5 h-3.5" /> Weiteren Treffpunkt / Arbeitszeit-Abschnitt hinzufügen
+                      <Plus className="w-3.5 h-3.5" /> + Treffpunkt / Arbeitszeit hinzufügen
                     </button>
-                    <span className="text-[10px] text-slate-400 font-medium">
-                      z.B. 08:00–10:00 Büro, danach 10:00–14:00 Baustelle A
-                    </span>
+                    <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                      <span className="font-semibold text-slate-400">Schnell-Treffpunkte:</span>
+                      {["Büro", "Baustelle A", "Baustelle B"].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => {
+                            const lastIdx = segs.length - 1;
+                            if (lastIdx >= 0) {
+                              handleUpdateSegment(emp.id, lastIdx, "treffpunkt", preset);
+                            }
+                          }}
+                          className="px-2 py-0.5 bg-white border border-slate-200 hover:border-blue-400 hover:text-blue-600 rounded-md text-[10px] font-medium transition-colors cursor-pointer"
+                        >
+                          {preset}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               );
@@ -1951,67 +2025,90 @@ function PlanningPageContent() {
                       </div>
                     </div>
 
-                    {/* Shift Info */}
+                    {/* Shift & Master Time Info */}
                     <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
-                      <span className="font-extrabold text-slate-800 text-xs flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+                      <span className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5 bg-blue-50 text-blue-900 px-3 py-1 rounded-lg border border-blue-200 shadow-2xs">
                         <Clock className="w-3.5 h-3.5 text-blue-600" />
-                        {plan.shift || "Schicht"}
+                        Offizielle Arbeitszeit: {plan.shift || "Schicht"}
                       </span>
 
                       {plan.treffpunktTime && (
-                        <span className="px-2.5 py-1 bg-amber-100/90 text-amber-950 font-mono text-xs font-bold rounded-md border border-amber-300/80">
-                          ⏰ Treff: {plan.treffpunktTime} Uhr
+                        <span className="px-2.5 py-1 bg-amber-50 text-amber-900 font-mono text-xs font-bold rounded-lg border border-amber-200 shadow-2xs">
+                          ⏰ Standard-Treff: {plan.treffpunktTime}
                         </span>
                       )}
                       {plan.treffpunkt && (
-                        <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-xs font-medium rounded-md border border-slate-200 flex items-center gap-1">
-                          <MapPin className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg border border-slate-200 flex items-center gap-1 shadow-2xs">
+                          <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                           {plan.treffpunkt}
                         </span>
                       )}
                     </div>
 
-                    {/* Employees with Segments Breakdown */}
-                    <div className="space-y-1.5 pt-1">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                        <Users className="w-3 h-3 text-slate-400" />
-                        Eingeteilte Mitarbeiter ({plan.assignedEmployees?.length || 0}):
+                    {/* Employees with Segments Breakdown Table */}
+                    <div className="space-y-2 pt-1">
+                      <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                        <Users className="w-3.5 h-3.5 text-blue-600" />
+                        Mitarbeiter-Einsätze & Treffpunkte ({plan.assignedEmployees?.length || 0}):
                       </p>
-                      <div className="space-y-1.5">
+                      <div className="space-y-2">
                         {plan.assignedEmployees && plan.assignedEmployees.length > 0 ? (
                           plan.assignedEmployees.map((emp: any) => {
                             const empSegs = (plan.employeeSegments || []).filter((s: any) => s.employeeId === emp.id);
+                            const totalEmpHours = empSegs.reduce(
+                              (sum: number, s: any) => sum + calculateSegmentHours(s.startTime, s.endTime),
+                              0
+                            );
                             return (
                               <div
                                 key={emp.id}
-                                className="bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs space-y-1"
+                                className="bg-slate-50/80 border border-slate-200 rounded-xl p-3 text-xs space-y-2"
                               >
                                 <div className="flex items-center justify-between">
-                                  <span className="font-extrabold text-slate-800">{emp.name}</span>
-                                  {empSegs.length > 0 && (
-                                    <span className="text-[10px] font-bold font-mono text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                                      {empSegs.length} Abschnitt(e)
-                                    </span>
-                                  )}
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-extrabold text-slate-900">{emp.name}</span>
+                                    <span className="text-[10px] font-mono text-slate-500">{emp.phone || ""}</span>
+                                  </div>
+                                  <span className="text-[11px] font-bold font-mono text-blue-900 bg-blue-100 px-2.5 py-0.5 rounded-lg border border-blue-200">
+                                    Gesamt: {totalEmpHours > 0 ? `${totalEmpHours.toFixed(1)} h` : (plan.shift || "Master")}
+                                  </span>
                                 </div>
                                 {empSegs.length > 0 ? (
-                                  <div className="grid grid-cols-1 gap-1">
-                                    {empSegs.map((seg: any, sIdx: number) => (
-                                      <div key={sIdx} className="text-[11px] text-slate-600 flex flex-wrap items-center gap-2">
-                                        <span className="font-semibold text-slate-700">📍 {seg.treffpunkt || "Treffpunkt"}</span>
-                                        {seg.treffpunktTime && (
-                                          <span className="text-amber-800 font-mono font-bold bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200 text-[10px]">
-                                            Treff: {seg.treffpunktTime}
-                                          </span>
-                                        )}
-                                        <span className="text-blue-800 font-mono font-bold bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200 text-[10px]">
-                                          Arbeit: {seg.startTime} - {seg.endTime || "offen"}
-                                        </span>
-                                      </div>
-                                    ))}
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-[11px] border border-slate-200 rounded-lg overflow-hidden bg-white">
+                                      <thead>
+                                        <tr className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
+                                          <th className="py-1 px-2.5">Treffzeit</th>
+                                          <th className="py-1 px-2.5">Treffpunkt</th>
+                                          <th className="py-1 px-2.5">Arbeitszeit</th>
+                                          <th className="py-1 px-2.5 text-right">Netto-Stunden</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-100">
+                                        {empSegs.map((seg: any, sIdx: number) => {
+                                          const h = calculateSegmentHours(seg.startTime, seg.endTime);
+                                          return (
+                                            <tr key={sIdx} className="hover:bg-slate-50/80">
+                                              <td className="py-1 px-2.5 font-mono text-amber-900 font-bold">
+                                                {seg.treffpunktTime ? `⏰ ${seg.treffpunktTime}` : "—"}
+                                              </td>
+                                              <td className="py-1 px-2.5 font-semibold text-slate-800">
+                                                {seg.treffpunkt || "Büro"}
+                                              </td>
+                                              <td className="py-1 px-2.5 font-mono font-bold text-blue-900">
+                                                {seg.startTime} – {seg.endTime || "offen"}
+                                              </td>
+                                              <td className="py-1 px-2.5 font-mono font-bold text-right text-slate-800">
+                                                {h > 0 ? `${h.toFixed(1)} h` : "—"}
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
                                   </div>
                                 ) : (
-                                  <span className="text-[10px] text-slate-400">Standard-Planzeiten</span>
+                                  <span className="text-[10px] text-slate-400 italic">Folgt der offiziellen Master-Schichtzeit</span>
                                 )}
                               </div>
                             );
