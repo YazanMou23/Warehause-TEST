@@ -197,6 +197,9 @@ model PlanLocation {
   warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
   hallId      String
   hall        Hall      @relation(fields: [hallId], references: [id], onDelete: Restrict)
+  startTime   String?   // Hall-specific Arbeitsbeginn (e.g. "08:00")
+  endTime     String?   // Hall-specific Arbeitsende (e.g. "12:00", null if open end)
+  isOpenEnd   Boolean   @default(false) // Open end flag for this Hall
   notes       String?
 
   @@unique([planId, warehouseId, hallId])

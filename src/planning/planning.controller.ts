@@ -200,6 +200,12 @@ export class PlanningController {
     return this.planningService.findOne(id);
   }
 
+  @Post(':id/notify')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  resendNotification(@Param('id') id: string, @CurrentUser('id') actorId: string) {
+    return this.planningService.resendPlanNotification(id, actorId);
+  }
+
   @Patch(':id')
   @Roles(Role.MANAGER, Role.ADMIN)
   update(

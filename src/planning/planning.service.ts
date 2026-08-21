@@ -121,6 +121,9 @@ export class PlanningService {
         warehouseName: loc.warehouse ? loc.warehouse.name : '',
         hallId: loc.hallId,
         hallName: loc.hall ? loc.hall.name : '',
+        startTime: loc.startTime || null,
+        endTime: loc.endTime || null,
+        isOpenEnd: Boolean(loc.isOpenEnd),
         notes: loc.notes || null,
       })),
       shift: plan.shift,
@@ -198,7 +201,7 @@ export class PlanningService {
 
     const getLocsKey = (p: any) =>
       (p.locations || [])
-        .map((l: any) => `${l.warehouseId}_${l.hallId}`)
+        .map((l: any) => `${l.warehouseId}_${l.hallId}_${l.startTime}_${l.endTime}_${l.isOpenEnd}`)
         .sort()
         .join(',');
     if (getLocsKey(oldPlan) !== getLocsKey(newPlan)) return true;
@@ -360,7 +363,7 @@ export class PlanningService {
     );
 
     // Resolve target locations
-    const targetLocations: { warehouseId: string; hallId: string; notes?: string }[] = [];
+    const targetLocations: { warehouseId: string; hallId: string; startTime?: string; endTime?: string; isOpenEnd?: boolean; notes?: string }[] = [];
     if (createPlanDto.locations && createPlanDto.locations.length > 0) {
       targetLocations.push(...createPlanDto.locations);
     } else if (createPlanDto.warehouseId && createPlanDto.hallId) {
@@ -404,12 +407,15 @@ export class PlanningService {
         },
       });
 
-      // 2. Assign locations
+      // 2. Assign locations with individual hall times
       await tx.planLocation.createMany({
         data: targetLocations.map((loc) => ({
           planId: newPlan.id,
           warehouseId: loc.warehouseId,
           hallId: loc.hallId,
+          startTime: loc.startTime || null,
+          endTime: loc.endTime || null,
+          isOpenEnd: Boolean(loc.isOpenEnd),
           notes: loc.notes || null,
         })),
       });
@@ -509,18 +515,29 @@ export class PlanningService {
     return fullPlan;
   }
 
+  private getCalendarWeek(d: Date): number {
+    const target = new Date(d.valueOf());
+    const dayNr = (d.getDay() + 6) % 7;
+    target.setDate(target.getDate() - dayNr + 3);
+    const firstThursday = target.valueOf();
+    target.setMonth(0, 1);
+    if (target.getDay() !== 4) {
+      target.setMonth(0, 1 + ((4 - target.getDay() + 7) % 7));
+    }
+    return 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
+  }
+
+  async resendPlanNotification(planId: string, actorId?: string) {
+    const plan = await this.findOne(planId);
+    if (!plan) {
+      throw new NotFoundException(`Plan with ID ${planId} not found`);
+    }
+    await this.notifyAssignedEmployees(plan, plan.assignedEmployees, true, actorId);
+    return { success: true, message: `Benachrichtigungen für Plan ${planId} erfolgreich erneut gesendet.` };
+  }
+
   private async notifyAssignedEmployees(
-    plan: {
-      id: string;
-      date: Date;
-      warehouseName: string;
-      hallName: string;
-      shift?: string | null;
-      treffpunkt?: string | null;
-      treffpunktTime?: string | null;
-      notes?: string | null;
-      title?: string | null;
-    },
+    plan: any,
     employees: Array<{ id: string; name: string; email?: string | null; phone?: string | null }>,
     isUpdate = false,
     actorId?: string,
@@ -538,7 +555,9 @@ export class PlanningService {
     }
     if (uniqueEmployees.length === 0) return;
 
-    const formattedDate = new Date(plan.date).toLocaleDateString('de-DE');
+    const planDate = new Date(plan.date);
+    const formattedDate = planDate.toLocaleDateString('de-DE');
+    const kw = this.getCalendarWeek(planDate);
     const headerTitle = isUpdate ? 'Schichtplan aktualisiert' : 'Neue Schichtzuweisung';
 
     const userRecords = await this.prisma.user
@@ -549,6 +568,61 @@ export class PlanningService {
       .catch(() => []);
     const userMap = new Map(userRecords.map((u) => [u.id, u]));
 
+    // Fetch employee segments for this plan or date
+    const normalizedDate = this.normalizeDate(planDate.toISOString());
+    const segments: any[] = await this.prisma.employeePlanSegment
+      .findMany({
+        where: {
+          OR: [
+            { planId: plan.id },
+            { date: normalizedDate, employeeId: { in: uniqueEmployees.map((e) => e.id) } },
+          ],
+        },
+        orderBy: [{ order: 'asc' }, { startTime: 'asc' }],
+      })
+      .catch(() => []);
+
+    const segmentsByEmp: Record<string, any[]> = {};
+    segments.forEach((seg: any) => {
+      if (!segmentsByEmp[seg.employeeId]) segmentsByEmp[seg.employeeId] = [];
+      segmentsByEmp[seg.employeeId].push(seg);
+    });
+
+    // Fetch employee absences on that date
+    const absences: any[] = await this.prisma.employeeAbsence
+      .findMany({
+        where: {
+          date: normalizedDate,
+          employeeId: { in: uniqueEmployees.map((e) => e.id) },
+        },
+      })
+      .catch(() => []);
+    const absenceMap = new Map(absences.map((a: any) => [a.employeeId, a]));
+
+    // Determine master shift time
+    const shiftTime = plan.shift || (plan.startTime && plan.endTime
+      ? `${new Date(plan.startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} - ${new Date(plan.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`
+      : '08:00 - 14:00 (Standardschicht)');
+
+    // Format locations with hall-specific schedules
+    const locationsList = (plan.locations && plan.locations.length > 0)
+      ? plan.locations.map((loc: any) => ({
+          warehouseName: loc.warehouseName || loc.warehouse?.name || plan.warehouseName || 'Lager',
+          hallName: loc.hallName || loc.hall?.name || plan.hallName || 'Halle',
+          startTime: loc.startTime || null,
+          endTime: loc.endTime || null,
+          isOpenEnd: Boolean(loc.isOpenEnd),
+          notes: loc.notes || null,
+        }))
+      : [{
+          warehouseName: plan.warehouseName || 'Lager',
+          hallName: plan.hallName || 'Halle',
+          startTime: null,
+          endTime: null,
+          isOpenEnd: false,
+          notes: null,
+        }];
+
     for (const employee of uniqueEmployees) {
       const uInfo = userMap.get(employee.id);
       const targetEmail = employee.email || uInfo?.email;
@@ -557,14 +631,17 @@ export class PlanningService {
       const tpOrt = plan.treffpunkt || uInfo?.treffpunkt || uInfo?.address || 'Kein Treffpunkt angegeben';
       const tpZeit = plan.treffpunktTime || uInfo?.treffpunktTime || 'Keine Treffzeit angegeben';
 
+      const empSegments = segmentsByEmp[employee.id] || [];
+      const empAbsence = absenceMap.get(employee.id);
+
       await this.prisma.notification
         .create({
           data: {
             userId: employee.id,
             title: headerTitle,
             message: isUpdate
-              ? `Ihr Schichtplan am ${formattedDate} in Halle ${plan.hallName} (${plan.warehouseName}) wurde aktualisiert. Schicht: ${plan.shift || 'Standard'}, Treffpunkt: ${tpOrt} (${tpZeit})`
-              : `Sie wurden einer Schicht am ${formattedDate} in Halle ${plan.hallName} (${plan.warehouseName}) zugewiesen. Schicht: ${plan.shift || 'Standard'}, Treffpunkt: ${tpOrt} (${tpZeit})`,
+              ? `Ihr Schichtplan am ${formattedDate} (KW ${kw}) in Halle ${plan.hallName || 'Lager'} wurde aktualisiert. Schicht: ${shiftTime}.`
+              : `Sie wurden einer Schicht am ${formattedDate} (KW ${kw}) in Halle ${plan.hallName || 'Lager'} zugewiesen. Schicht: ${shiftTime}.`,
             type: isUpdate ? 'PLAN_UPDATED' : 'PLAN_CREATED',
           },
         })
@@ -573,16 +650,25 @@ export class PlanningService {
         });
 
       if (targetEmail) {
-        const shiftTime = plan.shift || ((plan as any).startTime && (plan as any).endTime ? `${new Date((plan as any).startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} - ${new Date((plan as any).endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'Standardschicht');
-        const warehousesList = ((plan as any).locations && (plan as any).locations.length > 0)
-          ? (plan as any).locations.map((loc: any) => `${loc.warehouseName || 'Lager'} (${loc.hallName || 'Halle'})`)
-          : [`${plan.warehouseName || 'Lager'} (${plan.hallName || 'Halle'})`];
-
         const planDetails = {
           employeeName: empName,
           date: formattedDate,
-          time: shiftTime,
-          warehouses: warehousesList,
+          calendarWeek: kw,
+          masterShift: shiftTime,
+          locations: locationsList,
+          segments: empSegments.map((s) => ({
+            order: s.order,
+            treffpunkt: s.treffpunkt,
+            treffpunktTime: s.treffpunktTime || null,
+            startTime: s.startTime,
+            endTime: s.endTime || null,
+            notes: s.notes || null,
+          })),
+          absence: empAbsence ? {
+            status: empAbsence.status,
+            reason: empAbsence.reason,
+            notes: empAbsence.notes,
+          } : null,
           notes: plan.notes || 'Keine besonderen Hinweise hinterlegt.',
           title: headerTitle,
           isUpdate: isUpdate,
@@ -604,7 +690,7 @@ export class PlanningService {
                   userId: actorId || null,
                   action: isSuccess ? 'EMAIL_NOTIFICATION' : 'EMAIL_NOTIFICATION_FAILED',
                   details: isSuccess
-                    ? `Plan notification email sent to ${empName} (${targetEmail})`
+                    ? `Plan notification email sent to ${empName} (${targetEmail}) [KW ${kw}]`
                     : `Failed to send plan notification email to ${empName} (${targetEmail}): ${sent}`,
                 },
               })
@@ -616,7 +702,11 @@ export class PlanningService {
       }
 
       if (targetPhone) {
-        const waMessage = `Hallo ${empName},\n${isUpdate ? 'Ihr Schichtplan wurde aktualisiert:' : 'Sie wurden für eine neue Schicht eingeteilt:'}\n\n📅 Datum: ${formattedDate}\n🏢 Lager: ${plan.warehouseName}\n📍 Halle: ${plan.hallName}\n🕒 Schicht: ${plan.shift || 'Standard'}\n📍 Treffpunkt: ${tpOrt}\n⏰ Treffpunkt-Uhrzeit: ${tpZeit}${plan.notes ? `\n📝 Notizen: ${plan.notes}` : ''}\n\nBitte loggen Sie sich in das Portal ein für weitere Details.`;
+        let segSummary = '';
+        if (empSegments.length > 0) {
+          segSummary = '\n\nIhre Abschnitte & Treffzeiten:\n' + empSegments.map((s: any, i: number) => `${i + 1}. Treff: ${s.treffpunktTime || '-'} (${s.treffpunkt}) | Zeit: ${s.startTime}-${s.endTime || 'offen'}`).join('\n');
+        }
+        const waMessage = `Hallo ${empName},\n${isUpdate ? 'Ihr Schichtplan wurde aktualisiert:' : 'Sie wurden für eine neue Schicht eingeteilt:'}\n\n📅 Datum: ${formattedDate} (KW ${kw})\n🕒 Offizielle Arbeitszeit: ${shiftTime}${segSummary}${plan.notes ? `\n\n📝 Notizen: ${plan.notes}` : ''}\n\nBitte loggen Sie sich in das Portal ein für weitere Details.`;
 
         this.messagingService
           .sendWhatsAppDirect(targetPhone, waMessage)
@@ -684,7 +774,7 @@ export class PlanningService {
       // Update locations if specified
       if (updatePlanDto.locations !== undefined || (updatePlanDto.warehouseId && updatePlanDto.hallId)) {
         await tx.planLocation.deleteMany({ where: { planId: id } });
-        const locs: { warehouseId: string; hallId: string; notes?: string }[] = [];
+        const locs: { warehouseId: string; hallId: string; startTime?: string; endTime?: string; isOpenEnd?: boolean; notes?: string }[] = [];
         if (updatePlanDto.locations && updatePlanDto.locations.length > 0) {
           locs.push(...updatePlanDto.locations);
         } else if (updatePlanDto.warehouseId && updatePlanDto.hallId) {
@@ -704,6 +794,9 @@ export class PlanningService {
               planId: id,
               warehouseId: l.warehouseId,
               hallId: l.hallId,
+              startTime: l.startTime || null,
+              endTime: l.endTime || null,
+              isOpenEnd: Boolean(l.isOpenEnd),
               notes: l.notes || null,
             })),
           });

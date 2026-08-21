@@ -25,6 +25,9 @@ import {
   UserX,
   HeartPulse,
   HelpCircle,
+  Mail,
+  Send,
+  Sparkles,
 } from "lucide-react";
 import CustomAlertModal, { CustomAlertOptions } from "../../components/CustomAlertModal";
 
@@ -52,6 +55,10 @@ interface Employee {
 interface SelectedLocation {
   warehouseId: string;
   hallId: string;
+  startTime?: string;
+  endTime?: string;
+  isOpenEnd?: boolean;
+  notes?: string;
 }
 
 export interface EmployeePlanSegmentItem {
@@ -465,13 +472,58 @@ function PlanningPageContent() {
       setSelectedLocations(plan.locations.map((l: any) => ({
         warehouseId: l.warehouseId || l.warehouse?.id || "",
         hallId: l.hallId || l.hall?.id || "",
+        startTime: l.startTime || (plan.startTime ? new Date(plan.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:00"),
+        endTime: l.endTime || (plan.endTime ? new Date(plan.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "14:00"),
+        isOpenEnd: Boolean(l.isOpenEnd),
+        notes: l.notes || "",
       })));
     } else if (plan.warehouseId && plan.hallId) {
-      setSelectedLocations([{ warehouseId: plan.warehouseId, hallId: plan.hallId }]);
+      setSelectedLocations([{
+        warehouseId: plan.warehouseId,
+        hallId: plan.hallId,
+        startTime: startTime || "06:00",
+        endTime: endTimeOpen ? "" : (endTime || "14:00"),
+        isOpenEnd: Boolean(endTimeOpen),
+      }]);
     }
 
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [allCreatedPlans, hasInitializedFromQuery, searchParams]);
+
+  const [isResendingEmailForPlanId, setIsResendingEmailForPlanId] = useState<string | null>(null);
+
+  const handleResendPlanNotification = async (targetPlanId: string) => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) return;
+
+    setIsResendingEmailForPlanId(targetPlanId);
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/${targetPlanId}/notify`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Fehler beim Versenden der Benachrichtigungen");
+      }
+      showAlert({
+        title: "E-Mails erfolgreich versendet",
+        message: "Die vollständigen Dienstplan-Benachrichtigungen (inkl. Master-, Hallen- und Mitarbeiter-Zeiten) wurden erfolgreich an alle eingeteilten Mitarbeiter verschickt.",
+        type: "success",
+      });
+    } catch (err: any) {
+      showAlert({
+        title: "Fehler beim Versand",
+        message: err.message || "Benachrichtigungs-E-Mails konnten nicht gesendet werden.",
+        type: "error",
+      });
+    } finally {
+      setIsResendingEmailForPlanId(null);
+    }
+  };
 
   const fetchExistingPlanManual = async () => {
     const token = localStorage.getItem("accessToken");
@@ -512,9 +564,40 @@ function PlanningPageContent() {
       if (exists) {
         return prev.filter((loc) => !(loc.hallId === hallId && loc.warehouseId === warehouseId));
       } else {
-        return [...prev, { warehouseId, hallId }];
+        return [
+          ...prev,
+          {
+            warehouseId,
+            hallId,
+            startTime: startTime || "06:00",
+            endTime: endTimeOpen ? "" : (endTime || "14:00"),
+            isOpenEnd: Boolean(endTimeOpen),
+          },
+        ];
       }
     });
+  };
+
+  const updateLocationSchedule = (
+    warehouseId: string,
+    hallId: string,
+    field: "startTime" | "endTime" | "isOpenEnd" | "notes",
+    val: any
+  ) => {
+    setSelectedLocations((prev) =>
+      prev.map((loc) => {
+        if (loc.warehouseId === warehouseId && loc.hallId === hallId) {
+          const updated = { ...loc, [field]: val };
+          if (field === "isOpenEnd" && val === true) {
+            updated.endTime = "";
+          } else if (field === "isOpenEnd" && val === false && !updated.endTime) {
+            updated.endTime = "14:00";
+          }
+          return updated;
+        }
+        return loc;
+      })
+    );
   };
 
   const toggleEmployee = (empId: string) => {
@@ -813,7 +896,10 @@ function PlanningPageContent() {
         locations: selectedLocations.map((loc) => ({
           warehouseId: loc.warehouseId,
           hallId: loc.hallId,
-          notes: "",
+          startTime: loc.startTime || startTime || "06:00",
+          endTime: loc.isOpenEnd ? "" : (loc.endTime || (endTimeOpen ? "" : endTime || "14:00")),
+          isOpenEnd: Boolean(loc.isOpenEnd),
+          notes: loc.notes || "",
         })),
         assignedEmployeeIds,
         assignedContainerNumbers,
@@ -1303,6 +1389,127 @@ function PlanningPageContent() {
               <span className="text-xs font-bold text-slate-700">Offenes Schichtende (Open End)</span>
             </label>
           </div>
+        </div>
+
+        {/* Level 2: Hall-Specific Working Time Window */}
+        <div className="space-y-3 bg-linear-to-r from-emerald-50/70 to-slate-50 p-5 rounded-2xl border-2 border-emerald-200/80 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200/60 pb-2.5">
+            <div>
+              <p className="text-xs font-extrabold text-emerald-950 uppercase tracking-wider flex items-center gap-1.5">
+                <Layers className="w-4 h-4 text-emerald-600" />
+                Ebene 2: Hallen-Arbeitszeiten & Schichtfenster pro Halle
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Jede Halle kann einen eigenen Einsatzzeitraum haben (z. B. Halle X: 08:00–12:00, Halle Y: 12:00–13:00). Überschreibt nicht die Master-Arbeitszeit.
+              </p>
+            </div>
+            {selectedLocations.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedLocations((prev) =>
+                    prev.map((loc) => ({
+                      ...loc,
+                      startTime: startTime || "06:00",
+                      endTime: endTimeOpen ? "" : (endTime || "14:00"),
+                      isOpenEnd: Boolean(endTimeOpen),
+                    }))
+                  );
+                }}
+                className="text-[11px] font-bold bg-white text-emerald-800 hover:bg-emerald-100/70 px-3 py-1 rounded-xl border border-emerald-300 shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                Master-Zeiten auf alle Hallen anwenden
+              </button>
+            )}
+          </div>
+
+          {selectedLocations.length === 0 ? (
+            <div className="bg-white/80 border border-dashed border-emerald-300 rounded-xl p-4 text-center">
+              <p className="text-xs text-slate-500">
+                Wählen Sie oben im Bereich <strong>Einsatzorte</strong> mindestens eine Halle aus, um hallenspezifische Arbeitszeiten festzulegen.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+              {selectedLocations.map((loc, idx) => {
+                const wObj = warehouses.find((w) => w.id === loc.warehouseId);
+                const hObj = halls.find((h) => h.id === loc.hallId);
+                const hallColor = hObj?.color || "#10b981";
+                const locStart = loc.startTime || startTime || "06:00";
+                const locEnd = loc.endTime || (endTimeOpen ? "" : endTime || "14:00");
+                const locOpen = Boolean(loc.isOpenEnd);
+                const locHours = locOpen ? null : calculateSegmentHours(locStart, locEnd);
+
+                return (
+                  <div
+                    key={`${loc.warehouseId}-${loc.hallId}`}
+                    className="bg-white border-2 border-emerald-100 rounded-xl p-3.5 shadow-2xs space-y-3"
+                    style={{ borderLeft: `4px solid ${hallColor}` }}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: hallColor }} />
+                        <span className="text-xs font-extrabold text-slate-900">
+                          {hObj?.name || "Halle"}
+                        </span>
+                        <span className="text-[11px] text-slate-500">
+                          ({wObj?.name || "Lager"})
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        {locOpen ? "Offenes Ende" : `${locHours?.toFixed(1)} h`}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] font-bold text-slate-600">Von:</span>
+                        <input
+                          type="time"
+                          value={locStart}
+                          onChange={(e) =>
+                            updateLocationSchedule(loc.warehouseId, loc.hallId, "startTime", e.target.value)
+                          }
+                          className="bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-slate-900 outline-none focus:border-emerald-600 shadow-2xs"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] font-bold text-slate-600">Bis:</span>
+                        {locOpen ? (
+                          <span className="px-2.5 py-1 bg-amber-50 text-amber-900 border border-amber-300 rounded-lg text-xs font-mono font-bold shadow-2xs">
+                            Offen
+                          </span>
+                        ) : (
+                          <input
+                            type="time"
+                            value={locEnd}
+                            onChange={(e) =>
+                              updateLocationSchedule(loc.warehouseId, loc.hallId, "endTime", e.target.value)
+                            }
+                            className="bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-slate-900 outline-none focus:border-emerald-600 shadow-2xs"
+                          />
+                        )}
+                      </div>
+
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 hover:border-emerald-300 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={locOpen}
+                          onChange={(e) =>
+                            updateLocationSchedule(loc.warehouseId, loc.hallId, "isOpenEnd", e.target.checked)
+                          }
+                          className="w-3.5 h-3.5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        />
+                        <span className="text-[11px] font-bold text-slate-700">Offenes Ende</span>
+                      </label>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Notes TextArea */}
@@ -1952,7 +2159,22 @@ function PlanningPageContent() {
                         })}
                       </div>
 
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          disabled={isResendingEmailForPlanId === plan.id}
+                          onClick={() => handleResendPlanNotification(plan.id)}
+                          title="Dienstplan-E-Mails an alle Mitarbeiter erneut senden"
+                          className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
+                        >
+                          {isResendingEmailForPlanId === plan.id ? (
+                            <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-blue-700" />
+                          ) : (
+                            <Mail className="w-3.5 h-3.5 text-blue-700" />
+                          )}
+                          <span>E-Mail senden</span>
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => {
@@ -2004,9 +2226,20 @@ function PlanningPageContent() {
                               setSelectedLocations(plan.locations.map((l: any) => ({
                                 warehouseId: l.warehouseId || l.warehouse?.id || "",
                                 hallId: l.hallId || l.hall?.id || "",
+                                startTime: l.startTime || (plan.startTime ? new Date(plan.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:00"),
+                                endTime: l.endTime || (plan.endTime ? new Date(plan.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "14:00"),
+                                isOpenEnd: Boolean(l.isOpenEnd),
+                                notes: l.notes || "",
                               })));
                             } else if (plan.warehouseId && plan.hallId) {
-                              setSelectedLocations([{ warehouseId: plan.warehouseId, hallId: plan.hallId }]);
+                              setSelectedLocations([{
+                                warehouseId: plan.warehouseId,
+                                hallId: plan.hallId,
+                                startTime: plan.startTime ? new Date(plan.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:00",
+                                endTime: plan.endTime ? new Date(plan.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "14:00",
+                                isOpenEnd: false,
+                                notes: "",
+                              }]);
                             }
                             window.scrollTo({ top: 0, behavior: "smooth" });
                           }}
@@ -2044,6 +2277,49 @@ function PlanningPageContent() {
                         </span>
                       )}
                     </div>
+
+                    {/* Level 2: Hall-Specific Working Times */}
+                    {planLocations && planLocations.length > 0 && (
+                      <div className="space-y-1.5 pt-1">
+                        <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                          <Layers className="w-3.5 h-3.5 text-emerald-600" />
+                          Hallen-Arbeitszeiten ({planLocations.length}):
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {planLocations.map((loc: any, lIdx: number) => {
+                            const wName = warehouses.find((w) => w.id === (loc.warehouseId || loc.warehouse?.id))?.name || "Lager";
+                            const locHall = halls.find((h) => h.id === (loc.hallId || loc.hall?.id));
+                            const hName = locHall?.name || loc.hallName || "Halle";
+                            const hColor = locHall?.color || loc.hall?.color || "#10b981";
+                            const lStart = loc.startTime || (plan.startTime ? new Date(plan.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:00");
+                            const lEnd = loc.isOpenEnd ? "Offen" : (loc.endTime || (plan.endTime ? new Date(plan.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "14:00"));
+                            const lHours = loc.isOpenEnd ? null : calculateSegmentHours(lStart, lEnd);
+
+                            return (
+                              <div
+                                key={lIdx}
+                                className="bg-emerald-50/50 border border-emerald-200/80 rounded-lg p-2 text-xs flex items-center justify-between gap-2 shadow-2xs"
+                                style={{ borderLeft: `3px solid ${hColor}` }}
+                              >
+                                <div className="flex items-center gap-1.5 overflow-hidden">
+                                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: hColor }} />
+                                  <span className="font-extrabold text-slate-900 truncate">{hName}</span>
+                                  <span className="text-[10px] text-slate-500 truncate">({wName})</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <span className="font-mono text-[11px] font-bold text-emerald-950 bg-white px-2 py-0.5 rounded border border-emerald-200">
+                                    {lStart} – {lEnd}
+                                  </span>
+                                  {lHours !== null && lHours > 0 && (
+                                    <span className="text-[10px] font-mono text-emerald-700">({lHours.toFixed(1)}h)</span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Employees with Segments Breakdown Table */}
                     <div className="space-y-2 pt-1">

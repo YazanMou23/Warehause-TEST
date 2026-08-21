@@ -88,54 +88,104 @@ export class EmailService {
 
   async sendPlanNotification(email: string, planDetails: any): Promise<string | true> {
     const frontendUrl = this.getFrontendUrl();
-    
+
     const employeeName = planDetails.employeeName || planDetails.name || 'Mitarbeiter';
     const date = planDetails.date || 'Nicht angegeben';
+    const kw = planDetails.calendarWeek || planDetails.kw || '';
 
-    // Time computation
-    let time = planDetails.time;
-    if (!time) {
-      if (planDetails.shift) {
-        time = planDetails.shift;
-      } else if (planDetails.startTime && planDetails.endTime) {
+    // Level 1: Official Master Plan Time
+    let masterTime = planDetails.masterShift || planDetails.shift || planDetails.time;
+    if (!masterTime) {
+      if (planDetails.startTime && planDetails.endTime) {
         const startStr = typeof planDetails.startTime === 'string' ? planDetails.startTime : new Date(planDetails.startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
         const endStr = typeof planDetails.endTime === 'string' ? planDetails.endTime : new Date(planDetails.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-        time = `${startStr} - ${endStr}`;
+        masterTime = `${startStr} - ${endStr}`;
       } else {
-        time = 'Standardschicht';
+        masterTime = '08:00 - 14:00 (Standardschicht)';
       }
     }
 
-    // Warehouses list computation
-    let warehousesList: string[] = [];
-    if (Array.isArray(planDetails.warehouses) && planDetails.warehouses.length > 0) {
-      warehousesList = planDetails.warehouses.map((w: any) => {
-        if (typeof w === 'string') return w;
-        if (w && typeof w === 'object') {
-          const wName = w.warehouseName || w.warehouse?.name || 'Lager';
-          const hName = w.hallName || w.hall?.name || '';
-          return hName ? `${wName} (${hName})` : wName;
+    // Level 2: Halls and Hall-Specific Times
+    const rawLocations: any[] = planDetails.locations || planDetails.warehouses || [];
+    const hallList: Array<{ name: string; warehouse: string; time: string; notes?: string }> = [];
+
+    if (Array.isArray(rawLocations) && rawLocations.length > 0) {
+      rawLocations.forEach((loc: any) => {
+        if (typeof loc === 'string') {
+          hallList.push({ name: loc, warehouse: 'Lager', time: masterTime });
+        } else if (loc && typeof loc === 'object') {
+          const wName = loc.warehouseName || loc.warehouse?.name || planDetails.warehouseName || 'Lager';
+          const hName = loc.hallName || loc.hall?.name || planDetails.hallName || 'Halle';
+          let hTime = '';
+          if (loc.startTime) {
+            if (loc.isOpenEnd || !loc.endTime) {
+              hTime = `${loc.startTime} - Offen`;
+            } else {
+              hTime = `${loc.startTime} - ${loc.endTime}`;
+            }
+          } else {
+            hTime = masterTime;
+          }
+          hallList.push({
+            name: hName,
+            warehouse: wName,
+            time: hTime,
+            notes: loc.notes || undefined,
+          });
         }
-        return 'Lagerort unbestimmt';
-      });
-    } else if (planDetails.locations && Array.isArray(planDetails.locations) && planDetails.locations.length > 0) {
-      warehousesList = planDetails.locations.map((loc: any) => {
-        const wName = loc.warehouseName || loc.warehouse?.name || planDetails.warehouseName || 'Lager';
-        const hName = loc.hallName || loc.hall?.name || planDetails.hallName || '';
-        return hName ? `${wName} (${hName})` : wName;
       });
     } else if (planDetails.warehouseName || planDetails.hallName) {
-      const wName = planDetails.warehouseName || 'Lager';
-      const hName = planDetails.hallName ? ` (${planDetails.hallName})` : '';
-      warehousesList = [`${wName}${hName}`];
-    } else {
-      warehousesList = ['Lagerort zugewiesen'];
+      hallList.push({
+        name: planDetails.hallName || 'Halle',
+        warehouse: planDetails.warehouseName || 'Lager',
+        time: masterTime,
+      });
     }
+
+    // Level 3: Employee Segments
+    const segments: Array<{
+      order: number;
+      treffpunkt: string;
+      treffpunktTime?: string;
+      startTime: string;
+      endTime?: string;
+      netHours: number;
+      notes?: string;
+    }> = [];
+
+    let totalNetHours = 0;
+    if (Array.isArray(planDetails.segments) && planDetails.segments.length > 0) {
+      planDetails.segments.forEach((seg: any, idx: number) => {
+        let netHours = 0;
+        if (seg.startTime && seg.endTime) {
+          const [h1, m1] = seg.startTime.split(':').map(Number);
+          const [h2, m2] = seg.endTime.split(':').map(Number);
+          if (!isNaN(h1) && !isNaN(m1) && !isNaN(h2) && !isNaN(m2)) {
+            let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+            if (diff < 0) diff += 24 * 60;
+            netHours = Math.round((diff / 60) * 100) / 100;
+          }
+        }
+        totalNetHours += netHours;
+        segments.push({
+          order: seg.order !== undefined ? seg.order + 1 : idx + 1,
+          treffpunkt: seg.treffpunkt || 'Büro',
+          treffpunktTime: seg.treffpunktTime || undefined,
+          startTime: seg.startTime || '08:00',
+          endTime: seg.endTime || 'Offen',
+          netHours,
+          notes: seg.notes || undefined,
+        });
+      });
+    }
+
+    // Absence Info
+    const absence = planDetails.absence;
 
     const notes = planDetails.notes || planDetails.description || 'Keine besonderen Hinweise hinterlegt.';
     const isUpdate = planDetails.isUpdate || false;
     const title = planDetails.title || (isUpdate ? 'Schichtplan aktualisiert' : 'Neue Schichtzuweisung');
-    const subject = `${title}: ${date}`;
+    const subject = `${title}: ${date}${kw ? ` (KW ${kw})` : ''}`;
 
     const html = `<!DOCTYPE html>
 <html lang="de" xmlns="http://www.w3.org/1999/xhtml">
@@ -147,127 +197,195 @@ export class EmailService {
   <style type="text/css">
     body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
     table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
-    img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
-    body { margin: 0 !important; padding: 0 !important; width: 100% !important; font-family: 'Segoe UI', Inter, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b; }
-    .email-container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); }
-    .header { background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); padding: 32px 24px; text-align: center; color: #ffffff; }
-    .body-padding { padding: 32px 28px; }
-    .badge { display: inline-block; background-color: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 13px; margin: 3px 2px; }
-    .btn-primary { display: inline-block; background-color: #2563eb; color: #ffffff; font-weight: 700; font-size: 15px; text-decoration: none; padding: 14px 32px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3); transition: background-color 0.2s; }
-    .note-card { background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 0 8px 8px 0; color: #78350f; font-size: 14px; line-height: 1.6; margin-top: 20px; }
-    
+    body { margin: 0 !important; padding: 0 !important; width: 100% !important; font-family: 'Segoe UI', Inter, -apple-system, BlinkMacSystemFont, Roboto, sans-serif; background-color: #f1f5f9; color: #0f172a; }
+    .email-container { max-width: 640px; margin: 0 auto; background-color: #ffffff; border-radius: 14px; overflow: hidden; border: 1px solid #cbd5e1; box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08); }
+    .header { background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #2563eb 100%); padding: 32px 24px; text-align: center; color: #ffffff; }
+    .section-card { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px; margin-bottom: 20px; }
+    .badge-amber { display: inline-block; background-color: #fef3c7; color: #92400e; border: 1px solid #fde68a; padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 12px; }
+    .badge-blue { display: inline-block; background-color: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 12px; }
+    .badge-green { display: inline-block; background-color: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 12px; }
     @media screen and (max-width: 600px) {
       .email-container { width: 100% !important; border-radius: 0 !important; border: none !important; }
-      .body-padding { padding: 24px 16px !important; }
-      .header { padding: 24px 16px !important; }
-      .table-row-label { display: block !important; width: 100% !important; padding-bottom: 4px !important; }
-      .table-row-value { display: block !important; width: 100% !important; padding-bottom: 16px !important; }
-      .btn-primary { width: 100% !important; text-align: center !important; box-sizing: border-box !important; }
+      .body-padding { padding: 20px 14px !important; }
     }
   </style>
 </head>
-<body style="margin: 0; padding: 20px 0; background-color: #f8fafc; font-family: 'Segoe UI', Inter, Helvetica, Arial, sans-serif; color: #1e293b;">
-  <center style="width: 100%; background-color: #f8fafc;">
-    <div class="email-container" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; text-align: left;">
+<body style="margin: 0; padding: 24px 0; background-color: #f1f5f9; font-family: 'Segoe UI', Inter, sans-serif; color: #0f172a;">
+  <center style="width: 100%;">
+    <div class="email-container" style="max-width: 640px; margin: 0 auto; background-color: #ffffff; border-radius: 14px; overflow: hidden; border: 1px solid #cbd5e1; text-align: left;">
       
-      <!-- Header Section -->
-      <div class="header" style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); padding: 32px 24px; text-align: center; color: #ffffff;">
-        <div style="display: inline-block; background-color: rgba(255, 255, 255, 0.15); padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 12px;">
-          LogiFlow Operations
+      <!-- Top Header -->
+      <div class="header" style="background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #2563eb 100%); padding: 32px 24px; text-align: center; color: #ffffff;">
+        <div style="display: inline-block; background-color: rgba(255, 255, 255, 0.18); padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 12px; border: 1px solid rgba(255, 255, 255, 0.25);">
+          LogiFlow Operations Plan
         </div>
-        <h1 style="margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.3px; color: #ffffff;">
+        <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.4px; color: #ffffff;">
           ${isUpdate ? 'Schichtplan Aktualisiert' : 'Neue Schichtzuweisung'}
         </h1>
-        <p style="margin: 6px 0 0; font-size: 14px; color: #dbeafe; opacity: 0.9;">
-          ${title}
+        <p style="margin: 8px 0 0; font-size: 15px; color: #dbeafe; font-weight: 600;">
+          📅 ${date} ${kw ? `<span style="opacity: 0.85;">(Kalenderwoche ${kw})</span>` : ''}
         </p>
       </div>
-      
-      <!-- Body Section -->
-      <div class="body-padding" style="padding: 32px 28px;">
-        <p style="margin: 0 0 16px; font-size: 16px; color: #334155; line-height: 1.5;">
-          Hallo <strong style="color: #0f172a;">${employeeName}</strong>,
+
+      <!-- Main Body Content -->
+      <div class="body-padding" style="padding: 28px 26px;">
+        <p style="margin: 0 0 16px; font-size: 16px; color: #1e293b; line-height: 1.5;">
+          Hallo <strong style="color: #0f172a; font-size: 17px;">${employeeName}</strong>,
         </p>
-        <p style="margin: 0 0 24px; font-size: 15px; color: #475569; line-height: 1.5;">
-          ${isUpdate ? 'Die Betriebsleitung hat Ihren Schichtplan aktualisiert. Bitte prüfen Sie Ihre neuen Einsatzdetails:' : 'Sie wurden für eine neue Schicht im Lager eingeteilt. Hier sind Ihre vollständigen Schichtdetails:'}
+        <p style="margin: 0 0 22px; font-size: 14px; color: #475569; line-height: 1.6;">
+          ${isUpdate
+            ? 'die Betriebsleitung hat Ihren Schichtplan aktualisiert. Nachfolgend finden Sie die vollständigen Details zu Master-Arbeitszeit, Hallen-Zeiten und Ihren individuellen Treffpunkten:'
+            : 'Sie wurden für einen Schichteinsatz eingeteilt. Nachfolgend finden Sie die vollständigen Details zu Master-Arbeitszeit, Hallen-Zeiten und Ihren individuellen Treffpunkten:'}
         </p>
 
-        <!-- Details Table -->
-        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 24px;">
-          <tr>
-            <td class="table-row-label" style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #64748b; font-size: 14px; width: 32%; background-color: #f1f5f9;">
-              👤 Mitarbeiter
-            </td>
-            <td class="table-row-value" style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #0f172a; font-size: 15px;">
-              ${employeeName}
-            </td>
-          </tr>
-          <tr>
-            <td class="table-row-label" style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #64748b; font-size: 14px; width: 32%; background-color: #f1f5f9;">
-              📅 Datum
-            </td>
-            <td class="table-row-value" style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #2563eb; font-size: 15px;">
-              ${date}
-            </td>
-          </tr>
-          <tr>
-            <td class="table-row-label" style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #64748b; font-size: 14px; width: 32%; background-color: #f1f5f9;">
-              ⏰ Uhrzeit
-            </td>
-            <td class="table-row-value" style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #0f172a; font-size: 15px;">
-              ${time}
-            </td>
-          </tr>
-          <tr>
-            <td class="table-row-label" style="padding: 14px 18px; font-weight: 600; color: #64748b; font-size: 14px; width: 32%; background-color: #f1f5f9; vertical-align: top;">
-              🏢 Lagerort(e)
-            </td>
-            <td class="table-row-value" style="padding: 14px 18px; font-weight: 600; color: #0f172a; font-size: 14px;">
-              <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-                ${warehousesList.map(w => `<span class="badge" style="display: inline-block; background-color: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 13px; margin: 2px 0;">🏢 ${w}</span>`).join(' ')}
+        <!-- Optional Absence Notice -->
+        ${absence ? `
+        <div style="background-color: #fef2f2; border: 2px solid #fca5a5; border-radius: 10px; padding: 14px 18px; margin-bottom: 20px;">
+          <div style="font-size: 13px; font-weight: 800; color: #991b1b; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+            ⚠️ Abwesenheits-Status für diesen Tag hinterlegt:
+          </div>
+          <p style="margin: 0; font-size: 13px; color: #b91c1c; font-weight: 600;">
+            Status: <strong>${absence.status === 'KRANK' ? '🟡 Krank' : absence.status === 'ABWESEND_GRUND' ? '🔵 Abwesend (mit Grund)' : '🔴 Nicht gearbeitet'}</strong>
+            ${absence.reason ? ` &bull; Grund: ${absence.reason}` : ''}
+            ${absence.notes ? ` &bull; Notiz: ${absence.notes}` : ''}
+          </p>
+        </div>
+        ` : ''}
+
+        <!-- Level 1: Official Master Plan Schedule -->
+        <div class="section-card" style="background-color: #f8fafc; border: 1.5px solid #bfdbfe; border-left: 5px solid #2563eb; border-radius: 10px; padding: 16px 18px; margin-bottom: 20px;">
+          <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #1e40af; margin-bottom: 8px;">
+            🏛️ Ebene 1: Offizieller Schichtplan (Master-Arbeitszeit)
+          </div>
+          <table role="presentation" style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 4px 0; font-size: 13px; color: #64748b; width: 35%; font-weight: 600;">Offizielle Arbeitszeit:</td>
+              <td style="padding: 4px 0; font-size: 15px; color: #0f172a; font-weight: 800; font-family: monospace;">
+                ${masterTime}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 4px 0; font-size: 13px; color: #64748b; font-weight: 600;">Einsatzdatum:</td>
+              <td style="padding: 4px 0; font-size: 14px; color: #0f172a; font-weight: 700;">
+                ${date} ${kw ? `(KW ${kw})` : ''}
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Level 2: Hall-Specific Schedules -->
+        <div class="section-card" style="background-color: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 16px 18px; margin-bottom: 20px;">
+          <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; margin-bottom: 10px;">
+            🏢 Ebene 2: Hallen-Einsatzorte & Arbeitszeiten (${hallList.length})
+          </div>
+          <table role="presentation" style="width: 100%; border-collapse: collapse; font-size: 13px;">
+            <thead>
+              <tr style="background-color: #e2e8f0; color: #334155; font-size: 11px; text-transform: uppercase; font-weight: 700;">
+                <th style="padding: 8px 10px; text-align: left; border-radius: 6px 0 0 6px;">Lager / Halle</th>
+                <th style="padding: 8px 10px; text-align: right; border-radius: 0 6px 6px 0;">Hallen-Arbeitszeit</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${hallList.map((h, i) => `
+                <tr style="border-bottom: ${i < hallList.length - 1 ? '1px solid #e2e8f0' : 'none'};">
+                  <td style="padding: 10px; font-weight: 700; color: #0f172a;">
+                    🏢 ${h.warehouse} &mdash; <span style="color: #1d4ed8;">${h.name}</span>
+                    ${h.notes ? `<div style="font-size: 11px; color: #64748b; font-weight: normal; margin-top: 2px;">${h.notes}</div>` : ''}
+                  </td>
+                  <td style="padding: 10px; text-align: right; font-family: monospace; font-weight: 800; color: #1e293b;">
+                    <span style="background-color: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; padding: 3px 8px; border-radius: 6px;">${h.time}</span>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Level 3: Employee-Specific Segments & Pickup Times -->
+        <div class="section-card" style="background-color: #ffffff; border: 2px solid #cbd5e1; border-radius: 12px; padding: 18px; margin-bottom: 24px; box-shadow: 0 4px 6px -2px rgba(0,0,0,0.03);">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 12px;">
+            <div>
+              <div style="font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #0f172a;">
+                👤 Ebene 3: Ihr persönlicher Einsatzplan & Treffpunkte
               </div>
-            </td>
-          </tr>
-          ${planDetails.treffpunkt ? `
-          <tr>
-            <td class="table-row-label" style="padding: 14px 18px; border-top: 1px solid #e2e8f0; font-weight: 600; color: #64748b; font-size: 14px; width: 32%; background-color: #f1f5f9;">
-              📍 Treffpunkt
-            </td>
-            <td class="table-row-value" style="padding: 14px 18px; border-top: 1px solid #e2e8f0; font-weight: 600; color: #0f172a; font-size: 14px;">
-              ${planDetails.treffpunkt}${planDetails.treffpunktTime ? ` (⏰ ${planDetails.treffpunktTime})` : ''}
-            </td>
-          </tr>
-          ` : ''}
-          ${planDetails.containers && planDetails.containers.length > 0 ? `
-          <tr>
-            <td class="table-row-label" style="padding: 14px 18px; border-top: 1px solid #e2e8f0; font-weight: 600; color: #64748b; font-size: 14px; width: 32%; background-color: #f1f5f9;">
-              📦 Container
-            </td>
-            <td class="table-row-value" style="padding: 14px 18px; border-top: 1px solid #e2e8f0; font-family: monospace; font-weight: 600; color: #0f172a; font-size: 13px;">
-              ${planDetails.containers.join(', ')}
-            </td>
-          </tr>
-          ` : ''}
-        </table>
-        
+              <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
+                ⏰ <em>Treffzeit ist Abholzeit (keine Arbeitszeit) &bull; Arbeitszeit beginnt ab Einsatzort</em>
+              </div>
+            </div>
+            ${totalNetHours > 0 ? `
+              <span style="background-color: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; font-size: 13px; font-weight: 800; padding: 4px 10px; border-radius: 8px;">
+                Total: ${totalNetHours.toFixed(1)} h
+              </span>
+            ` : ''}
+          </div>
+
+          ${segments.length > 0 ? `
+            <table role="presentation" style="width: 100%; border-collapse: collapse; font-size: 13px;">
+              <thead>
+                <tr style="background-color: #f1f5f9; color: #475569; font-size: 11px; text-transform: uppercase; font-weight: 800;">
+                  <th style="padding: 8px 10px; text-align: left;">⏰ Treffzeit</th>
+                  <th style="padding: 8px 10px; text-align: left;">📍 Treffpunkt / Ort</th>
+                  <th style="padding: 8px 10px; text-align: left;">🕒 Arbeitszeit</th>
+                  <th style="padding: 8px 10px; text-align: right;">Netto</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${segments.map((seg, idx) => `
+                  <tr style="border-bottom: ${idx < segments.length - 1 ? '1px solid #f1f5f9' : 'none'}; background-color: ${idx % 2 === 0 ? '#ffffff' : '#fafafa'};">
+                    <td style="padding: 10px; font-family: monospace; font-weight: 800; color: #92400e;">
+                      ${seg.treffpunktTime ? `<span style="background-color: #fef3c7; border: 1px solid #fde68a; padding: 3px 8px; border-radius: 6px;">⏰ ${seg.treffpunktTime}</span>` : '<span style="color: #94a3b8;">&mdash;</span>'}
+                    </td>
+                    <td style="padding: 10px; font-weight: 700; color: #0f172a;">
+                      ${seg.treffpunkt}
+                      ${seg.notes ? `<div style="font-size: 11px; color: #64748b; font-weight: normal;">${seg.notes}</div>` : ''}
+                    </td>
+                    <td style="padding: 10px; font-family: monospace; font-weight: 800; color: #1e40af;">
+                      ${seg.startTime} &ndash; ${seg.endTime}
+                    </td>
+                    <td style="padding: 10px; text-align: right; font-family: monospace; font-weight: 800; color: #0f172a;">
+                      ${seg.netHours > 0 ? `${seg.netHours.toFixed(1)} h` : '&mdash;'}
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          ` : `
+            <div style="padding: 12px; background-color: #f8fafc; border-radius: 8px; font-size: 13px; color: #334155; line-height: 1.6;">
+              <p style="margin: 0;">Sie sind für die offizielle Master-Schicht eingeteilt:</p>
+              <p style="margin: 4px 0 0; font-weight: 800; font-family: monospace; color: #1e40af;">
+                🕒 ${masterTime}
+                ${planDetails.treffpunkt ? ` &bull; 📍 Treffpunkt: ${planDetails.treffpunkt} ${planDetails.treffpunktTime ? `(⏰ ${planDetails.treffpunktTime})` : ''}` : ''}
+              </p>
+            </div>
+          `}
+        </div>
+
+        <!-- Optional Assigned Containers -->
+        ${planDetails.containers && planDetails.containers.length > 0 ? `
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 18px; margin-bottom: 20px;">
+          <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: #64748b; margin-bottom: 6px;">
+            📦 Zugewiesene Container (${planDetails.containers.length}):
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+            ${planDetails.containers.map((c: string) => `<span style="display: inline-block; background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 4px 10px; border-radius: 6px; font-family: monospace; font-size: 12px; font-weight: 700; color: #1e293b; margin: 2px;">${c}</span>`).join(' ')}
+          </div>
+        </div>
+        ` : ''}
+
         <!-- Notes Section -->
-        <div class="note-card" style="background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 0 8px 8px 0; color: #78350f; font-size: 14px; line-height: 1.6; margin-top: 20px;">
-          <div style="font-weight: 700; margin-bottom: 6px; color: #b45309;">
-            📝 Notizen & Anweisungen
-          </div>
-          <div style="color: #92400e;">
-            ${notes}
-          </div>
+        <div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 0 10px 10px 0; padding: 14px 18px; color: #78350f; font-size: 13px; line-height: 1.6; margin-bottom: 24px;">
+          <strong style="color: #b45309; display: block; margin-bottom: 4px; font-size: 13px;">📝 Notizen & Anweisungen der Betriebsleitung:</strong>
+          <div>${notes}</div>
         </div>
 
         <!-- Call to Action Button (Dashboard) -->
-        ${this.renderCtaButton(frontendUrl, 'Zum Dashboard / Open Dashboard &rarr;')}
+        ${this.renderCtaButton(frontendUrl, 'Zum Portal & Details ansehen &rarr;')}
       </div>
       
       <!-- Footer Section -->
       <div style="background-color: #f1f5f9; padding: 20px 24px; text-align: center; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 12px; line-height: 1.5;">
-        <p style="margin: 0 0 6px; font-weight: 600; color: #475569;">LogiFlow Warehouse Management System</p>
-        <p style="margin: 0; color: #94a3b8;">Dies ist eine automatisierte Systembenachrichtigung für <strong>${employeeName}</strong>. Bitte antworten Sie nicht direkt auf diese E-Mail.</p>
+        <p style="margin: 0 0 4px; font-weight: 700; color: #334155;">LogiFlow Warehouse Management System</p>
+        <p style="margin: 0; color: #94a3b8;">Automatische Dienstplan-Benachrichtigung für <strong>${employeeName}</strong> &bull; Empfangen an ${email}</p>
       </div>
       
     </div>

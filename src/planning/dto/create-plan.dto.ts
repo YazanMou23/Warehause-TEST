@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsDateString, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsArray, IsBoolean, IsDateString, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { EmployeeSegmentDto } from './employee-segment.dto';
 
 export class LocationDto {
@@ -10,6 +10,18 @@ export class LocationDto {
   @IsNotEmpty()
   @IsString()
   hallId: string;
+
+  @IsOptional()
+  @IsString()
+  startTime?: string;
+
+  @IsOptional()
+  @IsString()
+  endTime?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isOpenEnd?: boolean;
 
   @IsOptional()
   @IsString()
