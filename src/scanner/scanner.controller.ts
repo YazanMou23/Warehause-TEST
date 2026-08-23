@@ -112,4 +112,20 @@ export class ScannerController {
   scanAndExtract(@Body() settings: ScanSettingsDto) {
     return this.scannerService.scanAndExtract(settings);
   }
+
+  /**
+   * GET /scanner/download-installer
+   * Download the 1-click Windows Printer Connector installer zip package
+   */
+  @Get('download-installer')
+  async downloadInstaller(@Res() res: Response) {
+    const zipBuffer = await this.scannerService.getInstallerZip();
+    res.set({
+      'Content-Type': 'application/zip',
+      'Content-Disposition': 'attachment; filename="LogiFlow-Printer-Connector.zip"',
+      'Content-Length': zipBuffer.length,
+    });
+    res.end(zipBuffer);
+  }
 }
+

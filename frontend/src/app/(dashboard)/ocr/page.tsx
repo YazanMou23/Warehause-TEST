@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Wifi,
 } from "lucide-react";
+import UniversalPrinterScannerModal from "../../components/UniversalPrinterScannerModal";
 import { API_URL } from "../../../config/api";
 
 interface ParsedContainer {
@@ -58,16 +59,8 @@ export default function OcrPage() {
   const [editContainerNumber, setEditContainerNumber] = useState("");
   const [editStatus, setEditStatus] = useState<"FULL" | "EMPTY">("EMPTY");
 
-  // Printer Direct Scan state
-  const [printerScanning, setPrinterScanning] = useState(false);
-  const [scannerIp, setScannerIp] = useState("SIMULATOR");
-  const [showScannerConfig, setShowScannerConfig] = useState(true);
-  const [discovering, setDiscovering] = useState(false);
-  const [testingConnection, setTestingConnection] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<{ online?: boolean; state?: string; error?: string } | null>(null);
-  const [discoveredPrinters, setDiscoveredPrinters] = useState<
-    Array<{ id: string; name: string; connectionType: string; ip?: string; port?: number; status: string }>
-  >([]);
+  // Universal Windows Printer Connector state
+  const [isPrinterModalOpen, setIsPrinterModalOpen] = useState(false);
 
   const [isOffline, setIsOffline] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -114,7 +107,6 @@ export default function OcrPage() {
     };
 
     fetchMetadata();
-    discoverPrinters();
   }, [router]);
 
   useEffect(() => {
@@ -133,13 +125,7 @@ export default function OcrPage() {
     }
   };
 
-  const handleUploadOCR = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!file) {
-      setMessage({ text: "Bitte wähle eine Dokumenten-Bilddatei aus.", type: "error" });
-      return;
-    }
-
+  const processOcrFile = async (fileToProcess: File) => {
     setUploading(true);
     setMessage({ text: "", type: "" });
     setExtractedContainers([]);
@@ -162,7 +148,7 @@ export default function OcrPage() {
 
     try {
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", fileToProcess);
       formData.append("type", "CONTAINERS");
 
       const res = await fetch(`${API_URL}/ocr/upload`, {
@@ -183,6 +169,7 @@ export default function OcrPage() {
       }
 
       setExtractedContainers(data.data || []);
+      setMessage({ text: `${(data.data || []).length} Container erfolgreich erkannt!`, type: "success" });
     } catch (err: any) {
       setMessage({ text: err.message || "OCR Service Fehler.", type: "error" });
     } finally {
@@ -190,94 +177,21 @@ export default function OcrPage() {
     }
   };
 
-  // Direct Printer Scan Handler
-  const handleDirectPrinterScan = async () => {
-    setPrinterScanning(true);
-    setMessage({ text: "", type: "" });
-    setExtractedContainers([]);
-    setOcrWarning("");
-
-    const token = localStorage.getItem("accessToken");
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
-
-    try {
-      const payload: any = {};
-      if (scannerIp) payload.scannerIp = scannerIp;
-
-      const res = await fetch(`${apiUrl}/scanner/scan-and-extract`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || "Direktscan vom Drucker fehlgeschlagen. Bitte Verbindung zum Drucker/Scanner prüfen.");
-      }
-
-      if (data.warning) {
-        setOcrWarning(data.warning);
-      }
-
-      setExtractedContainers(data.data || []);
-      setMessage({ text: "Direkter Scan erfolgreich! Container-Liste extrahiert.", type: "success" });
-    } catch (err: any) {
-      setMessage({ text: err.message || "Drucker-Scanner Verbindung fehlgeschlagen.", type: "error" });
-    } finally {
-      setPrinterScanning(false);
+  const handleUploadOCR = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) {
+      setMessage({ text: "Bitte wähle eine Dokumenten-Bilddatei aus.", type: "error" });
+      return;
     }
+    await processOcrFile(file);
   };
 
-  const discoverPrinters = async () => {
-    const token = localStorage.getItem("accessToken");
-    setDiscovering(true);
-    try {
-      const res = await fetch(`${API_URL}/scanner/discover`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setDiscoveredPrinters(data || []);
-        if (data && data.length > 0) {
-          // If current selection is SIMULATOR, prefer a real discovered scanner IP if available
-          const realScanner = data.find((d: any) => d.ip && d.ip !== "SIMULATOR");
-          if (realScanner) {
-            setScannerIp(realScanner.ip);
-          } else {
-            setScannerIp(data[0].ip || data[0].id);
-          }
-        }
-      }
-    } catch (err) {
-      console.error("Fehler bei Druckersuche:", err);
-    } finally {
-      setDiscovering(false);
-    }
-  };
-
-  const checkPrinterConnection = async () => {
-    setTestingConnection(true);
-    setConnectionStatus(null);
-    const token = localStorage.getItem("accessToken");
-    try {
-      const target = scannerIp || "SIMULATOR";
-      const res = await fetch(`${API_URL}/scanner/status?ip=${encodeURIComponent(target)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setConnectionStatus(data);
-      } else {
-        setConnectionStatus({ online: false, error: `HTTP ${res.status}` });
-      }
-    } catch (err: any) {
-      setConnectionStatus({ online: false, error: err.message || "Verbindung fehlgeschlagen" });
-    } finally {
-      setTestingConnection(false);
-    }
+  // Direct Printer Scan complete handler from Universal Connector
+  const handlePrinterScanComplete = async (files: File[]) => {
+    if (files.length === 0) return;
+    const scanned = files[0];
+    setFile(scanned);
+    await processOcrFile(scanned);
   };
 
   // Inline container editing
@@ -335,7 +249,7 @@ export default function OcrPage() {
         })),
       };
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/containers/bulk-import`, {
+      const res = await fetch(`${API_URL}/containers/bulk-import`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -376,16 +290,13 @@ export default function OcrPage() {
 
         {/* Direct Printer Scan Button */}
         <button
-          onClick={handleDirectPrinterScan}
-          disabled={printerScanning || uploading}
-          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold px-4 py-2.5 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer text-sm"
+          type="button"
+          onClick={() => setIsPrinterModalOpen(true)}
+          disabled={uploading}
+          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold px-5 py-2.5 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer text-sm"
         >
-          {printerScanning ? (
-            <Loader2 className="w-4 h-4 animate-spin text-white" />
-          ) : (
-            <Printer className="w-4 h-4 text-white" />
-          )}
-          <span>Direkt vom Drucker scannen</span>
+          <Printer className="w-4 h-4 text-white" />
+          <span>Vom Drucker scannen</span>
         </button>
       </div>
 
@@ -399,9 +310,9 @@ export default function OcrPage() {
       {/* Parser Configuration and Upload */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-stack-md">
         {/* Settings Panel */}
-        <div className="bg-white border border-outline-variant p-stack-md rounded-lg shadow-sm space-y-4">
+        <div className="bg-white border border-outline-variant p-stack-md rounded-2xl shadow-sm space-y-4">
           <h5 className="font-bold text-body-lg flex items-center gap-2">
-            <FileScan className="w-5 h-5 text-secondary" /> Ziel-Lager & Drucker
+            <FileScan className="w-5 h-5 text-secondary" /> Ziel-Lager & Zuordnung
           </h5>
 
           {/* Destination Warehouse */}
@@ -414,7 +325,7 @@ export default function OcrPage() {
               <select
                 value={selectedWarehouseId}
                 onChange={(e) => setSelectedWarehouseId(e.target.value)}
-                className="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-3 py-2 text-body-sm outline-none appearance-none"
+                className="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-3 py-2 text-body-sm outline-none appearance-none font-medium"
               >
                 {warehouses.map((wh) => (
                   <option key={wh.id} value={wh.id}>
@@ -434,7 +345,7 @@ export default function OcrPage() {
               <select
                 value={selectedHallId}
                 onChange={(e) => setSelectedHallId(e.target.value)}
-                className="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-3 py-2 text-body-sm outline-none appearance-none"
+                className="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-3 py-2 text-body-sm outline-none appearance-none font-medium"
               >
                 {filteredHalls.length === 0 ? (
                   <option value="">Keine Hallen verfügbar</option>
@@ -449,110 +360,26 @@ export default function OcrPage() {
             </div>
           </div>
 
-          {/* Printer Scanner IP Toggle & WiFi Discovery */}
-          <div className="pt-2 border-t border-outline-variant space-y-3">
-            <div className="flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => setShowScannerConfig(!showScannerConfig)}
-                className="text-xs font-semibold text-secondary hover:underline flex items-center gap-1"
-              >
-                <Settings className="w-3.5 h-3.5" />
-                WLAN / USB Drucker Einstellungen
-              </button>
-              <button
-                type="button"
-                onClick={discoverPrinters}
-                disabled={discovering}
-                className="text-[11px] bg-blue-50 text-blue-600 hover:bg-blue-100 px-2.5 py-1 rounded-md font-semibold flex items-center gap-1 transition-all border border-blue-200 cursor-pointer"
-              >
-                {discovering ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                <span>Drucker suchen (WLAN & USB)</span>
-              </button>
-            </div>
-
-            {showScannerConfig && (
-              <div className="mt-2 space-y-2.5 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                {discovering && (
-                  <div className="text-xs p-2 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2 text-blue-700 font-medium">
-                    <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                    <span>Suche verbundene WLAN & USB-Drucker im Netzwerk...</span>
-                  </div>
-                )}
-
-                {discoveredPrinters.length > 0 && (
-                  <div className="text-xs space-y-1">
-                    <label className="block text-[11px] font-bold text-slate-700 flex items-center gap-1">
-                      <Wifi className="w-3.5 h-3.5 text-blue-600" /> Erkannte Drucker & Scanner:
-                    </label>
-                    <select
-                      value={scannerIp}
-                      onChange={(e) => setScannerIp(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-800 outline-none font-medium"
-                    >
-                      {discoveredPrinters.map((p) => (
-                        <option key={p.id} value={p.ip || p.id}>
-                          [{p.connectionType}] {p.name} ({p.status})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                <div className="space-y-1">
-                  <label className="block text-[11px] text-slate-600 font-semibold">Manuelle Drucker-IP oder USB-ID</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="z.B. 192.168.178.50 oder SIMULATOR"
-                      value={scannerIp}
-                      onChange={(e) => setScannerIp(e.target.value)}
-                      className="flex-1 bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-800 font-mono outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={checkPrinterConnection}
-                      disabled={testingConnection}
-                      className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 text-[11px] font-bold rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-                    >
-                      {testingConnection ? <Loader2 className="w-3 h-3 animate-spin" /> : "Testen"}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Connection Status Badge */}
-                {connectionStatus && (
-                  <div className={`text-[11px] p-2 rounded-lg font-medium border flex items-center gap-1.5 ${
-                    connectionStatus.online
-                      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                      : "bg-red-50 text-red-800 border-red-200"
-                  }`}>
-                    {connectionStatus.online ? (
-                      <>
-                        <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        <span>Drucker Online & Bereit (Status: {connectionStatus.state || 'Idle'})</span>
-                      </>
-                    ) : (
-                      <>
-                        <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0" />
-                        <span>Nicht erreichbar ({connectionStatus.error}). Tipp: Nutze den WLAN-Drucker Simulator für Demos.</span>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+          <div className="pt-3 border-t border-outline-variant">
+            <button
+              type="button"
+              onClick={() => setIsPrinterModalOpen(true)}
+              className="w-full py-3 px-4 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center gap-2 border border-blue-200 transition-all cursor-pointer"
+            >
+              <Printer className="w-4 h-4 text-blue-700" />
+              <span>Drucker / Scanner öffnen</span>
+            </button>
           </div>
         </div>
 
         {/* Upload & Printer Scan Form */}
-        <div className="bg-white border border-outline-variant p-stack-md rounded-lg shadow-sm lg:col-span-2 flex flex-col justify-between">
+        <div className="bg-white border border-outline-variant p-stack-md rounded-2xl shadow-sm lg:col-span-2 flex flex-col justify-between">
           <form onSubmit={handleUploadOCR} className="space-y-4 h-full flex flex-col justify-between">
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <h5 className="font-bold text-body-lg">Containerliste Bild-Upload oder Direktscan</h5>
-                <span className="text-xs text-secondary font-semibold flex items-center gap-1">
-                  <Printer className="w-3.5 h-3.5" /> Direkt scan eSCL AirScan
+                <span className="text-xs text-blue-600 font-semibold flex items-center gap-1">
+                  <Printer className="w-3.5 h-3.5" /> Zero-Config Connector
                 </span>
               </div>
 
@@ -560,33 +387,30 @@ export default function OcrPage() {
               <div className="border-2 border-dashed border-outline-variant rounded-xl p-8 text-center bg-surface-container-low hover:bg-surface-container-low/50 transition-colors relative cursor-pointer">
                 <input
                   type="file"
-                  accept="image/*,application/pdf"
+                  accept="image/png, image/jpeg, image/webp, application/pdf"
                   onChange={handleFileChange}
-                  className="absolute inset-0 opacity-0 cursor-pointer"
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                 />
-                <div className="flex flex-col items-center justify-center space-y-2">
-                  <div className="w-12 h-12 rounded-full bg-secondary-container/10 flex items-center justify-center text-secondary">
-                    <Upload className="w-6 h-6" />
+                <div className="flex flex-col items-center gap-2">
+                  <div className="p-3 bg-white rounded-full shadow-xs text-outline">
+                    <Upload className="w-6 h-6 text-primary" />
                   </div>
-                  <div className="text-body-sm text-on-surface">
-                    {file ? (
-                      <span className="font-bold text-secondary flex items-center gap-1">
-                        <FileText className="w-4 h-4" /> {file.name}
-                      </span>
-                    ) : (
-                      <span>Datei hierher ziehen oder klicken zum Auswählen</span>
-                    )}
+                  <div className="text-body-md font-semibold text-on-surface">
+                    {file ? file.name : "Klicke zum Auswählen oder ziehe die Datei hierher"}
                   </div>
-                  <p className="text-[11px] text-outline">Unterstützt JPG, PNG, PDF bis 15MB</p>
+                  <div className="text-label-md text-outline">
+                    Unterstützt PNG, JPG, JPEG, WEBP oder PDF
+                  </div>
                 </div>
               </div>
             </div>
 
+            {/* Actions */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
               <button
                 type="submit"
-                disabled={uploading || !file || printerScanning}
-                className="w-full bg-secondary hover:bg-secondary/90 disabled:opacity-50 text-white font-bold py-2.5 px-4 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer text-sm"
+                disabled={uploading || !file}
+                className="w-full bg-secondary hover:bg-secondary/90 disabled:opacity-50 text-white font-bold py-2.5 px-4 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer text-sm"
               >
                 {uploading ? (
                   <>
@@ -601,29 +425,28 @@ export default function OcrPage() {
                 )}
               </button>
 
-              {/* Prominent Printer Scan Button */}
               <button
                 type="button"
-                onClick={handleDirectPrinterScan}
-                disabled={printerScanning || uploading}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-2.5 px-4 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer text-sm"
+                onClick={() => setIsPrinterModalOpen(true)}
+                disabled={uploading}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-2.5 px-4 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer text-sm"
               >
-                {printerScanning ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Drucker scannt...</span>
-                  </>
-                ) : (
-                  <>
-                    <Printer className="w-4 h-4 text-white" />
-                    <span>Direkt vom Drucker scannen</span>
-                  </>
-                )}
+                <Printer className="w-4 h-4 text-white" />
+                <span>Vom Drucker scannen</span>
               </button>
             </div>
           </form>
         </div>
       </div>
+
+      {/* Universal Printer Scanner Modal */}
+      <UniversalPrinterScannerModal
+        isOpen={isPrinterModalOpen}
+        onClose={() => setIsPrinterModalOpen(false)}
+        onScanComplete={handlePrinterScanComplete}
+        title="Containerliste vom Drucker scannen"
+        description="Dokumente direkt über verbundene WLAN- & USB-Drucker scannen und per OCR extrahieren."
+      />
 
       {/* OCR Warnings */}
       {ocrWarning && (

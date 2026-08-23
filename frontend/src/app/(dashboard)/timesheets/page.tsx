@@ -42,6 +42,7 @@ import {
 import { API_URL } from '../../../config/api';
 import CustomAlertModal, { CustomAlertOptions } from '../../components/CustomAlertModal';
 import { useDialog } from '../../components/DialogProvider';
+import UniversalPrinterScannerModal from '../../components/UniversalPrinterScannerModal';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -273,141 +274,17 @@ function StatusBadge({ status }: { status: string }) {
 function UploadZone({
   onFileSelect,
   onFilesSelect,
-  onPrinterScan,
+  onOpenPrinterScan,
   isLoading,
 }: {
   onFileSelect: (file: File) => void;
   onFilesSelect: (files: File[]) => void;
-  onPrinterScan: (settings: { scannerIp?: string; scannerPort?: number; dpi?: number }) => void;
+  onOpenPrinterScan: () => void;
   isLoading: boolean;
 }) {
   const [isDragOver, setIsDragOver] = useState(false);
-  const [discovering, setDiscovering] = useState(false);
-  const [discoveredPrinters, setDiscoveredPrinters] = useState<Array<{
-    id: string;
-    name: string;
-    displayName?: string;
-    manufacturer?: string;
-    model?: string;
-    connectionType: string;
-    ip?: string;
-    port?: number;
-    protocol?: string;
-    status: string;
-    capabilities?: any;
-  }>>([]);
-  const [selectedPrinter, setSelectedPrinter] = useState<{
-    id: string;
-    name: string;
-    displayName?: string;
-    manufacturer?: string;
-    connectionType: string;
-    ip?: string;
-    port?: number;
-    hasAdf?: boolean;
-  } | null>(null);
-
-  const [checkingStatus, setCheckingStatus] = useState(false);
-  const [statusResult, setStatusResult] = useState<{ online?: boolean; state?: string; model?: string; error?: string } | null>(null);
-  const [showDeviceList, setShowDeviceList] = useState(false);
-  const [showManualFallback, setShowManualFallback] = useState(false);
-  const [manualIp, setManualIp] = useState('');
-  const [manualPort, setManualPort] = useState(80);
-  const [scannerDpi, setScannerDpi] = useState(300);
-
   const cameraRef = useRef<HTMLInputElement>(null);
   const inputRef  = useRef<HTMLInputElement>(null);
-
-  // ── Automatic Initial Discovery on Mount ────────────────────────────────────
-  useEffect(() => {
-    discoverPrinters(false);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const discoverPrinters = async (openModalOnDone = true) => {
-    setDiscovering(true);
-    setStatusResult(null);
-    try {
-      // Try scanner endpoint
-      const res = await fetch(`${API_URL}/scanner/discover`, { headers: getAuthHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        const list = Array.isArray(data) ? data : [];
-        setDiscoveredPrinters(list);
-
-        // Auto-select first real (non-simulator) device if none selected
-        if (!selectedPrinter) {
-          const real = list.find((p: any) => p.ip && p.ip !== 'SIMULATOR');
-          const first = real || list[0];
-          if (first) {
-            setSelectedPrinter({
-              id:             first.id,
-              name:           first.displayName || first.name,
-              displayName:    first.displayName || first.name,
-              manufacturer:   first.manufacturer,
-              connectionType: first.connectionType || 'WIFI',
-              ip:             first.ip,
-              port:           first.port || 80,
-              hasAdf:         first.capabilities?.hasAdf ?? first.capabilities?.adf,
-            });
-            setTimeout(() => checkPrinterStatus(first.ip, first.port || 80), 300);
-          }
-        }
-        if (openModalOnDone) setShowDeviceList(true);
-      }
-    } catch (err) {
-      console.error('Fehler bei der automatischen Druckersuche:', err);
-    } finally {
-      setDiscovering(false);
-    }
-  };
-
-  const checkPrinterStatus = async (ip?: string, port = 80) => {
-    const targetIp = ip || selectedPrinter?.ip;
-    if (!targetIp || targetIp === 'SIMULATOR') {
-      setStatusResult({ online: true, state: 'Bereit', model: 'Test-Scanner' });
-      return;
-    }
-    setCheckingStatus(true);
-    try {
-      const params = new URLSearchParams();
-      params.set('ip', targetIp);
-      params.set('port', String(port || selectedPrinter?.port || 80));
-
-      const res = await fetch(`${API_URL}/scanner/status?${params}`, {
-        headers: getAuthHeaders(),
-      });
-      const data = await res.json();
-      setStatusResult(data);
-    } catch (err: any) {
-      setStatusResult({ online: false, error: err.message || 'Verbindung fehlgeschlagen' });
-    } finally {
-      setCheckingStatus(false);
-    }
-  };
-
-  const handleSelectPrinter = (printer: any) => {
-    setSelectedPrinter({
-      id:             printer.id,
-      name:           printer.displayName || printer.name,
-      displayName:    printer.displayName || printer.name,
-      manufacturer:   printer.manufacturer,
-      connectionType: printer.connectionType || 'WIFI',
-      ip:             printer.ip,
-      port:           printer.port || 80,
-      hasAdf:         printer.capabilities?.hasAdf ?? printer.capabilities?.adf,
-    });
-    setShowDeviceList(false);
-    checkPrinterStatus(printer.ip, printer.port || 80);
-  };
-
-  const handleStartScan = () => {
-    onPrinterScan({
-      scannerIp:   selectedPrinter?.ip || (discoveredPrinters[0]?.ip ?? undefined),
-      scannerPort: selectedPrinter?.port ?? 80,
-      dpi:         scannerDpi,
-    });
-  };
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -435,18 +312,13 @@ function UploadZone({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-5xl">
         
         {/* 1. Direct Zero-Config Printer Scanner Action Card */}
-        <div className="relative rounded-3xl border-2 border-blue-300 bg-blue-50/40 p-6 flex flex-col justify-between items-center text-center shadow-sm hover:border-blue-500 hover:shadow-md transition-all group">
-          {/* Top Badge */}
-          <div className="absolute top-4 right-4 flex items-center gap-2">
-            {statusResult && (
-              <span className={`w-2.5 h-2.5 rounded-full animate-pulse ${
-                statusResult.online ? 'bg-emerald-600' : 'bg-red-600'
-              }`} />
-            )}
-            <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 text-blue-900 text-xs font-bold border border-blue-300 shadow-xs">
-              <Printer size={13} className="shrink-0 text-blue-800" />
-              <span>{selectedPrinter ? selectedPrinter.connectionType : 'WLAN / USB'}</span>
-            </span>
+        <div
+          onClick={() => !isLoading && onOpenPrinterScan()}
+          className="relative cursor-pointer rounded-3xl border-2 border-blue-300 bg-blue-50/40 p-6 flex flex-col justify-between items-center text-center shadow-sm hover:border-blue-500 hover:bg-blue-50/70 hover:shadow-md transition-all group"
+        >
+          <div className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 text-blue-900 text-xs font-bold border border-blue-300 shadow-xs">
+            <Printer size={13} className="shrink-0 text-blue-800" />
+            <span>WLAN & USB</span>
           </div>
 
           <div className="p-4 rounded-2xl bg-blue-100 text-blue-800 border-2 border-blue-200 mt-8 mb-4 group-hover:scale-105 transition-transform shadow-xs">
@@ -455,76 +327,17 @@ function UploadZone({
 
           <div className="w-full">
             <h3 className="text-slate-900 font-bold text-lg mb-1">Vom Drucker scannen</h3>
-            
-            {/* Device Info or Search trigger */}
-            {selectedPrinter ? (
-              <div className="mb-3 space-y-1">
-                <p className="text-slate-900 font-bold text-sm truncate px-2">
-                  {selectedPrinter.displayName || selectedPrinter.name}
-                </p>
-                <p className="text-slate-600 text-xs font-medium">
-                  {selectedPrinter.connectionType === 'USB' ? 'USB-Kabel' : 'WLAN AirScan / eSCL'}
-                  {selectedPrinter.hasAdf && ' · ADF Einzug'}
-                </p>
-                {statusResult && (
-                  <div className={`flex items-center justify-center gap-1 text-xs font-bold ${
-                    statusResult.online ? 'text-emerald-800' : 'text-red-700'
-                  }`}>
-                    {statusResult.online ? (
-                      <><CheckCircle size={12} className="text-emerald-700" /> Verbunden & Bereit</>
-                    ) : (
-                      <><AlertCircle size={12} className="text-red-600" /> {statusResult.error?.slice(0, 40) || 'Nicht erreichbar'}</>
-                    )}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-slate-700 text-xs font-medium leading-relaxed mb-3">
-                Automatische Erkennung aller Brother, HP, Canon, Epson & USB-Scanner im WLAN.
-              </p>
-            )}
+            <p className="text-slate-700 text-xs font-medium leading-relaxed mb-4">
+              Automatische Erkennung aller Brother, HP, Canon, Epson & USB-Scanner. Unterstützt auch ADF-Mehrseiten-Scan.
+            </p>
           </div>
 
-          <div className="w-full space-y-2">
-            {selectedPrinter ? (
-              <>
-                <button
-                  onClick={handleStartScan}
-                  disabled={isLoading}
-                  className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md transition-all text-sm disabled:opacity-50 cursor-pointer"
-                >
-                  {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Printer size={18} />}
-                  <span>Jetzt scannen</span>
-                </button>
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => discoverPrinters(true)}
-                    disabled={discovering}
-                    className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold border-2 border-slate-300 transition-colors cursor-pointer shadow-xs"
-                  >
-                    {discovering ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                    <span>Drucker suchen</span>
-                  </button>
-                  <button
-                    onClick={() => setShowDeviceList(!showDeviceList)}
-                    className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold border-2 border-slate-300 transition-colors cursor-pointer shadow-xs"
-                  >
-                    <Settings size={12} />
-                    <span>Auswahl ({discoveredPrinters.length})</span>
-                  </button>
-                </div>
-              </>
-            ) : (
-              <button
-                onClick={() => discoverPrinters(true)}
-                disabled={discovering}
-                className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md transition-all text-sm disabled:opacity-50 cursor-pointer"
-              >
-                {discovering ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
-                <span>{discovering ? 'Suche im Netzwerk…' : 'Drucker im Netzwerk suchen'}</span>
-              </button>
-            )}
+          <div className="w-full">
+            <div className="px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md transition-all text-sm flex items-center justify-center gap-2 group-hover:shadow-lg">
+              {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Printer size={18} />}
+              <span>Scanner öffnen</span>
+            </div>
+            <p className="text-slate-500 text-[11px] font-semibold mt-2">Zero-Config · Keine IP-Eingabe nötig</p>
           </div>
         </div>
 
@@ -639,152 +452,6 @@ function UploadZone({
         </div>
 
       </div>
-
-      {/* Discovered Devices Expandable List */}
-      <AnimatePresence>
-        {showDeviceList && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="w-full max-w-4xl bg-white border-2 border-blue-200 rounded-3xl p-5 overflow-hidden shadow-md"
-          >
-            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-200">
-              <div className="flex items-center gap-2">
-                <Printer className="text-blue-600" size={18} />
-                <h4 className="font-bold text-slate-900 text-sm">
-                  Verfügbare Geräte im lokalen Netzwerk ({discoveredPrinters.length})
-                </h4>
-              </div>
-              <button
-                onClick={() => discoverPrinters(true)}
-                disabled={discovering}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-colors cursor-pointer"
-              >
-                {discovering ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-                <span>Aktualisieren</span>
-              </button>
-            </div>
-
-            {discoveredPrinters.length === 0 ? (
-              <div className="py-8 text-center">
-                <AlertCircle className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                <p className="text-sm font-bold text-slate-800">Keine Drucker oder Scanner gefunden</p>
-                <p className="text-xs text-slate-600 mt-1 max-w-md mx-auto">
-                  Stelle sicher, dass der Drucker eingeschaltet ist und sich dein Gerät im gleichen WLAN-Netzwerk befindet.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                {discoveredPrinters.map((p) => {
-                  const isSelected = selectedPrinter?.id === p.id || selectedPrinter?.ip === p.ip;
-                  const isUsb = p.connectionType === 'USB';
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => handleSelectPrinter(p)}
-                      className={`p-3.5 rounded-2xl border-2 text-left transition-all flex items-start justify-between gap-3 cursor-pointer ${
-                        isSelected
-                          ? 'border-blue-600 bg-blue-50/80 ring-2 ring-blue-500/20'
-                          : 'border-slate-200 bg-slate-50 hover:border-blue-400 hover:bg-white'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2.5 rounded-xl border ${
-                          isUsb ? 'bg-purple-100 text-purple-800 border-purple-200' : 'bg-blue-100 text-blue-800 border-blue-200'
-                        }`}>
-                          <Printer size={20} />
-                        </div>
-                        <div>
-                          <p className="font-bold text-slate-900 text-sm">
-                            {p.displayName || p.name}
-                          </p>
-                          <div className="flex items-center gap-1.5 mt-0.5 text-xs text-slate-600">
-                            <span className="font-medium">{isUsb ? 'USB-Kabel' : 'WLAN'}</span>
-                            {p.ip && p.ip !== 'SIMULATOR' && (
-                              <span className="font-mono text-[11px] text-slate-500">· {p.ip}</span>
-                            )}
-                            {(p.capabilities?.hasAdf || p.capabilities?.adf) && (
-                              <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-bold text-[10px]">ADF</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      {isSelected ? (
-                        <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900 text-xs font-bold border border-emerald-300">
-                          Aktiv
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-1 rounded-full bg-white text-slate-700 text-xs font-bold border border-slate-300 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-colors">
-                          Wählen
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Advanced / Fallback Manual IP Toggle */}
-            <div className="pt-2 border-t border-slate-200 flex flex-col items-center">
-              <button
-                onClick={() => setShowManualFallback(!showManualFallback)}
-                className="text-xs text-slate-500 hover:text-slate-800 font-medium transition-colors underline cursor-pointer"
-              >
-                {showManualFallback ? 'Erweiterte Einstellungen ausblenden' : 'Gerät wird nicht gefunden? Manuelle IP-Verbindung'}
-              </button>
-
-              <AnimatePresence>
-                {showManualFallback && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="w-full mt-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3"
-                  >
-                    <p className="text-xs text-slate-600">
-                      Gib die IP-Adresse des Druckers manuell ein (z.B. vom Druckerdisplay ablesen):
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <input
-                        type="text"
-                        placeholder="192.168.1.100"
-                        value={manualIp}
-                        onChange={(e) => setManualIp(e.target.value)}
-                        className="flex-1 min-w-[140px] px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900"
-                      />
-                      <input
-                        type="number"
-                        placeholder="80"
-                        value={manualPort}
-                        onChange={(e) => setManualPort(parseInt(e.target.value) || 80)}
-                        className="w-20 px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900"
-                      />
-                      <button
-                        onClick={() => {
-                          if (manualIp.trim()) {
-                            handleSelectPrinter({
-                              id: `MANUAL_${manualIp}`,
-                              name: `Drucker (${manualIp})`,
-                              displayName: `Drucker (${manualIp})`,
-                              connectionType: 'WIFI',
-                              ip: manualIp.trim(),
-                              port: manualPort,
-                            });
-                          }
-                        }}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold cursor-pointer"
-                      >
-                        Verbinden
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </motion.div>
   );
 }
@@ -2914,6 +2581,7 @@ export default function TimesheetsPage() {
   const [currentPreviewUrl, setCurrentPreviewUrl] = useState<string | null>(null);
   const [photoSize, setPhotoSize] = useState<'sm' | 'md' | 'lg'>('md');
   const [isPrinterScan, setIsPrinterScan] = useState(false);
+  const [isPrinterModalOpen, setIsPrinterModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshListKey, setRefreshListKey] = useState(0);
@@ -3239,11 +2907,11 @@ export default function TimesheetsPage() {
             {/* Quick Direct Scan Button in Page Header */}
             {viewMode === 'upload' && activeTab === 'scanner' && (
               <button
-                onClick={() => handlePrinterScan({})}
+                onClick={() => setIsPrinterModalOpen(true)}
                 className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-sm font-semibold transition-all shadow-sm cursor-pointer"
               >
                 <Printer size={16} />
-                <span>Direkt vom Drucker scannen</span>
+                <span>Vom Drucker scannen</span>
               </button>
             )}
           </div>
@@ -3330,7 +2998,7 @@ export default function TimesheetsPage() {
                   <UploadZone
                     onFileSelect={handleFileSelect}
                     onFilesSelect={handleFilesSelect}
-                    onPrinterScan={handlePrinterScan}
+                    onOpenPrinterScan={() => setIsPrinterModalOpen(true)}
                     isLoading={isLoading}
                   />
                 )}
@@ -3426,7 +3094,20 @@ export default function TimesheetsPage() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Universal Windows Printer / Scanner Modal */}
+        <UniversalPrinterScannerModal
+          isOpen={isPrinterModalOpen}
+          onClose={() => setIsPrinterModalOpen(false)}
+          onScanComplete={(scannedFiles) => {
+            if (scannedFiles.length === 0) return;
+            handleFilesSelect(scannedFiles);
+          }}
+          title="Stundenzettel vom Drucker scannen"
+          description="Wochenstundenzettel direkt über Ihren WLAN- oder USB-Drucker erfassen (auch Mehrseiten-Stapel über automatischen Einzug / ADF)."
+        />
       </div>
     </div>
   );
+
 }

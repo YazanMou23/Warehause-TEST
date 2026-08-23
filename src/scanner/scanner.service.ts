@@ -777,4 +777,25 @@ export class ScannerService {
       },
     };
   }
+
+  /**
+   * Package the Windows Connector as a downloadable zip file.
+   */
+  async getInstallerZip(): Promise<Buffer> {
+    const connectorDir = path.join(process.cwd(), 'windows-connector');
+    const tempZipPath = path.join(os.tmpdir(), `LogiFlow-Printer-Connector.zip`);
+
+    if (process.platform === 'win32') {
+      const psScript = `Compress-Archive -Path '${connectorDir}\\*' -DestinationPath '${tempZipPath}' -Force`;
+      await execAsync(`powershell -NoProfile -Command "${psScript}"`);
+    } else {
+      await execAsync(`cd "${connectorDir}" && zip -r "${tempZipPath}" .`);
+    }
+
+    if (fs.existsSync(tempZipPath)) {
+      return fs.readFileSync(tempZipPath);
+    }
+    throw new ServiceUnavailableException('Connector-Installer konnte nicht erstellt werden.');
+  }
 }
+

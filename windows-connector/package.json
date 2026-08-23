@@ -1,0 +1,11 @@
+{
+  "name": "logiflow-printer-connector",
+  "version": "2.0.0",
+  "description": "LogiFlow Windows Local Printer & Scanner Connector",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "author": "LogiFlow Engineering",
+  "license": "ISC"
+}
