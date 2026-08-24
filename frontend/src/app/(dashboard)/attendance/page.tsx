@@ -63,6 +63,8 @@ interface EmployeeData {
   name: string;
   phone: string;
   role: string;
+  hallId?: string | null;
+  warehouseId?: string | null;
 }
 
 interface AbsenceRecord {
@@ -95,6 +97,8 @@ export default function AttendancePage() {
   const [filterMonth, setFilterMonth] = useState(new Date().getMonth() + 1);
   const [filterYear, setFilterYear] = useState(new Date().getFullYear());
   const [filterEmployeeId, setFilterEmployeeId] = useState("ALL");
+  const [filterHallId, setFilterHallId] = useState("ALL");
+  const [searchEmployee, setSearchEmployee] = useState("");
 
   // Selection states
   const [selectedCell, setSelectedCell] = useState<{ employeeId: string; date: string } | null>(null);
@@ -183,21 +187,21 @@ export default function AttendancePage() {
       const headers = getAuthHeaders();
 
       // Warehouses
-      const whRes = await fetch(`${API_URL}/warehouses`, { headers });
+      const whRes = await fetch(`${API_URL}/warehouses?limit=1000`, { headers });
       const whJson = whRes.ok ? await whRes.json() : null;
       const whData = whJson && Array.isArray(whJson.data) ? whJson.data : (Array.isArray(whJson) ? whJson : []);
       setWarehouses(whData);
       if (whData.length > 0) setEditWarehouseId(whData[0].id);
 
       // Halls
-      const hallRes = await fetch(`${API_URL}/halls`, { headers });
+      const hallRes = await fetch(`${API_URL}/halls?limit=1000`, { headers });
       const hallJson = hallRes.ok ? await hallRes.json() : null;
       const hallData = hallJson && Array.isArray(hallJson.data) ? hallJson.data : (Array.isArray(hallJson) ? hallJson : []);
       setHalls(hallData);
       if (hallData.length > 0) setEditHallId(hallData[0].id);
 
       // Employees
-      const empRes = await fetch(`${API_URL}/employees`, { headers });
+      const empRes = await fetch(`${API_URL}/employees?limit=1000`, { headers });
       const empJson = empRes.ok ? await empRes.json() : null;
       const empData = empJson && Array.isArray(empJson.data) ? empJson.data : (Array.isArray(empJson) ? empJson : []);
       const nonAdmin = empData
@@ -488,13 +492,77 @@ export default function AttendancePage() {
     }
   };
 
+  // Filtered employees based on Halle and search term (Vorname, Nachname, Full Name)
+  const filteredEmployees = useMemo(() => {
+    return employees.filter((emp) => {
+      // 1. Hall filter
+      if (filterHallId !== "ALL") {
+        if (emp.hallId !== filterHallId) return false;
+      }
+      // 2. Search filter (Vorname, Nachname, or full name)
+      if (searchEmployee.trim()) {
+        const searchTerms = searchEmployee.trim().toLowerCase().split(/\s+/);
+        const empName = (emp.name || "").toLowerCase();
+        const matchesAll = searchTerms.every((term) => empName.includes(term));
+        if (!matchesAll) return false;
+      }
+      return true;
+    });
+  }, [employees, filterHallId, searchEmployee]);
+
+  // Keep filterEmployeeId in sync if filtered list changes
+  useEffect(() => {
+    if (filterEmployeeId !== "ALL" && !filteredEmployees.some((e) => e.id === filterEmployeeId)) {
+      setFilterEmployeeId("ALL");
+    }
+  }, [filteredEmployees, filterEmployeeId]);
+
   // Grouped employees for weekly view, explicitly sorted A-Z
   const displayEmployees = useMemo(() => {
     const list = filterEmployeeId === "ALL"
-      ? employees
-      : employees.filter((e) => e.id === filterEmployeeId);
+      ? filteredEmployees
+      : filteredEmployees.filter((e) => e.id === filterEmployeeId);
     return [...list].sort((a, b) => (a.name || "").localeCompare(b.name || "", "de", { sensitivity: "base" }));
-  }, [employees, filterEmployeeId]);
+  }, [filteredEmployees, filterEmployeeId]);
+
+  // Filtered logs for daily view
+  const displayLogs = useMemo(() => {
+    return logs.filter((record) => {
+      if (filterEmployeeId !== "ALL" && record.employeeId !== filterEmployeeId) {
+        return false;
+      }
+      if (filterHallId !== "ALL") {
+        const matchesRecordHall = record.hallId === filterHallId;
+        const matchesEmpHall = filteredEmployees.some((e) => e.id === record.employeeId);
+        if (!matchesRecordHall && !matchesEmpHall) return false;
+      }
+      if (searchEmployee.trim()) {
+        const searchTerms = searchEmployee.trim().toLowerCase().split(/\s+/);
+        const name = (record.employeeName || "").toLowerCase();
+        if (!searchTerms.every((term) => name.includes(term))) return false;
+      }
+      return true;
+    });
+  }, [logs, filterEmployeeId, filterHallId, searchEmployee, filteredEmployees]);
+
+  // Filtered absences for daily view
+  const displayAbsences = useMemo(() => {
+    return absences.filter((abs) => {
+      if (filterEmployeeId !== "ALL" && abs.employeeId !== filterEmployeeId) {
+        return false;
+      }
+      if (filterHallId !== "ALL") {
+        const matchesEmp = filteredEmployees.some((e) => e.id === abs.employeeId);
+        if (!matchesEmp) return false;
+      }
+      if (searchEmployee.trim()) {
+        const searchTerms = searchEmployee.trim().toLowerCase().split(/\s+/);
+        const name = (abs.employeeName || "").toLowerCase();
+        if (!searchTerms.every((term) => name.includes(term))) return false;
+      }
+      return true;
+    });
+  }, [absences, filterEmployeeId, filterHallId, searchEmployee, filteredEmployees]);
 
   return (
     <div className="space-y-stack-lg animate-fadeIn text-slate-800">
@@ -543,7 +611,7 @@ export default function AttendancePage() {
           <Filter className="w-4 h-4 text-secondary" /> Filteroptionen
         </h5>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end">
           {/* Dynamic Picker based on timeframe */}
           {timeframe === "daily" && (
             <div className="space-y-1">
@@ -564,7 +632,7 @@ export default function AttendancePage() {
                 <select
                   value={filterWeek}
                   onChange={(e) => setFilterWeek(Number(e.target.value))}
-                  className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-secondary outline-none"
+                  className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-secondary outline-none cursor-pointer"
                 >
                   {Array.from({ length: 53 }).map((_, i) => (
                     <option key={i + 1} value={i + 1} className="bg-white text-slate-800">
@@ -578,7 +646,7 @@ export default function AttendancePage() {
                 <select
                   value={filterYear}
                   onChange={(e) => setFilterYear(Number(e.target.value))}
-                  className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-secondary outline-none"
+                  className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-secondary outline-none cursor-pointer"
                 >
                   <option value={2026} className="bg-white text-slate-800">2026</option>
                   <option value={2025} className="bg-white text-slate-800">2025</option>
@@ -594,7 +662,7 @@ export default function AttendancePage() {
                 <select
                   value={filterMonth}
                   onChange={(e) => setFilterMonth(Number(e.target.value))}
-                  className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-secondary outline-none"
+                  className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-secondary outline-none cursor-pointer"
                 >
                   {Array.from({ length: 12 }).map((_, i) => (
                     <option key={i + 1} value={i + 1} className="bg-white text-slate-800">
@@ -608,7 +676,7 @@ export default function AttendancePage() {
                 <select
                   value={filterYear}
                   onChange={(e) => setFilterYear(Number(e.target.value))}
-                  className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-secondary outline-none"
+                  className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-secondary outline-none cursor-pointer"
                 >
                   <option value={2026} className="bg-white text-slate-800">2026</option>
                   <option value={2025} className="bg-white text-slate-800">2025</option>
@@ -617,19 +685,66 @@ export default function AttendancePage() {
             </>
           )}
 
-          {/* Employee selector */}
+          {/* 1. Mitarbeiter Search */}
           <div className="space-y-1">
             <label className="block text-[11px] font-bold text-gray-800 uppercase tracking-wider">Mitarbeiter</label>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Mitarbeiter suchen..."
+                value={searchEmployee}
+                onChange={(e) => setSearchEmployee(e.target.value)}
+                className="w-full bg-white border border-outline-variant rounded-xl pl-9 pr-7 py-2 text-sm text-slate-800 focus:outline-none focus:border-secondary outline-none placeholder:text-slate-400"
+              />
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              {searchEmployee && (
+                <button
+                  type="button"
+                  onClick={() => setSearchEmployee("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                  title="Suche leeren"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* 2. Halle Filter */}
+          <div className="space-y-1">
+            <label className="block text-[11px] font-bold text-gray-800 uppercase tracking-wider">Halle</label>
+            <select
+              value={filterHallId}
+              onChange={(e) => {
+                setFilterHallId(e.target.value);
+                setSelectedCell(null);
+              }}
+              className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-secondary outline-none cursor-pointer"
+            >
+              <option value="ALL" className="bg-white text-slate-800">Alle Hallen</option>
+              {halls.map((h) => (
+                <option key={h.id} value={h.id} className="bg-white text-slate-800">
+                  {h.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 3. Mitarbeiter Liste */}
+          <div className="space-y-1">
+            <label className="block text-[11px] font-bold text-gray-800 uppercase tracking-wider">Mitarbeiter Liste</label>
             <select
               value={filterEmployeeId}
               onChange={(e) => {
                 setFilterEmployeeId(e.target.value);
                 setSelectedCell(null);
               }}
-              className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-secondary outline-none"
+              className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-secondary outline-none cursor-pointer"
             >
-              <option value="ALL" className="bg-white text-slate-800">Alle Mitarbeiter</option>
-              {employees.map((emp) => (
+              <option value="ALL" className="bg-white text-slate-800">
+                {filteredEmployees.length === 0 ? "Keine Mitarbeiter gefunden" : "Alle Mitarbeiter"}
+              </option>
+              {filteredEmployees.map((emp) => (
                 <option key={emp.id} value={emp.id} className="bg-white text-slate-800">
                   {emp.name}
                 </option>
@@ -641,7 +756,7 @@ export default function AttendancePage() {
           <button
             onClick={fetchLogs}
             disabled={loading}
-            className="bg-white hover:bg-slate-50 disabled:opacity-50 text-gray-800 font-semibold py-2 px-4 rounded-xl border border-outline-variant transition-all flex items-center justify-center gap-1.5 cursor-pointer text-xs shadow-sm"
+            className="bg-white hover:bg-slate-50 disabled:opacity-50 text-gray-800 font-semibold py-2 px-4 rounded-xl border border-outline-variant transition-all flex items-center justify-center gap-1.5 cursor-pointer text-xs shadow-sm h-[38px]"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin text-secondary" /> : <Search className="w-4 h-4 text-secondary" />}
             Aktualisieren
@@ -656,9 +771,11 @@ export default function AttendancePage() {
             <Loader2 className="w-10 h-10 animate-spin text-secondary mb-3" />
             <p className="text-slate-500 text-sm">Lade Zeiterfassungsdaten...</p>
           </div>
-        ) : logs.length === 0 && timeframe === "daily" ? (
+        ) : (displayLogs.length === 0 && displayAbsences.length === 0) && timeframe === "daily" ? (
           <div className="text-center py-20 text-slate-500 font-medium">
-            Keine Zeiterfassungs-Einträge für dieses Datum vorhanden.
+            {searchEmployee.trim() || filterHallId !== "ALL" || filterEmployeeId !== "ALL"
+              ? "Keine Mitarbeiter gefunden."
+              : "Keine Zeiterfassungs-Einträge für dieses Datum vorhanden."}
           </div>
         ) : (
           <>
@@ -677,8 +794,8 @@ export default function AttendancePage() {
                     <th className="px-6 py-3.5 text-right print:hidden">Aktionen</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-outline-variant text-sm text-slate-700">
-                  {logs.map((record) => {
+                <tbody className="divide-y border-t border-outline-variant text-sm text-slate-700">
+                  {displayLogs.map((record) => {
                     const isSelected = selectedCell?.employeeId === record.employeeId && selectedCell?.date === record.date;
                     return (
                        <tr
@@ -754,7 +871,7 @@ export default function AttendancePage() {
                   })}
 
                   {/* Absences for current date */}
-                  {absences.map((abs) => (
+                  {displayAbsences.map((abs) => (
                     <tr key={`abs-${abs.id}`} className="bg-slate-50/60 opacity-85">
                       <td className="px-6 py-3.5 font-semibold text-slate-700">
                         <div className="flex items-center gap-2">
@@ -812,8 +929,8 @@ export default function AttendancePage() {
                   <tbody className="divide-y divide-outline-variant text-sm text-slate-700">
                     {displayEmployees.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="text-center py-10 text-slate-500">
-                          Keine Mitarbeiter im System vorhanden.
+                        <td colSpan={10} className="text-center py-10 text-slate-500 font-medium">
+                          Keine Mitarbeiter gefunden.
                         </td>
                       </tr>
                     ) : (
@@ -945,7 +1062,7 @@ export default function AttendancePage() {
                   const weekStartStr = weekStart.toISOString().split("T")[0];
                   const weekEndStr = weekEnd.toISOString().split("T")[0];
 
-                  const weekLogs = logs.filter((l) => l.date >= weekStartStr && l.date <= weekEndStr);
+                  const weekLogs = displayLogs.filter((l) => l.date >= weekStartStr && l.date <= weekEndStr);
                   const weekHoursSum = weekLogs.reduce((s, l) => s + (l.totalHours || 0), 0);
 
                   return (
@@ -982,8 +1099,8 @@ export default function AttendancePage() {
                             week={weekNo}
                             year={filterYear}
                             displayEmployees={displayEmployees}
-                            logs={logs}
-                            absences={absences}
+                            logs={displayLogs}
+                            absences={displayAbsences}
                             selectedCell={selectedCell}
                             onCellSelect={handleCellSelect}
                             downloadTsFile={downloadTsFile}
@@ -1297,15 +1414,22 @@ function WeeklyMatrixTable({
         </tr>
       </thead>
       <tbody className="divide-y divide-outline-variant text-xs text-slate-700">
-        {displayEmployees.map((emp) => {
-          let weeklySum = 0;
-          let linkedTsId: string | null = null;
+        {displayEmployees.length === 0 ? (
+          <tr>
+            <td colSpan={10} className="text-center py-6 text-slate-500 font-medium">
+              Keine Mitarbeiter gefunden.
+            </td>
+          </tr>
+        ) : (
+          displayEmployees.map((emp) => {
+            let weeklySum = 0;
+            let linkedTsId: string | null = null;
 
-          return (
-            <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
-              <td className="px-4 py-2.5 font-semibold text-slate-800">
-                <span className="block">{emp.name}</span>
-              </td>
+            return (
+              <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
+                <td className="px-4 py-2.5 font-semibold text-slate-800">
+                  <span className="block">{emp.name}</span>
+                </td>
 
               {daysOfWeekList.map((dayStr) => {
                 const cellRecord = getLogForCell(emp.id, dayStr);
@@ -1379,10 +1503,11 @@ function WeeklyMatrixTable({
                 ) : (
                   <span className="text-[9px] text-slate-500 font-mono">Manuell</span>
                 )}
-              </td>
-            </tr>
-          );
-        })}
+                </td>
+              </tr>
+            );
+          })
+        )}
       </tbody>
     </table>
   );
