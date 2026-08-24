@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Clock,
@@ -12,6 +12,7 @@ import {
   CheckCircle,
   AlertTriangle,
   User,
+  Users,
   Printer,
   FileText,
   FileSpreadsheet,
@@ -99,6 +100,21 @@ export default function AttendancePage() {
   const [filterEmployeeId, setFilterEmployeeId] = useState("ALL");
   const [filterHallId, setFilterHallId] = useState("ALL");
   const [searchEmployee, setSearchEmployee] = useState("");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  // Close search dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+        setIsSearchOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   // Selection states
   const [selectedCell, setSelectedCell] = useState<{ employeeId: string; date: string } | null>(null);
@@ -492,38 +508,46 @@ export default function AttendancePage() {
     }
   };
 
-  // Filtered employees based on Halle and search term (Vorname, Nachname, Full Name)
-  const filteredEmployees = useMemo(() => {
+  // Matching candidates for the search dropdown list
+  const searchMatchingEmployees = useMemo(() => {
     return employees.filter((emp) => {
-      // 1. Hall filter
-      if (filterHallId !== "ALL") {
-        if (emp.hallId !== filterHallId) return false;
+      if (filterHallId !== "ALL" && emp.hallId !== filterHallId) {
+        return false;
       }
-      // 2. Search filter (Vorname, Nachname, or full name)
       if (searchEmployee.trim()) {
-        const searchTerms = searchEmployee.trim().toLowerCase().split(/\s+/);
-        const empName = (emp.name || "").toLowerCase();
-        const matchesAll = searchTerms.every((term) => empName.includes(term));
-        if (!matchesAll) return false;
+        const terms = searchEmployee.trim().toLowerCase().split(/\s+/);
+        const name = (emp.name || "").toLowerCase();
+        return terms.every((t) => name.includes(t));
       }
       return true;
     });
   }, [employees, filterHallId, searchEmployee]);
 
-  // Keep filterEmployeeId in sync if filtered list changes
-  useEffect(() => {
-    if (filterEmployeeId !== "ALL" && !filteredEmployees.some((e) => e.id === filterEmployeeId)) {
-      setFilterEmployeeId("ALL");
-    }
-  }, [filteredEmployees, filterEmployeeId]);
+  // Filtered employees for tables and statistics
+  const filteredEmployees = useMemo(() => {
+    return employees.filter((emp) => {
+      // If a specific employee is selected via dropdown
+      if (filterEmployeeId !== "ALL") {
+        if (emp.id !== filterEmployeeId) return false;
+      }
+      // Hall filter
+      if (filterHallId !== "ALL") {
+        if (emp.hallId !== filterHallId) return false;
+      }
+      // If no single employee is selected, but text is typed in search
+      if (filterEmployeeId === "ALL" && searchEmployee.trim()) {
+        const terms = searchEmployee.trim().toLowerCase().split(/\s+/);
+        const empName = (emp.name || "").toLowerCase();
+        return terms.every((t) => empName.includes(t));
+      }
+      return true;
+    });
+  }, [employees, filterEmployeeId, filterHallId, searchEmployee]);
 
-  // Grouped employees for weekly view, explicitly sorted A-Z
+  // Grouped employees for weekly & monthly views, explicitly sorted A-Z
   const displayEmployees = useMemo(() => {
-    const list = filterEmployeeId === "ALL"
-      ? filteredEmployees
-      : filteredEmployees.filter((e) => e.id === filterEmployeeId);
-    return [...list].sort((a, b) => (a.name || "").localeCompare(b.name || "", "de", { sensitivity: "base" }));
-  }, [filteredEmployees, filterEmployeeId]);
+    return [...filteredEmployees].sort((a, b) => (a.name || "").localeCompare(b.name || "", "de", { sensitivity: "base" }));
+  }, [filteredEmployees]);
 
   // Filtered logs for daily view
   const displayLogs = useMemo(() => {
@@ -536,7 +560,7 @@ export default function AttendancePage() {
         const matchesEmpHall = filteredEmployees.some((e) => e.id === record.employeeId);
         if (!matchesRecordHall && !matchesEmpHall) return false;
       }
-      if (searchEmployee.trim()) {
+      if (filterEmployeeId === "ALL" && searchEmployee.trim()) {
         const searchTerms = searchEmployee.trim().toLowerCase().split(/\s+/);
         const name = (record.employeeName || "").toLowerCase();
         if (!searchTerms.every((term) => name.includes(term))) return false;
@@ -555,7 +579,7 @@ export default function AttendancePage() {
         const matchesEmp = filteredEmployees.some((e) => e.id === abs.employeeId);
         if (!matchesEmp) return false;
       }
-      if (searchEmployee.trim()) {
+      if (filterEmployeeId === "ALL" && searchEmployee.trim()) {
         const searchTerms = searchEmployee.trim().toLowerCase().split(/\s+/);
         const name = (abs.employeeName || "").toLowerCase();
         if (!searchTerms.every((term) => name.includes(term))) return false;
@@ -611,7 +635,13 @@ export default function AttendancePage() {
           <Filter className="w-4 h-4 text-secondary" /> Filteroptionen
         </h5>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end">
+        <div
+          className={`grid gap-4 items-end ${
+            timeframe === "daily"
+              ? "grid-cols-1 sm:grid-cols-3"
+              : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
+          }`}
+        >
           {/* Dynamic Picker based on timeframe */}
           {timeframe === "daily" && (
             <div className="space-y-1">
@@ -685,32 +715,110 @@ export default function AttendancePage() {
             </>
           )}
 
-          {/* 1. Mitarbeiter Search */}
-          <div className="space-y-1">
+          {/* Mitarbeiter Search with Live Results Dropdown */}
+          <div className="space-y-1 relative" ref={searchContainerRef}>
             <label className="block text-[11px] font-bold text-gray-800 uppercase tracking-wider">Mitarbeiter</label>
             <div className="relative">
               <input
                 type="text"
                 placeholder="Mitarbeiter suchen..."
                 value={searchEmployee}
-                onChange={(e) => setSearchEmployee(e.target.value)}
+                onFocus={() => setIsSearchOpen(true)}
+                onChange={(e) => {
+                  setSearchEmployee(e.target.value);
+                  if (filterEmployeeId !== "ALL") setFilterEmployeeId("ALL");
+                  setIsSearchOpen(true);
+                }}
                 className="w-full bg-white border border-outline-variant rounded-xl pl-9 pr-7 py-2 text-sm text-slate-800 focus:outline-none focus:border-secondary outline-none placeholder:text-slate-400"
               />
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              {searchEmployee && (
+              {(searchEmployee || filterEmployeeId !== "ALL") && (
                 <button
                   type="button"
-                  onClick={() => setSearchEmployee("")}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
-                  title="Suche leeren"
+                  onClick={() => {
+                    setSearchEmployee("");
+                    setFilterEmployeeId("ALL");
+                    setIsSearchOpen(false);
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                  title="Filter zurücksetzen"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
+
+            {/* Dropdown Result List */}
+            {isSearchOpen && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-white border border-outline-variant rounded-xl shadow-xl max-h-60 overflow-y-auto divide-y divide-slate-100 animate-fadeIn">
+                {/* Option: Alle Mitarbeiter */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilterEmployeeId("ALL");
+                    setSearchEmployee("");
+                    setIsSearchOpen(false);
+                  }}
+                  className={`w-full text-left px-3.5 py-2.5 text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                    filterEmployeeId === "ALL" && !searchEmployee
+                      ? "bg-blue-50/80 text-blue-700 font-bold"
+                      : "text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <Users className="w-3.5 h-3.5 text-slate-400" />
+                    Alle Mitarbeiter
+                  </span>
+                  {filterEmployeeId === "ALL" && !searchEmployee && (
+                    <CheckCircle className="w-3.5 h-3.5 text-blue-600" />
+                  )}
+                </button>
+
+                {/* Candidate Employees */}
+                {searchMatchingEmployees.length === 0 ? (
+                  <div className="px-4 py-4 text-xs text-slate-500 text-center font-medium">
+                    Keine Mitarbeiter gefunden
+                  </div>
+                ) : (
+                  searchMatchingEmployees.map((emp) => {
+                    const isSelected = filterEmployeeId === emp.id;
+                    const hallName = halls.find((h) => h.id === emp.hallId)?.name;
+                    return (
+                      <button
+                        key={emp.id}
+                        type="button"
+                        onClick={() => {
+                          setFilterEmployeeId(emp.id);
+                          setSearchEmployee(emp.name);
+                          setIsSearchOpen(false);
+                        }}
+                        className={`w-full text-left px-3.5 py-2.5 text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                          isSelected
+                            ? "bg-blue-50 text-blue-700 font-bold"
+                            : "text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-5 h-5 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-[9px] shrink-0">
+                            {emp.name.split(" ").map((n) => n[0]).join("")}
+                          </div>
+                          <div className="truncate">
+                            <span className="block truncate font-medium">{emp.name}</span>
+                            {hallName && (
+                              <span className="text-[10px] text-slate-400 block truncate">{hallName}</span>
+                            )}
+                          </div>
+                        </div>
+                        {isSelected && <CheckCircle className="w-3.5 h-3.5 text-blue-600 shrink-0 ml-2" />}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            )}
           </div>
 
-          {/* 2. Halle Filter */}
+          {/* Halle Filter */}
           <div className="space-y-1">
             <label className="block text-[11px] font-bold text-gray-800 uppercase tracking-wider">Halle</label>
             <select
@@ -729,38 +837,6 @@ export default function AttendancePage() {
               ))}
             </select>
           </div>
-
-          {/* 3. Mitarbeiter Liste */}
-          <div className="space-y-1">
-            <label className="block text-[11px] font-bold text-gray-800 uppercase tracking-wider">Mitarbeiter Liste</label>
-            <select
-              value={filterEmployeeId}
-              onChange={(e) => {
-                setFilterEmployeeId(e.target.value);
-                setSelectedCell(null);
-              }}
-              className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-secondary outline-none cursor-pointer"
-            >
-              <option value="ALL" className="bg-white text-slate-800">
-                {filteredEmployees.length === 0 ? "Keine Mitarbeiter gefunden" : "Alle Mitarbeiter"}
-              </option>
-              {filteredEmployees.map((emp) => (
-                <option key={emp.id} value={emp.id} className="bg-white text-slate-800">
-                  {emp.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Refresh Button */}
-          <button
-            onClick={fetchLogs}
-            disabled={loading}
-            className="bg-white hover:bg-slate-50 disabled:opacity-50 text-gray-800 font-semibold py-2 px-4 rounded-xl border border-outline-variant transition-all flex items-center justify-center gap-1.5 cursor-pointer text-xs shadow-sm h-[38px]"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin text-secondary" /> : <Search className="w-4 h-4 text-secondary" />}
-            Aktualisieren
-          </button>
         </div>
       </div>
 
