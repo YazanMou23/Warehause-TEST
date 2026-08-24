@@ -14,6 +14,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Public } from '../common/decorators/public.decorator';
 import { Role } from '@prisma/client';
 
 @Controller('scanner')
@@ -115,8 +116,11 @@ export class ScannerController {
 
   /**
    * GET /scanner/download-installer
-   * Download the 1-click Windows Printer Connector installer zip package
+   * Download the 1-click Windows Printer Connector installer zip package.
+   * Public — no authentication required so the connector installer
+   * can be downloaded even before the user has a valid session.
    */
+  @Public()
   @Get('download-installer')
   async downloadInstaller(@Res() res: Response) {
     const zipBuffer = await this.scannerService.getInstallerZip();
