@@ -22,7 +22,7 @@ const execAsync = promisify(exec);
 const ESCL_PORTS    = [80, 8080, 443, 8443, 5757, 9100];
 const PROBE_TIMEOUT = 1400;
 const AGENT_URL     = 'http://127.0.0.1:48281';
-const AGENT_TIMEOUT = 1500;
+const AGENT_TIMEOUT = 4000;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -402,20 +402,33 @@ export class ScannerBridgeService {
     }
     try {
       const url = `http://${ip}:${port}/eSCL/ScannerStatus`;
-      const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
-      if (!res.ok) return { status: 'ERROR', details: `HTTP ${res.status}` };
+      const res = await fetch(url, { signal: AbortSignal.timeout(2000) });
+      if (res.ok) {
+        const xml    = await res.text();
+        const state  = extractXmlTag(xml, 'State') ?? 'Idle';
+        const reason = extractXmlTag(xml, 'AdfState') ?? extractXmlTag(xml, 'Reason') ?? '';
 
-      const xml    = await res.text();
-      const state  = extractXmlTag(xml, 'State') ?? 'Idle';
-      const reason = extractXmlTag(xml, 'AdfState') ?? extractXmlTag(xml, 'Reason') ?? '';
+        let status: DiscoveredScannerDevice['status'] = 'READY';
+        if (/busy|processing/i.test(state))     status = 'BUSY';
+        if (/jam/i.test(reason))                status = 'PAPER_JAM';
+        if (/empty|nopaper/i.test(reason))      status = 'NO_PAPER';
+        if (/open|cover/i.test(reason))         status = 'COVER_OPEN';
 
-      let status: DiscoveredScannerDevice['status'] = 'READY';
-      if (/busy|processing/i.test(state))     status = 'BUSY';
-      if (/jam/i.test(reason))                status = 'PAPER_JAM';
-      if (/empty|nopaper/i.test(reason))      status = 'NO_PAPER';
-      if (/open|cover/i.test(reason))         status = 'COVER_OPEN';
+        return { status, state, details: `eSCL Zustand: ${state}` };
+      }
+    } catch {}
 
-      return { status, state, details: `eSCL Zustand: ${state}` };
+    // Fallback: Test TCP reachability on device ports
+    try {
+      const isAlive = await tcpReachable(ip, port, 1500) ||
+                      await tcpReachable(ip, 80, 1000) ||
+                      await tcpReachable(ip, 443, 1000) ||
+                      await tcpReachable(ip, 8611, 1000) ||
+                      await tcpReachable(ip, 631, 1000);
+      if (isAlive) {
+        return { status: 'READY', state: 'Idle', details: `Netzwerkgerät erreichbar (${ip})` };
+      }
+      return { status: 'OFFLINE', details: `Gerät unter ${ip} antwortet nicht.` };
     } catch (e: any) {
       return { status: 'OFFLINE', details: `Nicht erreichbar: ${e.message}` };
     }

@@ -381,9 +381,23 @@ export default function DeviceManagerModal({
       const res = await fetch(`${API_URL}/documents/scanner/agent-status`, { headers: authHeaders() });
       if (res.ok) {
         const data = await res.json();
-        setAgentAvailable(data.agentAvailable);
+        if (data.agentAvailable) {
+          setAgentAvailable(true);
+          return;
+        }
       }
-    } catch { setAgentAvailable(false); }
+    } catch {}
+
+    // Fallback: Check local connector directly from browser
+    try {
+      const localRes = await fetch("http://127.0.0.1:48281/health", { signal: AbortSignal.timeout(1200) });
+      if (localRes.ok) {
+        setAgentAvailable(true);
+        return;
+      }
+    } catch {}
+
+    setAgentAvailable(false);
   }, []);
 
   useEffect(() => {
@@ -398,11 +412,42 @@ export default function DeviceManagerModal({
     setErrorMsg("");
     setDiscoveredDevices([]);
     try {
-      const res = await fetch(`${API_URL}/documents/scanner/discover`, { headers: authHeaders() });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const devices: ScannerDeviceRaw[] = await res.json();
-      setDiscoveredDevices(devices);
-      setDiscoveryState(devices.length > 0 ? "found" : "empty");
+      const allDevices: ScannerDeviceRaw[] = [];
+      const seenIds = new Set<string>();
+
+      // 1. Fetch from backend API
+      try {
+        const res = await fetch(`${API_URL}/documents/scanner/discover`, { headers: authHeaders() });
+        if (res.ok) {
+          const backendDevices: ScannerDeviceRaw[] = await res.json();
+          for (const dev of backendDevices) {
+            if (!seenIds.has(dev.id)) {
+              seenIds.add(dev.id);
+              allDevices.push(dev);
+            }
+          }
+        }
+      } catch {}
+
+      // 2. Fetch directly from local connector (zero-latency)
+      try {
+        const connRes = await fetch("http://127.0.0.1:48281/devices", { signal: AbortSignal.timeout(3500) });
+        if (connRes.ok) {
+          const localDevices: ScannerDeviceRaw[] = await connRes.json();
+          for (const dev of localDevices) {
+            if (!seenIds.has(dev.id)) {
+              seenIds.add(dev.id);
+              allDevices.push({
+                ...dev,
+                isAgentDevice: true,
+              });
+            }
+          }
+        }
+      } catch {}
+
+      setDiscoveredDevices(allDevices);
+      setDiscoveryState(allDevices.length > 0 ? "found" : "empty");
     } catch (e: any) {
       setErrorMsg(e.message || "Suche fehlgeschlagen.");
       setDiscoveryState("error");

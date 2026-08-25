@@ -53,13 +53,13 @@ export async function checkConnectorStatus(): Promise<ConnectorStatusResult> {
 }
 
 export async function getDevices(): Promise<DiscoveredDevice[]> {
-  const r = await fetch(CONNECTOR_URL + '/devices');
+  const r = await fetch(CONNECTOR_URL + '/devices', { signal: AbortSignal.timeout(5000) });
   if (!r.ok) throw new Error('GET /devices failed: HTTP ' + r.status);
   return r.json();
 }
 
 export async function discoverDevices(): Promise<DiscoveredDevice[]> {
-  const r = await fetch(CONNECTOR_URL + '/discover', { method: 'POST' });
+  const r = await fetch(CONNECTOR_URL + '/discover', { method: 'POST', signal: AbortSignal.timeout(6000) });
   if (!r.ok) throw new Error('POST /discover failed: HTTP ' + r.status);
   return r.json();
 }
