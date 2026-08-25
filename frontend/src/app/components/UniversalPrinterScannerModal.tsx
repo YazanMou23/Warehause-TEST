@@ -106,6 +106,7 @@ export default function UniversalPrinterScannerModal({
 
     if (result.status === 'connected') {
       setConnectorVersion(result.version);
+      setErrorMsg('');
       setStep('discovery');
       runDiscovery();
     } else if (result.status === 'outdated') {
@@ -113,6 +114,9 @@ export default function UniversalPrinterScannerModal({
       setStep('outdated');
     } else {
       setStep('offline');
+      if (result.errorMessage) {
+        setErrorMsg(`Connector nicht erreichbar (${result.errorMessage}).`);
+      }
     }
   }, [isOpen]);
 

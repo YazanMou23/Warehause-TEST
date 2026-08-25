@@ -15,13 +15,23 @@ set "SOURCE_DIR=%~dp0"
 echo 1. Vorbereitung des Installationsordners...
 if not exist "%TARGET_DIR%" mkdir "%TARGET_DIR%"
 
-echo 2. Dateien kopieren nach: %TARGET_DIR%
+echo 2. Runtime pruefen...
+where node >nul 2>nul
+if %errorlevel% neq 0 (
+    if not exist "%TARGET_DIR%\node.exe" (
+        echo    Lade Connector-Runtime herunter (einmalig, automatisch)...
+        powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object System.Net.WebClient).DownloadFile('https://nodejs.org/dist/v20.18.0/win-x64/node.exe', [System.IO.Path]::Combine($env:LOCALAPPDATA, 'LogiFlowPrinterConnector', 'node.exe'))"
+    )
+)
+
+echo 3. Dateien kopieren nach: %TARGET_DIR%
 copy /Y "%SOURCE_DIR%index.js" "%TARGET_DIR%\" >nul
 copy /Y "%SOURCE_DIR%start-silent.vbs" "%TARGET_DIR%\" >nul
 copy /Y "%SOURCE_DIR%package.json" "%TARGET_DIR%\" >nul
 copy /Y "%SOURCE_DIR%uninstall.bat" "%TARGET_DIR%\" >nul
+if exist "%SOURCE_DIR%node.exe" copy /Y "%SOURCE_DIR%node.exe" "%TARGET_DIR%\" >nul
 
-echo 3. Autostart bei Windows-Anmeldung registrieren...
+echo 4. Autostart bei Windows-Anmeldung registrieren...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$ws = New-Object -ComObject WScript.Shell; " ^
   "$s = $ws.CreateShortcut([System.IO.Path]::Combine([Environment]::GetFolderPath('Startup'), 'LogiFlowPrinterConnector.lnk')); " ^

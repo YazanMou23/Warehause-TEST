@@ -1,5 +1,5 @@
 export const CONNECTOR_URL = 'http://127.0.0.1:48281';
-export const CONNECTOR_MIN_VERSION = '3.0.0';
+export const CONNECTOR_MIN_VERSION = '2.0.0';
 export const HEALTH_CHECK_TIMEOUT_MS = 2000;
 
 export type ConnectorStatus = 'checking' | 'connected' | 'outdated' | 'missing' | 'error';
@@ -75,7 +75,8 @@ export async function scanDocument(opts: ScanOptions): Promise<File[]> {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
   });
   if (!r.ok) { const t = await r.text().catch(() => ''); throw new Error('Scan failed (HTTP ' + r.status + '): ' + t); }
-  const pages: ScannedPage[] = await r.json();
+  const rawData = await r.json();
+  const pages: ScannedPage[] = Array.isArray(rawData) ? rawData : (rawData.pages || []);
   return pages.map((p, idx) => {
     const bytes = atob(p.base64Data);
     const arr = new Uint8Array(bytes.length);
