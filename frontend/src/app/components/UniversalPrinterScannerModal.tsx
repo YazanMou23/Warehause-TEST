@@ -491,6 +491,15 @@ export default function UniversalPrinterScannerModal({
                                 <span className="text-[11px] text-slate-400">
                                   {device.manufacturer || 'Netzwerk'} • {device.connectionType === 'USB' ? 'USB' : 'WLAN/LAN'}
                                 </span>
+                                {device.id === 'SIMULATOR' || device.protocol === 'SIMULATOR' ? (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-semibold border border-amber-500/25">
+                                    Demo-Simulator
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400 font-semibold border border-blue-500/25">
+                                    Hardware-Gerät
+                                  </span>
+                                )}
                                 {hasAdf && (
                                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-semibold border border-emerald-500/25">
                                     ADF Einzug

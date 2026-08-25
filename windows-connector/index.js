@@ -1097,21 +1097,47 @@ async function triggerEsclScan(ip, port, options) {
 async function executeScan(options) {
   const { scannerIp, scannerPort = 80 } = options;
 
+  // 1. Explicit Simulator request
   if (!scannerIp || scannerIp === 'SIMULATOR') {
     log('log', 'Simulator scan executed — returning realistic sample document.');
     return [{ buffer: generateSampleDocumentPng(800, 1100), mimeType: 'image/png' }];
   }
 
-  if (scannerIp.startsWith('USB_') || scannerIp.startsWith('WIA_') || scannerIp === 'USB') {
+  // 2. Windows WIA / USB device
+  if (scannerIp.startsWith('USB_') || scannerIp.startsWith('WIA_') || scannerIp === 'USB' || scannerIp.startsWith('WIN_')) {
     return triggerWiaScan();
   }
 
-  try {
-    return await triggerEsclScan(scannerIp, scannerPort, options);
-  } catch (err) {
-    log('log', `Direct eSCL scan returned (${err.message}). Falling back to simulated scan pipeline...`);
-    return [{ buffer: generateSampleDocumentPng(800, 1100), mimeType: 'image/png' }];
+  // 3. Physical Network Device: Try eSCL across candidate ports
+  const candidatePorts = [scannerPort, 80, 8080, 443, 8443, 5757, 9100].filter(
+    (p, idx, arr) => arr.indexOf(p) === idx
+  );
+
+  let lastError = null;
+  for (const port of candidatePorts) {
+    try {
+      log('log', `Attempting physical eSCL scan on ${scannerIp}:${port}...`);
+      const pages = await triggerEsclScan(scannerIp, port, options);
+      if (pages && pages.length > 0) return pages;
+    } catch (err) {
+      lastError = err;
+    }
   }
+
+  // 4. Try Windows WIA scanning as fallback for network scanners configured in Windows
+  try {
+    log('log', `Trying Windows WIA scan fallback for ${scannerIp}...`);
+    const pages = await triggerWiaScan();
+    if (pages && pages.length > 0) return pages;
+  } catch {}
+
+  // 5. Physical Scan failed — DO NOT return silent simulator dummy! Throw explanatory error
+  const errMsg = lastError ? lastError.message : 'Drucker reagiert nicht auf Scan-Befehle';
+  log('error', `Physical scan failed on ${scannerIp}:`, errMsg);
+  throw new Error(
+    `Physischer Scan auf Gerät (${scannerIp}) nicht möglich: ${errMsg}. ` +
+    `Bitte prüfen Sie, ob "AirScan / eSCL" im Web-Menü des Druckers (http://${scannerIp}) aktiviert ist, oder installieren Sie den Windows WIA-Scannertreiber für dieses Modell.`
+  );
 }
 
 // ─── 11. Real Connection Test ────────────────────────────────────────────────
