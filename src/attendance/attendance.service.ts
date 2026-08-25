@@ -291,9 +291,9 @@ export class AttendanceService {
       this.prisma.attendance.findMany({
         where,
         include: {
-          employee: { select: { id: true, name: true, phone: true } },
+          employee: { select: { id: true, name: true, phone: true, hallId: true, warehouseId: true } },
           warehouse: { select: { id: true, name: true } },
-          hall: { select: { id: true, name: true } },
+          hall: { select: { id: true, name: true, color: true } },
         },
         orderBy: { clockIn: 'asc' },
       }),
@@ -303,7 +303,7 @@ export class AttendanceService {
           ...(query.employeeId && query.employeeId !== 'ALL' ? { employeeId: query.employeeId } : {}),
         },
         include: {
-          employee: { select: { id: true, name: true, phone: true } },
+          employee: { select: { id: true, name: true, phone: true, hallId: true, warehouseId: true } },
         },
         orderBy: { date: 'asc' },
       }),
