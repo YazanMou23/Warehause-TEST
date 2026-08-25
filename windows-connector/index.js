@@ -1108,19 +1108,23 @@ async function executeScan(options) {
     return triggerWiaScan();
   }
 
-  // 3. Physical Network Device: Try eSCL across candidate ports
-  const candidatePorts = [scannerPort, 80, 8080, 443, 8443, 5757, 9100].filter(
+  // 3. Physical Network Device: Try eSCL only on actual HTTP ports that are open
+  const candidatePorts = [scannerPort, 80, 443, 8080, 8443].filter(
     (p, idx, arr) => arr.indexOf(p) === idx
   );
 
-  let lastError = null;
+  let esclAttempted = false;
   for (const port of candidatePorts) {
+    const isOpen = await tcpReachable(scannerIp, port, 400);
+    if (!isOpen) continue;
+
     try {
+      esclAttempted = true;
       log('log', `Attempting physical eSCL scan on ${scannerIp}:${port}...`);
       const pages = await triggerEsclScan(scannerIp, port, options);
       if (pages && pages.length > 0) return pages;
     } catch (err) {
-      lastError = err;
+      log('debug', `eSCL scan on ${scannerIp}:${port} failed: ${err.message}`);
     }
   }
 
@@ -1132,11 +1136,11 @@ async function executeScan(options) {
   } catch {}
 
   // 5. Physical Scan failed — DO NOT return silent simulator dummy! Throw explanatory error
-  const errMsg = lastError ? lastError.message : 'Drucker reagiert nicht auf Scan-Befehle';
-  log('error', `Physical scan failed on ${scannerIp}:`, errMsg);
+  log('error', `Physical scan failed on ${scannerIp}`);
   throw new Error(
-    `Physischer Scan auf Gerät (${scannerIp}) nicht möglich: ${errMsg}. ` +
-    `Bitte prüfen Sie, ob "AirScan / eSCL" im Web-Menü des Druckers (http://${scannerIp}) aktiviert ist, oder installieren Sie den Windows WIA-Scannertreiber für dieses Modell.`
+    `Physischer Scan auf Gerät (${scannerIp}) nicht möglich. ` +
+    `Das Gerät hat den Netzwerk-Scanbefehl abgelehnt (AirScan/eSCL ist auf dem Drucker nicht aktiv und kein Windows WIA-Treiber eingerichtet). ` +
+    `Bitte aktivieren Sie "AirScan / eSCL" im Web-Menü des Druckers oder installieren Sie den Windows Scannertreiber für dieses Modell.`
   );
 }
 

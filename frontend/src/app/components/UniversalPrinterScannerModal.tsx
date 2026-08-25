@@ -293,15 +293,45 @@ export default function UniversalPrinterScannerModal({
 
         {/* Body */}
         <div className="p-5 sm:p-6 space-y-5 max-h-[72vh] overflow-y-auto">
-          {/* Error Message */}
+          {/* Error Message with Action Shortcuts */}
           {errorMsg && (
             <motion.div
               initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
-              className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm flex items-start gap-3"
+              className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm space-y-3"
             >
-              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-              <div className="flex-1">{errorMsg}</div>
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-red-400" />
+                <div className="flex-1 font-medium leading-relaxed">
+                  {errorMsg.replace(/^Scan failed \(HTTP \d+\):\s*(\{.*?"message":"(.*?)"\})?/s, (_match, _json, msg) => msg || _match)}
+                </div>
+              </div>
+
+              {/* Action Suggestions */}
+              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-red-500/20 text-xs">
+                {selectedDevice?.ip && selectedDevice.ip !== 'SIMULATOR' && (
+                  <a
+                    href={`http://${selectedDevice.ip}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold border border-slate-700 transition-colors"
+                  >
+                    🌐 Drucker Web-Menü öffnen ({selectedDevice.ip})
+                  </a>
+                )}
+                {devices.some((d) => d.id === 'SIMULATOR') && selectedDevice?.id !== 'SIMULATOR' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const sim = devices.find((d) => d.id === 'SIMULATOR');
+                      if (sim) handleSelectDevice(sim);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-semibold border border-amber-500/30 transition-colors cursor-pointer"
+                  >
+                    🧪 Zum Test-Simulator wechseln
+                  </button>
+                )}
+              </div>
             </motion.div>
           )}
 
