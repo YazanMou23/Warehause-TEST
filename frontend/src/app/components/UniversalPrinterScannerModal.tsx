@@ -303,7 +303,16 @@ export default function UniversalPrinterScannerModal({
               <div className="flex items-start gap-3">
                 <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-red-400" />
                 <div className="flex-1 font-medium leading-relaxed">
-                  {errorMsg.replace(/^Scan failed \(HTTP \d+\):\s*(\{.*?"message":"(.*?)"\})?/s, (_match, _json, msg) => msg || _match)}
+                  {(() => {
+                    const match = errorMsg.match(/\{[\s\S]*\}/);
+                    if (match) {
+                      try {
+                        const parsed = JSON.parse(match[0]);
+                        if (parsed.message) return parsed.message;
+                      } catch {}
+                    }
+                    return errorMsg;
+                  })()}
                 </div>
               </div>
 
