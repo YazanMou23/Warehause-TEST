@@ -2903,17 +2903,6 @@ export default function TimesheetsPage() {
                 </p>
               </div>
             </div>
-
-            {/* Quick Direct Scan Button in Page Header */}
-            {viewMode === 'upload' && activeTab === 'scanner' && (
-              <button
-                onClick={() => setIsPrinterModalOpen(true)}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-sm font-semibold transition-all shadow-sm cursor-pointer"
-              >
-                <Printer size={16} />
-                <span>Vom Drucker scannen</span>
-              </button>
-            )}
           </div>
         </div>
 

@@ -279,25 +279,12 @@ export default function OcrPage() {
 
   return (
     <div className="space-y-stack-lg animate-fadeIn">
-      {/* Title & Direct Printer Scan Action Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h3 className="font-headline-lg font-bold text-on-surface">Container Liste Scanner & Upload</h3>
-          <p className="text-on-surface-variant font-body-sm">
-            Lade Containerlisten hoch – oder scanne Dokumente direkt über verbundene WLAN & USB-Drucker.
-          </p>
-        </div>
-
-        {/* Direct Printer Scan Button */}
-        <button
-          type="button"
-          onClick={() => setIsPrinterModalOpen(true)}
-          disabled={uploading}
-          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold px-5 py-2.5 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer text-sm"
-        >
-          <Printer className="w-4 h-4 text-white" />
-          <span>Vom Drucker scannen</span>
-        </button>
+      {/* Title */}
+      <div>
+        <h3 className="font-headline-lg font-bold text-on-surface">Container Liste Scanner & Upload</h3>
+        <p className="text-on-surface-variant font-body-sm">
+          Lade Containerlisten hoch – oder scanne Dokumente direkt über verbundene WLAN & USB-Drucker.
+        </p>
       </div>
 
       {isOffline && (
