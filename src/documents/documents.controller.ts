@@ -226,8 +226,8 @@ export class DocumentsController {
       agentAvailable: available,
       agentUrl:       'http://127.0.0.1:48281',
       message: available
-        ? 'Local Scanner Agent ist aktiv — LAN-Scanner werden erkannt.'
-        : 'Local Scanner Agent nicht gefunden. Starte scanner-agent/index.js auf deinem PC für automatische Netzwerkerkennung.',
+        ? 'LogiFlow Connector ist aktiv — LAN-Scanner werden erkannt.'
+        : 'LogiFlow Connector nicht gefunden. Bitte Connector installieren oder starten für automatische Erkennung.',
     };
   }
 

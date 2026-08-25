@@ -116,20 +116,23 @@ export class ScannerController {
 
   /**
    * GET /scanner/download-installer
-   * Download the 1-click Windows Printer Connector installer zip package.
+   * Download the 1-click Connector installer package (.exe for Windows, .dmg for macOS, or zip).
    * Public — no authentication required so the connector installer
    * can be downloaded even before the user has a valid session.
    */
   @Public()
   @Get('download-installer')
-  async downloadInstaller(@Res() res: Response) {
-    const zipBuffer = await this.scannerService.getInstallerZip();
+  async downloadInstaller(
+    @Query('platform') platform: string | undefined,
+    @Res() res: Response,
+  ) {
+    const { buffer, fileName, contentType } = await this.scannerService.getInstaller(platform);
     res.set({
-      'Content-Type': 'application/zip',
-      'Content-Disposition': 'attachment; filename="LogiFlow-Printer-Connector.zip"',
-      'Content-Length': zipBuffer.length,
+      'Content-Type': contentType,
+      'Content-Disposition': `attachment; filename="${fileName}"`,
+      'Content-Length': buffer.length,
     });
-    res.end(zipBuffer);
+    res.end(buffer);
   }
 }
 

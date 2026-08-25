@@ -395,9 +395,8 @@ export default function ScannerCaptureTab({ onScanCompleted }: ScannerCaptureTab
                 <li>Stelle sicher, dass <strong>AirScan / eSCL</strong> am Drucker im Browser-Menü aktiviert ist.</li>
                 <li>Scanner und dieser PC müssen im <strong>gleichen WLAN</strong> sein.</li>
                 <li>
-                  Für automatische LAN-Erkennung: Starte den{" "}
-                  <code className="bg-slate-800 px-1 rounded font-mono text-slate-300">scanner-agent/index.js</code>{" "}
-                  lokal auf deinem PC.
+                  Für automatische LAN-Erkennung: Verwende den{" "}
+                  <strong className="text-slate-300">LogiFlow Connector</strong>.
                 </li>
                 <li>
                   <strong>HP</strong>: Port 8080 &nbsp;|&nbsp;

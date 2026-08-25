@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability file for LogiFlow Connector",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "shell:allow-execute",
+    "autostart:allow-enable",
+    "autostart:allow-disable"
+  ]
+}

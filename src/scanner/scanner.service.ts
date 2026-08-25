@@ -779,10 +779,65 @@ export class ScannerService {
   }
 
   /**
-   * Package the Windows Connector as a downloadable zip file.
+   * Return the connector installer for the requested platform.
+   * If a pre-built binary exists (.exe / .dmg), serve it directly.
+   * Otherwise fall back to a packaged zip file.
+   */
+  async getInstaller(platform?: string): Promise<{ buffer: Buffer; fileName: string; contentType: string }> {
+    const installersDir = path.join(process.cwd(), 'public', 'installers');
+    const targetDir = path.join(process.cwd(), 'connector', 'src-tauri', 'target');
+
+    // 1. Windows (.exe)
+    if (platform === 'windows') {
+      const candidates = [
+        path.join(installersDir, 'LogiFlow-Connector-Setup.exe'),
+        path.join(targetDir, 'release', 'bundle', 'nsis', 'LogiFlow-Connector-Setup.exe'),
+      ];
+      for (const cand of candidates) {
+        if (fs.existsSync(cand)) {
+          return {
+            buffer: fs.readFileSync(cand),
+            fileName: 'LogiFlow-Connector-Setup.exe',
+            contentType: 'application/vnd.microsoft.portable-executable',
+          };
+        }
+      }
+    }
+
+    // 2. macOS (.dmg)
+    if (platform === 'macos') {
+      const candidates = [
+        path.join(installersDir, 'LogiFlow-Connector.dmg'),
+        path.join(targetDir, 'universal-apple-darwin', 'release', 'bundle', 'dmg', 'LogiFlow-Connector.dmg'),
+        path.join(targetDir, 'release', 'bundle', 'dmg', 'LogiFlow-Connector.dmg'),
+      ];
+      for (const cand of candidates) {
+        if (fs.existsSync(cand)) {
+          return {
+            buffer: fs.readFileSync(cand),
+            fileName: 'LogiFlow-Connector.dmg',
+            contentType: 'application/x-apple-diskimage',
+          };
+        }
+      }
+    }
+
+    // 3. Fallback: package zip
+    const buffer = await this.getInstallerZip();
+    return {
+      buffer,
+      fileName: 'LogiFlow-Printer-Connector.zip',
+      contentType: 'application/zip',
+    };
+  }
+
+  /**
+   * Package the Connector as a downloadable zip file.
    */
   async getInstallerZip(): Promise<Buffer> {
-    const connectorDir = path.join(process.cwd(), 'windows-connector');
+    const connectorDir = fs.existsSync(path.join(process.cwd(), 'windows-connector'))
+      ? path.join(process.cwd(), 'windows-connector')
+      : path.join(process.cwd(), 'connector');
     const tempZipPath = path.join(os.tmpdir(), `LogiFlow-Printer-Connector.zip`);
 
     if (process.platform === 'win32') {

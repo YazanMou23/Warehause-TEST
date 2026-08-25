@@ -541,9 +541,9 @@ export default function DeviceManagerModal({
                   : "bg-amber-500/8 border-amber-500/20 text-amber-400"
               }`}>
                 {agentAvailable ? (
-                  <><ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" /> Local Scanner Agent aktiv — LAN-Scanner werden erkannt</>
+                  <><ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" /> LogiFlow Connector aktiv — LAN-Scanner werden automatisch erkannt</>
                 ) : (
-                  <><Activity className="w-3.5 h-3.5 flex-shrink-0" /> Local Agent nicht gestartet — starte <code className="font-mono bg-black/30 px-1 rounded">scanner-agent/index.js</code> auf deinem PC für beste Erkennung</>
+                  <><Activity className="w-3.5 h-3.5 flex-shrink-0" /> LogiFlow Connector nicht aktiv — bitte Connector starten oder herunterladen</>
                 )}
               </div>
             )}

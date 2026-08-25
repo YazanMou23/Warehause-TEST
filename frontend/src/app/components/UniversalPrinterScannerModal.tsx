@@ -21,9 +21,14 @@ import {
   FileScan,
   Zap,
 } from 'lucide-react';
+import {
+  CONNECTOR_URL,
+  checkConnectorStatus,
+  discoverDevices as connectorDiscoverDevices,
+  scanDocument,
+  getInstallerInfo,
+} from '../../lib/connector';
 import { API_URL } from '../../config/api';
-
-const CONNECTOR_URL = 'http://127.0.0.1:48281';
 
 export interface DiscoveredDevice {
   id: string;
@@ -64,7 +69,7 @@ interface UniversalPrinterScannerModalProps {
   description?: string;
 }
 
-type ModalStep = 'check' | 'offline' | 'discovery' | 'configured' | 'scanning';
+type ModalStep = 'check' | 'offline' | 'outdated' | 'discovery' | 'configured' | 'scanning';
 
 export default function UniversalPrinterScannerModal({
   isOpen,
@@ -78,6 +83,7 @@ export default function UniversalPrinterScannerModal({
   const [isDiscovering, setIsDiscovering]         = useState(false);
   const [isConnecting, setIsConnecting]           = useState(false);
   const [isScanning, setIsScanning]               = useState(false);
+  const [connectorVersion, setConnectorVersion]   = useState<string | undefined>(undefined);
   const [devices, setDevices]                     = useState<DiscoveredDevice[]>([]);
   const [selectedDevice, setSelectedDevice]       = useState<DiscoveredDevice | null>(null);
   const [errorMsg, setErrorMsg]                   = useState('');
@@ -95,23 +101,65 @@ export default function UniversalPrinterScannerModal({
     setCheckingConnector(true);
     setErrorMsg('');
 
-    try {
-      const res = await fetch(`${CONNECTOR_URL}/health`, {
-        signal: AbortSignal.timeout(1500),
-      });
+    const result = await checkConnectorStatus();
+    setCheckingConnector(false);
 
-      if (res.ok) {
-        setStep('discovery');
-        discoverDevices();
-      } else {
-        setStep('offline');
-      }
-    } catch {
+    if (result.status === 'connected') {
+      setConnectorVersion(result.version);
+      setStep('discovery');
+      runDiscovery();
+    } else if (result.status === 'outdated') {
+      setConnectorVersion(result.version);
+      setStep('outdated');
+    } else {
       setStep('offline');
-    } finally {
-      setCheckingConnector(false);
     }
   }, [isOpen]);
+
+  // ── 2. Run Local Hardware Discovery ─────────────────────────────────────────
+  const runDiscovery = async () => {
+    setIsDiscovering(true);
+    setErrorMsg('');
+    try {
+      const data = await connectorDiscoverDevices();
+      const mapped: DiscoveredDevice[] = data.map((d) => ({
+        id:             d.id,
+        name:           d.name,
+        displayName:    d.displayName,
+        manufacturer:   d.manufacturer,
+        model:          d.model,
+        type:           d.type,
+        connectionType: d.connectionType as any,
+        ip:             d.ip,
+        port:           d.port,
+        protocol:       d.protocol,
+        serial:         d.serial,
+        status:         d.status,
+        statusDetails:  d.statusDetails,
+        capabilities: {
+          printing:           d.capabilities?.printing,
+          scanning:           d.capabilities?.scanning,
+          adf:                d.capabilities?.adf,
+          flatbed:            d.capabilities?.flatbed,
+          duplex:             d.capabilities?.duplex,
+          color:              d.capabilities?.color,
+          grayscale:          d.capabilities?.grayscale,
+          supportedDpi:       d.capabilities?.supportedDpi,
+          documentFormats:    d.capabilities?.documentFormats,
+          supportedPaperSizes: d.capabilities?.supportedPaperSizes,
+        },
+      }));
+      setDevices(mapped);
+      if (mapped.length > 0) {
+        const real = mapped.find((d) => d.id !== 'SIMULATOR' && d.ip !== 'SIMULATOR');
+        handleSelectDevice(real || mapped[0]);
+      }
+    } catch (err: any) {
+      setErrorMsg('Gerätesuche fehlgeschlagen: ' + (err.message || 'Verbindung zum Connector unterbrochen.'));
+    } finally {
+      setIsDiscovering(false);
+    }
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -126,31 +174,6 @@ export default function UniversalPrinterScannerModal({
     }
   }, [isOpen, checkHealthAndDiscover]);
 
-  // ── 2. Run Local Hardware Discovery ─────────────────────────────────────────
-  const discoverDevices = async () => {
-    setIsDiscovering(true);
-    setErrorMsg('');
-    try {
-      const res = await fetch(`${CONNECTOR_URL}/devices`, {
-        signal: AbortSignal.timeout(15000),
-      });
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: DiscoveredDevice[] = await res.json();
-      setDevices(data || []);
-
-      if (data && data.length > 0) {
-        // Prefer real (non-simulator) device if available
-        const real = data.find((d) => d.id !== 'SIMULATOR' && d.ip !== 'SIMULATOR');
-        const defaultChoice = real || data[0];
-        handleSelectDevice(defaultChoice);
-      }
-    } catch (err: any) {
-      setErrorMsg('Gerätesuche fehlgeschlagen: ' + (err.message || 'Verbindung zum Connector unterbrochen.'));
-    } finally {
-      setIsDiscovering(false);
-    }
-  };
 
   // ── 3. Test Connection & Select Device ──────────────────────────────────────
   const handleSelectDevice = async (device: DiscoveredDevice) => {
@@ -192,61 +215,26 @@ export default function UniversalPrinterScannerModal({
     }
 
     setIsScanning(true);
-    setScanStatusText('Scanner wird initialisiert...');
+    setScanStatusText(
+      inputSource === 'Feeder'
+        ? 'Dokumente werden über automatischen Einzug (ADF) gescannt...'
+        : 'Dokument wird von Flachbettglas gescannt...'
+    );
     setErrorMsg('');
 
     try {
-      const scanPayload = {
+      const files = await scanDocument({
         scannerIp:   selectedDevice.ip,
-        scannerPort: selectedDevice.port || 80,
+        scannerPort: selectedDevice.port ?? 80,
         dpi,
         colorMode,
         inputSource,
-        format:      'jpeg',
-        batchScan:   inputSource === 'Feeder' ? batchScan : false,
-      };
-
-      setScanStatusText(
-        inputSource === 'Feeder'
-          ? 'Dokumente werden über automatischen Einzug (ADF) gescannt...'
-          : 'Dokument wird von Flachbettglas gescannt...'
-      );
-
-      const res = await fetch(`${CONNECTOR_URL}/scan`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(scanPayload),
-        signal:  AbortSignal.timeout(90000),
+        format:    'jpeg',
+        batchScan: inputSource === 'Feeder' ? batchScan : false,
       });
 
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.message || `Scan fehlgeschlagen (HTTP ${res.status})`);
-      }
-
-      const data = await res.json();
-      if (!data.pages || data.pages.length === 0) {
-        throw new Error('Keine Seiten vom Scanner empfangen.');
-      }
-
-      setScanStatusText(`${data.pages.length} Seite(n) erfolgreich gescannt! Übertrage...`);
-
-      // Convert base64 pages into File objects
-      const files: File[] = data.pages.map((p: { base64Data: string; mimeType: string }, idx: number) => {
-        const byteCharacters = atob(p.base64Data);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: p.mimeType || 'image/jpeg' });
-        const ext = (p.mimeType || '').includes('png') ? 'png' : 'jpg';
-        return new File([blob], `scan_${Date.now()}_page${idx + 1}.${ext}`, {
-          type: p.mimeType || 'image/jpeg',
-          lastModified: Date.now(),
-        });
-      });
-
+      if (files.length === 0) throw new Error('Keine Seiten vom Scanner empfangen.');
+      setScanStatusText(`${files.length} Seite(n) erfolgreich gescannt! Übertrage...`);
       onScanComplete(files);
       onClose();
     } catch (err: any) {
@@ -259,20 +247,16 @@ export default function UniversalPrinterScannerModal({
 
   // ── Download Installer Helper ───────────────────────────────────────────────
   const handleDownloadInstaller = () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-    const downloadUrl = `${API_URL}/scanner/download-installer`;
-    
-    // Trigger browser download
+    const { apiPath, fileName } = getInstallerInfo(API_URL);
     const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = 'LogiFlow-Printer-Connector.zip';
-    if (token) {
-      link.setAttribute('data-token', token);
-    }
+    link.href = apiPath;
+    link.download = fileName;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
+
+  const installerLabel = getInstallerInfo(API_URL).label;
 
   if (!isOpen) return null;
 
@@ -371,7 +355,7 @@ export default function UniversalPrinterScannerModal({
                   className="w-full sm:flex-1 py-3 px-5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-600/25 transition-all cursor-pointer"
                 >
                   <Download className="w-4 h-4" />
-                  Printer Connector herunterladen (ZIP)
+                  {installerLabel}
                 </button>
                 <button
                   onClick={checkHealthAndDiscover}
@@ -385,6 +369,38 @@ export default function UniversalPrinterScannerModal({
             </div>
           )}
 
+          {/* ── STEP: CONNECTOR OUTDATED ── */}
+          {step === 'outdated' && (
+            <div className="space-y-5 py-2">
+              <div className="p-5 rounded-2xl bg-orange-500/10 border border-orange-500/25 space-y-2">
+                <div className="flex items-center gap-2.5 font-bold text-base text-orange-300">
+                  <AlertCircle className="w-5 h-5 text-orange-400" />
+                  <span>Connector-Update verfügbar</span>
+                </div>
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                  Ihre Connector-Version{connectorVersion ? ` (v${connectorVersion})` : ''} ist veraltet. Bitte laden Sie die aktuelle Version herunter und installieren Sie sie.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row items-center gap-3">
+                <button
+                  onClick={handleDownloadInstaller}
+                  className="w-full sm:flex-1 py-3 px-5 rounded-2xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  {installerLabel}
+                </button>
+                <button
+                  onClick={checkHealthAndDiscover}
+                  disabled={checkingConnector}
+                  className="w-full sm:w-auto py-3 px-5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm flex items-center justify-center gap-2 border border-slate-700 transition-all cursor-pointer"
+                >
+                  <RefreshCw className={`w-4 h-4 ${checkingConnector ? 'animate-spin' : ''}`} />
+                  Erneut prüfen
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* ── STEP: DISCOVERY & CONFIGURED ── */}
           {(step === 'discovery' || step === 'configured') && (
             <div className="space-y-5">
@@ -392,10 +408,10 @@ export default function UniversalPrinterScannerModal({
               <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800/80">
                 <div className="flex items-center gap-2.5 text-xs text-slate-300">
                   <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>Windows Connector: <strong className="text-emerald-400">Aktiv (127.0.0.1:48281)</strong></span>
+                  <span>Connector: <strong className="text-emerald-400">Aktiv{connectorVersion ? ` v${connectorVersion}` : ''} (127.0.0.1:48281)</strong></span>
                 </div>
                 <button
-                  onClick={discoverDevices}
+                  onClick={runDiscovery}
                   disabled={isDiscovering}
                   className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 font-semibold transition-colors disabled:opacity-50 cursor-pointer"
                 >
@@ -432,7 +448,7 @@ export default function UniversalPrinterScannerModal({
                       Stellen Sie sicher, dass Ihr Drucker eingeschaltet und im gleichen WLAN wie dieser PC ist.
                     </p>
                     <button
-                      onClick={discoverDevices}
+                      onClick={runDiscovery}
                       className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200"
                     >
                       <RefreshCw className="w-3.5 h-3.5" /> Erneut suchen
