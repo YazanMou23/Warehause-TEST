@@ -25,6 +25,28 @@ export interface DeviceCapabilities {
   documentFormats: string[];
 }
 
+export type ScannerBackendType = 'ESCL' | 'WIA' | 'BJNP' | 'WSD' | 'SIMULATOR' | 'NONE';
+
+export interface ScannerBackendInfo {
+  type: ScannerBackendType;
+  initialized: boolean;
+  readyToScan: boolean;
+  statusText: string;
+}
+
+export interface ScannerDiagnostic {
+  discovery: boolean;
+  scannerDetected: boolean;
+  backend: string;
+  backendInitialized: boolean;
+  flatbed: boolean;
+  adf: boolean;
+  duplex: boolean;
+  readyToScan: boolean;
+  statusText: string;
+  remedy?: string | null;
+}
+
 export interface DiscoveredDevice {
   id: string;
   name: string;
@@ -40,13 +62,16 @@ export interface DiscoveredDevice {
   status: string;
   statusDetails: string;
   capabilities: DeviceCapabilities;
+  backend?: ScannerBackendType;
+  backendInfo?: ScannerBackendInfo;
+  diagnostics?: ScannerDiagnostic;
   sources?: {
     flatbed: boolean;
     adf: boolean;
     duplex: boolean;
   };
   selectedSource?: string;
-  adfStatus?: 'Loaded' | 'Empty' | 'Jam' | 'Unknown';
+  adfStatus?: 'Loaded' | 'Empty' | 'Jam' | 'Available' | 'None' | 'Unknown';
 }
 
 export interface ScanOptions {

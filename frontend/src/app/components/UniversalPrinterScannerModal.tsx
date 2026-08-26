@@ -27,39 +27,11 @@ import {
   discoverDevices as connectorDiscoverDevices,
   scanDocument,
   getInstallerInfo,
+  DiscoveredDevice,
+  ScannerBackendInfo,
+  ScannerDiagnostic,
 } from '../../lib/connector';
 import { API_URL } from '../../config/api';
-
-export interface DiscoveredDevice {
-  id: string;
-  name: string;
-  displayName?: string;
-  manufacturer?: string;
-  model?: string;
-  type?: string;
-  connectionType: 'WIFI' | 'USB' | 'LAN' | 'UNKNOWN';
-  ip?: string;
-  port?: number;
-  protocol?: string;
-  serial?: string | null;
-  status: string;
-  statusDetails?: string;
-  capabilities?: {
-    printing?: boolean;
-    scanning?: boolean;
-    hasAdf?: boolean;
-    hasFlatbed?: boolean;
-    adf?: boolean;
-    flatbed?: boolean;
-    duplex?: boolean;
-    color?: boolean;
-    grayscale?: boolean;
-    supportedDpi?: number[];
-    colorModes?: string[];
-    documentFormats?: string[];
-    supportedPaperSizes?: string[];
-  };
-}
 
 interface UniversalPrinterScannerModalProps {
   isOpen: boolean;
@@ -201,7 +173,7 @@ export default function UniversalPrinterScannerModal({
       }
 
       // Configure default scan options according to device capabilities
-      const hasAdf = Boolean(device.capabilities?.hasAdf ?? device.capabilities?.adf);
+      const hasAdf = Boolean(device.capabilities?.adf && (device.backendInfo?.readyToScan || device.id === 'SIMULATOR'));
       setInputSource(hasAdf ? 'Feeder' : 'Platen');
       setStep('configured');
     } catch (err: any) {
@@ -520,8 +492,9 @@ export default function UniversalPrinterScannerModal({
                   <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
                     {devices.map((device) => {
                       const isSelected = selectedDevice?.id === device.id;
-                      const hasAdf = Boolean(device.capabilities?.hasAdf ?? device.capabilities?.adf);
-                      const hasFlatbed = Boolean(device.capabilities?.hasFlatbed ?? device.capabilities?.flatbed ?? true);
+                      const isReadyToScan = device.id === 'SIMULATOR' || device.backendInfo?.readyToScan || (device.capabilities?.scanning && device.protocol !== 'SPOOLER');
+                      const hasAdf = Boolean(isReadyToScan && device.capabilities?.adf);
+                      const hasFlatbed = Boolean(isReadyToScan && (device.capabilities?.flatbed ?? true));
 
                       return (
                         <div
@@ -550,16 +523,20 @@ export default function UniversalPrinterScannerModal({
                                   {device.manufacturer || 'Netzwerk'} • {device.connectionType === 'USB' ? 'USB' : 'WLAN/LAN'}
                                 </span>
                                 {device.id === 'SIMULATOR' || device.protocol === 'SIMULATOR' ? (
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-semibold border border-amber-500/25">
-                                    Demo-Simulator
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-semibold border border-emerald-500/25">
+                                    ✓ Demo-Simulator bereit
+                                  </span>
+                                ) : isReadyToScan ? (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-semibold border border-emerald-500/25">
+                                    ✓ Scan-Backend bereit ({device.backend || 'WIA'})
                                   </span>
                                 ) : (
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400 font-semibold border border-blue-500/25">
-                                    Hardware-Gerät
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-semibold border border-amber-500/25">
+                                    ⚠ Treiber erforderlich
                                   </span>
                                 )}
                                 {hasAdf && (
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-semibold border border-emerald-500/25">
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400 font-semibold border border-blue-500/25">
                                     ADF Einzug
                                   </span>
                                 )}
@@ -574,8 +551,12 @@ export default function UniversalPrinterScannerModal({
 
                           <div className="shrink-0 flex items-center gap-2">
                             {isSelected ? (
-                              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-400 text-xs font-bold border border-emerald-500/30">
-                                <CheckCircle2 className="w-4 h-4" /> Verbunden
+                              <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border ${
+                                isReadyToScan 
+                                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                                  : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                              }`}>
+                                <CheckCircle2 className="w-4 h-4" /> {isReadyToScan ? 'Verbunden' : 'Ausgewählt'}
                               </span>
                             ) : (
                               <button
@@ -593,8 +574,66 @@ export default function UniversalPrinterScannerModal({
                 )}
               </div>
 
-              {/* Scan Options (Available when device is connected) */}
-              {selectedDevice && (
+              {/* Hardware Diagnostic Banner when selected device is not ready */}
+              {selectedDevice && (selectedDevice.backendInfo?.readyToScan === false || (selectedDevice.id !== 'SIMULATOR' && !selectedDevice.capabilities?.scanning)) && (
+                <div className="p-4 sm:p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-3">
+                  <div className="flex items-center gap-2.5 text-amber-300 font-bold text-sm">
+                    <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+                    <span>Scan-Backend nicht eingerichtet ({selectedDevice.displayName || selectedDevice.name})</span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    {selectedDevice.backendInfo?.statusText || 'Dieses Gerät wurde im Netzwerk gefunden, aber es ist noch kein aktiver Windows WIA-Scannertreiber eingerichtet.'}
+                  </p>
+                  
+                  {/* Detailed Diagnostics Table */}
+                  <div className="bg-slate-900/80 rounded-xl p-3.5 border border-slate-800 space-y-1.5 text-xs">
+                    <div className="flex justify-between items-center text-slate-400">
+                      <span>Geräte-Erkennung:</span>
+                      <span className="text-emerald-400 font-semibold">✓ Im Netzwerk gefunden ({selectedDevice.ip || 'USB'})</span>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-400">
+                      <span>Scanner erkannt:</span>
+                      <span className="text-emerald-400 font-semibold">✓ {selectedDevice.displayName || selectedDevice.name}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-400">
+                      <span>Scan-Backend ({selectedDevice.backend || 'WIA/AirScan'}):</span>
+                      <span className="text-amber-400 font-semibold">✗ Nicht initialisiert</span>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-400">
+                      <span>ADF-Dauereinzug:</span>
+                      <span className="text-slate-500">✗ Backend nicht bereit</span>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-400 pt-1 border-t border-slate-800">
+                      <span>Scan-Bereitschaft:</span>
+                      <span className="text-red-400 font-semibold">✗ Treiber erforderlich</span>
+                    </div>
+                  </div>
+
+                  {selectedDevice.diagnostics?.remedy && (
+                    <p className="text-[11px] text-amber-200/90 leading-relaxed bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/20">
+                      💡 <strong>Lösung:</strong> {selectedDevice.diagnostics.remedy}
+                    </p>
+                  )}
+
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {devices.some((d) => d.id === 'SIMULATOR') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const sim = devices.find((d) => d.id === 'SIMULATOR');
+                          if (sim) handleSelectDevice(sim);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+                      >
+                        🧪 Zum WLAN-Scanner Simulator wechseln
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Scan Options (Available when device is ready to scan) */}
+              {selectedDevice && (selectedDevice.id === 'SIMULATOR' || selectedDevice.backendInfo?.readyToScan || (selectedDevice.capabilities?.scanning && selectedDevice.protocol !== 'SPOOLER')) && (
                 <div className="p-4 sm:p-5 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-4">
                   <h4 className="font-bold text-sm text-slate-200 flex items-center gap-2">
                     <Sliders className="w-4 h-4 text-blue-400" />
@@ -619,7 +658,7 @@ export default function UniversalPrinterScannerModal({
                         </button>
                         <button
                           type="button"
-                          disabled={!(selectedDevice.capabilities?.hasAdf ?? selectedDevice.capabilities?.adf)}
+                          disabled={!selectedDevice.capabilities?.adf}
                           onClick={() => setInputSource('Feeder')}
                           className={`py-2 px-2.5 rounded-xl border text-center font-medium transition-all ${
                             inputSource === 'Feeder'
@@ -710,8 +749,8 @@ export default function UniversalPrinterScannerModal({
           {(step === 'discovery' || step === 'configured') && (
             <button
               onClick={handleStartScan}
-              disabled={!selectedDevice || isScanning || isConnecting}
-              className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-600/25 transition-all cursor-pointer"
+              disabled={!selectedDevice || isScanning || isConnecting || (selectedDevice.backendInfo?.readyToScan === false || (selectedDevice.id !== 'SIMULATOR' && !selectedDevice.capabilities?.scanning))}
+              className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-600/25 transition-all cursor-pointer"
             >
               {isScanning ? (
                 <>
@@ -722,6 +761,11 @@ export default function UniversalPrinterScannerModal({
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span>Verbinde Gerät...</span>
+                </>
+              ) : (selectedDevice && selectedDevice.backendInfo?.readyToScan === false) ? (
+                <>
+                  <AlertCircle className="w-4 h-4" />
+                  <span>Scan-Backend nicht bereit</span>
                 </>
               ) : (
                 <>

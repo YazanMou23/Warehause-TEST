@@ -360,9 +360,15 @@ export default function ConnectorSettingsCard() {
                       {activeDevice.ip}
                     </span>
                   )}
-                  <span className="text-[11px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium">
-                    {activeDevice.protocol || "eSCL"}
-                  </span>
+                  {activeDevice.backendInfo?.readyToScan || activeDevice.id === "SIMULATOR" ? (
+                    <span className="text-[11px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium">
+                      Backend: {activeDevice.backend || "WIA"}
+                    </span>
+                  ) : (
+                    <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-medium">
+                      Treiber erforderlich
+                    </span>
+                  )}
                 </div>
               ) : (
                 <span className="text-outline text-[12px]">Wird gesucht...</span>
@@ -379,7 +385,7 @@ export default function ConnectorSettingsCard() {
           value={
             hasAdf ? (
               <div className="flex items-center gap-2">
-                <span className="text-emerald-600 flex items-center gap-1">
+                <span className="text-emerald-600 flex items-center gap-1 font-medium">
                   <CheckCircle className="w-3.5 h-3.5" />
                   Verfügbar (Dauereinzug aktiv)
                 </span>
@@ -395,7 +401,9 @@ export default function ConnectorSettingsCard() {
                 )}
               </div>
             ) : (
-              <span className="text-slate-500">Nur Flachbettglas</span>
+              <span className="text-slate-500 text-[12px]">
+                {activeDevice?.backendInfo?.readyToScan === false ? "Backend nicht initialisiert" : "Nur Flachbettglas"}
+              </span>
             )
           }
         />

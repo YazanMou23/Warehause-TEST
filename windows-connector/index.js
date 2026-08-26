@@ -407,60 +407,101 @@ async function discoverViaBjnpBroadcast(discoveredIps, candidateMeta) {
 }
 
 // ─── 5. Windows PnP / WIA / Spooler Discovery ─────────────────────────────────
-async function discoverViaWindowsPnp(seenIds, discovered) {
-  if (process.platform !== 'win32') return;
+// ─── 5. Windows WIA Scanners Cache & Query ───────────────────────────────────
+let cachedWiaScanners = [];
+let lastWiaQueryTime = 0;
 
-  // 1. Query WIA COM object for connected scanners (USB + WSD)
+async function getWindowsWiaScanners(forceRefresh = false) {
+  if (process.platform !== 'win32') return [];
+  const now = Date.now();
+  if (!forceRefresh && cachedWiaScanners.length > 0 && (now - lastWiaQueryTime < 10000)) {
+    return cachedWiaScanners;
+  }
+
+  const psWia = `
+    try {
+      $dm = New-Object -ComObject WIA.DeviceManager
+      foreach ($d in $dm.DeviceInfos) {
+        $n = try { $d.Properties.Item('Name').Value } catch { 'Scanner' }
+        $m = try { $d.Properties.Item('Manufacturer').Value } catch { '' }
+        $t = try { $d.Properties.Item('Port').Value } catch { '' }
+        $s = try { $d.Properties.Item('Server').Value } catch { '' }
+        
+        $cap = 0
+        try {
+          $dev = $d.Connect()
+          $cap = [int]$dev.Properties.Item('3086').Value
+        } catch {}
+        
+        $hasAdf = (($cap -band 1) -ne 0) -or (($cap -band 4) -ne 0)
+        $hasDuplex = (($cap -band 4) -ne 0)
+        
+        Write-Output "$($d.DeviceID)||$n||$m||$t||$hasAdf||$hasDuplex||$s"
+      }
+    } catch {}
+  `;
+
   try {
-    const psWia = `
-      try {
-        $dm = New-Object -ComObject WIA.DeviceManager
-        foreach ($d in $dm.DeviceInfos) {
-          $n = try { $d.Properties.Item('Name').Value } catch { 'Scanner' }
-          $m = try { $d.Properties.Item('Manufacturer').Value } catch { '' }
-          $t = try { $d.Properties.Item('Port').Value } catch { '' }
-          
-          # Check Feeder (ADF) and Duplex capability flags from WIA properties
-          $cap = 0
-          try {
-            $dev = $d.Connect()
-            $cap = [int]$dev.Properties.Item('3086').Value
-          } catch {}
-          
-          $hasAdf = (($cap -band 1) -ne 0) -or (($cap -band 4) -ne 0)
-          $hasDuplex = (($cap -band 4) -ne 0)
-          
-          Write-Output "$($d.DeviceID)||$n||$m||$t||$hasAdf||$hasDuplex"
-        }
-      } catch {}
-    `;
     const { stdout } = await execAsync(`powershell -NoProfile -Command "${psWia.replace(/\n/g, ' ')}"`, { timeout: 3500 }).catch(() => ({ stdout: '' }));
+    const scanners = [];
     for (const line of (stdout || '').trim().split('\n').filter(Boolean)) {
-      const [devId, devName, mfg, port, hasAdfStr, hasDuplexStr] = line.split('||').map((s) => (s || '').trim());
-      if (devId && devName && !seenIds.has(devId)) {
-        seenIds.add(devId);
+      const [devId, devName, mfg, port, hasAdfStr, hasDuplexStr, server] = line.split('||').map((s) => (s || '').trim());
+      if (devId && devName) {
         const isUsb = devId.toUpperCase().startsWith('USB') || port.toUpperCase().startsWith('USB');
         const manufacturer = mfg || detectManufacturer(devName);
         const cleanModel = normalizeModelName(devName);
         const hasAdf = hasAdfStr === 'True' || /adf|feeder|mfc|pro|mfp/i.test(devName);
         const hasDuplex = hasDuplexStr === 'True' || /duplex|dn|dw/i.test(devName);
 
-        discovered.push({
-          id:             `WIA_${devId.replace(/[^A-Za-z0-9_-]/g, '_')}`,
-          name:           devName,
-          displayName:    `${manufacturer} ${cleanModel}`,
+        scanners.push({
+          devId,
+          devName,
+          displayName: `${manufacturer} ${cleanModel}`,
           manufacturer,
-          model:          cleanModel,
+          cleanModel,
+          port,
+          server,
+          isUsb,
+          hasAdf,
+          hasDuplex,
+          hasFlatbed: true,
+        });
+      }
+    }
+    cachedWiaScanners = scanners;
+    lastWiaQueryTime = now;
+    return scanners;
+  } catch (e) {
+    log('debug', 'WIA scanners query error:', e.message);
+    return cachedWiaScanners;
+  }
+}
+
+async function discoverViaWindowsPnp(seenIds, discovered) {
+  if (process.platform !== 'win32') return;
+
+  // 1. Query WIA COM object for connected scanners (USB + WSD)
+  try {
+    const wiaScanners = await getWindowsWiaScanners(true);
+    for (const w of wiaScanners) {
+      if (!seenIds.has(w.devId)) {
+        seenIds.add(w.devId);
+        discovered.push({
+          id:             `WIA_${w.devId.replace(/[^A-Za-z0-9_-]/g, '_')}`,
+          name:           w.devName,
+          displayName:    w.displayName,
+          manufacturer:   w.manufacturer,
+          model:          w.cleanModel,
           type:           'scanner',
-          connectionType: isUsb ? 'USB' : 'WIFI',
+          connectionType: w.isUsb ? 'USB' : 'WIFI',
           protocol:       'WIA',
           status:         'available',
-          statusDetails:  isUsb ? 'USB-Scanner (WIA) verbunden' : 'Windows Netzwerk-Scanner (WIA)',
+          statusDetails:  w.isUsb ? 'USB-Scanner (WIA) verbunden' : 'Windows Netzwerk-Scanner (WIA)',
           capabilities: {
             printing:            false,
             scanning:            true,
-            adf:                 hasAdf,
-            duplex:              hasDuplex,
+            adf:                 w.hasAdf,
+            duplex:              w.hasDuplex,
             flatbed:             true,
             color:               true,
             grayscale:           true,
@@ -468,8 +509,34 @@ async function discoverViaWindowsPnp(seenIds, discovered) {
             supportedPaperSizes: ['A4', 'Letter'],
             documentFormats:     ['image/jpeg', 'image/png'],
           },
+          backend: 'WIA',
+          backendInfo: {
+            type:        'WIA',
+            initialized: true,
+            readyToScan: true,
+            statusText:  `Windows WIA Scanner bereit (${w.displayName})`,
+          },
+          diagnostics: {
+            discovery:          true,
+            scannerDetected:    true,
+            backend:            'WIA (Windows Image Acquisition)',
+            backendInitialized: true,
+            flatbed:            true,
+            adf:                w.hasAdf,
+            duplex:             w.hasDuplex,
+            readyToScan:        true,
+            statusText:         'Scan-Backend bereit (WIA)',
+            remedy:             null,
+          },
+          sources: {
+            flatbed: true,
+            adf:     w.hasAdf,
+            duplex:  w.hasDuplex,
+          },
+          selectedSource: w.hasAdf ? 'adf' : 'flatbed',
+          adfStatus:      w.hasAdf ? 'Available' : 'None',
         });
-        log('log', `Found Windows WIA Scanner: ${devName} [${isUsb ? 'USB' : 'LAN'}, ADF:${hasAdf}]`);
+        log('log', `Found Windows WIA Scanner: ${w.devName} [${w.isUsb ? 'USB' : 'LAN'}, ADF:${w.hasAdf}]`);
       }
     }
   } catch (e) {
@@ -538,6 +605,28 @@ async function discoverViaWindowsPnp(seenIds, discovered) {
               supportedPaperSizes: ['A4', 'Letter'],
               documentFormats:     ['application/pdf'],
             },
+            backend: 'NONE',
+            backendInfo: {
+              type:        'NONE',
+              initialized: false,
+              readyToScan: false,
+              statusText:  'Windows Druckwarteschlange (Drucken bereit, kein Scan-Treiber)',
+            },
+            diagnostics: {
+              discovery:          true,
+              scannerDetected:    false,
+              backend:            'SPOOLER (Drucken)',
+              backendInitialized: false,
+              flatbed:            false,
+              adf:                false,
+              duplex:             false,
+              readyToScan:        false,
+              statusText:         'Druckerwarteschlange (kein Scanner)',
+              remedy:             'Dieses Windows-Gerät ist als reiner Drucker registriert.',
+            },
+            sources: { flatbed: false, adf: false, duplex: false },
+            selectedSource: 'none',
+            adfStatus: 'None',
           });
           log('log', `Found Windows Spooler Printer: ${p.Name}`);
         }
@@ -560,7 +649,7 @@ async function getArpIps() {
   return ips;
 }
 
-// ─── 7. Capabilities & Live Status Detection ──────────────────────────────────
+// ─── 7. Capabilities & Live Status Detection (eSCL) ───────────────────────────
 async function getScannerCapabilitiesAndStatus(ip, port) {
   const isHttps = (port === 443 || port === 8443);
   const proto   = isHttps ? 'https' : 'http';
@@ -638,7 +727,6 @@ async function getScannerCapabilitiesAndStatus(ip, port) {
   } catch {}
 
   // Automatic preferred source determination:
-  // ADF (Loaded) > ADF (Available) > Flatbed
   let selectedSource = 'flatbed';
   if (hasAdf) {
     selectedSource = (isAdfLoaded || adfState === 'Unknown') ? 'adf' : (hasFlatbed ? 'flatbed' : 'adf');
@@ -655,7 +743,273 @@ async function getScannerCapabilitiesAndStatus(ip, port) {
   };
 }
 
-// ─── 8. Multi-Protocol Network Probe ──────────────────────────────────────────
+// ─── 8. Unified Scanner Backend Resolution & Capability Verification ───────────
+async function resolveScannerBackend(target, openPorts = [], meta = {}) {
+  const ip = typeof target === 'string' ? target : (target?.ip || '');
+  const port = (typeof target === 'object' && target?.port) ? target.port : 80;
+  const protocol = typeof target === 'object' ? target.protocol : '';
+
+  // 1. SIMULATOR Backend
+  if (!ip || ip === 'SIMULATOR' || target?.id === 'SIMULATOR') {
+    return {
+      backendType:        'SIMULATOR',
+      readyToScan:        true,
+      backendInitialized: true,
+      hasFlatbed:         true,
+      hasAdf:             true,
+      hasDuplex:          true,
+      adfState:           'Loaded',
+      isAdfLoaded:        true,
+      selectedSource:     'adf',
+      statusText:         'Virtueller AirScan-Simulator einsatzbereit',
+      capabilities: {
+        printing:            true,
+        scanning:            true,
+        adf:                 true,
+        duplex:              true,
+        flatbed:             true,
+        color:               true,
+        grayscale:           true,
+        supportedDpi:        [150, 300, 600],
+        supportedPaperSizes: ['A4', 'Letter'],
+        documentFormats:     ['image/jpeg', 'image/png', 'application/pdf'],
+      },
+      diagnostics: {
+        discovery:          true,
+        scannerDetected:    true,
+        backend:            'SIMULATOR (Virtual AirScan)',
+        backendInitialized: true,
+        flatbed:            true,
+        adf:                true,
+        duplex:             true,
+        readyToScan:        true,
+        statusText:         'Virtueller Testscanner bereit (ADF & Flachbett)',
+        remedy:             null,
+      },
+    };
+  }
+
+  // 2. Direct WIA Device (USB or Windows-registered WIA scanner)
+  if (ip.startsWith('USB') || ip.startsWith('WIA_') || protocol === 'WIA') {
+    const wiaScanners = await getWindowsWiaScanners();
+    const matched = wiaScanners.find(
+      (w) => ip.includes(w.devId) || (target?.name && target.name.includes(w.devName))
+    ) || wiaScanners[0];
+
+    if (matched) {
+      return {
+        backendType:        'WIA',
+        readyToScan:        true,
+        backendInitialized: true,
+        hasFlatbed:         true,
+        hasAdf:             matched.hasAdf,
+        hasDuplex:          matched.hasDuplex,
+        adfState:           matched.hasAdf ? 'Available' : 'None',
+        isAdfLoaded:        matched.hasAdf,
+        selectedSource:     matched.hasAdf ? 'adf' : 'flatbed',
+        statusText:         `Windows WIA-Treiber verbunden (${matched.displayName})`,
+        wiaDevice:          matched,
+        capabilities: {
+          printing:            false,
+          scanning:            true,
+          adf:                 matched.hasAdf,
+          duplex:              matched.hasDuplex,
+          flatbed:             true,
+          color:               true,
+          grayscale:           true,
+          supportedDpi:        [150, 300, 600],
+          supportedPaperSizes: ['A4', 'Letter'],
+          documentFormats:     ['image/jpeg', 'image/png'],
+        },
+        diagnostics: {
+          discovery:          true,
+          scannerDetected:    true,
+          backend:            'WIA (Windows Image Acquisition)',
+          backendInitialized: true,
+          flatbed:            true,
+          adf:                matched.hasAdf,
+          duplex:             matched.hasDuplex,
+          readyToScan:        true,
+          statusText:         `WIA Scanner bereit: ${matched.displayName}`,
+          remedy:             null,
+        },
+      };
+    }
+  }
+
+  // 3. Network eSCL / Apple AirScan Backend Verification
+  const candidatePorts = [port, 80, 443, 8080, 8443, 5757, 9100].filter(
+    (p, idx, arr) => arr.indexOf(p) === idx
+  );
+
+  for (const p of candidatePorts) {
+    if (openPorts.length > 0 && !openPorts.includes(p) && p !== port) continue;
+    try {
+      const isHttps = (p === 443 || p === 8443);
+      const proto   = isHttps ? 'https' : 'http';
+      const capUrl  = `${proto}://${ip}:${p}/eSCL/ScannerCapabilities`;
+      const { status, body } = await httpGet(capUrl, 1200).catch(() => ({ status: 0, body: '' }));
+
+      if (status === 200 && body && body.includes('ScannerCapabilities')) {
+        const info = await getScannerCapabilitiesAndStatus(ip, p);
+        return {
+          backendType:        'ESCL',
+          readyToScan:        true,
+          backendInitialized: true,
+          hasFlatbed:         info.hasFlatbed,
+          hasAdf:             info.hasAdf,
+          hasDuplex:          info.hasDuplex,
+          adfState:           info.adfState,
+          isAdfLoaded:        info.isAdfLoaded,
+          selectedSource:     info.selectedSource,
+          port:               p,
+          statusText:         `AirScan / eSCL Scanner bereit (${proto.toUpperCase()}:${p})`,
+          capabilities:       info.capabilities,
+          diagnostics: {
+            discovery:          true,
+            scannerDetected:    true,
+            backend:            `AirScan / eSCL (${proto.toUpperCase()}:${p})`,
+            backendInitialized: true,
+            flatbed:            info.hasFlatbed,
+            adf:                info.hasAdf,
+            duplex:             info.hasDuplex,
+            readyToScan:        true,
+            statusText:         `eSCL Backend bereit [ADF: ${info.hasAdf ? 'Ja' : 'Nein'}, Tray: ${info.adfState}]`,
+            remedy:             null,
+          },
+        };
+      }
+    } catch {}
+  }
+
+  // 4. Windows WIA matching for Network Scanner (e.g., Canon/HP installed via Windows WSD/WIA)
+  const wiaScanners = await getWindowsWiaScanners();
+  const matchedWia = wiaScanners.find(
+    (w) => (w.port && w.port.includes(ip)) || (w.server && w.server.includes(ip)) ||
+           (target?.name && w.devName && (target.name.includes(w.cleanModel) || w.devName.includes(target.name)))
+  );
+
+  if (matchedWia) {
+    return {
+      backendType:        'WIA',
+      readyToScan:        true,
+      backendInitialized: true,
+      hasFlatbed:         true,
+      hasAdf:             matchedWia.hasAdf,
+      hasDuplex:          matchedWia.hasDuplex,
+      adfState:           matchedWia.hasAdf ? 'Available' : 'None',
+      isAdfLoaded:        matchedWia.hasAdf,
+      selectedSource:     matchedWia.hasAdf ? 'adf' : 'flatbed',
+      statusText:         `Windows WIA-Treiber aktiv (${matchedWia.displayName})`,
+      wiaDevice:          matchedWia,
+      capabilities: {
+        printing:            true,
+        scanning:            true,
+        adf:                 matchedWia.hasAdf,
+        duplex:              matchedWia.hasDuplex,
+        flatbed:             true,
+        color:               true,
+        grayscale:           true,
+        supportedDpi:        [150, 300, 600],
+        supportedPaperSizes: ['A4', 'Letter'],
+        documentFormats:     ['image/jpeg', 'image/png'],
+      },
+      diagnostics: {
+        discovery:          true,
+        scannerDetected:    true,
+        backend:            `WIA (${matchedWia.displayName})`,
+        backendInitialized: true,
+        flatbed:            true,
+        adf:                matchedWia.hasAdf,
+        duplex:             matchedWia.hasDuplex,
+        readyToScan:        true,
+        statusText:         `Scanner über Windows WIA bereit (${matchedWia.displayName})`,
+        remedy:             null,
+      },
+    };
+  }
+
+  // 5. Canon BJNP / Proprietary Scan Protocol without Windows Driver
+  const isCanonBjnp = openPorts.includes(8612) || meta?.isCanonBjnp || (target?.protocol === 'CANON_NET');
+  if (isCanonBjnp) {
+    return {
+      backendType:        'BJNP',
+      readyToScan:        false,
+      backendInitialized: false,
+      hasFlatbed:         false,
+      hasAdf:             false,
+      hasDuplex:          false,
+      adfState:           'None',
+      isAdfLoaded:        false,
+      selectedSource:     'none',
+      statusText:         'Canon Netzwerk-Scanner erkannt, aber kein Windows WIA-Treiber eingerichtet',
+      capabilities: {
+        printing:            true,
+        scanning:            false, // HONEST: backend not ready!
+        adf:                 false, // HONEST: cannot pull from ADF without backend!
+        duplex:              false,
+        flatbed:             false,
+        color:               true,
+        grayscale:           true,
+        supportedDpi:        [150, 300, 600],
+        supportedPaperSizes: ['A4', 'Letter'],
+        documentFormats:     ['image/jpeg', 'image/png'],
+      },
+      diagnostics: {
+        discovery:          true,
+        scannerDetected:    true,
+        backend:            'Canon BJNP (Port 8612)',
+        backendInitialized: false,
+        flatbed:            false,
+        adf:                false,
+        duplex:             false,
+        readyToScan:        false,
+        statusText:         'Treiber erforderlich (Canon WIA-Scannertreiber nicht in Windows registriert)',
+        remedy:             'Bitte fügen Sie den Scanner in Windows hinzu (Windows-Einstellungen → Bluetooth & Geräte → Drucker & Scanner → "Gerät hinzufügen") oder nutzen Sie den Test-Simulator.',
+      },
+    };
+  }
+
+  // 6. Generic Network Printer / Unsupported Scan Backend
+  return {
+    backendType:        'NONE',
+    readyToScan:        false,
+    backendInitialized: false,
+    hasFlatbed:         false,
+    hasAdf:             false,
+    hasDuplex:          false,
+    adfState:           'None',
+    isAdfLoaded:        false,
+    selectedSource:     'none',
+    statusText:         'Drucker im Netzwerk erreichbar, aber kein Scan-Backend eingerichtet',
+    capabilities: {
+      printing:            true,
+      scanning:            false,
+      adf:                 false,
+      duplex:              false,
+      flatbed:             false,
+      color:               true,
+      grayscale:           true,
+      supportedDpi:        [150, 300, 600],
+      supportedPaperSizes: ['A4', 'Letter'],
+      documentFormats:     ['application/pdf'],
+    },
+    diagnostics: {
+      discovery:          true,
+      scannerDetected:    false,
+      backend:            'Kein Scan-Backend',
+      backendInitialized: false,
+      flatbed:            false,
+      adf:                false,
+      duplex:             false,
+      readyToScan:        false,
+      statusText:         'Kein unterstütztes Scan-Backend (AirScan/WIA) aktiv',
+      remedy:             'Prüfen Sie, ob AirScan/eSCL im Drucker aktiviert ist oder installieren Sie den Windows-Scannertreiber.',
+    },
+  };
+}
+
+// ─── 9. Multi-Protocol Network Probe ──────────────────────────────────────────
 async function probeNetworkHost(ip, meta, seenSerials, seenIds) {
   const openPorts = [];
   await Promise.all(
@@ -712,6 +1066,25 @@ async function probeNetworkHost(ip, meta, seenSerials, seenIds) {
           status:         'available',
           statusDetails:  `AirScan eSCL [ADF: ${info.hasAdf ? 'Ja' : 'Nein'}, Duplex: ${info.hasDuplex ? 'Ja' : 'Nein'}]`,
           capabilities:   info.capabilities,
+          backend:        'ESCL',
+          backendInfo: {
+            type:        'ESCL',
+            initialized: true,
+            readyToScan: true,
+            statusText:  `AirScan eSCL Scanner bereit (${proto.toUpperCase()}:${port})`,
+          },
+          diagnostics: {
+            discovery:          true,
+            scannerDetected:    true,
+            backend:            `AirScan / eSCL (${proto.toUpperCase()}:${port})`,
+            backendInitialized: true,
+            flatbed:            info.hasFlatbed,
+            adf:                info.hasAdf,
+            duplex:             info.hasDuplex,
+            readyToScan:        true,
+            statusText:         `eSCL Backend bereit [ADF: ${info.hasAdf ? 'Ja' : 'Nein'}, Tray: ${info.adfState}]`,
+            remedy:             null,
+          },
           sources: {
             flatbed: info.hasFlatbed,
             adf:     info.hasAdf,
@@ -786,6 +1159,9 @@ async function probeNetworkHost(ip, meta, seenSerials, seenIds) {
     const cleanModel = normalizeModelName(modelName);
     const displayName = `${vendor} ${cleanModel}`;
 
+    // Probe true scanner backend for this network device
+    const backendInfo = await resolveScannerBackend({ ip, port: webPort || openPorts[0] || 80, protocol: vendor === 'Canon' ? 'CANON_NET' : 'NET_PRINTER', name: displayName }, openPorts, meta);
+
     const dev = {
       id:             deviceId,
       name:           displayName,
@@ -798,33 +1174,34 @@ async function probeNetworkHost(ip, meta, seenSerials, seenIds) {
       port:           webPort || openPorts[0] || 80,
       protocol:       vendor === 'Canon' ? 'CANON_NET' : 'NET_PRINTER',
       serial:         null,
-      status:         'available',
-      statusDetails:  `${vendor} Netzwerk-Gerät (${ip})`,
-      capabilities: {
-        printing:            true,
-        scanning:            true,
-        adf:                 true,
-        duplex:              true,
-        flatbed:             true,
-        color:               true,
-        grayscale:           true,
-        supportedDpi:        [150, 300, 600],
-        supportedPaperSizes: ['A4', 'Letter'],
-        documentFormats:     ['image/jpeg', 'image/png', 'application/pdf'],
+      status:         backendInfo.readyToScan ? 'available' : 'attention',
+      statusDetails:  backendInfo.readyToScan ? `${vendor} Netzwerk-Scanner bereit` : `${vendor} erkannt (${backendInfo.statusText})`,
+      capabilities:   backendInfo.capabilities,
+      backend:        backendInfo.backendType,
+      backendInfo: {
+        type:        backendInfo.backendType,
+        initialized: backendInfo.backendInitialized,
+        readyToScan: backendInfo.readyToScan,
+        statusText:  backendInfo.statusText,
       },
-      sources: { flatbed: true, adf: true, duplex: true },
-      selectedSource: 'adf',
-      adfStatus: 'Unknown',
+      diagnostics:    backendInfo.diagnostics,
+      sources: {
+        flatbed: backendInfo.readyToScan && backendInfo.hasFlatbed,
+        adf:     backendInfo.readyToScan && backendInfo.hasAdf,
+        duplex:  backendInfo.readyToScan && backendInfo.hasDuplex,
+      },
+      selectedSource: (backendInfo.readyToScan && backendInfo.hasAdf) ? 'adf' : (backendInfo.readyToScan ? 'flatbed' : 'none'),
+      adfStatus:      backendInfo.adfState,
     };
 
-    log('log', `Discovered network printer/scanner: "${dev.displayName}" at ${ip} (Ports: ${openPorts.join(',')})`);
+    log('log', `Discovered network printer/scanner: "${dev.displayName}" at ${ip} (Backend: ${backendInfo.backendType}, ReadyToScan: ${backendInfo.readyToScan})`);
     return dev;
   }
 
   return null;
 }
 
-// ─── 9. Unified Fast Discovery Orchestration ─────────────────────────────────
+// ─── 10. Unified Fast Discovery Orchestration ─────────────────────────────────
 async function runUnifiedDiscovery() {
   if (isDiscovering && discoveryPromise) {
     return discoveryPromise;
@@ -902,6 +1279,25 @@ async function runUnifiedDiscovery() {
             supportedDpi:        [150, 300, 600],
             supportedPaperSizes: ['A4', 'Letter'],
             documentFormats:     ['image/jpeg', 'image/png', 'application/pdf'],
+          },
+          backend: 'SIMULATOR',
+          backendInfo: {
+            type:        'SIMULATOR',
+            initialized: true,
+            readyToScan: true,
+            statusText:  'Virtueller AirScan Simulator bereit',
+          },
+          diagnostics: {
+            discovery:          true,
+            scannerDetected:    true,
+            backend:            'SIMULATOR (Virtual AirScan)',
+            backendInitialized: true,
+            flatbed:            true,
+            adf:                true,
+            duplex:             true,
+            readyToScan:        true,
+            statusText:         'Virtueller Testscanner bereit (ADF & Flachbett)',
+            remedy:             null,
           },
           sources: { flatbed: true, adf: true, duplex: true },
           selectedSource: 'adf',
@@ -1395,163 +1791,77 @@ async function executeScan(options, onProgress = null, jobTracker = null) {
     return pages;
   }
 
-  // 2. Windows WIA / USB Scanner
-  if (scannerIp.startsWith('USB_') || scannerIp.startsWith('WIA_') || scannerIp === 'USB' || scannerIp.startsWith('WIN_')) {
+  // 2. Pre-flight Scanner Backend Resolution
+  log('log', `Resolving real scanner backend for ${scannerIp}:${scannerPort}...`);
+  const backendInfo = await resolveScannerBackend(scannerIp, [scannerPort, 80, 443, 8080, 8443, 8612, 5757, 9100]);
+
+  if (!backendInfo.readyToScan) {
+    const diag = backendInfo.diagnostics;
+    log('error', `Pre-flight scan failed for ${scannerIp}: ${backendInfo.statusText}`);
+    throw new Error(
+      `Physischer Scan nicht möglich (${scannerIp}): ${backendInfo.statusText}\n\n` +
+      `Hardware-Diagnose:\n` +
+      `• Geräte-Erkennung: ${diag.discovery ? '✓ Gefunden' : '✗ Nicht erreichbar'}\n` +
+      `• Scanner erkannt: ${diag.scannerDetected ? '✓ Ja' : '✗ Nein'}\n` +
+      `• Scan-Backend (${diag.backend}): ${diag.backendInitialized ? '✓ Bereit' : '✗ Nicht initialisiert'}\n` +
+      `• ADF-Einzug: ${diag.adf ? '✓ Bereit' : '✗ Nicht bereit'}\n` +
+      `• Scan-Bereitschaft: ${diag.readyToScan ? '✓ Bereit' : '✗ Nicht bereit'}\n\n` +
+      `Lösung: ${diag.remedy || 'Bitte richten Sie den passenden Scannertreiber in Windows ein oder wählen Sie den WLAN-Scanner Simulator.'}`
+    );
+  }
+
+  // 3. Dispatch to Verified Backend
+  if (backendInfo.backendType === 'ESCL') {
+    log('log', `Dispatching to verified AirScan/eSCL backend on port ${backendInfo.port || scannerPort}...`);
+    return triggerEsclScan(scannerIp, backendInfo.port || scannerPort, options, onProgress, jobTracker);
+  }
+
+  if (backendInfo.backendType === 'WIA') {
+    log('log', `Dispatching to verified Windows WIA backend (${backendInfo.wiaDevice?.displayName || scannerIp})...`);
     return triggerWiaScan(options, onProgress);
   }
 
-  // 3. Network eSCL Scanner
-  const candidatePorts = [scannerPort, 80, 443, 8080, 8443].filter(
-    (p, idx, arr) => arr.indexOf(p) === idx
-  );
-
-  for (const port of candidatePorts) {
-    const isOpen = await tcpReachable(scannerIp, port, 400);
-    if (!isOpen) continue;
-
-    try {
-      log('log', `Attempting physical eSCL scan on ${scannerIp}:${port}...`);
-      const pages = await triggerEsclScan(scannerIp, port, options, onProgress, jobTracker);
-      if (pages && pages.length > 0) return pages;
-    } catch (err) {
-      log('log', `eSCL scan on ${scannerIp}:${port} status: ${err.message}`);
-      if (err.message.includes('ADF') || err.message.includes('leer') || err.message.includes('beschäftigt')) {
-        throw err;
-      }
-    }
+  if (backendInfo.backendType === 'SIMULATOR') {
+    return executeScan({ ...options, scannerIp: 'SIMULATOR' }, onProgress, jobTracker);
   }
 
-  // 4. Windows WIA fallback for network scanners installed in Windows
-  try {
-    log('log', `Attempting Windows WIA scan fallback for ${scannerIp}...`);
-    const pages = await triggerWiaScan(options, onProgress);
-    if (pages && pages.length > 0) return pages;
-  } catch {}
-
-  // 5. Explicit physical failure message
-  throw new Error(
-    `Physischer Scan auf Gerät (${scannerIp}) nicht möglich: ` +
-    `Ihr Gerät (z. B. Canon PIXMA MX490/MF Serie) unterstützt kein direktes eSCL/AirScan über HTTP. ` +
-    `Lösung: Bitte fügen Sie den Scanner einmalig in Windows hinzu (Windows-Einstellungen → Bluetooth & Geräte → Drucker & Scanner → "Gerät hinzufügen") ` +
-    `damit der Windows WIA-Treiber aktiv ist, oder wählen Sie den "WLAN-Scanner Simulator" zum Testen.`
-  );
+  throw new Error(`Unbekanntes Scan-Backend (${backendInfo.backendType}).`);
 }
 
 // ─── 16. Real Connection Test & Capability Probe ──────────────────────────────
 async function testDeviceConnection(device) {
-  if (!device || device.ip === 'SIMULATOR' || device.id === 'SIMULATOR') {
-    return {
-      connected: true,
-      status:    'READY',
-      state:     'Idle',
-      details:   'Simulator bereit mit virtuellem ADF-Einzug',
-      scanner: {
-        name:           'LogiFlow Virtual AirScan 3000',
-        connected:      true,
-        sources:        { flatbed: true, adf: true, duplex: true },
-        selectedSource: 'adf',
-        adfStatus:      'Loaded',
-      },
-      capabilities: {
-        printing:            true,
-        scanning:            true,
-        adf:                 true,
-        duplex:              true,
-        flatbed:             true,
-        color:               true,
-        grayscale:           true,
-        supportedDpi:        [150, 300, 600],
-        supportedPaperSizes: ['A4', 'Letter'],
-        documentFormats:     ['image/jpeg', 'image/png', 'application/pdf'],
-      },
-    };
+  if (!device) {
+    return { connected: false, status: 'OFFLINE', details: 'Kein Gerät angegeben.' };
   }
 
-  // WIA USB test
-  if (device.protocol === 'WIA' || (device.ip && device.ip.startsWith('WIA_'))) {
-    if (process.platform !== 'win32') {
-      return { connected: false, status: 'OFFLINE', details: 'WIA ist nur unter Windows verfügbar.' };
-    }
-    return {
-      connected: true,
-      status:    'READY',
-      state:     'Idle',
-      details:   'Windows Drucker/Scanner bereit (WIA)',
-      scanner: {
-        name:           device.displayName || device.name || 'WIA Scanner',
-        connected:      true,
-        sources:        device.sources || { flatbed: true, adf: true, duplex: false },
-        selectedSource: device.capabilities?.adf ? 'adf' : 'flatbed',
-        adfStatus:      'Unknown',
+  const backendInfo = await resolveScannerBackend(device, [device.port || 80, 80, 443, 8080, 8443, 8612, 5757, 9100]);
+
+  return {
+    connected:   true,
+    status:      backendInfo.readyToScan ? 'READY' : (backendInfo.backendType === 'BJNP' ? 'DRIVER_REQUIRED' : 'OFFLINE'),
+    state:       backendInfo.readyToScan ? 'Idle' : 'NeedsConfiguration',
+    details:     backendInfo.statusText,
+    backend:     backendInfo.backendType,
+    backendInfo: {
+      type:        backendInfo.backendType,
+      initialized: backendInfo.backendInitialized,
+      readyToScan: backendInfo.readyToScan,
+      statusText:  backendInfo.statusText,
+    },
+    diagnostics: backendInfo.diagnostics,
+    scanner: {
+      name:           device.displayName || device.name || 'Scanner',
+      connected:      backendInfo.readyToScan,
+      sources: {
+        flatbed: backendInfo.readyToScan && backendInfo.hasFlatbed,
+        adf:     backendInfo.readyToScan && backendInfo.hasAdf,
+        duplex:  backendInfo.readyToScan && backendInfo.hasDuplex,
       },
-      capabilities: device.capabilities || {
-        printing: true, scanning: true, flatbed: true, adf: true, color: true, grayscale: true, supportedDpi: [150, 300, 600]
-      },
-    };
-  }
-
-  const ip   = device.ip;
-  const port = device.port || 80;
-  if (!ip) {
-    return { connected: false, status: 'OFFLINE', details: 'Keine IP-Adresse hinterlegt.' };
-  }
-
-  // Probe live eSCL Capabilities & ADF Status
-  try {
-    const isHttps = (port === 443 || port === 8443);
-    const proto   = isHttps ? 'https' : 'http';
-    const capUrl  = `${proto}://${ip}:${port}/eSCL/ScannerCapabilities`;
-    const { status, body } = await httpGet(capUrl, 1500).catch(() => ({ status: 0, body: '' }));
-    if (status === 200 && body && body.includes('ScannerCapabilities')) {
-      const info = await getScannerCapabilitiesAndStatus(ip, port);
-      return {
-        connected: true,
-        status:    'READY',
-        state:     'Idle',
-        details:   `AirScan eSCL verbunden [ADF: ${info.hasAdf ? 'Ja' : 'Nein'}, Status: ${info.adfState}]`,
-        scanner: {
-          name:           device.displayName || device.name || 'Netzwerkscanner',
-          connected:      true,
-          sources: {
-            flatbed: info.hasFlatbed,
-            adf:     info.hasAdf,
-            duplex:  info.hasDuplex,
-          },
-          selectedSource: info.selectedSource,
-          adfStatus:      info.adfState,
-        },
-        capabilities: info.capabilities,
-      };
-    }
-  } catch {}
-
-  // Test TCP Reachability on device ports
-  const reachable = await tcpReachable(ip, port, 1200) ||
-                    await tcpReachable(ip, 80, 1200) ||
-                    await tcpReachable(ip, 443, 1200) ||
-                    await tcpReachable(ip, 8611, 1200) ||
-                    await tcpReachable(ip, 631, 1200);
-
-  if (reachable) {
-    return {
-      connected: true,
-      status:    'READY',
-      state:     'Idle',
-      details:   `Netzwerkgerät erreichbar (${ip})`,
-      scanner: {
-        name:           device.displayName || device.name || 'Netzwerkgerät',
-        connected:      true,
-        sources:        { flatbed: true, adf: true, duplex: true },
-        selectedSource: 'adf',
-        adfStatus:      'Unknown',
-      },
-      capabilities: device.capabilities || {
-        printing: true, scanning: true, adf: true, duplex: true, flatbed: true, color: true, grayscale: true, supportedDpi: [150, 300, 600]
-      },
-    };
-  }
-
-  return { connected: false, status: 'OFFLINE', details: `Gerät unter ${ip} nicht erreichbar.` };
+      selectedSource: backendInfo.selectedSource,
+      adfStatus:      backendInfo.adfState,
+    },
+    capabilities: backendInfo.capabilities,
+  };
 }
 
 // ─── 17. HTTP Server & API Endpoints ──────────────────────────────────────────
@@ -1755,7 +2065,7 @@ const server = http.createServer(async (req, res) => {
     sendJson(res, 404, { error: 'Not found', path: url });
   } catch (err) {
     log('error', 'API error:', err.message);
-    sendJson(res, 500, { error: 'Internal connector error', message: err.message });
+    sendJson(res, 500, { error: err.message, message: err.message });
   }
 });
 
