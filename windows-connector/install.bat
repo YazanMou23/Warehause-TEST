@@ -46,6 +46,7 @@ copy /Y "%SOURCE_DIR%index.js" "%TARGET_DIR%\" >nul
 copy /Y "%SOURCE_DIR%start-silent.vbs" "%TARGET_DIR%\" >nul
 copy /Y "%SOURCE_DIR%package.json" "%TARGET_DIR%\" >nul
 copy /Y "%SOURCE_DIR%uninstall.bat" "%TARGET_DIR%\" >nul
+if exist "%SOURCE_DIR%show_success_dialog.ps1" copy /Y "%SOURCE_DIR%show_success_dialog.ps1" "%TARGET_DIR%\" >nul
 if exist "%SOURCE_DIR%run-debug.bat" copy /Y "%SOURCE_DIR%run-debug.bat" "%TARGET_DIR%\" >nul
 
 echo [4/4] Autostart bei Windows-Anmeldung registrieren...
@@ -75,6 +76,10 @@ echo    automatisch im Hintergrund (Port 48281).
 echo =======================================================
 echo.
 
-powershell -NoProfile -Command "[System.Windows.Forms.MessageBox]::Show('Der LogiFlow Printer Connector wurde erfolgreich installiert und im Hintergrund gestartet!`n`nSie koennen jetzt in der Web-App Dokumente direkt von Ihrem Drucker scannen.', 'LogiFlow Connector Bereit', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)" 2>nul
+if exist "%TARGET_DIR%\show_success_dialog.ps1" (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%TARGET_DIR%\show_success_dialog.ps1"
+) else (
+    powershell -NoProfile -Command "[System.Windows.Forms.MessageBox]::Show('Der LogiFlow Printer Connector wurde erfolgreich installiert und im Hintergrund gestartet!`n`nSie koennen jetzt in der Web-App Dokumente direkt von Ihrem Drucker scannen.', 'LogiFlow Connector Bereit', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)" 2>nul
+)
 
 exit /b 0

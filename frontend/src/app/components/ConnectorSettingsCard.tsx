@@ -305,21 +305,41 @@ export default function ConnectorSettingsCard() {
 
       {/* ── Verify result toast ── */}
       {verifyMsg === "verifying" && (
-        <div className="mx-5 mt-4 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 flex items-center gap-2 text-[12px] text-blue-700">
-          <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-          Warte auf Connector-Neustart… (bis 30s)
+        <div className="mx-5 mt-4 bg-blue-50/80 border border-blue-200/80 rounded-xl px-4 py-3 flex items-center gap-3 text-[13px] text-blue-800 shadow-sm animate-pulse">
+          <Loader2 className="w-4 h-4 animate-spin text-blue-600 shrink-0" />
+          <div className="flex-1">
+            <p className="font-semibold">Installation wird verifiziert…</p>
+            <p className="text-[11px] text-blue-600">Warte auf automatischen Connector-Neustart (Port 48281)</p>
+          </div>
         </div>
       )}
       {verifyMsg === "success" && (
-        <div className="mx-5 mt-4 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2.5 flex items-center gap-2 text-[12px] text-emerald-700 font-semibold">
-          <CheckCircle className="w-4 h-4 shrink-0" />
-          Connector erfolgreich aktualisiert.
+        <div className="mx-5 mt-4 bg-linear-to-r from-emerald-50 to-teal-50/60 border border-emerald-300/80 rounded-xl px-4 py-3 flex items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">
+              ✓
+            </div>
+            <div>
+              <p className="font-bold text-[13px] text-emerald-900">Connector erfolgreich installiert &amp; verbunden!</p>
+              <p className="text-[11px] text-emerald-700">Version <strong>v{connStatus.version}</strong> ist ab sofort im Hintergrund aktiv.</p>
+            </div>
+          </div>
+          <a
+            href="/timesheets"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white text-[12px] font-bold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1.5 shrink-0"
+          >
+            <Scan className="w-3.5 h-3.5" />
+            Jetzt scannen
+          </a>
         </div>
       )}
       {verifyMsg === "fail" && (
-        <div className="mx-5 mt-4 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5 flex items-center gap-2 text-[12px] text-red-700">
-          <AlertTriangle className="w-4 h-4 shrink-0" />
-          Connector hat sich nach dem Update nicht neu verbunden. Bitte manuell starten.
+        <div className="mx-5 mt-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-center gap-3 text-[12px] text-red-700 shadow-sm">
+          <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+          <div className="flex-1">
+            <p className="font-semibold text-red-900">Verbindung nicht hergestellt</p>
+            <p className="text-[11px] text-red-600">Der Connector wurde noch nicht gestartet. Bitte führen Sie die Installation erneut aus.</p>
+          </div>
         </div>
       )}
 
