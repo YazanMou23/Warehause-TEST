@@ -586,7 +586,10 @@ export class ScannerService {
             dpi:         settings.dpi ?? 300,
             colorMode:   settings.colorMode ?? 'Grayscale',
             format:      settings.format ?? 'jpeg',
-            inputSource: settings.inputSource ?? 'Platen',
+            source:      settings.inputSource === 'Feeder' ? 'adf' : (settings.inputSource === 'Platen' ? 'flatbed' : 'auto'),
+            inputSource: settings.inputSource ?? 'auto',
+            multiPage:   true,
+            batchScan:   true,
           }),
           signal: AbortSignal.timeout(120_000),
         });

@@ -111,8 +111,10 @@ export default function ScannerCaptureTab({ onScanCompleted }: ScannerCaptureTab
           colorMode,
           dpi,
           format:      "jpeg",
+          source:      inputSource === "Feeder" ? "adf" : "flatbed",
           inputSource,
-          batchScan:   inputSource === "Feeder" ? batchScan : false,
+          multiPage:   true,
+          batchScan:   inputSource === "Feeder" ? true : false,
         }),
       });
 

@@ -232,9 +232,11 @@ export default function UniversalPrinterScannerModal({
         scannerPort: selectedDevice.port ?? 80,
         dpi,
         colorMode,
+        source:      inputSource === 'Feeder' ? 'adf' : 'flatbed',
         inputSource,
-        format:    'jpeg',
-        batchScan: inputSource === 'Feeder' ? batchScan : false,
+        format:      'jpeg',
+        batchScan:   inputSource === 'Feeder' ? true : false,
+        multiPage:   true,
       });
 
       if (files.length === 0) throw new Error('Keine Seiten vom Scanner empfangen.');

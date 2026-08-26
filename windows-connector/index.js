@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * ============================================================================
- * LogiFlow Windows Local Printer & Scanner Connector v2.1
+ * LogiFlow Windows Local Printer & Scanner Connector v2.2 (Full ADF & Multi-Page)
  * ============================================================================
  * Standalone background service running on Windows PCs to bridge the LogiFlow
  * web application with local Wi-Fi, Ethernet, and USB printers/scanners.
@@ -11,10 +11,10 @@
  *  - WS-Discovery / DPWS (UDP 239.255.255.250:3702) — WSD devices & scanners
  *  - SSDP / UPnP (UDP 239.255.255.250:1900)
  *  - Canon BJNP Protocol (UDP 8611 / 8612) — Canon Network Printers & Scanners
- *  - Windows WIA COM Automation (USB & WIA network scanners)
+ *  - Windows WIA COM Automation (USB & WIA network scanners, with continuous ADF loop)
  *  - Windows Print Spooler (Get-Printer / WMI)
  *  - eSCL / Apple AirScan / Mopria (HTTP/HTTPS REST on ports 80, 8080, 443, 8443, 5757, 9100)
- *  - IPP / JetDirect / HTTP Remote UI printer identification (Canon, HP, Brother, Epson, Kyocera, Xerox)
+ *  - Continuous ADF (Automatic Document Feeder) Batch Scanning with live page streaming
  *  - High-speed parallel /24 subnet sweep & ARP table probe (< 2.5 seconds)
  *
  * Security:
@@ -47,15 +47,15 @@ const PROBE_PORTS      = [80, 443, 8080, 8443, 5757, 9100, 631, 515, 8611, 8612]
 const PROBE_TIMEOUT_MS = 600;
 const FAST_TCP_TIMEOUT = 350;
 const CACHE_TTL_MS     = 30_000;
-const MULTICAST_WAIT   = 1200; // ms to listen for mDNS / WSD / SSDP responses
-const VERSION          = '2.1.0';
+const MULTICAST_WAIT   = 1200;
+const VERSION          = '2.2.0';
 
 // ─── State ────────────────────────────────────────────────────────────────────
 let cachedDevices     = [];
 let lastDiscoveryTime = 0;
 let isDiscovering     = false;
 let discoveryPromise  = null;
-const activeScanJobs  = new Map(); // jobId -> { id, status, pageCount, pages, error, createdAt }
+const activeScanJobs  = new Map(); // jobId -> { id, status, selectedSource, pageCount, pages, message, error, createdAt, cancelled }
 
 // ─── Logging ──────────────────────────────────────────────────────────────────
 function log(level, ...args) {
@@ -198,64 +198,7 @@ function httpGetBinary(url, timeoutMs = 20000) {
 }
 
 // ─── 1. UDP Multicast mDNS / DNS-SD Engine ────────────────────────────────────
-function buildDnsQueryPacket(serviceNames) {
-  const header = Buffer.alloc(12);
-  header.writeUInt16BE(0x0000, 0);
-  header.writeUInt16BE(0x0000, 2);
-  header.writeUInt16BE(serviceNames.length, 4); // QDCOUNT
-  header.writeUInt16BE(0, 6);
-  header.writeUInt16BE(0, 8);
-  header.writeUInt16BE(0, 10);
-
-  const questionBuffers = [];
-  for (const name of serviceNames) {
-    const parts = name.split('.');
-    const qnameParts = [];
-    for (const part of parts) {
-      const pBuf = Buffer.from(part, 'utf8');
-      qnameParts.push(Buffer.from([pBuf.length]), pBuf);
-    }
-    qnameParts.push(Buffer.from([0x00]));
-    const typeClass = Buffer.alloc(4);
-    typeClass.writeUInt16BE(12, 0); // PTR
-    typeClass.writeUInt16BE(1, 2);  // IN
-    questionBuffers.push(Buffer.concat([...qnameParts, typeClass]));
-  }
-
-  return Buffer.concat([header, ...questionBuffers]);
-}
-
-function parseDnsStrings(buffer) {
-  const strings = [];
-  let cur = '';
-  for (let i = 0; i < buffer.length; i++) {
-    const ch = buffer[i];
-    if (ch >= 32 && ch <= 126) {
-      cur += String.fromCharCode(ch);
-    } else {
-      if (cur.length >= 4) strings.push(cur);
-      cur = '';
-    }
-  }
-  if (cur.length >= 4) strings.push(cur);
-  return strings;
-}
-
 async function discoverViaMdnsMulticast(discoveredIps, candidateMeta) {
-  const serviceTypes = [
-    '_uscan._tcp.local',
-    '_uscans._tcp.local',
-    '_scanner._tcp.local',
-    '_ipp._tcp.local',
-    '_ipps._tcp.local',
-    '_pdl-datastream._tcp.local',
-    '_printer._tcp.local',
-    '_canon-bjnp1._tcp.local',
-    '_http._tcp.local',
-  ];
-
-  const packet = buildDnsQueryPacket(serviceTypes);
-
   return new Promise((resolve) => {
     let socket;
     try {
@@ -278,60 +221,56 @@ async function discoverViaMdnsMulticast(discoveredIps, candidateMeta) {
     socket.on('message', (msg, rinfo) => {
       if (rinfo.address && !rinfo.address.startsWith('127.')) {
         discoveredIps.add(rinfo.address);
-        const parsed = parseDnsStrings(msg);
-        const joined = parsed.join(' ');
-        
-        let foundName = null;
-        for (const s of parsed) {
-          if (/brother|officejet|laserjet|deskjet|canon|pixma|ecotank|workforce|imageclass|imagerunner|ecosys|taskalfa|versalink|altalink|color laser/i.test(s)) {
-            foundName = s.replace(/_uscan\._tcp\.local|_ipp\._tcp\.local|_printer\._tcp\.local/i, '').trim();
-            break;
-          }
-        }
+        const str = msg.toString('binary');
+        const meta = candidateMeta.get(rinfo.address) || {};
 
-        let serial = null;
-        const serMatch = joined.match(/(?:ser|serial|serialnumber)[=:]([A-Za-z0-9_-]+)/i);
-        if (serMatch) serial = serMatch[1];
+        const tyMatch = str.match(/ty=([^\x00\x01\n\r]+)/i);
+        const mdMatch = str.match(/md=([^\x00\x01\n\r]+)/i);
+        const name = (tyMatch ? tyMatch[1] : (mdMatch ? mdMatch[1] : '')).replace(/[^\x20-\x7E]/g, '').trim();
+        if (name) meta.name = name;
 
-        if (foundName || serial) {
-          candidateMeta.set(rinfo.address, {
-            name: foundName,
-            serial,
-            protocolHint: 'mDNS/Bonjour',
-          });
-        }
+        const isDuplex = /duplex=t|duplex=1/i.test(str);
+        if (isDuplex) meta.hasDuplex = true;
+
+        candidateMeta.set(rinfo.address, meta);
       }
     });
 
     socket.bind(0, () => {
       try {
-        socket.setBroadcast(true);
-        socket.setMulticastTTL(255);
-        socket.send(packet, 0, packet.length, 5353, '224.0.0.251', () => {});
+        socket.addMembership('224.0.0.251');
       } catch {}
+
+      // Query for _uscan (AirScan eSCL), _scanner, and _ipp (Printers)
+      const queries = [
+        Buffer.from([0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x5f, 0x75, 0x73, 0x63, 0x61, 0x6e, 0x04, 0x5f, 0x74, 0x63, 0x70, 0x05, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x00, 0x00, 0x0c, 0x00, 0x01]),
+        Buffer.from([0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x5f, 0x69, 0x70, 0x70, 0x04, 0x5f, 0x74, 0x63, 0x70, 0x05, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x00, 0x00, 0x0c, 0x00, 0x01]),
+      ];
+
+      for (const q of queries) {
+        socket.send(q, 5353, '224.0.0.251', () => {});
+      }
     });
   });
 }
 
-// ─── 2. WS-Discovery (WSD / DPWS) Engine ─────────────────────────────────────
+// ─── 2. WS-Discovery (UDP 3702) ───────────────────────────────────────────────
 async function discoverViaWsd(discoveredIps, candidateMeta) {
-  const probeMessage = `<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope"
-               xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing"
-               xmlns:wsd="http://schemas.xmlsoap.org/ws/2005/04/discovery"
-               xmlns:wprt="http://schemas.microsoft.com/windows/2006/08/wdp/print"
-               xmlns:wscn="http://schemas.microsoft.com/windows/2006/08/wdp/scan">
-  <soap:Header>
-    <wsa:To>urn:schemas-xmlsoap-org:ws:2005:04:discovery</wsa:To>
-    <wsa:Action>http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe</wsa:Action>
-    <wsa:MessageID>urn:uuid:${crypto.randomUUID()}</wsa:MessageID>
-  </soap:Header>
-  <soap:Body>
-    <wsd:Probe>
-      <wsd:Types>wsd:Device</wsd:Types>
-    </wsd:Probe>
-  </soap:Body>
-</soap:Envelope>`;
+  const wsdProbe = Buffer.from(
+    '<?xml version="1.0" encoding="utf-8"?>' +
+    '<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsd="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:wprt="http://schemas.microsoft.com/windows/2006/08/wdp/print" xmlns:wscn="http://schemas.microsoft.com/windows/2006/08/wdp/scan">' +
+      '<soap:Header>' +
+        '<wsa:To>urn:schemas-xmlsoap-org:ws:2005:04:discovery</wsa:To>' +
+        '<wsa:Action>http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe</wsa:Action>' +
+        `<wsa:MessageID>urn:uuid:${crypto.randomUUID()}</wsa:MessageID>` +
+      '</soap:Header>' +
+      '<soap:Body>' +
+        '<wsd:Probe>' +
+          '<wsd:Types>wprt:PrintDeviceType wscn:ScanDeviceType</wsd:Types>' +
+        '</wsd:Probe>' +
+      '</soap:Body>' +
+    '</soap:Envelope>'
+  );
 
   return new Promise((resolve) => {
     let socket;
@@ -344,7 +283,7 @@ async function discoverViaWsd(discoveredIps, candidateMeta) {
     const timer = setTimeout(() => {
       try { socket.close(); } catch {}
       resolve();
-    }, MULTICAST_WAIT);
+    }, 1000);
 
     socket.on('error', () => {
       clearTimeout(timer);
@@ -356,46 +295,32 @@ async function discoverViaWsd(discoveredIps, candidateMeta) {
       if (rinfo.address && !rinfo.address.startsWith('127.')) {
         discoveredIps.add(rinfo.address);
         const text = msg.toString('utf8');
-        const endpoint = extractXmlTag(text, 'Address') || extractXmlTag(text, 'EndpointReference');
-        const xaddrs   = extractXmlTag(text, 'XAddrs') || '';
-        const types    = extractXmlTag(text, 'Types') || '';
-
-        const uuidMatch = (endpoint || text).match(/urn:uuid:([0-9a-fA-F-]+)/i);
-        const uuid = uuidMatch ? uuidMatch[1] : null;
-
-        if (uuid || xaddrs || /print|scan/i.test(types)) {
-          candidateMeta.set(rinfo.address, {
-            ...(candidateMeta.get(rinfo.address) || {}),
-            uuid,
-            xaddrs,
-            isWsd: true,
-          });
-        }
+        const meta = candidateMeta.get(rinfo.address) || {};
+        const modelMatch = text.match(/<[^>]*:?ModelName[^>]*>([^<]+)<\/[^>]*:?ModelName>/i) ||
+                           text.match(/<[^>]*:?FriendlyName[^>]*>([^<]+)<\/[^>]*:?FriendlyName>/i);
+        if (modelMatch) meta.name = modelMatch[1].trim();
+        candidateMeta.set(rinfo.address, meta);
       }
     });
 
     socket.bind(0, () => {
       try {
-        socket.setBroadcast(true);
-        socket.setMulticastTTL(4);
-        const buf = Buffer.from(probeMessage, 'utf8');
-        socket.send(buf, 0, buf.length, 3702, '239.255.255.250', () => {});
+        socket.addMembership('239.255.255.250');
+        socket.send(wsdProbe, 3702, '239.255.255.250', () => {});
       } catch {}
     });
   });
 }
 
-// ─── 3. SSDP / UPnP Discovery Engine ──────────────────────────────────────────
+// ─── 3. SSDP / UPnP (UDP 1900) ────────────────────────────────────────────────
 async function discoverViaSsdp(discoveredIps, candidateMeta) {
-  const msg = [
-    'M-SEARCH * HTTP/1.1',
-    'HOST: 239.255.255.250:1900',
-    'MAN: "ssdp:discover"',
-    'MX: 2',
-    'ST: ssdp:all',
-    '',
-    '',
-  ].join('\r\n');
+  const ssdpMsg = Buffer.from(
+    'M-SEARCH * HTTP/1.1\r\n' +
+    'HOST: 239.255.255.250:1900\r\n' +
+    'MAN: "ssdp:discover"\r\n' +
+    'MX: 1\r\n' +
+    'ST: urn:schemas-upnp-org:device:Scanner:1\r\n\r\n'
+  );
 
   return new Promise((resolve) => {
     let socket;
@@ -408,7 +333,7 @@ async function discoverViaSsdp(discoveredIps, candidateMeta) {
     const timer = setTimeout(() => {
       try { socket.close(); } catch {}
       resolve();
-    }, MULTICAST_WAIT);
+    }, 800);
 
     socket.on('error', () => {
       clearTimeout(timer);
@@ -416,37 +341,24 @@ async function discoverViaSsdp(discoveredIps, candidateMeta) {
       resolve();
     });
 
-    socket.on('message', (buf, rinfo) => {
+    socket.on('message', (msg, rinfo) => {
       if (rinfo.address && !rinfo.address.startsWith('127.')) {
-        const text = buf.toString('utf8');
-        if (/printer|scanner|print|scan|escl|airprint|mfp|canon|brother|epson|hp/i.test(text)) {
-          discoveredIps.add(rinfo.address);
-          const locationMatch = text.match(/LOCATION:\s*(http[^\r\n]+)/i);
-          if (locationMatch) {
-            candidateMeta.set(rinfo.address, {
-              ...(candidateMeta.get(rinfo.address) || {}),
-              ssdpLocation: locationMatch[1].trim(),
-            });
-          }
-        }
+        discoveredIps.add(rinfo.address);
       }
     });
 
     socket.bind(0, () => {
       try {
-        socket.setBroadcast(true);
-        socket.setMulticastTTL(2);
-        const b = Buffer.from(msg, 'utf8');
-        socket.send(b, 0, b.length, 1900, '239.255.255.250', () => {});
+        socket.send(ssdpMsg, 1900, '239.255.255.250', () => {});
       } catch {}
     });
   });
 }
 
-// ─── 4. Canon BJNP Broadcast (Ports 8611 & 8612) ──────────────────────────────
+// ─── 4. Canon BJNP Protocol Broadcast (UDP 8611 / 8612) ──────────────────────
 async function discoverViaBjnpBroadcast(discoveredIps, candidateMeta) {
   const bjnpPacket = Buffer.from([
-    0x42, 0x4a, 0x4e, 0x50, // "BJNP"
+    0x42, 0x4a, 0x4e, 0x50, // 'BJNP'
     0x01,                   // Type: Printer / Scanner
     0x01,                   // Command: Discover
     0x00, 0x00, 0x00, 0x00, // Session ID
@@ -507,18 +419,32 @@ async function discoverViaWindowsPnp(seenIds, discovered) {
           $n = try { $d.Properties.Item('Name').Value } catch { 'Scanner' }
           $m = try { $d.Properties.Item('Manufacturer').Value } catch { '' }
           $t = try { $d.Properties.Item('Port').Value } catch { '' }
-          Write-Output "$($d.DeviceID)||$n||$m||$t"
+          
+          # Check Feeder (ADF) and Duplex capability flags from WIA properties
+          $cap = 0
+          try {
+            $dev = $d.Connect()
+            $cap = [int]$dev.Properties.Item('3086').Value
+          } catch {}
+          
+          $hasAdf = (($cap -band 1) -ne 0) -or (($cap -band 4) -ne 0)
+          $hasDuplex = (($cap -band 4) -ne 0)
+          
+          Write-Output "$($d.DeviceID)||$n||$m||$t||$hasAdf||$hasDuplex"
         }
       } catch {}
     `;
     const { stdout } = await execAsync(`powershell -NoProfile -Command "${psWia.replace(/\n/g, ' ')}"`, { timeout: 3500 }).catch(() => ({ stdout: '' }));
     for (const line of (stdout || '').trim().split('\n').filter(Boolean)) {
-      const [devId, devName, mfg, port] = line.split('||').map((s) => (s || '').trim());
+      const [devId, devName, mfg, port, hasAdfStr, hasDuplexStr] = line.split('||').map((s) => (s || '').trim());
       if (devId && devName && !seenIds.has(devId)) {
         seenIds.add(devId);
         const isUsb = devId.toUpperCase().startsWith('USB') || port.toUpperCase().startsWith('USB');
         const manufacturer = mfg || detectManufacturer(devName);
         const cleanModel = normalizeModelName(devName);
+        const hasAdf = hasAdfStr === 'True' || /adf|feeder|mfc|pro|mfp/i.test(devName);
+        const hasDuplex = hasDuplexStr === 'True' || /duplex|dn|dw/i.test(devName);
+
         discovered.push({
           id:             `WIA_${devId.replace(/[^A-Za-z0-9_-]/g, '_')}`,
           name:           devName,
@@ -533,8 +459,8 @@ async function discoverViaWindowsPnp(seenIds, discovered) {
           capabilities: {
             printing:            false,
             scanning:            true,
-            adf:                 false,
-            duplex:              false,
+            adf:                 hasAdf,
+            duplex:              hasDuplex,
             flatbed:             true,
             color:               true,
             grayscale:           true,
@@ -543,7 +469,7 @@ async function discoverViaWindowsPnp(seenIds, discovered) {
             documentFormats:     ['image/jpeg', 'image/png'],
           },
         });
-        log('log', `Found Windows WIA Scanner: ${devName} [${isUsb ? 'USB' : 'LAN'}]`);
+        log('log', `Found Windows WIA Scanner: ${devName} [${isUsb ? 'USB' : 'LAN'}, ADF:${hasAdf}]`);
       }
     }
   } catch (e) {
@@ -568,7 +494,6 @@ async function discoverViaWindowsPnp(seenIds, discovered) {
       for (const p of printers) {
         if (!p.Name) continue;
         const nameLower = p.Name.toLowerCase();
-        // Skip virtual PDF / XPS / Fax only if purely virtual
         if (nameLower.includes('xps') || nameLower.includes('onenote') || nameLower.includes('fax')) continue;
 
         const portName = p.PortName || '';
@@ -632,9 +557,103 @@ async function getArpIps() {
   return ips;
 }
 
-// ─── 7. Multi-Protocol Network Probe (eSCL, Canon BJNP/RUI, IPP, HTTP) ──────
+// ─── 7. Capabilities & Live Status Detection ──────────────────────────────────
+async function getScannerCapabilitiesAndStatus(ip, port) {
+  const isHttps = (port === 443 || port === 8443);
+  const proto   = isHttps ? 'https' : 'http';
+  const baseUrl = `${proto}://${ip}:${port}`;
+
+  let capabilities = {
+    printing:            true,
+    scanning:            true,
+    adf:                 true,
+    duplex:              false,
+    flatbed:             true,
+    color:               true,
+    grayscale:           true,
+    supportedDpi:        [150, 300, 600],
+    supportedPaperSizes: ['A4', 'Letter'],
+    documentFormats:     ['image/jpeg', 'image/png'],
+  };
+
+  let adfState = 'Unknown';
+  let isAdfLoaded = false;
+  let hasAdf = true;
+  let hasDuplex = false;
+  let hasFlatbed = true;
+
+  // 1. Fetch /eSCL/ScannerCapabilities
+  try {
+    const capRes = await httpGet(`${baseUrl}/eSCL/ScannerCapabilities`, 1500);
+    if (capRes.status === 200 && capRes.body) {
+      const body = capRes.body;
+      const inputSources = extractAllXmlTags(body, 'InputSource');
+
+      hasAdf     = inputSources.some((s) => /feeder|adf/i.test(s)) || body.includes('<scan:Adf') || body.includes('<AdfInputCaps');
+      hasDuplex  = inputSources.some((s) => /duplex/i.test(s)) || body.includes('<scan:AdfDuplex') || body.includes('<Duplex');
+      hasFlatbed = inputSources.some((s) => /platen|flatbed/i.test(s)) || body.includes('<scan:Platen') || inputSources.length === 0;
+
+      const xRes       = extractAllXmlTags(body, 'XResolution').map(Number).filter(Boolean);
+      const dpis       = [...new Set(xRes)].sort((a, b) => a - b);
+      const colorModes = extractAllXmlTags(body, 'ColorMode');
+      const formats    = extractAllXmlTags(body, 'DocumentFormat');
+
+      capabilities = {
+        printing:            true,
+        scanning:            true,
+        adf:                 hasAdf,
+        duplex:              hasDuplex,
+        flatbed:             hasFlatbed,
+        color:               colorModes.some((m) => /rgb|color/i.test(m)) || colorModes.length === 0,
+        grayscale:           colorModes.some((m) => /gray/i.test(m)) || true,
+        supportedDpi:        dpis.length > 0 ? dpis : [150, 300, 600],
+        supportedPaperSizes: ['A4', 'Letter'],
+        documentFormats:     formats.length > 0 ? formats : ['image/jpeg', 'image/png'],
+      };
+    }
+  } catch {}
+
+  // 2. Fetch /eSCL/ScannerStatus to verify live ADF loaded state
+  try {
+    const statusRes = await httpGet(`${baseUrl}/eSCL/ScannerStatus`, 1200);
+    if (statusRes.status === 200 && statusRes.body) {
+      const body = statusRes.body;
+      const adfTag = extractXmlTag(body, 'AdfState') || extractXmlTag(body, 'pwg:AdfState');
+      if (adfTag) {
+        if (/load/i.test(adfTag)) {
+          adfState = 'Loaded';
+          isAdfLoaded = true;
+        } else if (/empty/i.test(adfTag)) {
+          adfState = 'Empty';
+          isAdfLoaded = false;
+        } else if (/jam/i.test(adfTag)) {
+          adfState = 'Jam';
+          isAdfLoaded = false;
+        }
+      }
+    }
+  } catch {}
+
+  // Automatic preferred source determination:
+  // ADF (Loaded) > ADF (Available) > Flatbed
+  let selectedSource = 'flatbed';
+  if (hasAdf) {
+    selectedSource = (isAdfLoaded || adfState === 'Unknown') ? 'adf' : (hasFlatbed ? 'flatbed' : 'adf');
+  }
+
+  return {
+    capabilities,
+    hasAdf,
+    hasDuplex,
+    hasFlatbed,
+    adfState,
+    isAdfLoaded,
+    selectedSource,
+  };
+}
+
+// ─── 8. Multi-Protocol Network Probe ──────────────────────────────────────────
 async function probeNetworkHost(ip, meta, seenSerials, seenIds) {
-  // 1. Fast parallel check to see if ANY printer/scanner port is open
   const openPorts = [];
   await Promise.all(
     PROBE_PORTS.map((port) =>
@@ -646,7 +665,7 @@ async function probeNetworkHost(ip, meta, seenSerials, seenIds) {
 
   if (openPorts.length === 0) return null;
 
-  // 2. Try eSCL / Apple AirScan on open HTTP/HTTPS ports
+  // 1. Try eSCL / Apple AirScan
   for (const port of [80, 8080, 443, 8443, 5757, 9100]) {
     if (!openPorts.includes(port)) continue;
     try {
@@ -661,15 +680,7 @@ async function probeNetworkHost(ip, meta, seenSerials, seenIds) {
         const serial       = extractXmlTag(body, 'SerialNumber') || meta?.serial || null;
         const uuid         = extractXmlTag(body, 'UUID') || meta?.uuid || null;
 
-        const inputSources = extractAllXmlTags(body, 'InputSource');
-        const hasAdf       = inputSources.some((s) => /feeder|adf/i.test(s));
-        const hasDuplex    = inputSources.some((s) => /duplex/i.test(s));
-        const hasFlatbed   = inputSources.some((s) => /platen|flatbed/i.test(s)) || inputSources.length === 0;
-
-        const xRes         = extractAllXmlTags(body, 'XResolution').map(Number).filter(Boolean);
-        const dpis         = [...new Set(xRes)].sort((a, b) => a - b);
-        const colorModes   = extractAllXmlTags(body, 'ColorMode');
-        const formats      = extractAllXmlTags(body, 'DocumentFormat');
+        const info = await getScannerCapabilitiesAndStatus(ip, port);
 
         const dedupeKey = serial ? `SERIAL_${serial.toUpperCase()}` : uuid ? `UUID_${uuid.toUpperCase()}` : `ESCL_${ip}_${port}`;
         if (seenSerials.has(dedupeKey)) return null;
@@ -696,39 +707,33 @@ async function probeNetworkHost(ip, meta, seenSerials, seenIds) {
           protocol:       'ESCL',
           serial:         serial || null,
           status:         'available',
-          statusDetails:  `eSCL AirScan (${ip}:${port})`,
-          capabilities: {
-            printing:            true,
-            scanning:            true,
-            adf:                 hasAdf,
-            duplex:              hasDuplex,
-            flatbed:             hasFlatbed,
-            color:               colorModes.some((m) => /rgb|color/i.test(m)) || colorModes.length === 0,
-            grayscale:           colorModes.some((m) => /gray/i.test(m)) || true,
-            supportedDpi:        dpis.length > 0 ? dpis : [150, 300, 600],
-            supportedPaperSizes: ['A4', 'Letter'],
-            documentFormats:     formats.length > 0 ? formats : ['image/jpeg', 'image/png'],
+          statusDetails:  `AirScan eSCL [ADF: ${info.hasAdf ? 'Ja' : 'Nein'}, Duplex: ${info.hasDuplex ? 'Ja' : 'Nein'}]`,
+          capabilities:   info.capabilities,
+          sources: {
+            flatbed: info.hasFlatbed,
+            adf:     info.hasAdf,
+            duplex:  info.hasDuplex,
           },
+          selectedSource: info.selectedSource,
+          adfStatus:      info.adfState,
         };
-        log('log', `Discovered eSCL device: "${displayName}" at ${ip}:${port} [ADF:${hasAdf}, Flatbed:${hasFlatbed}]`);
+        log('log', `Discovered eSCL device: "${displayName}" at ${ip}:${port} [ADF:${info.hasAdf}, Duplex:${info.hasDuplex}, Status:${info.adfState}]`);
         return dev;
       }
     } catch {}
   }
 
-  // 3. Check for Canon BJNP / Remote UI or other Web UI Printer (HP, Brother, Epson, Canon, Kyocera)
+  // 2. Check for Canon BJNP / HTTP Printers
   let vendor = 'Generic';
   let modelName = 'Netzwerkdrucker / Scanner';
   let isPrinterOrScanner = false;
 
-  // Check BJNP ports
   if (openPorts.includes(8611) || openPorts.includes(8612) || meta?.isCanonBjnp) {
     vendor = 'Canon';
     modelName = meta?.name || 'Canon Network Multifunction Printer';
     isPrinterOrScanner = true;
   }
 
-  // Check HTTP / HTTPS Web Interface on open port 80 / 443 / 8080
   const webPort = openPorts.find((p) => p === 80 || p === 443 || p === 8080 || p === 8443);
   if (webPort) {
     try {
@@ -741,42 +746,28 @@ async function probeNetworkHost(ip, meta, seenSerials, seenIds) {
         const titleMatch = bodyText.match(/<title>([^<]+)<\/title>/i);
         const title = titleMatch ? titleMatch[1].trim() : '';
 
-        // Exclude network routers and modems
         const isRouter = /fritz!?box|speedport|router|gateway|cable modem|access point/i.test(bodyText) ||
                          /fritz!?box|speedport|router/i.test(title);
 
         if (!isRouter) {
           if (/Canon/i.test(bodyText) || /KS_HTTP/i.test(serverHeader) || /rui/i.test(bodyText)) {
-            vendor = 'Canon';
-            modelName = title || 'Canon Network Multifunction Printer';
-            isPrinterOrScanner = true;
+            vendor = 'Canon'; modelName = title || 'Canon Network Multifunction Printer'; isPrinterOrScanner = true;
           } else if (/Brother/i.test(bodyText) || /Brother/i.test(serverHeader) || /Brother/i.test(title)) {
-            vendor = 'Brother';
-            modelName = title || 'Brother Network Multifunction Printer';
-            isPrinterOrScanner = true;
+            vendor = 'Brother'; modelName = title || 'Brother Network Multifunction Printer'; isPrinterOrScanner = true;
           } else if (/LaserJet|OfficeJet|DeskJet|PageWide/i.test(bodyText) || /LaserJet|OfficeJet|DeskJet/i.test(title)) {
-            vendor = 'HP';
-            modelName = title || 'HP Network Multifunction Printer';
-            isPrinterOrScanner = true;
+            vendor = 'HP'; modelName = title || 'HP Network Multifunction Printer'; isPrinterOrScanner = true;
           } else if (/WorkForce|EcoTank/i.test(bodyText) || /Epson/i.test(title)) {
-            vendor = 'Epson';
-            modelName = title || 'Epson Network Multifunction Printer';
-            isPrinterOrScanner = true;
+            vendor = 'Epson'; modelName = title || 'Epson Network Multifunction Printer'; isPrinterOrScanner = true;
           } else if (/ECOSYS|TASKalfa/i.test(bodyText) || /Kyocera/i.test(title)) {
-            vendor = 'Kyocera';
-            modelName = title || 'Kyocera Network Multifunction Printer';
-            isPrinterOrScanner = true;
+            vendor = 'Kyocera'; modelName = title || 'Kyocera Network Multifunction Printer'; isPrinterOrScanner = true;
           } else if (/VersaLink|AltaLink|WorkCentre/i.test(bodyText) || /Xerox/i.test(title)) {
-            vendor = 'Xerox';
-            modelName = title || 'Xerox Network Multifunction Printer';
-            isPrinterOrScanner = true;
+            vendor = 'Xerox'; modelName = title || 'Xerox Network Multifunction Printer'; isPrinterOrScanner = true;
           }
         }
       }
     } catch {}
   }
 
-  // Check IPP (631) or RAW Print (9100) or LPD (515)
   if (openPorts.includes(631) || openPorts.includes(9100) || openPorts.includes(515)) {
     isPrinterOrScanner = true;
   }
@@ -818,6 +809,9 @@ async function probeNetworkHost(ip, meta, seenSerials, seenIds) {
         supportedPaperSizes: ['A4', 'Letter'],
         documentFormats:     ['image/jpeg', 'image/png', 'application/pdf'],
       },
+      sources: { flatbed: true, adf: true, duplex: true },
+      selectedSource: 'adf',
+      adfStatus: 'Unknown',
     };
 
     log('log', `Discovered network printer/scanner: "${dev.displayName}" at ${ip} (Ports: ${openPorts.join(',')})`);
@@ -827,7 +821,7 @@ async function probeNetworkHost(ip, meta, seenSerials, seenIds) {
   return null;
 }
 
-// ─── 8. Unified Fast Discovery Orchestration ─────────────────────────────────
+// ─── 9. Unified Fast Discovery Orchestration ─────────────────────────────────
 async function runUnifiedDiscovery() {
   if (isDiscovering && discoveryPromise) {
     return discoveryPromise;
@@ -844,7 +838,6 @@ async function runUnifiedDiscovery() {
     try {
       log('log', '🔍 Starting high-speed zero-config hardware discovery...');
 
-      // 1. Multicast & Windows Spooler Discovery in parallel
       await Promise.all([
         discoverViaMdnsMulticast(candidateIps, candidateMeta),
         discoverViaWsd(candidateIps, candidateMeta),
@@ -853,7 +846,6 @@ async function runUnifiedDiscovery() {
         discoverViaWindowsPnp(seenIds, discovered),
       ]);
 
-      // 2. Read ARP table and local subnet hosts
       const arpIps = await getArpIps();
       arpIps.forEach((ip) => candidateIps.add(ip));
 
@@ -862,7 +854,6 @@ async function runUnifiedDiscovery() {
         subnetHosts(lip).forEach((h) => candidateIps.add(h));
       }
 
-      // Prioritize known ARP & multicast IPs first
       const priorityIps = new Set([...candidateMeta.keys(), ...arpIps]);
       const sortedIps = [
         ...priorityIps,
@@ -871,7 +862,6 @@ async function runUnifiedDiscovery() {
 
       log('log', `Probing ${sortedIps.length} candidate IPs in high-speed parallel batches...`);
 
-      // 3. Fast parallel probing with concurrency throttling
       const CHUNK_SIZE = 50;
       for (let i = 0; i < sortedIps.length; i += CHUNK_SIZE) {
         const chunk = sortedIps.slice(i, i + CHUNK_SIZE);
@@ -883,7 +873,7 @@ async function runUnifiedDiscovery() {
         }
       }
 
-      // 4. Always provide Simulator Device for offline / demo environments
+      // Always provide Simulator Device for testing & demo
       if (!seenIds.has('SIMULATOR')) {
         discovered.push({
           id:             'SIMULATOR',
@@ -897,7 +887,7 @@ async function runUnifiedDiscovery() {
           port:           80,
           protocol:       'SIMULATOR',
           status:         'available',
-          statusDetails:  'Virtueller Testscanner (Demo-Modus)',
+          statusDetails:  'Virtueller Testscanner mit automatischem ADF-Einzug',
           capabilities: {
             printing:            true,
             scanning:            true,
@@ -910,6 +900,9 @@ async function runUnifiedDiscovery() {
             supportedPaperSizes: ['A4', 'Letter'],
             documentFormats:     ['image/jpeg', 'image/png', 'application/pdf'],
           },
+          sources: { flatbed: true, adf: true, duplex: true },
+          selectedSource: 'adf',
+          adfStatus: 'Loaded',
         });
       }
 
@@ -929,8 +922,8 @@ async function runUnifiedDiscovery() {
   return discoveryPromise;
 }
 
-// ─── 9. Realistic Sample Document Generation ─────────────────────────────────
-function generateSampleDocumentPng(width = 800, height = 1100, pageNum = 1) {
+// ─── 10. Sample Document Generator (Simulator) ───────────────────────────────
+function generateSampleDocumentPng(width = 800, height = 1100, pageNum = 1, totalPages = 1) {
   const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
   function chunk(type, data) {
     const len = Buffer.alloc(4);
@@ -961,9 +954,17 @@ function generateSampleDocumentPng(width = 800, height = 1100, pageNum = 1) {
         raw[px] = 30; raw[px + 1] = 58; raw[px + 2] = 138;
       }
     }
+    // Page Marker Box
+    if (y >= 130 && y <= 160) {
+      for (let x = width - 220; x < width - 50; x++) {
+        const px = rowOffset + 1 + x * 3;
+        raw[px] = 220; raw[px + 1] = 38; raw[px + 2] = 38;
+      }
+    }
     // Document rows
-    if ((y >= 180 && y <= 182) || (y >= 260 && y <= 261) || (y >= 340 && y <= 341) ||
-        (y >= 420 && y <= 421) || (y >= 500 && y <= 501) || (y >= 580 && y <= 581)) {
+    if ((y >= 200 && y <= 202) || (y >= 280 && y <= 281) || (y >= 360 && y <= 361) ||
+        (y >= 440 && y <= 441) || (y >= 520 && y <= 521) || (y >= 600 && y <= 601) ||
+        (y >= 680 && y <= 681) || (y >= 760 && y <= 761)) {
       for (let x = 50; x < width - 50; x++) {
         const px = rowOffset + 1 + x * 3;
         raw[px] = 200; raw[px + 1] = 210; raw[px + 2] = 225;
@@ -974,33 +975,188 @@ function generateSampleDocumentPng(width = 800, height = 1100, pageNum = 1) {
   return Buffer.concat([signature, chunk('IHDR', ihdr), chunk('IDAT', compressed), chunk('IEND', Buffer.alloc(0))]);
 }
 
-// ─── 10. Scan Execution Engines ───────────────────────────────────────────────
-async function triggerWiaScan() {
-  const tempOut = path.join(os.tmpdir(), `logiflow_scan_${Date.now()}.jpg`);
-  const psScript = `
-    try {
-      $dm = New-Object -ComObject WIA.DeviceManager
-      if ($dm.DeviceInfos.Count -gt 0) {
-        $dev  = $dm.DeviceInfos.Item(1).Connect()
-        $item = $dev.Items.Item(1)
-        $img  = $item.Transfer()
-        $img.SaveFile("${tempOut.replace(/\\/g, '\\\\')}")
-      } else { exit 1 }
-    } catch { exit 2 }
-  `;
-  await execAsync(`powershell -NoProfile -Command "${psScript.replace(/\n/g, ' ')}"`, { timeout: 25000 });
-  if (fs.existsSync(tempOut)) {
-    const buffer = fs.readFileSync(tempOut);
-    try { fs.unlinkSync(tempOut); } catch {}
-    return [{ buffer, mimeType: 'image/jpeg' }];
+// ─── 11. Source Resolution Logic (Auto / ADF / Duplex / Flatbed) ─────────────
+function resolveScanSource(options, capabilities, liveStatus) {
+  const rawSource = String(options.source || options.inputSource || 'auto').toLowerCase();
+  const wantDuplex = Boolean(options.duplex || options.isDuplex || rawSource.includes('duplex'));
+  const hasAdf = Boolean(capabilities?.adf || capabilities?.hasAdf);
+  const hasDuplex = Boolean(capabilities?.duplex || capabilities?.hasDuplex);
+  const hasFlatbed = Boolean(capabilities?.flatbed || capabilities?.hasFlatbed !== false);
+  const isAdfLoaded = liveStatus?.isAdfLoaded;
+
+  let effectiveSource = 'Platen';
+  let isAdf = false;
+
+  if (rawSource === 'auto' || rawSource === '' || rawSource === 'undefined') {
+    if (hasAdf) {
+      if (isAdfLoaded === false && hasFlatbed) {
+        // ADF tray is explicitly reported empty and Flatbed exists -> fallback to Flatbed
+        effectiveSource = 'Platen';
+        isAdf = false;
+        log('log', '⚡ Auto-Source: ADF is empty, falling back to Flatbed (Platen).');
+      } else {
+        // ADF has documents or is supported -> automatic continuous ADF!
+        effectiveSource = (wantDuplex && hasDuplex) ? 'FeederDuplex' : 'Feeder';
+        isAdf = true;
+        log('log', `⚡ Auto-Source: ADF detected & selected -> ${effectiveSource} (Continuous multi-page active).`);
+      }
+    } else {
+      effectiveSource = 'Platen';
+      isAdf = false;
+      log('log', '⚡ Auto-Source: Flatbed (Platen) selected.');
+    }
+  } else if (rawSource.includes('feed') || rawSource.includes('adf')) {
+    effectiveSource = (wantDuplex && hasDuplex) || rawSource.includes('duplex') ? 'FeederDuplex' : 'Feeder';
+    isAdf = true;
+    log('log', `⚡ Explicit Source: ADF (${effectiveSource}) selected.`);
+  } else {
+    effectiveSource = 'Platen';
+    isAdf = false;
+    log('log', '⚡ Explicit Source: Flatbed (Platen) selected.');
   }
-  throw new Error('WIA scan produced no output image.');
+
+  return {
+    effectiveSource,
+    isAdf,
+    isDuplex: effectiveSource === 'FeederDuplex' || wantDuplex,
+  };
 }
 
+// ─── 12. Windows WIA Continuous Multi-Page Engine ─────────────────────────────
+async function triggerWiaScan(options = {}, onProgress = null) {
+  const tempDir = path.join(os.tmpdir(), `logiflow_wia_${Date.now()}`);
+  if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+
+  const { dpi = 300, colorMode = 'Grayscale', source = 'auto' } = options;
+
+  const psScript = `
+    $ErrorActionPreference = 'Stop'
+    try {
+      $dm = New-Object -ComObject WIA.DeviceManager
+      if ($dm.DeviceInfos.Count -eq 0) {
+        Write-Output "ERROR:NO_DEVICE"
+        exit 1
+      }
+      
+      $dev = $dm.DeviceInfos.Item(1).Connect()
+      $item = $dev.Items.Item(1)
+
+      # 1. DPI Settings (6147=H, 6148=V)
+      try { $item.Properties.Item('6147').Value = ${dpi} } catch {}
+      try { $item.Properties.Item('6148').Value = ${dpi} } catch {}
+
+      # 2. Color Mode (6146: 1=Color, 2=Grayscale, 4=B&W)
+      try {
+        $wiaColor = 2
+        if ('${colorMode}' -eq 'Color') { $wiaColor = 1 }
+        elseif ('${colorMode}' -eq 'BlackAndWhite') { $wiaColor = 4 }
+        $item.Properties.Item('6146').Value = $wiaColor
+      } catch {}
+
+      # 3. Document Handling (3088: 1=FEEDER, 2=FLATBED, 5=FEEDER+DUPLEX)
+      $useFeeder = $false
+      try {
+        $docCap = [int]$dev.Properties.Item('3086').Value
+        $docStatus = [int]$dev.Properties.Item('3087').Value
+        
+        if ('${source}' -like '*feed*' -or '${source}' -like '*adf*') {
+          $useFeeder = $true
+        } elseif ('${source}' -eq 'auto' -or '${source}' -eq '') {
+          if (($docStatus -band 1) -ne 0 -or ($docCap -band 1) -ne 0) {
+            $useFeeder = $true
+          }
+        }
+
+        if ($useFeeder) {
+          if ('${source}' -like '*duplex*' -and (($docCap -band 4) -ne 0)) {
+            $dev.Properties.Item('3088').Value = 5
+          } else {
+            $dev.Properties.Item('3088').Value = 1
+          }
+          # 3096: WIA_DPS_PAGES (0 = continuous scan all pages until feeder empty)
+          try { $dev.Properties.Item('3096').Value = 0 } catch {}
+        } else {
+          $dev.Properties.Item('3088').Value = 2
+          try { $dev.Properties.Item('3096').Value = 1 } catch {}
+        }
+      } catch {}
+
+      $pageIndex = 0
+      $scannedFiles = @()
+
+      while ($true) {
+        $pageIndex++
+        $pageFile = Join-Path "${tempDir.replace(/\\/g, '\\\\')}" ("page_" + $pageIndex + ".jpg")
+        
+        try {
+          $img = $item.Transfer()
+          if ($null -ne $img) {
+            $img.SaveFile($pageFile)
+            if (Test-Path $pageFile) {
+              $scannedFiles += $pageFile
+              Write-Output "PAGE_SCANNED:$pageIndex"
+            }
+          } else {
+            break
+          }
+        } catch [System.Runtime.InteropServices.COMException] {
+          $hr = $_.Exception.ErrorCode
+          # 0x80210003 (-2145320957): WIA_ERROR_PAPER_EMPTY -> Feeder finished cleanly!
+          if ($hr -eq -2145320957 -or $hr -eq 0x80210003) {
+            break
+          }
+          if ($scannedFiles.Count -gt 0) {
+            break
+          }
+          throw $_
+        } catch {
+          if ($scannedFiles.Count -gt 0) {
+            break
+          }
+          throw $_
+        }
+
+        if (-not $useFeeder) {
+          break
+        }
+      }
+
+      $scannedFiles | ConvertTo-Json
+    } catch {
+      Write-Error $_.Exception.Message
+      exit 2
+    }
+  `;
+
+  log('log', `Starting Windows WIA scan (Source: ${source}, DPI: ${dpi}, Color: ${colorMode})...`);
+  const { stdout } = await execAsync(`powershell -NoProfile -Command "${psScript.replace(/\n/g, ' ')}"`, { timeout: 120000 });
+
+  const pages = [];
+  if (fs.existsSync(tempDir)) {
+    const files = fs.readdirSync(tempDir).filter((f) => f.endsWith('.jpg')).sort();
+    for (let i = 0; i < files.length; i++) {
+      const filePath = path.join(tempDir, files[i]);
+      const buffer = fs.readFileSync(filePath);
+      pages.push({ buffer, mimeType: 'image/jpeg' });
+      try { fs.unlinkSync(filePath); } catch {}
+    }
+    try { fs.rmdirSync(tempDir); } catch {}
+  }
+
+  if (pages.length === 0) {
+    throw new Error('Der WIA-Scanner hat keine Seiten geliefert oder der Einzug ist leer.');
+  }
+
+  log('log', `✅ WIA Scan completed: ${pages.length} page(s) captured.`);
+  return pages;
+}
+
+// ─── 13. eSCL XML Settings Builder ────────────────────────────────────────────
 function buildScanXml(options) {
-  const { dpi = 300, colorMode = 'Grayscale8', inputSource = 'Platen', mime = 'image/jpeg' } = options;
+  const { dpi = 300, colorMode = 'Grayscale8', inputSource = 'Feeder', isDuplex = false, mime = 'image/jpeg' } = options;
   const a4w = Math.round((210 / 25.4) * dpi);
   const a4h = Math.round((297 / 25.4) * dpi);
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <scan:ScanSettings
   xmlns:scan="http://schemas.hp.com/imaging/escl/2011/05/03"
@@ -1016,6 +1172,7 @@ function buildScanXml(options) {
     </pwg:ScanRegion>
   </pwg:ScanRegions>
   <pwg:InputSource>${inputSource}</pwg:InputSource>
+  ${isDuplex ? '<scan:Duplex>true</scan:Duplex>' : ''}
   <scan:ColorMode>${colorMode}</scan:ColorMode>
   <scan:XResolution>${dpi}</scan:XResolution>
   <scan:YResolution>${dpi}</scan:YResolution>
@@ -1032,126 +1189,229 @@ function colorModeToEscl(mode) {
   return map[mode] || 'Grayscale8';
 }
 
-async function triggerEsclScan(ip, port, options) {
-  const { dpi = 300, colorMode = 'Grayscale', inputSource = 'Platen', format = 'jpeg', batchScan = false } = options;
+// ─── 14. eSCL Continuous Multi-Page ADF Scan Engine ───────────────────────────
+async function triggerEsclScan(ip, port, options, onProgress = null, jobTracker = null) {
+  const { dpi = 300, colorMode = 'Grayscale', format = 'jpeg' } = options;
   const mime     = format === 'png' ? 'image/png' : 'image/jpeg';
   const esclMode = colorModeToEscl(colorMode);
-  const xmlBody  = buildScanXml({ dpi, colorMode: esclMode, inputSource, mime });
-  const isHttps  = (port === 443 || port === 8443);
-  const proto    = isHttps ? 'https' : 'http';
-  const baseUrl  = `${proto}://${ip}:${port}`;
-  const jobsUrl  = `${baseUrl}/eSCL/ScanJobs`;
 
-  log('log', `Posting scan job to ${jobsUrl} (${dpi} DPI, ${colorMode}, source: ${inputSource})`);
-  const jobResp = await httpPost(jobsUrl, 'text/xml; charset=utf-8', xmlBody, 20000);
+  // 1. Inspect capabilities & live status to resolve optimal source
+  const liveInfo = await getScannerCapabilitiesAndStatus(ip, port);
+  const { effectiveSource, isAdf, isDuplex } = resolveScanSource(options, liveInfo.capabilities, liveInfo);
+
+  if (jobTracker) {
+    jobTracker.selectedSource = effectiveSource;
+  }
+
+  const xmlBody = buildScanXml({
+    dpi,
+    colorMode: esclMode,
+    inputSource: effectiveSource,
+    isDuplex,
+    mime,
+  });
+
+  const isHttps = (port === 443 || port === 8443);
+  const proto   = isHttps ? 'https' : 'http';
+  const baseUrl = `${proto}://${ip}:${port}`;
+  const jobsUrl = `${baseUrl}/eSCL/ScanJobs`;
+
+  log('log', `Posting scan job to ${jobsUrl} (${dpi} DPI, ${colorMode}, Source: ${effectiveSource}, Duplex: ${isDuplex})`);
+
+  const jobResp = await httpPost(jobsUrl, 'text/xml; charset=utf-8', xmlBody, 25000);
   if (jobResp.status !== 200 && jobResp.status !== 201) {
-    throw new Error(`eSCL POST /ScanJobs returned HTTP ${jobResp.status}`);
+    if (jobResp.status === 409 || jobResp.status === 503) {
+      throw new Error(`Scanner ist aktuell beschäftigt oder im Ruhemodus (HTTP ${jobResp.status}). Bitte kurz warten.`);
+    }
+    throw new Error(`eSCL POST /ScanJobs fehlgeschlagen: HTTP ${jobResp.status}`);
   }
 
   const location    = jobResp.headers['location'] || `${jobsUrl}/Job1`;
   const jobLocation = location.startsWith('http') ? location : `${baseUrl}${location}`;
   const nextDocUrl  = jobLocation.endsWith('/NextDocument') ? jobLocation : `${jobLocation}/NextDocument`;
 
-  log('log', `Polling scanned document stream: ${nextDocUrl}`);
+  log('log', `Polling continuous document stream from: ${nextDocUrl}`);
 
   const pages = [];
-  const isAdfBatch = (inputSource === 'Feeder' || inputSource === 'FeederDuplex') && batchScan;
-  let done = false;
+  let isDone = false;
+  let pageIndex = 0;
 
-  while (!done) {
+  while (!isDone) {
+    if (jobTracker?.cancelled) {
+      log('log', `Scan job was cancelled by user.`);
+      try {
+        await httpPost(`${jobLocation}/Cancel`, 'text/plain', '', 3000);
+      } catch {}
+      break;
+    }
+
+    pageIndex++;
     let attempt = 0;
     let pageBuffer = null;
 
-    while (attempt < 25 && !pageBuffer) {
+    if (onProgress) {
+      onProgress({
+        type:    'scan_progress',
+        status:  'scanning',
+        page:    pageIndex,
+        message: isAdf ? `Seite ${pageIndex} wird aus automatischem Einzug (ADF) eingezogen...` : `Seite wird gescannt...`,
+      });
+    }
+
+    if (jobTracker) {
+      jobTracker.message = isAdf ? `Ziehe Seite ${pageIndex} aus ADF ein...` : `Scanne Flachbett...`;
+    }
+
+    // Pull next document page
+    while (attempt < 35 && !pageBuffer && !isDone) {
       attempt++;
       try {
-        const docResp = await httpGetBinary(nextDocUrl, 15000);
-        if (docResp.status === 200 && docResp.buffer.length > 100) {
+        const docResp = await httpGetBinary(nextDocUrl, 20000);
+        if (docResp.status === 200 && docResp.buffer && docResp.buffer.length > 200) {
           pageBuffer = docResp.buffer;
         } else if (docResp.status === 404) {
-          done = true; // Job done or ADF empty
+          // HTTP 404 on /NextDocument means: No more pages in ADF / Scan job complete!
+          log('log', `✅ NextDocument returned 404 (ADF empty / end of job). Total pages: ${pages.length}`);
+          isDone = true;
           break;
-        } else if (docResp.status === 503) {
-          await new Promise((r) => setTimeout(r, 1200));
+        } else if (docResp.status === 503 || docResp.status === 409) {
+          // Scanner busy scanning/processing current sheet
+          await new Promise((r) => setTimeout(r, 1000));
         } else {
-          await new Promise((r) => setTimeout(r, 1200));
+          await new Promise((r) => setTimeout(r, 1000));
         }
-      } catch {
-        await new Promise((r) => setTimeout(r, 1200));
+      } catch (err) {
+        if (attempt > 15) {
+          log('debug', `NextDocument poll attempt ${attempt} warning:`, err.message);
+        }
+        await new Promise((r) => setTimeout(r, 1000));
       }
     }
 
     if (pageBuffer) {
       pages.push({ buffer: pageBuffer, mimeType: mime });
-      log('log', `✅ Page ${pages.length} scanned (${pageBuffer.length} bytes).`);
-      if (!isAdfBatch) done = true;
+      log('log', `✅ [Page ${pages.length}] Scanned successfully (${pageBuffer.length} bytes).`);
+
+      if (jobTracker) {
+        jobTracker.pageCount = pages.length;
+        jobTracker.message = `Seite ${pages.length} erfolgreich erfasst.`;
+      }
+
+      // Flatbed only has 1 physical page
+      if (!isAdf) {
+        isDone = true;
+      } else {
+        // Continuous ADF loop: give feeder a brief moment before pulling next sheet
+        await new Promise((r) => setTimeout(r, 400));
+      }
     } else {
-      done = true;
+      isDone = true;
     }
   }
 
-  if (pages.length === 0) throw new Error('Scanner returned no document pages.');
+  if (pages.length === 0) {
+    if (isAdf) {
+      throw new Error('Der automatische Dokumenteneinzug (ADF) ist leer. Bitte legen Sie Dokumente in den Einzug oder wählen Sie Flachbettglas.');
+    }
+    throw new Error('Der Scanner hat keine Bilddaten zurückgegeben.');
+  }
+
+  log('log', `🎉 Scan session complete: ${pages.length} page(s) acquired continuously from ${effectiveSource}.`);
   return pages;
 }
 
-async function executeScan(options) {
+// ─── 15. Unified Scan Orchestrator ────────────────────────────────────────────
+async function executeScan(options, onProgress = null, jobTracker = null) {
   const { scannerIp, scannerPort = 80 } = options;
 
-  // 1. Explicit Simulator request
+  // 1. Simulator Mode (Realistic Multi-Page Simulation)
   if (!scannerIp || scannerIp === 'SIMULATOR') {
-    log('log', 'Simulator scan executed — returning realistic sample document.');
-    return [{ buffer: generateSampleDocumentPng(800, 1100), mimeType: 'image/png' }];
+    const rawSource = String(options.source || options.inputSource || 'auto').toLowerCase();
+    const isAdf = rawSource === 'auto' || rawSource.includes('feed') || rawSource.includes('adf') || options.batchScan || options.multiPage;
+    const pageCount = isAdf ? 3 : 1;
+
+    log('log', `Simulator scan started (${pageCount} page(s) simulated via ${isAdf ? 'ADF' : 'Flatbed'}).`);
+    const pages = [];
+
+    for (let p = 1; p <= pageCount; p++) {
+      if (onProgress) {
+        onProgress({
+          type:    'scan_progress',
+          status:  'scanning',
+          page:    p,
+          message: isAdf ? `Simulator: Seite ${p} von ${pageCount} wird eingezogen...` : `Simulator: Scanne Seite...`,
+        });
+      }
+      if (jobTracker) {
+        jobTracker.pageCount = p;
+        jobTracker.message = `Simulator: Seite ${p} erfasst...`;
+      }
+      await new Promise((r) => setTimeout(r, 600));
+      pages.push({
+        buffer:   generateSampleDocumentPng(800, 1100, p, pageCount),
+        mimeType: 'image/png',
+      });
+    }
+
+    return pages;
   }
 
-  // 2. Windows WIA / USB device
+  // 2. Windows WIA / USB Scanner
   if (scannerIp.startsWith('USB_') || scannerIp.startsWith('WIA_') || scannerIp === 'USB' || scannerIp.startsWith('WIN_')) {
-    return triggerWiaScan();
+    return triggerWiaScan(options, onProgress);
   }
 
-  // 3. Physical Network Device: Try eSCL only on actual HTTP ports that are open
+  // 3. Network eSCL Scanner
   const candidatePorts = [scannerPort, 80, 443, 8080, 8443].filter(
     (p, idx, arr) => arr.indexOf(p) === idx
   );
 
-  let esclAttempted = false;
   for (const port of candidatePorts) {
     const isOpen = await tcpReachable(scannerIp, port, 400);
     if (!isOpen) continue;
 
     try {
-      esclAttempted = true;
       log('log', `Attempting physical eSCL scan on ${scannerIp}:${port}...`);
-      const pages = await triggerEsclScan(scannerIp, port, options);
+      const pages = await triggerEsclScan(scannerIp, port, options, onProgress, jobTracker);
       if (pages && pages.length > 0) return pages;
     } catch (err) {
-      log('debug', `eSCL scan on ${scannerIp}:${port} failed: ${err.message}`);
+      log('log', `eSCL scan on ${scannerIp}:${port} status: ${err.message}`);
+      if (err.message.includes('ADF') || err.message.includes('leer') || err.message.includes('beschäftigt')) {
+        throw err;
+      }
     }
   }
 
-  // 4. Try Windows WIA scanning as fallback for network scanners configured in Windows
+  // 4. Windows WIA fallback for network scanners installed in Windows
   try {
-    log('log', `Trying Windows WIA scan fallback for ${scannerIp}...`);
-    const pages = await triggerWiaScan();
+    log('log', `Attempting Windows WIA scan fallback for ${scannerIp}...`);
+    const pages = await triggerWiaScan(options, onProgress);
     if (pages && pages.length > 0) return pages;
   } catch {}
 
-  // 5. Physical Scan failed — DO NOT return silent simulator dummy! Throw explanatory error
-  log('error', `Physical scan failed on ${scannerIp}`);
+  // 5. Explicit physical failure message
   throw new Error(
     `Physischer Scan auf Gerät (${scannerIp}) nicht möglich. ` +
     `Das Gerät hat den Netzwerk-Scanbefehl abgelehnt (AirScan/eSCL ist auf dem Drucker nicht aktiv und kein Windows WIA-Treiber eingerichtet). ` +
-    `Bitte aktivieren Sie "AirScan / eSCL" im Web-Menü des Druckers oder installieren Sie den Windows Scannertreiber für dieses Modell.`
+    `Bitte aktivieren Sie "AirScan / eSCL" im Web-Menü des Druckers oder legen Sie Dokumente in den automatischen Einzug.`
   );
 }
 
-// ─── 11. Real Connection Test ────────────────────────────────────────────────
+// ─── 16. Real Connection Test & Capability Probe ──────────────────────────────
 async function testDeviceConnection(device) {
   if (!device || device.ip === 'SIMULATOR' || device.id === 'SIMULATOR') {
     return {
-      connected:    true,
-      status:       'READY',
-      state:        'Idle',
-      details:      'Simulator bereit für Testscans',
+      connected: true,
+      status:    'READY',
+      state:     'Idle',
+      details:   'Simulator bereit mit virtuellem ADF-Einzug',
+      scanner: {
+        name:           'LogiFlow Virtual AirScan 3000',
+        connected:      true,
+        sources:        { flatbed: true, adf: true, duplex: true },
+        selectedSource: 'adf',
+        adfStatus:      'Loaded',
+      },
       capabilities: {
         printing:            true,
         scanning:            true,
@@ -1176,35 +1436,51 @@ async function testDeviceConnection(device) {
       connected: true,
       status:    'READY',
       state:     'Idle',
-      details:   'Windows Drucker/Scanner bereit',
+      details:   'Windows Drucker/Scanner bereit (WIA)',
+      scanner: {
+        name:           device.displayName || device.name || 'WIA Scanner',
+        connected:      true,
+        sources:        device.sources || { flatbed: true, adf: true, duplex: false },
+        selectedSource: device.capabilities?.adf ? 'adf' : 'flatbed',
+        adfStatus:      'Unknown',
+      },
       capabilities: device.capabilities || {
         printing: true, scanning: true, flatbed: true, adf: true, color: true, grayscale: true, supportedDpi: [150, 300, 600]
       },
     };
   }
 
-  // Network Printer / Scanner test
   const ip   = device.ip;
   const port = device.port || 80;
   if (!ip) {
     return { connected: false, status: 'OFFLINE', details: 'Keine IP-Adresse hinterlegt.' };
   }
 
-  // Try eSCL first
+  // Probe live eSCL Capabilities & ADF Status
   try {
     const isHttps = (port === 443 || port === 8443);
     const proto   = isHttps ? 'https' : 'http';
     const capUrl  = `${proto}://${ip}:${port}/eSCL/ScannerCapabilities`;
     const { status, body } = await httpGet(capUrl, 1500).catch(() => ({ status: 0, body: '' }));
     if (status === 200 && body && body.includes('ScannerCapabilities')) {
+      const info = await getScannerCapabilitiesAndStatus(ip, port);
       return {
         connected: true,
         status:    'READY',
         state:     'Idle',
-        details:   `AirScan eSCL verbunden (${ip}:${port})`,
-        capabilities: device.capabilities || {
-          printing: true, scanning: true, adf: true, duplex: true, flatbed: true, color: true, grayscale: true, supportedDpi: [150, 300, 600]
+        details:   `AirScan eSCL verbunden [ADF: ${info.hasAdf ? 'Ja' : 'Nein'}, Status: ${info.adfState}]`,
+        scanner: {
+          name:           device.displayName || device.name || 'Netzwerkscanner',
+          connected:      true,
+          sources: {
+            flatbed: info.hasFlatbed,
+            adf:     info.hasAdf,
+            duplex:  info.hasDuplex,
+          },
+          selectedSource: info.selectedSource,
+          adfStatus:      info.adfState,
         },
+        capabilities: info.capabilities,
       };
     }
   } catch {}
@@ -1222,6 +1498,13 @@ async function testDeviceConnection(device) {
       status:    'READY',
       state:     'Idle',
       details:   `Netzwerkgerät erreichbar (${ip})`,
+      scanner: {
+        name:           device.displayName || device.name || 'Netzwerkgerät',
+        connected:      true,
+        sources:        { flatbed: true, adf: true, duplex: true },
+        selectedSource: 'adf',
+        adfStatus:      'Unknown',
+      },
       capabilities: device.capabilities || {
         printing: true, scanning: true, adf: true, duplex: true, flatbed: true, color: true, grayscale: true, supportedDpi: [150, 300, 600]
       },
@@ -1231,7 +1514,7 @@ async function testDeviceConnection(device) {
   return { connected: false, status: 'OFFLINE', details: `Gerät unter ${ip} nicht erreichbar.` };
 }
 
-// ─── 12. HTTP Server & API Endpoints ──────────────────────────────────────────
+// ─── 17. HTTP Server & API Endpoints ──────────────────────────────────────────
 function sendJson(res, status, data) {
   const body = JSON.stringify(data);
   res.writeHead(status, {
@@ -1287,6 +1570,7 @@ const server = http.createServer(async (req, res) => {
         hostname:  os.hostname(),
         uptime:    process.uptime(),
         timestamp: new Date().toISOString(),
+        features:  ['adf', 'continuous_scan', 'duplex', 'wia', 'escl'],
       });
     }
 
@@ -1295,7 +1579,6 @@ const server = http.createServer(async (req, res) => {
       if (cachedDevices.length > 0 && Date.now() - lastDiscoveryTime < CACHE_TTL_MS) {
         return sendJson(res, 200, cachedDevices);
       }
-      // If cached devices exist, return them immediately and trigger background refresh
       if (cachedDevices.length > 0) {
         runUnifiedDiscovery().catch(() => {});
         return sendJson(res, 200, cachedDevices);
@@ -1319,6 +1602,15 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, testResult);
     }
 
+    // ── GET /devices/:id/capabilities or GET /capabilities ───────────────────
+    const capMatch = url.match(/^\/(?:devices|scanners)\/(.+)\/capabilities$/);
+    if ((req.method === 'GET' && capMatch) || (req.method === 'GET' && url === '/capabilities')) {
+      const id = capMatch ? decodeURIComponent(capMatch[1]) : '';
+      const device = cachedDevices.find((d) => d.id === id) || cachedDevices[0];
+      const testResult = await testDeviceConnection(device || { id, ip: id });
+      return sendJson(res, 200, testResult);
+    }
+
     // ── GET /devices/:id/status or GET /scanners/:id/status ──────────────────
     const statusMatch = url.match(/^\/(?:devices|scanners)\/(.+)\/status$/);
     if (req.method === 'GET' && statusMatch) {
@@ -1328,13 +1620,15 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, testResult);
     }
 
-    // ── POST /scan (Direct synchronous scan) ─────────────────────────────────
+    // ── POST /scan (Direct synchronous scan with continuous ADF) ─────────────
     if (req.method === 'POST' && url === '/scan') {
       const options = await readBody(req);
-      log('log', `Direct scan requested on ${options.scannerIp || 'SIMULATOR'} (DPI: ${options.dpi || 300}, Source: ${options.inputSource || 'Platen'})`);
+      log('log', `Direct continuous scan requested on ${options.scannerIp || 'SIMULATOR'} (DPI: ${options.dpi || 300}, Source: ${options.source || options.inputSource || 'auto'}, Duplex: ${options.duplex || false})`);
       const pages = await executeScan(options);
       return sendJson(res, 200, {
         success:   true,
+        type:      'scan_completed',
+        status:    'completed',
         pageCount: pages.length,
         pages:     pages.map((p, i) => ({
           pageNumber: i + 1,
@@ -1344,26 +1638,37 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
-    // ── POST /scan/job (Async scan job) ──────────────────────────────────────
+    // ── POST /scan/job (Async continuous scan job) ───────────────────────────
     if (req.method === 'POST' && url === '/scan/job') {
       const options = await readBody(req);
       const jobId   = `JOB_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
       
       const jobRecord = {
-        id:        jobId,
-        status:    'SCANNING',
-        pageCount: 0,
-        pages:     [],
-        error:     null,
-        createdAt: new Date().toISOString(),
+        id:             jobId,
+        status:         'SCANNING',
+        selectedSource: 'auto',
+        pageCount:      0,
+        pages:          [],
+        message:        'Initialisiere Scanner und ADF...',
+        error:          null,
+        cancelled:      false,
+        createdAt:      new Date().toISOString(),
       };
       activeScanJobs.set(jobId, jobRecord);
 
-      // Execute scan asynchronously
-      executeScan(options)
+      // Execute scan asynchronously with live progress tracking
+      executeScan(
+        options,
+        (progress) => {
+          jobRecord.pageCount = progress.page;
+          jobRecord.message   = progress.message;
+        },
+        jobRecord
+      )
         .then((pages) => {
           jobRecord.status    = 'COMPLETED';
           jobRecord.pageCount = pages.length;
+          jobRecord.message   = `Scan erfolgreich abgeschlossen (${pages.length} Seiten).`;
           jobRecord.pages     = pages.map((p, i) => ({
             pageNumber: i + 1,
             mimeType:   p.mimeType,
@@ -1372,12 +1677,17 @@ const server = http.createServer(async (req, res) => {
           log('log', `Scan job ${jobId} completed with ${pages.length} page(s).`);
         })
         .catch((err) => {
-          jobRecord.status = 'FAILED';
-          jobRecord.error  = err.message || 'Scan failed';
+          jobRecord.status  = 'FAILED';
+          jobRecord.error   = err.message || 'Scan failed';
+          jobRecord.message = err.message || 'Scan fehlgeschlagen';
           log('error', `Scan job ${jobId} failed:`, err.message);
         });
 
-      return sendJson(res, 202, { jobId, status: 'SCANNING' });
+      return sendJson(res, 202, {
+        jobId,
+        status:  'SCANNING',
+        message: 'Scanauftrag gestartet',
+      });
     }
 
     // ── GET /scan/:id/status ─────────────────────────────────────────────────
@@ -1395,7 +1705,9 @@ const server = http.createServer(async (req, res) => {
       const jobId = decodeURIComponent(jobCancelMatch[1]);
       const job = activeScanJobs.get(jobId);
       if (job) {
-        job.status = 'CANCELLED';
+        job.cancelled = true;
+        job.status    = 'CANCELLED';
+        job.message   = 'Scanauftrag abgebrochen';
       }
       return sendJson(res, 200, { success: true, jobId, status: 'CANCELLED' });
     }
@@ -1416,14 +1728,14 @@ server.listen(PORT, '127.0.0.1', () => {
   console.log(`║  Platform:      ${process.platform.padEnd(52)}║`);
   console.log('║  Protocols:     mDNS (5353) • WSD (3702) • SSDP (1900) • BJNP (8611) ║');
   console.log('║                 eSCL AirScan • IPP • Windows WIA / USB              ║');
+  console.log('║  ADF Support:   Continuous multi-page feeder & auto-detection       ║');
   console.log('║  Status:        ONLINE & READY                                      ║');
   console.log('╚═════════════════════════════════════════════════════════════════════╝');
   console.log('');
-  console.log('Zero-configuration local network discovery is active.');
-  console.log('The LogiFlow web application will now discover your real printers/scanners.');
+  console.log('Zero-configuration local network discovery & ADF auto-selection active.');
+  console.log('Place 10/20/50 pages in ADF tray -> click Scan -> scans continuously.');
   console.log('');
 
-  // Initial discovery warmup in background
   runUnifiedDiscovery().catch(() => {});
 });
 
