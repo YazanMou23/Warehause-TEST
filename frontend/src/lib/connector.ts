@@ -155,7 +155,35 @@ export function getInstallerInfo(apiBaseUrl: string): { platform: Platform; file
   return { platform: p, fileName: 'LogiFlow-Connector.zip', label: 'Connector herunterladen', apiPath: apiBaseUrl + '/scanner/download-installer' };
 }
 
-function compareVersions(a: string, b: string): number {
+export interface ConnectorReleaseInfo {
+  latestVersion: string;
+  changelog: string;
+  installerUrl: {
+    windows: string;
+    macos: string;
+    fallback: string;
+  };
+}
+
+/**
+ * Fetch the backend's latest connector release info.
+ * Returns null on network failure so callers can degrade gracefully.
+ */
+export async function fetchLatestRelease(apiBaseUrl: string): Promise<ConnectorReleaseInfo | null> {
+  try {
+    const r = await fetch(apiBaseUrl + '/scanner/connector-info', { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return null;
+    return r.json();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Compare two semantic version strings.
+ * Returns negative if a < b, 0 if equal, positive if a > b.
+ */
+export function compareVersions(a: string, b: string): number {
   const parse = (v: string) => v.split('.').map(n => parseInt(n, 10) || 0);
   const [a0, a1, a2] = parse(a); const [b0, b1, b2] = parse(b);
   return (a0 - b0) || (a1 - b1) || (a2 - b2);

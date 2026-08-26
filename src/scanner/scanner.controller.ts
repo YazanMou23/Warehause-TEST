@@ -17,6 +17,10 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { Role } from '@prisma/client';
 
+/** Current connector release version served by this backend. Bump this when a new installer is deployed. */
+const CONNECTOR_LATEST_VERSION = '2.2.0';
+const CONNECTOR_CHANGELOG      = 'Full continuous ADF scanning, automatic source detection, duplex support, standalone 1-click installer';
+
 @Controller('scanner')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.MANAGER, Role.ADMIN)
@@ -133,6 +137,25 @@ export class ScannerController {
       'Content-Length': buffer.length,
     });
     res.end(buffer);
+  }
+
+  /**
+   * GET /scanner/connector-info
+   * Returns the latest released connector version and trusted installer download URLs.
+   * Public — used by the Settings page to detect if an update is available.
+   */
+  @Public()
+  @Get('connector-info')
+  getConnectorInfo() {
+    return {
+      latestVersion: CONNECTOR_LATEST_VERSION,
+      changelog:     CONNECTOR_CHANGELOG,
+      installerUrl: {
+        windows: '/scanner/download-installer?platform=windows',
+        macos:   '/scanner/download-installer?platform=macos',
+        fallback: '/scanner/download-installer',
+      },
+    };
   }
 }
 

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Settings, Bell, Shield, MessageSquare, AlertTriangle, CheckCircle, Info, Globe } from "lucide-react";
 import { useTranslation } from "../../i18n/LanguageContext";
+import ConnectorSettingsCard from "../../components/ConnectorSettingsCard";
 
 export default function SettingsPage() {
   const { t, language, changeLanguage } = useTranslation();
@@ -132,6 +133,11 @@ export default function SettingsPage() {
             <Info className="w-4 h-4 shrink-0 text-secondary mt-0.5" />
             <span>{t("connectionTip")}</span>
           </div>
+        </div>
+
+        {/* Scanner Connector Card — full width */}
+        <div className="md:col-span-2">
+          <ConnectorSettingsCard />
         </div>
 
         {/* Telegram broadcast panel */}
