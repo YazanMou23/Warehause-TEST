@@ -14,15 +14,19 @@ import {
   Zap,
   Clock,
   Cpu,
+  Scan,
+  Printer,
 } from "lucide-react";
 import {
   checkConnectorStatus,
   fetchLatestRelease,
   detectPlatform,
   compareVersions,
+  getDevices,
   CONNECTOR_URL,
   type ConnectorStatusResult,
   type ConnectorReleaseInfo,
+  type DiscoveredDevice,
 } from "../../lib/connector";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
@@ -80,22 +84,23 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
   return (
     <div className="flex items-center gap-2.5 text-[13px]">
       <span className="text-outline shrink-0">{icon}</span>
-      <span className="text-on-surface-variant w-28 shrink-0">{label}</span>
-      <span className="text-on-surface font-medium">{value ?? "—"}</span>
+      <span className="text-on-surface-variant w-32 shrink-0">{label}</span>
+      <span className="text-on-surface font-medium flex-1">{value ?? "—"}</span>
     </div>
   );
 }
 
 // ─── main component ───────────────────────────────────────────────────────────
 export default function ConnectorSettingsCard() {
-  const [connStatus, setConnStatus]     = useState<ConnectorStatusResult>({ status: "checking" });
-  const [release, setRelease]           = useState<ConnectorReleaseInfo | null>(null);
-  const [scannerName, setScannerName]   = useState<string | null>(null);
-  const [hasAdf, setHasAdf]             = useState<boolean | null>(null);
-  const [lastSeen, setLastSeen]         = useState<{ version: string; ts: string } | null>(null);
+  const [connStatus, setConnStatus]         = useState<ConnectorStatusResult>({ status: "checking" });
+  const [release, setRelease]               = useState<ConnectorReleaseInfo | null>(null);
+  const [activeDevice, setActiveDevice]     = useState<DiscoveredDevice | null>(null);
+  const [deviceList, setDeviceList]         = useState<DiscoveredDevice[]>([]);
+  const [isRefreshing, setIsRefreshing]     = useState(false);
+  const [lastSeen, setLastSeen]             = useState<{ version: string; ts: string } | null>(null);
   const [updateDismissed, setUpdateDismissed] = useState(false);
-  const [downloading, setDownloading]   = useState(false);
-  const [verifyMsg, setVerifyMsg]       = useState<"idle" | "verifying" | "success" | "fail">("idle");
+  const [downloading, setDownloading]       = useState(false);
+  const [verifyMsg, setVerifyMsg]           = useState<"idle" | "verifying" | "success" | "fail">("idle");
   const verifyInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const platform = detectPlatform();
@@ -110,30 +115,42 @@ export default function ConnectorSettingsCard() {
     !updateDismissed
   );
 
-  // ── poll connector health every 8s ──────────────────────────────────────────
+  // ── poll connector health & devices every 8s ────────────────────────────────
   const refresh = useCallback(async () => {
-    const result = await checkConnectorStatus();
-    setConnStatus(result);
+    setIsRefreshing(true);
+    try {
+      const result = await checkConnectorStatus();
+      setConnStatus(result);
 
-    if (result.status === "connected" || result.status === "outdated") {
-      // persist last seen
-      const entry = { version: result.version ?? "", ts: new Date().toISOString() };
-      try { localStorage.setItem(LAST_SEEN_KEY, JSON.stringify(entry)); } catch {}
-      setLastSeen(entry);
+      if (result.status === "connected" || result.status === "outdated") {
+        // persist last seen
+        const entry = { version: result.version ?? "", ts: new Date().toISOString() };
+        try { localStorage.setItem(LAST_SEEN_KEY, JSON.stringify(entry)); } catch {}
+        setLastSeen(entry);
 
-      // fetch extended health for scanner name + ADF
-      try {
-        const h = await fetch(CONNECTOR_URL + "/health", { signal: AbortSignal.timeout(2000) });
-        if (h.ok) {
-          const data = await h.json();
-          setScannerName(data.scanner?.name ?? null);
-          setHasAdf(
-            Array.isArray(data.features)
-              ? data.features.includes("adf")
-              : data.scanner?.sources?.adf ?? null
-          );
+        // Fetch real discovered devices from connector
+        try {
+          const devices = await getDevices();
+          setDeviceList(devices || []);
+          if (devices && devices.length > 0) {
+            // Prioritize physical scanner (eSCL Wi-Fi or USB) over PDF virtual printer
+            const realScanner =
+              devices.find((d) => d.protocol === "ESCL" || (d.ip && d.ip !== "SIMULATOR" && !d.id.includes("PDF"))) ||
+              devices.find((d) => d.ip && d.ip !== "SIMULATOR") ||
+              devices[0];
+
+            setActiveDevice(realScanner || null);
+          } else {
+            setActiveDevice(null);
+          }
+        } catch {
+          // Ignore discovery poll failures
         }
-      } catch {}
+      } else {
+        setActiveDevice(null);
+      }
+    } finally {
+      setIsRefreshing(false);
     }
   }, []);
 
@@ -164,6 +181,7 @@ export default function ConnectorSettingsCard() {
           clearInterval(verifyInterval.current!);
           setVerifyMsg("success");
           setConnStatus(r);
+          refresh();
           setTimeout(() => setVerifyMsg("idle"), 6000);
           return;
         }
@@ -174,7 +192,7 @@ export default function ConnectorSettingsCard() {
         setTimeout(() => setVerifyMsg("idle"), 8000);
       }
     }, 2000);
-  }, []);
+  }, [refresh]);
 
   useEffect(() => () => { if (verifyInterval.current) clearInterval(verifyInterval.current); }, []);
 
@@ -211,6 +229,9 @@ export default function ConnectorSettingsCard() {
 
   const isOffline = connStatus.status === "missing" || connStatus.status === "error";
 
+  const hasAdf = activeDevice?.capabilities?.adf ?? activeDevice?.sources?.adf ?? (connStatus.status === "connected");
+  const adfStatus = activeDevice?.adfStatus;
+
   return (
     <div className="bg-white border border-outline-variant rounded-lg shadow-sm overflow-hidden">
       {/* ── Header ── */}
@@ -221,17 +242,23 @@ export default function ConnectorSettingsCard() {
               ? <WifiOff className="w-4.5 h-4.5 text-slate-500" />
               : <Wifi className="w-4.5 h-4.5 text-secondary" />}
           </div>
-          <h5 className="font-bold text-body-lg text-on-surface">Scanner Connector</h5>
+          <div>
+            <h5 className="font-bold text-body-lg text-on-surface">Scanner Connector</h5>
+            <p className="text-[12px] text-on-surface-variant">
+              Lokale Schnittstelle für automatische Dokumenteneinzüge (ADF) &amp; WLAN-Scanner
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
           <StatusPill status={connStatus.status} version={connStatus.version} />
           <button
             onClick={refresh}
-            title="Status aktualisieren"
-            className="p-1.5 rounded-md hover:bg-surface-container-low text-outline transition-colors"
+            disabled={isRefreshing}
+            title="Status &amp; Geräte aktualisieren"
+            className="p-1.5 rounded-md hover:bg-surface-container-low text-outline transition-colors disabled:opacity-50"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-secondary" : ""}`} />
           </button>
         </div>
       </div>
@@ -268,7 +295,7 @@ export default function ConnectorSettingsCard() {
         </div>
       )}
 
-      {/* ── Version mismatch (latest version loaded, connector says it's up to date) ── */}
+      {/* ── Up to date banner ── */}
       {!updateAvailable && latestVer && installedVer && compareVersions(installedVer, latestVer) >= 0 && (
         <div className="mx-5 mt-4 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2.5 flex items-center gap-2 text-[12px] text-emerald-700">
           <CheckCircle className="w-4 h-4 shrink-0" />
@@ -302,11 +329,27 @@ export default function ConnectorSettingsCard() {
           icon={<Cpu className="w-4 h-4" />}
           label="Scanner"
           value={
-            connStatus.status === "connected"
-              ? (scannerName ?? (
-                  <span className="text-outline text-[12px]">Kein Gerät verbunden</span>
-                ))
-              : <span className="text-outline text-[12px]">—</span>
+            connStatus.status === "connected" ? (
+              activeDevice ? (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold text-on-surface">
+                    {activeDevice.displayName || activeDevice.name}
+                  </span>
+                  {activeDevice.ip && activeDevice.ip !== "SIMULATOR" && (
+                    <span className="text-[11px] font-mono bg-surface-container-low border border-outline-variant px-1.5 py-0.5 rounded text-outline">
+                      {activeDevice.ip}
+                    </span>
+                  )}
+                  <span className="text-[11px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium">
+                    {activeDevice.protocol || "eSCL"}
+                  </span>
+                </div>
+              ) : (
+                <span className="text-outline text-[12px]">Wird gesucht...</span>
+              )
+            ) : (
+              <span className="text-outline text-[12px]">—</span>
+            )
           }
         />
 
@@ -314,11 +357,26 @@ export default function ConnectorSettingsCard() {
           icon={<Zap className="w-4 h-4" />}
           label="ADF Einzug"
           value={
-            hasAdf === null
-              ? <span className="text-outline text-[12px]">—</span>
-              : hasAdf
-                ? <span className="text-emerald-600 flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5" />Verfügbar</span>
-                : <span className="text-slate-500">Nicht verfügbar</span>
+            hasAdf ? (
+              <div className="flex items-center gap-2">
+                <span className="text-emerald-600 flex items-center gap-1">
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  Verfügbar (Dauereinzug aktiv)
+                </span>
+                {adfStatus === "Loaded" && (
+                  <span className="text-[11px] bg-emerald-50 border border-emerald-200 text-emerald-700 px-2 py-0.5 rounded-full font-medium">
+                    Papier im Fach erkannt
+                  </span>
+                )}
+                {adfStatus === "Empty" && (
+                  <span className="text-[11px] bg-amber-50 border border-amber-200 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+                    Fach leer (Papier einlegen)
+                  </span>
+                )}
+              </div>
+            ) : (
+              <span className="text-slate-500">Nur Flachbettglas</span>
+            )
           }
         />
 
@@ -326,9 +384,11 @@ export default function ConnectorSettingsCard() {
           icon={<Info className="w-4 h-4" />}
           label="Version installiert"
           value={
-            connStatus.version
-              ? <span>v{connStatus.version}</span>
-              : <span className="text-outline text-[12px]">Nicht installiert</span>
+            connStatus.version ? (
+              <span>v{connStatus.version}</span>
+            ) : (
+              <span className="text-outline text-[12px]">Nicht installiert</span>
+            )
           }
         />
 
@@ -336,9 +396,11 @@ export default function ConnectorSettingsCard() {
           icon={<ChevronRight className="w-4 h-4" />}
           label="Neueste Version"
           value={
-            latestVer
-              ? <span>v{latestVer}</span>
-              : <span className="text-outline text-[12px]">Lädt…</span>
+            latestVer ? (
+              <span>v{latestVer}</span>
+            ) : (
+              <span className="text-outline text-[12px]">Lädt…</span>
+            )
           }
         />
 
@@ -349,8 +411,8 @@ export default function ConnectorSettingsCard() {
             connStatus.status === "connected"
               ? "Gerade eben"
               : lastSeen
-                ? formatRelative(lastSeen.ts)
-                : <span className="text-outline text-[12px]">Noch nie</span>
+              ? formatRelative(lastSeen.ts)
+              : <span className="text-outline text-[12px]">Noch nie</span>
           }
         />
       </div>
@@ -359,27 +421,47 @@ export default function ConnectorSettingsCard() {
       <div className="border-t border-outline-variant mx-5" />
 
       {/* ── Actions ── */}
-      <div className="px-5 py-4 flex items-center gap-3 flex-wrap">
-        <button
-          onClick={handleDownload}
-          disabled={downloading}
-          className="bg-secondary hover:bg-secondary/90 disabled:opacity-60 text-white font-bold px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 text-[13px] cursor-pointer"
-        >
-          {downloading
-            ? <Loader2 className="w-4 h-4 animate-spin" />
-            : <Download className="w-4 h-4" />}
-          {isOffline ? "Connector herunterladen" : "Neu herunterladen"}
-        </button>
+      <div className="px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleDownload}
+            disabled={downloading}
+            className="bg-secondary hover:bg-secondary/90 disabled:opacity-60 text-white font-bold px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 text-[13px] cursor-pointer"
+          >
+            {downloading
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <Download className="w-4 h-4" />}
+            {isOffline ? "Connector herunterladen" : "Neu herunterladen"}
+          </button>
 
-        {isOffline && (
-          <div className="flex items-start gap-1.5 text-[12px] text-outline bg-surface-container-low p-2.5 rounded border border-outline-variant flex-1 min-w-0">
-            <Info className="w-3.5 h-3.5 shrink-0 text-secondary mt-0.5" />
+          <button
+            onClick={refresh}
+            disabled={isRefreshing}
+            className="border border-outline-variant hover:bg-surface-container-low text-on-surface font-semibold px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 text-[13px] cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+            Geräte neu suchen
+          </button>
+        </div>
+
+        {activeDevice && (
+          <div className="text-[12px] text-outline flex items-center gap-1.5">
+            <Printer className="w-4 h-4 text-emerald-600" />
             <span>
-              Connector ist offline. Laden Sie den Installer herunter, führen Sie ihn auf diesem PC aus und öffnen Sie LogiFlow erneut.
+              <strong>{deviceList.length}</strong> Gerät(e) im Netzwerk bereit
             </span>
           </div>
         )}
       </div>
+
+      {isOffline && (
+        <div className="mx-5 mb-4 flex items-start gap-1.5 text-[12px] text-outline bg-surface-container-low p-2.5 rounded border border-outline-variant">
+          <Info className="w-3.5 h-3.5 shrink-0 text-secondary mt-0.5" />
+          <span>
+            Connector ist offline. Führen Sie den Installer auf diesem PC aus und laden Sie die Seite neu.
+          </span>
+        </div>
+      )}
     </div>
   );
 }
