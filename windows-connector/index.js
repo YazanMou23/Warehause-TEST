@@ -1430,9 +1430,10 @@ async function executeScan(options, onProgress = null, jobTracker = null) {
 
   // 5. Explicit physical failure message
   throw new Error(
-    `Physischer Scan auf Gerät (${scannerIp}) nicht möglich. ` +
-    `Das Gerät hat den Netzwerk-Scanbefehl abgelehnt (AirScan/eSCL ist auf dem Drucker nicht aktiv und kein Windows WIA-Treiber eingerichtet). ` +
-    `Bitte aktivieren Sie "AirScan / eSCL" im Web-Menü des Druckers oder legen Sie Dokumente in den automatischen Einzug.`
+    `Physischer Scan auf Gerät (${scannerIp}) nicht möglich: ` +
+    `Ihr Gerät (z. B. Canon PIXMA MX490/MF Serie) unterstützt kein direktes eSCL/AirScan über HTTP. ` +
+    `Lösung: Bitte fügen Sie den Scanner einmalig in Windows hinzu (Windows-Einstellungen → Bluetooth & Geräte → Drucker & Scanner → "Gerät hinzufügen") ` +
+    `damit der Windows WIA-Treiber aktiv ist, oder wählen Sie den "WLAN-Scanner Simulator" zum Testen.`
   );
 }
 
