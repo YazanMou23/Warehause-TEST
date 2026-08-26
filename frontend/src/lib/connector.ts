@@ -60,6 +60,9 @@ export interface ScanOptions {
   batchScan?: boolean;
   duplex?: boolean;
   multiPage?: boolean;
+  pageCount?: number;
+  onProgress?: (progress: { status: string; page?: number; message: string }) => void;
+  signal?: AbortSignal;
 }
 
 export interface ScannedPage {
@@ -110,17 +113,86 @@ export async function scanDocument(opts: ScanOptions): Promise<File[]> {
     format:      opts.format ?? 'jpeg',
     multiPage:   opts.multiPage ?? true,
     batchScan:   opts.batchScan ?? true,
+    pageCount:   opts.pageCount,
   };
 
+  // Try Async Job Endpoint first for live progress & multi-page ADF status
+  try {
+    const jobRes = await fetch(CONNECTOR_URL + '/scan/job', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+      signal:  opts.signal ? opts.signal : AbortSignal.timeout(10000),
+    });
+
+    if (jobRes.ok) {
+      const jobData = await jobRes.json();
+      const jobId = jobData.jobId;
+      if (jobId) {
+        // Poll Job Status
+        while (true) {
+          if (opts.signal?.aborted) {
+            try { await fetch(`${CONNECTOR_URL}/scan/${jobId}/cancel`, { method: 'POST' }); } catch {}
+            throw new Error('Scan abgebrochen');
+          }
+
+          await new Promise((r) => setTimeout(r, 600));
+
+          const statusRes = await fetch(`${CONNECTOR_URL}/scan/${jobId}/status`);
+          if (!statusRes.ok) continue;
+          const status = await statusRes.json();
+
+          if (opts.onProgress && status.message) {
+            opts.onProgress({
+              status:  status.status,
+              page:    status.pageCount,
+              message: status.message,
+            });
+          }
+
+          if (status.status === 'COMPLETED') {
+            const rawPages: ScannedPage[] = status.pages || [];
+            return rawPages.map((p, idx) => {
+              const bytes = atob(p.base64Data);
+              const arr = new Uint8Array(bytes.length);
+              for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+              const blob = new Blob([arr], { type: p.mimeType || 'image/jpeg' });
+              const ext = (p.mimeType || '').includes('png') ? 'png' : 'jpg';
+              return new File([blob], `scan_${Date.now()}_page${idx + 1}.${ext}`, {
+                type: p.mimeType || 'image/jpeg',
+                lastModified: Date.now(),
+              });
+            });
+          }
+
+          if (status.status === 'FAILED' || status.status === 'CANCELLED') {
+            throw new Error(status.error || status.message || 'Scanauftrag fehlgeschlagen');
+          }
+        }
+      }
+    }
+  } catch (err: any) {
+    if (err.message === 'Scan abgebrochen') throw err;
+    // Fallback to synchronous /scan
+  }
+
+  // Fallback: Synchronous POST /scan
   const r = await fetch(CONNECTOR_URL + '/scan', {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify(payload),
+    signal:  opts.signal ? opts.signal : AbortSignal.timeout(180000), // 3 minutes timeout for large ADF batches
   });
 
   if (!r.ok) {
     const t = await r.text().catch(() => '');
-    throw new Error('Scan fehlgeschlagen (HTTP ' + r.status + '): ' + t);
+    let errDetail = t;
+    try {
+      const parsed = JSON.parse(t);
+      if (parsed.message) errDetail = parsed.message;
+      else if (parsed.error) errDetail = parsed.error;
+    } catch {}
+    throw new Error('Scan fehlgeschlagen: ' + errDetail);
   }
 
   const rawData = await r.json();

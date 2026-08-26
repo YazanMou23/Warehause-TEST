@@ -1,6 +1,6 @@
 {
   "name": "logiflow-printer-connector",
-  "version": "2.1.0",
+  "version": "2.3.0",
   "description": "LogiFlow Windows Local Printer & Scanner Connector",
   "main": "index.js",
   "bin": "./index.js",

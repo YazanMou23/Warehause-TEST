@@ -48,7 +48,7 @@ const PROBE_TIMEOUT_MS = 600;
 const FAST_TCP_TIMEOUT = 350;
 const CACHE_TTL_MS     = 30_000;
 const MULTICAST_WAIT   = 1200;
-const VERSION          = '2.2.0';
+const VERSION          = '2.3.0';
 
 // ─── State ────────────────────────────────────────────────────────────────────
 let cachedDevices     = [];
@@ -494,7 +494,10 @@ async function discoverViaWindowsPnp(seenIds, discovered) {
       for (const p of printers) {
         if (!p.Name) continue;
         const nameLower = p.Name.toLowerCase();
-        if (nameLower.includes('xps') || nameLower.includes('onenote') || nameLower.includes('fax')) continue;
+        // Skip virtual software print queues that are not physical hardware
+        if (nameLower.includes('pdf') || nameLower.includes('xps') || nameLower.includes('onenote') || 
+            nameLower.includes('fax') || nameLower.includes('root\\') || nameLower.includes('generic') ||
+            nameLower.includes('document writer')) continue;
 
         const portName = p.PortName || '';
         const ipMatch  = portName.match(/\b(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)\b/);
@@ -516,24 +519,24 @@ async function discoverViaWindowsPnp(seenIds, discovered) {
             displayName,
             manufacturer,
             model:          cleanModel,
-            type:           'printer_scanner',
+            type:           'printer',
             connectionType: ip ? 'WIFI' : 'USB',
             ip:             ip || undefined,
             port:           80,
-            protocol:       'WIA',
+            protocol:       'SPOOLER',
             status:         'available',
-            statusDetails:  'In Windows installiert',
+            statusDetails:  'In Windows installiert (Drucker)',
             capabilities: {
               printing:            true,
-              scanning:            true,
-              adf:                 true,
-              duplex:              true,
-              flatbed:             true,
+              scanning:            false,
+              adf:                 false,
+              duplex:              false,
+              flatbed:             false,
               color:               true,
               grayscale:           true,
               supportedDpi:        [150, 300, 600],
               supportedPaperSizes: ['A4', 'Letter'],
-              documentFormats:     ['image/jpeg', 'image/png'],
+              documentFormats:     ['application/pdf'],
             },
           });
           log('log', `Found Windows Spooler Printer: ${p.Name}`);
@@ -996,9 +999,9 @@ function resolveScanSource(options, capabilities, liveStatus) {
         log('log', '⚡ Auto-Source: ADF is empty, falling back to Flatbed (Platen).');
       } else {
         // ADF has documents or is supported -> automatic continuous ADF!
-        effectiveSource = (wantDuplex && hasDuplex) ? 'FeederDuplex' : 'Feeder';
+        effectiveSource = 'Feeder';
         isAdf = true;
-        log('log', `⚡ Auto-Source: ADF detected & selected -> ${effectiveSource} (Continuous multi-page active).`);
+        log('log', `⚡ Auto-Source: ADF detected & selected -> Feeder (Continuous multi-page active, Duplex: ${wantDuplex && hasDuplex}).`);
       }
     } else {
       effectiveSource = 'Platen';
@@ -1006,9 +1009,9 @@ function resolveScanSource(options, capabilities, liveStatus) {
       log('log', '⚡ Auto-Source: Flatbed (Platen) selected.');
     }
   } else if (rawSource.includes('feed') || rawSource.includes('adf')) {
-    effectiveSource = (wantDuplex && hasDuplex) || rawSource.includes('duplex') ? 'FeederDuplex' : 'Feeder';
+    effectiveSource = 'Feeder';
     isAdf = true;
-    log('log', `⚡ Explicit Source: ADF (${effectiveSource}) selected.`);
+    log('log', `⚡ Explicit Source: ADF (Feeder) selected (Duplex: ${wantDuplex && hasDuplex}).`);
   } else {
     effectiveSource = 'Platen';
     isAdf = false;
@@ -1018,7 +1021,7 @@ function resolveScanSource(options, capabilities, liveStatus) {
   return {
     effectiveSource,
     isAdf,
-    isDuplex: effectiveSource === 'FeederDuplex' || wantDuplex,
+    isDuplex: isAdf && wantDuplex && hasDuplex,
   };
 }
 
@@ -1038,7 +1041,19 @@ async function triggerWiaScan(options = {}, onProgress = null) {
         exit 1
       }
       
-      $dev = $dm.DeviceInfos.Item(1).Connect()
+      # Target first real scanner device
+      $targetInfo = $null
+      foreach ($info in $dm.DeviceInfos) {
+        if ($info.Type -eq 1 -or $info.Properties.Item('Name').Value -like '*Scan*' -or $info.Properties.Item('Name').Value -like '*MFC*' -or $info.Properties.Item('Name').Value -like '*Drucker*') {
+          $targetInfo = $info
+          break
+        }
+      }
+      if ($null -eq $targetInfo) {
+        $targetInfo = $dm.DeviceInfos.Item(1)
+      }
+
+      $dev = $targetInfo.Connect()
       $item = $dev.Items.Item(1)
 
       # 1. DPI Settings (6147=H, 6148=V)
@@ -1105,6 +1120,11 @@ async function triggerWiaScan(options = {}, onProgress = null) {
           if ($hr -eq -2145320957 -or $hr -eq 0x80210003) {
             break
           }
+          # 0x80210002 (-2145320958): WIA_ERROR_PAPER_JAM -> Paper jam
+          if ($hr -eq -2145320958 -or $hr -eq 0x80210002) {
+            if ($scannedFiles.Count -gt 0) { break }
+            throw "Papierstau im Einzug erkannt."
+          }
           if ($scannedFiles.Count -gt 0) {
             break
           }
@@ -1156,6 +1176,8 @@ function buildScanXml(options) {
   const { dpi = 300, colorMode = 'Grayscale8', inputSource = 'Feeder', isDuplex = false, mime = 'image/jpeg' } = options;
   const a4w = Math.round((210 / 25.4) * dpi);
   const a4h = Math.round((297 / 25.4) * dpi);
+  const isPlaten = inputSource === 'Platen' || String(inputSource).toLowerCase().includes('platen') || String(inputSource).toLowerCase().includes('flatbed');
+  const pwgSource = isPlaten ? 'Platen' : 'Feeder';
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <scan:ScanSettings
@@ -1171,8 +1193,9 @@ function buildScanXml(options) {
       <pwg:YOffset>0</pwg:YOffset>
     </pwg:ScanRegion>
   </pwg:ScanRegions>
-  <pwg:InputSource>${inputSource}</pwg:InputSource>
-  ${isDuplex ? '<scan:Duplex>true</scan:Duplex>' : ''}
+  <pwg:InputSource>${pwgSource}</pwg:InputSource>
+  <scan:InputSource>${pwgSource}</scan:InputSource>
+  ${isDuplex ? '<scan:Duplex>true</scan:Duplex>' : '<scan:Duplex>false</scan:Duplex>'}
   <scan:ColorMode>${colorMode}</scan:ColorMode>
   <scan:XResolution>${dpi}</scan:XResolution>
   <scan:YResolution>${dpi}</scan:YResolution>
@@ -1259,19 +1282,21 @@ async function triggerEsclScan(ip, port, options, onProgress = null, jobTracker 
     }
 
     if (jobTracker) {
+      jobTracker.pageCount = pages.length;
       jobTracker.message = isAdf ? `Ziehe Seite ${pageIndex} aus ADF ein...` : `Scanne Flachbett...`;
     }
 
     // Pull next document page
-    while (attempt < 35 && !pageBuffer && !isDone) {
+    while (attempt < 45 && !pageBuffer && !isDone) {
+      if (jobTracker?.cancelled) break;
       attempt++;
       try {
-        const docResp = await httpGetBinary(nextDocUrl, 20000);
+        const docResp = await httpGetBinary(nextDocUrl, 25000);
         if (docResp.status === 200 && docResp.buffer && docResp.buffer.length > 200) {
           pageBuffer = docResp.buffer;
-        } else if (docResp.status === 404) {
-          // HTTP 404 on /NextDocument means: No more pages in ADF / Scan job complete!
-          log('log', `✅ NextDocument returned 404 (ADF empty / end of job). Total pages: ${pages.length}`);
+        } else if (docResp.status === 404 || docResp.status === 410) {
+          // HTTP 404/410 on /NextDocument means: No more pages in ADF / Scan job complete!
+          log('log', `✅ NextDocument returned ${docResp.status} (ADF empty / end of job). Total pages: ${pages.length}`);
           isDone = true;
           break;
         } else if (docResp.status === 503 || docResp.status === 409) {
@@ -1281,7 +1306,7 @@ async function triggerEsclScan(ip, port, options, onProgress = null, jobTracker 
           await new Promise((r) => setTimeout(r, 1000));
         }
       } catch (err) {
-        if (attempt > 15) {
+        if (attempt > 20) {
           log('debug', `NextDocument poll attempt ${attempt} warning:`, err.message);
         }
         await new Promise((r) => setTimeout(r, 1000));
@@ -1297,12 +1322,21 @@ async function triggerEsclScan(ip, port, options, onProgress = null, jobTracker 
         jobTracker.message = `Seite ${pages.length} erfolgreich erfasst.`;
       }
 
+      if (onProgress) {
+        onProgress({
+          type:    'scan_page_completed',
+          status:  'page_ready',
+          page:    pages.length,
+          message: `Seite ${pages.length} erfolgreich erfasst.`,
+        });
+      }
+
       // Flatbed only has 1 physical page
       if (!isAdf) {
         isDone = true;
       } else {
         // Continuous ADF loop: give feeder a brief moment before pulling next sheet
-        await new Promise((r) => setTimeout(r, 400));
+        await new Promise((r) => setTimeout(r, 300));
       }
     } else {
       isDone = true;
@@ -1328,12 +1362,17 @@ async function executeScan(options, onProgress = null, jobTracker = null) {
   if (!scannerIp || scannerIp === 'SIMULATOR') {
     const rawSource = String(options.source || options.inputSource || 'auto').toLowerCase();
     const isAdf = rawSource === 'auto' || rawSource.includes('feed') || rawSource.includes('adf') || options.batchScan || options.multiPage;
-    const pageCount = isAdf ? 3 : 1;
+    const requestedCount = typeof options.pageCount === 'number' && options.pageCount > 0 ? options.pageCount : (options.pagesCount || (isAdf ? 3 : 1));
+    const pageCount = isAdf ? requestedCount : 1;
 
     log('log', `Simulator scan started (${pageCount} page(s) simulated via ${isAdf ? 'ADF' : 'Flatbed'}).`);
     const pages = [];
 
     for (let p = 1; p <= pageCount; p++) {
+      if (jobTracker?.cancelled) {
+        log('log', 'Simulator scan cancelled by user.');
+        break;
+      }
       if (onProgress) {
         onProgress({
           type:    'scan_progress',
@@ -1344,9 +1383,9 @@ async function executeScan(options, onProgress = null, jobTracker = null) {
       }
       if (jobTracker) {
         jobTracker.pageCount = p;
-        jobTracker.message = `Simulator: Seite ${p} erfasst...`;
+        jobTracker.message = isAdf ? `Simulator: Ziehe Seite ${p} von ${pageCount} ein...` : `Simulator: Seite ${p} erfasst...`;
       }
-      await new Promise((r) => setTimeout(r, 600));
+      await new Promise((r) => setTimeout(r, 500));
       pages.push({
         buffer:   generateSampleDocumentPng(800, 1100, p, pageCount),
         mimeType: 'image/png',

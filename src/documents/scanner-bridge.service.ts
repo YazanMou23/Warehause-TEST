@@ -134,9 +134,11 @@ function colorModeToEscl(mode: string): string {
   return map[mode] ?? 'Grayscale8';
 }
 
-function buildScanXml(opts: { dpi: number; colorMode: string; inputSource: string; mime: string }): string {
+function buildScanXml(opts: { dpi: number; colorMode: string; inputSource: string; mime: string; duplex?: boolean }): string {
   const a4w = Math.round((210 / 25.4) * opts.dpi);
   const a4h = Math.round((297 / 25.4) * opts.dpi);
+  const isPlaten = opts.inputSource === 'Platen' || opts.inputSource.toLowerCase().includes('platen');
+  const sourceName = isPlaten ? 'Platen' : 'Feeder';
   return `<?xml version="1.0" encoding="UTF-8"?>
 <scan:ScanSettings
   xmlns:scan="http://schemas.hp.com/imaging/escl/2011/05/03"
@@ -151,7 +153,9 @@ function buildScanXml(opts: { dpi: number; colorMode: string; inputSource: strin
       <pwg:YOffset>0</pwg:YOffset>
     </pwg:ScanRegion>
   </pwg:ScanRegions>
-  <pwg:InputSource>${opts.inputSource}</pwg:InputSource>
+  <pwg:InputSource>${sourceName}</pwg:InputSource>
+  <scan:InputSource>${sourceName}</scan:InputSource>
+  ${opts.duplex ? '<scan:Duplex>true</scan:Duplex>' : '<scan:Duplex>false</scan:Duplex>'}
   <scan:ColorMode>${opts.colorMode}</scan:ColorMode>
   <scan:XResolution>${opts.dpi}</scan:XResolution>
   <scan:YResolution>${opts.dpi}</scan:YResolution>

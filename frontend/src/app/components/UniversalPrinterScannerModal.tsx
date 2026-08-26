@@ -211,6 +211,8 @@ export default function UniversalPrinterScannerModal({
     }
   };
 
+  const scanAbortController = React.useRef<AbortController | null>(null);
+
   // ── 4. Execute Physical Scan ────────────────────────────────────────────────
   const handleStartScan = async () => {
     if (!selectedDevice) {
@@ -226,6 +228,8 @@ export default function UniversalPrinterScannerModal({
     );
     setErrorMsg('');
 
+    scanAbortController.current = new AbortController();
+
     try {
       const files = await scanDocument({
         scannerIp:   selectedDevice.ip,
@@ -237,6 +241,10 @@ export default function UniversalPrinterScannerModal({
         format:      'jpeg',
         batchScan:   inputSource === 'Feeder' ? true : false,
         multiPage:   true,
+        signal:      scanAbortController.current.signal,
+        onProgress:  (prog) => {
+          if (prog.message) setScanStatusText(prog.message);
+        },
       });
 
       if (files.length === 0) throw new Error('Keine Seiten vom Scanner empfangen.');
@@ -244,10 +252,19 @@ export default function UniversalPrinterScannerModal({
       onScanComplete(files);
       onClose();
     } catch (err: any) {
-      setErrorMsg(err.message || 'Scanvorgang fehlgeschlagen. Bitte Verbindung zum Drucker/Scanner prüfen.');
+      if (err.message !== 'Scan abgebrochen') {
+        setErrorMsg(err.message || 'Scanvorgang fehlgeschlagen. Bitte Verbindung zum Drucker/Scanner prüfen.');
+      }
     } finally {
       setIsScanning(false);
       setScanStatusText('');
+      scanAbortController.current = null;
+    }
+  };
+
+  const handleCancelScan = () => {
+    if (scanAbortController.current) {
+      scanAbortController.current.abort();
     }
   };
 
@@ -679,10 +696,15 @@ export default function UniversalPrinterScannerModal({
         {/* Footer */}
         <div className="p-5 sm:p-6 border-t border-slate-800/80 bg-slate-900/90 flex flex-col sm:flex-row items-center justify-between gap-3">
           <button
-            onClick={onClose}
+            onClick={() => {
+              if (isScanning) {
+                handleCancelScan();
+              }
+              onClose();
+            }}
             className="w-full sm:w-auto px-5 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-sm transition-colors cursor-pointer"
           >
-            Abbrechen
+            {isScanning ? 'Scan abbrechen' : 'Abbrechen'}
           </button>
 
           {(step === 'discovery' || step === 'configured') && (

@@ -18,8 +18,8 @@ import { Public } from '../common/decorators/public.decorator';
 import { Role } from '@prisma/client';
 
 /** Current connector release version served by this backend. Bump this when a new installer is deployed. */
-const CONNECTOR_LATEST_VERSION = '2.2.0';
-const CONNECTOR_CHANGELOG      = 'Full continuous ADF scanning, automatic source detection, duplex support, standalone 1-click installer';
+const CONNECTOR_LATEST_VERSION = '2.3.0';
+const CONNECTOR_CHANGELOG      = 'Vollständiger automatischer ADF-Dauereinzug (10-20+ Seiten), automatische ADF-Erkennung, Duplex-Unterstützung, Papierstau-Erkennung und verbesserte Windows 10/11 Treiber-Kompatibilität';
 
 @Controller('scanner')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -148,8 +148,12 @@ export class ScannerController {
   @Get('connector-info')
   getConnectorInfo() {
     return {
+      version:       CONNECTOR_LATEST_VERSION,
       latestVersion: CONNECTOR_LATEST_VERSION,
       changelog:     CONNECTOR_CHANGELOG,
+      releaseDate:   '2026-08-26',
+      platform:      'windows',
+      arch:          'x64',
       installerUrl: {
         windows: '/scanner/download-installer?platform=windows',
         macos:   '/scanner/download-installer?platform=macos',
