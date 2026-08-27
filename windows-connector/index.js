@@ -456,12 +456,6 @@ async function getWindowsWiaScanners(forceRefresh = false) {
           }
         } catch {}
 
-        # Fallback to model heuristics for Brother MFC / multi-function devices
-        if (-not $hasAdf) {
-          if ($n -match 'MFC|ADF|Feeder|MFP|Pro|Document Feeder|L2860') { $hasAdf = $true }
-        }
-        if ($n -match 'Duplex|DN|DW|DWE') { $hasDuplex = $true }
-        
         Write-Output "$($d.DeviceID)||$n||$m||$t||$hasAdf||$hasDuplex||$s"
       }
     } catch {}
@@ -476,8 +470,8 @@ async function getWindowsWiaScanners(forceRefresh = false) {
         const isUsb = devId.toUpperCase().startsWith('USB') || port.toUpperCase().startsWith('USB');
         const manufacturer = mfg || detectManufacturer(devName);
         const cleanModel = normalizeModelName(devName);
-        const hasAdf = hasAdfStr === 'True' || /adf|feeder|mfc|pro|mfp|l2860/i.test(devName);
-        const hasDuplex = hasDuplexStr === 'True' || /duplex|dn|dw|dwe/i.test(devName);
+        const hasAdf = hasAdfStr === 'True';
+        const hasDuplex = hasDuplexStr === 'True';
 
         scanners.push({
           devId,
@@ -1437,12 +1431,14 @@ function resolveScanSource(options = {}, capabilities = {}, liveStatus = {}, dev
   
   const hasAdf = Boolean(
     capabilities?.adf || 
-    capabilities?.hasAdf || 
-    deviceMeta?.hasAdf || 
-    /adf|feeder/i.test(devName)
+    capabilities?.hasAdf
   );
   
-  const hasDuplex = Boolean(capabilities?.duplex || capabilities?.hasDuplex || deviceMeta?.hasDuplex || /duplex|dn|dw|dwe/i.test(devName));
+  const hasDuplex = Boolean(
+    capabilities?.duplex || 
+    capabilities?.hasDuplex
+  );
+  
   const hasFlatbed = Boolean(capabilities?.flatbed ?? capabilities?.hasFlatbed ?? true);
 
   let selectedSource = 'flatbed';
@@ -1582,8 +1578,8 @@ async function triggerWiaScan(options = {}, onProgress = null, jobTracker = null
       $docCap    = [int](Get-WiaProp $dev.Properties 3086 0)
       $docStatus = [int](Get-WiaProp $dev.Properties 3087 0)
       
-      $hasAdfHardware = (($docCap -band 1) -ne 0) -or ($selectedDevName -match 'ADF|Feeder')
-      $hasDuplexHardware = (($docCap -band 4) -ne 0) -or ($selectedDevName -match 'Duplex|DN|DW|DWE')
+      $hasAdfHardware = (($docCap -band 1) -ne 0)
+      $hasDuplexHardware = (($docCap -band 4) -ne 0)
 
       # Check child item tree for Feeder vs Flatbed items (WIA 2.0 item tree)
       $feederChildItem = $null
@@ -1757,43 +1753,56 @@ async function triggerWiaScan(options = {}, onProgress = null, jobTracker = null
   `;
 
   log('log', `Executing WIA hardware scan via PowerShell (Source: ${source}, DPI: ${dpi}, Color: ${colorMode})...`);
-  const { stdout } = await execAsync(`powershell -NoProfile -Command "${psScript.replace(/\n/g, ' ')}"`, { timeout: 180000 });
-
-  // Parse lines from stdout for live progress notifications
-  const lines = (stdout || '').split('\n').map((l) => l.trim()).filter(Boolean);
-  for (const line of lines) {
-    if (line.startsWith('PAGE_SCANNED:')) {
-      const pNum = parseInt(line.split(':')[1], 10);
-      if (!isNaN(pNum) && onProgress) {
-        onProgress({
-          type:    'scan_progress',
-          status:  'scanning',
-          page:    pNum,
-          message: `Seite ${pNum} wird verarbeitet...`,
-        });
-      }
-      if (!isNaN(pNum) && jobTracker) {
-        jobTracker.pageCount = pNum;
-        jobTracker.message = `Seite ${pNum} erfasst...`;
-      }
-    }
-  }
-
+  
   const pages = [];
-  if (fs.existsSync(tempDir)) {
-    const files = fs.readdirSync(tempDir).filter((f) => f.endsWith('.jpg')).sort((a, b) => {
-      const numA = parseInt(a.replace(/[^\d]/g, ''), 10) || 0;
-      const numB = parseInt(b.replace(/[^\d]/g, ''), 10) || 0;
-      return numA - numB;
-    });
+  try {
+    const { stdout } = await execAsync(`powershell -NoProfile -Command "${psScript.replace(/\n/g, ' ')}"`, { timeout: 180000 });
 
-    for (let i = 0; i < files.length; i++) {
-      const filePath = path.join(tempDir, files[i]);
-      const buffer = fs.readFileSync(filePath);
-      pages.push({ buffer, mimeType: 'image/jpeg' });
-      try { fs.unlinkSync(filePath); } catch {}
+    // Parse lines from stdout for live progress notifications
+    const lines = (stdout || '').split('\n').map((l) => l.trim()).filter(Boolean);
+    for (const line of lines) {
+      if (line.startsWith('PAGE_SCANNED:')) {
+        const pNum = parseInt(line.split(':')[1], 10);
+        if (!isNaN(pNum) && onProgress) {
+          onProgress({
+            type:    'scan_progress',
+            status:  'scanning',
+            page:    pNum,
+            message: `Seite ${pNum} wird verarbeitet...`,
+          });
+        }
+        if (!isNaN(pNum) && jobTracker) {
+          jobTracker.pageCount = pNum;
+          jobTracker.message = `Seite ${pNum} erfasst...`;
+        }
+      }
     }
-    try { fs.rmdirSync(tempDir); } catch {}
+
+    if (fs.existsSync(tempDir)) {
+      const files = fs.readdirSync(tempDir).filter((f) => f.endsWith('.jpg')).sort((a, b) => {
+        const numA = parseInt(a.replace(/[^\d]/g, ''), 10) || 0;
+        const numB = parseInt(b.replace(/[^\d]/g, ''), 10) || 0;
+        return numA - numB;
+      });
+
+      for (let i = 0; i < files.length; i++) {
+        const filePath = path.join(tempDir, files[i]);
+        const buffer = fs.readFileSync(filePath);
+        pages.push({ buffer, mimeType: 'image/jpeg' });
+      }
+    }
+  } finally {
+    if (fs.existsSync(tempDir)) {
+      try {
+        const files = fs.readdirSync(tempDir);
+        for (const f of files) {
+          try { fs.unlinkSync(path.join(tempDir, f)); } catch {}
+        }
+        fs.rmdirSync(tempDir);
+      } catch (err) {
+        log('debug', `Failed to completely clean up WIA temp dir: ${tempDir}`, err.message);
+      }
+    }
   }
 
   if (pages.length === 0) {

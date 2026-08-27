@@ -168,22 +168,21 @@ export default function ConnectorSettingsCard() {
   }, [refresh]);
 
   // ── verified-update polling ──────────────────────────────────────────────────
-  const startVerifyPolling = useCallback((expectedVersion: string) => {
+  const startVerifyPolling = useCallback((expectedVersion?: string) => {
     setVerifyMsg("verifying");
     let attempts = 0;
     const MAX = 15; // 15 × 2s = 30s
     verifyInterval.current = setInterval(async () => {
       attempts++;
       const r = await checkConnectorStatus();
-      if ((r.status === "connected" || r.status === "outdated") && r.version) {
-        const updated = compareVersions(r.version, expectedVersion) >= 0;
+      if (r.status === "connected" || r.status === "outdated") {
+        const updated = expectedVersion ? compareVersions(r.version || "0", expectedVersion) >= 0 : true;
         if (updated) {
           clearInterval(verifyInterval.current!);
           setVerifyMsg("success");
           setConnStatus(r);
           refresh();
-          setTimeout(() => setVerifyMsg("idle"), 6000);
-          return;
+          return; // Stay on success screen until user dismisses or clicks start scanning
         }
       }
       if (attempts >= MAX) {
@@ -219,7 +218,9 @@ export default function ConnectorSettingsCard() {
     document.body.removeChild(link);
     setTimeout(() => setDownloading(false), 2000);
 
+    // If update available, we expect the latest version. If initial install, we just expect a connection.
     if (latestVer) startVerifyPolling(latestVer);
+    else startVerifyPolling();
   }, [platform, release, latestVer, startVerifyPolling]);
 
   const handleDismissUpdate = useCallback(() => {
@@ -228,268 +229,178 @@ export default function ConnectorSettingsCard() {
   }, [latestVer]);
 
   const isOffline = connStatus.status === "missing" || connStatus.status === "error";
+  const hasAdf = activeDevice?.capabilities?.adf ?? activeDevice?.sources?.adf ?? false;
 
-  const hasAdf = activeDevice?.capabilities?.adf ?? activeDevice?.sources?.adf ?? (connStatus.status === "connected");
-  const adfStatus = activeDevice?.adfStatus;
+  // ── Render Verification Screens ──
+  if (verifyMsg === "verifying") {
+    return (
+      <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-8 text-center flex flex-col items-center">
+        <Loader2 className="w-10 h-10 animate-spin text-blue-600 mb-4" />
+        <h2 className="text-lg font-bold text-slate-900 mb-2">Installation wird verifiziert...</h2>
+        <p className="text-sm text-slate-600">Bitte warten, während der Connector im Hintergrund gestartet wird.</p>
+      </div>
+    );
+  }
 
-  return (
-    <div className="bg-white border border-outline-variant rounded-lg shadow-sm overflow-hidden">
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant">
-        <div className="flex items-center gap-2.5">
-          <div className={`p-1.5 rounded-md ${isOffline ? "bg-slate-100" : "bg-secondary/10"}`}>
-            {isOffline
-              ? <WifiOff className="w-4.5 h-4.5 text-slate-500" />
-              : <Wifi className="w-4.5 h-4.5 text-secondary" />}
+  if (verifyMsg === "success") {
+    return (
+      <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-8">
+        <h2 className="text-xl font-bold text-slate-900 mb-6 text-center">Connector installed successfully</h2>
+        
+        <div className="max-w-xs mx-auto space-y-3 mb-8">
+          <div className="flex items-center gap-3 text-emerald-700 font-medium">
+            <CheckCircle className="w-5 h-5 shrink-0" />
+            <span>Connector installed</span>
           </div>
-          <div>
-            <h5 className="font-bold text-body-lg text-on-surface">Scanner Connector</h5>
-            <p className="text-[12px] text-on-surface-variant">
-              Lokale Schnittstelle für automatische Dokumenteneinzüge (ADF) &amp; WLAN-Scanner
-            </p>
+          <div className="flex items-center gap-3 text-emerald-700 font-medium">
+            <CheckCircle className="w-5 h-5 shrink-0" />
+            <span>Connector running</span>
+          </div>
+          <div className="flex items-center gap-3 text-emerald-700 font-medium">
+            <CheckCircle className="w-5 h-5 shrink-0" />
+            <span>Connection established</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <StatusPill status={connStatus.status} version={connStatus.version} />
-          <button
-            onClick={refresh}
-            disabled={isRefreshing}
-            title="Status &amp; Geräte aktualisieren"
-            className="p-1.5 rounded-md hover:bg-surface-container-low text-outline transition-colors disabled:opacity-50"
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-5 text-center mb-8">
+          <h3 className="font-bold text-slate-800 mb-4">You're ready to scan documents.</h3>
+          <div className="flex flex-col gap-2 text-sm text-slate-600">
+            <div className="flex justify-center gap-2">
+              <span className="font-medium text-slate-500">Scanner:</span>
+              <span className="font-semibold text-slate-800">{activeDevice?.displayName || activeDevice?.name || "Scanner gefunden"}</span>
+            </div>
+            <div className="flex justify-center gap-2">
+              <span className="font-medium text-slate-500">ADF:</span>
+              <span className={`font-semibold ${hasAdf ? "text-emerald-600" : "text-slate-800"}`}>
+                {hasAdf ? "Ready" : "Not Available"}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          <a
+            href="/timesheets"
+            className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-lg text-center transition-colors shadow-sm"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-secondary" : ""}`} />
+            Start Scanning
+          </a>
+          <button
+            onClick={() => setVerifyMsg("idle")}
+            className="w-full sm:w-auto bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold px-6 py-2.5 rounded-lg transition-colors"
+          >
+            Open Connector Settings
           </button>
         </div>
       </div>
+    );
+  }
 
-      {/* ── Update Available banner ── */}
-      {updateAvailable && (
-        <div className="mx-5 mt-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-start gap-3">
-          <Zap className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-[13px] text-amber-800">Neue Connector-Version verfügbar</p>
-            <p className="text-[12px] text-amber-700 mt-0.5">
-              Installiert: <strong>v{installedVer}</strong> &rarr; Aktuell: <strong>v{latestVer}</strong>
-            </p>
-            {release?.changelog && (
-              <p className="text-[11px] text-amber-600 mt-1 italic">{release.changelog}</p>
-            )}
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={handleDownload}
-              disabled={downloading}
-              className="bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white text-[12px] font-bold px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5"
-            >
-              {downloading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
-              Update Now
-            </button>
-            <button
-              onClick={handleDismissUpdate}
-              className="text-amber-700 text-[12px] hover:underline px-1"
-            >
-              Später
-            </button>
-          </div>
+  if (verifyMsg === "fail") {
+    return (
+      <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-8 text-center">
+        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <AlertTriangle className="w-8 h-8 text-red-600" />
         </div>
-      )}
+        <h2 className="text-xl font-bold text-slate-900 mb-2">Connector installed, but connection could not be verified.</h2>
+        <p className="text-sm text-slate-600 mb-8">
+          The connector might still be starting, or a firewall is blocking the connection.
+        </p>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          <button
+            onClick={() => startVerifyPolling(latestVer)}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-lg transition-colors shadow-sm"
+          >
+            Try Again
+          </button>
+          <button
+            onClick={handleDownload}
+            className="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold px-6 py-2.5 rounded-lg transition-colors"
+          >
+            Re-download Connector
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-      {/* ── Up to date banner ── */}
-      {!updateAvailable && latestVer && installedVer && compareVersions(installedVer, latestVer) >= 0 && (
-        <div className="mx-5 mt-4 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2.5 flex items-center gap-2 text-[12px] text-emerald-700">
-          <CheckCircle className="w-4 h-4 shrink-0" />
-          <span>Connector ist auf dem neuesten Stand <strong>(v{installedVer})</strong></span>
-        </div>
-      )}
+  // ── Main UI ──
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+      <div className="p-6">
+        <h2 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+          <Scan className="w-5 h-5 text-slate-500" />
+          Scanner Connector
+        </h2>
 
-      {/* ── Verify result toast ── */}
-      {verifyMsg === "verifying" && (
-        <div className="mx-5 mt-4 bg-blue-50/80 border border-blue-200/80 rounded-xl px-4 py-3 flex items-center gap-3 text-[13px] text-blue-800 shadow-sm animate-pulse">
-          <Loader2 className="w-4 h-4 animate-spin text-blue-600 shrink-0" />
-          <div className="flex-1">
-            <p className="font-semibold">Installation wird verifiziert…</p>
-            <p className="text-[11px] text-blue-600">Warte auf automatischen Connector-Neustart (Port 48281)</p>
-          </div>
-        </div>
-      )}
-      {verifyMsg === "success" && (
-        <div className="mx-5 mt-4 bg-linear-to-r from-emerald-50 to-teal-50/60 border border-emerald-300/80 rounded-xl px-4 py-3 flex items-center justify-between gap-3 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">
-              ✓
-            </div>
-            <div>
-              <p className="font-bold text-[13px] text-emerald-900">Connector erfolgreich installiert &amp; verbunden!</p>
-              <p className="text-[11px] text-emerald-700">Version <strong>v{connStatus.version}</strong> ist ab sofort im Hintergrund aktiv.</p>
+        <div className="space-y-4 mb-8">
+          <div className="flex items-center gap-3 text-sm">
+            <span className="w-24 text-slate-500 font-medium shrink-0">Status:</span>
+            <div className="flex items-center gap-1.5 font-semibold text-slate-800">
+              <span className={`w-2.5 h-2.5 rounded-full ${isOffline ? "bg-slate-400" : "bg-emerald-500"}`} />
+              {isOffline ? "Offline" : "Connected"}
             </div>
           </div>
+          
+          <div className="flex items-center gap-3 text-sm">
+            <span className="w-24 text-slate-500 font-medium shrink-0">Version:</span>
+            <span className="font-semibold text-slate-800">
+              {connStatus.version ? `${connStatus.version}` : "Not installed"}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3 text-sm">
+            <span className="w-24 text-slate-500 font-medium shrink-0">Scanner:</span>
+            <span className="font-semibold text-slate-800">
+              {activeDevice ? (activeDevice.displayName || activeDevice.name) : (isOffline ? "—" : "Searching...")}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3 text-sm">
+            <span className="w-24 text-slate-500 font-medium shrink-0">ADF:</span>
+            <span className={`font-semibold ${hasAdf ? "text-emerald-600" : "text-slate-800"}`}>
+              {isOffline ? "—" : (hasAdf ? "Ready" : "Not Ready")}
+            </span>
+          </div>
+        </div>
+
+        {updateAvailable && (
+          <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-8">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h4 className="font-bold text-blue-900 mb-1">Update Available (v{latestVer})</h4>
+                <p className="text-sm text-blue-700">A new version of the Scanner Connector is available for download.</p>
+              </div>
+              <button
+                onClick={handleDownload}
+                disabled={downloading}
+                className="shrink-0 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-4 py-2 rounded-md transition-colors shadow-sm flex items-center gap-2"
+              >
+                {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                Update Connector
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-3 border-t border-slate-100 pt-6">
           <a
             href="/timesheets"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white text-[12px] font-bold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1.5 shrink-0"
+            className="flex-1 sm:flex-none text-center bg-slate-900 hover:bg-slate-800 text-white font-bold px-6 py-2.5 rounded-lg transition-colors shadow-sm flex items-center justify-center gap-2"
           >
-            <Scan className="w-3.5 h-3.5" />
-            Jetzt scannen
+            <Scan className="w-4 h-4" />
+            Scan Document
           </a>
-        </div>
-      )}
-      {verifyMsg === "fail" && (
-        <div className="mx-5 mt-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-center gap-3 text-[12px] text-red-700 shadow-sm">
-          <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
-          <div className="flex-1">
-            <p className="font-semibold text-red-900">Verbindung nicht hergestellt</p>
-            <p className="text-[11px] text-red-600">Der Connector wurde noch nicht gestartet. Bitte führen Sie die Installation erneut aus.</p>
-          </div>
-        </div>
-      )}
-
-      {/* ── Info rows ── */}
-      <div className="px-5 py-4 space-y-3">
-        <InfoRow
-          icon={<Cpu className="w-4 h-4" />}
-          label="Scanner"
-          value={
-            connStatus.status === "connected" ? (
-              activeDevice ? (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-semibold text-on-surface">
-                    {activeDevice.displayName || activeDevice.name}
-                  </span>
-                  {activeDevice.ip && activeDevice.ip !== "SIMULATOR" && (
-                    <span className="text-[11px] font-mono bg-surface-container-low border border-outline-variant px-1.5 py-0.5 rounded text-outline">
-                      {activeDevice.ip}
-                    </span>
-                  )}
-                  {activeDevice.backendInfo?.readyToScan || activeDevice.id === "SIMULATOR" ? (
-                    <span className="text-[11px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium">
-                      Backend: {activeDevice.backend || "WIA"}
-                    </span>
-                  ) : (
-                    <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-medium">
-                      Treiber erforderlich
-                    </span>
-                  )}
-                </div>
-              ) : (
-                <span className="text-outline text-[12px]">Wird gesucht...</span>
-              )
-            ) : (
-              <span className="text-outline text-[12px]">—</span>
-            )
-          }
-        />
-
-        <InfoRow
-          icon={<Zap className="w-4 h-4" />}
-          label="ADF Einzug"
-          value={
-            hasAdf ? (
-              <div className="flex items-center gap-2">
-                <span className="text-emerald-600 flex items-center gap-1 font-medium">
-                  <CheckCircle className="w-3.5 h-3.5" />
-                  Verfügbar (Dauereinzug aktiv)
-                </span>
-                {adfStatus === "Loaded" && (
-                  <span className="text-[11px] bg-emerald-50 border border-emerald-200 text-emerald-700 px-2 py-0.5 rounded-full font-medium">
-                    Papier im Fach erkannt
-                  </span>
-                )}
-                {adfStatus === "Empty" && (
-                  <span className="text-[11px] bg-amber-50 border border-amber-200 text-amber-700 px-2 py-0.5 rounded-full font-medium">
-                    Fach leer (Papier einlegen)
-                  </span>
-                )}
-              </div>
-            ) : (
-              <span className="text-slate-500 text-[12px]">
-                {activeDevice?.backendInfo?.readyToScan === false ? "Backend nicht initialisiert" : "Nur Flachbettglas"}
-              </span>
-            )
-          }
-        />
-
-        <InfoRow
-          icon={<Info className="w-4 h-4" />}
-          label="Version installiert"
-          value={
-            connStatus.version ? (
-              <span>v{connStatus.version}</span>
-            ) : (
-              <span className="text-outline text-[12px]">Nicht installiert</span>
-            )
-          }
-        />
-
-        <InfoRow
-          icon={<ChevronRight className="w-4 h-4" />}
-          label="Neueste Version"
-          value={
-            latestVer ? (
-              <span>v{latestVer}</span>
-            ) : (
-              <span className="text-outline text-[12px]">Lädt…</span>
-            )
-          }
-        />
-
-        <InfoRow
-          icon={<Clock className="w-4 h-4" />}
-          label="Zuletzt verbunden"
-          value={
-            connStatus.status === "connected"
-              ? "Gerade eben"
-              : lastSeen
-              ? formatRelative(lastSeen.ts)
-              : <span className="text-outline text-[12px]">Noch nie</span>
-          }
-        />
-      </div>
-
-      {/* ── Divider ── */}
-      <div className="border-t border-outline-variant mx-5" />
-
-      {/* ── Actions ── */}
-      <div className="px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
           <button
             onClick={handleDownload}
             disabled={downloading}
-            className="bg-secondary hover:bg-secondary/90 disabled:opacity-60 text-white font-bold px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 text-[13px] cursor-pointer"
+            className="flex-1 sm:flex-none bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold px-6 py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
           >
-            {downloading
-              ? <Loader2 className="w-4 h-4 animate-spin" />
-              : <Download className="w-4 h-4" />}
-            {isOffline ? "Connector herunterladen" : "Neu herunterladen"}
-          </button>
-
-          <button
-            onClick={refresh}
-            disabled={isRefreshing}
-            className="border border-outline-variant hover:bg-surface-container-low text-on-surface font-semibold px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 text-[13px] cursor-pointer"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
-            Geräte neu suchen
+            {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            Re-download Connector
           </button>
         </div>
-
-        {activeDevice && (
-          <div className="text-[12px] text-outline flex items-center gap-1.5">
-            <Printer className="w-4 h-4 text-emerald-600" />
-            <span>
-              <strong>{deviceList.length}</strong> Gerät(e) im Netzwerk bereit
-            </span>
-          </div>
-        )}
       </div>
-
-      {isOffline && (
-        <div className="mx-5 mb-4 flex items-start gap-1.5 text-[12px] text-outline bg-surface-container-low p-2.5 rounded border border-outline-variant">
-          <Info className="w-3.5 h-3.5 shrink-0 text-secondary mt-0.5" />
-          <span>
-            Connector ist offline. Führen Sie den Installer auf diesem PC aus und laden Sie die Seite neu.
-          </span>
-        </div>
-      )}
     </div>
   );
 }
