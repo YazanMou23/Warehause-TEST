@@ -13,16 +13,19 @@ export interface ConnectorStatusResult {
 }
 
 export interface DeviceCapabilities {
-  printing: boolean;
-  scanning: boolean;
-  adf: boolean;
-  duplex: boolean;
-  flatbed: boolean;
-  color: boolean;
-  grayscale: boolean;
-  supportedDpi: number[];
-  supportedPaperSizes: string[];
-  documentFormats: string[];
+  printing?: boolean;
+  scanning?: boolean;
+  adf?: boolean;
+  duplex?: boolean;
+  flatbed?: boolean;
+  color?: boolean;
+  grayscale?: boolean;
+  supportedDpi?: number[];
+  defaultDpi?: number;
+  supportedFormats?: string[];
+  supportedPaperSizes?: string[];
+  documentFormats?: string[];
+  maxMediaDimensions?: any;
 }
 
 export type ScannerBackendType = 'ESCL' | 'WIA' | 'BJNP' | 'WSD' | 'SIMULATOR' | 'NONE';
