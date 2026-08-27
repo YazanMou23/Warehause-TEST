@@ -1434,14 +1434,12 @@ function resolveScanSource(options = {}, capabilities = {}, liveStatus = {}, dev
   const wantDuplex = Boolean(options.duplex || options.isDuplex || rawSource.includes('duplex'));
   
   const devName = String(deviceMeta?.displayName || deviceMeta?.devName || deviceMeta?.name || options.deviceName || '').trim();
-  const isBrotherMfc = /mfc|l2860|brother/i.test(devName);
   
   const hasAdf = Boolean(
     capabilities?.adf || 
     capabilities?.hasAdf || 
     deviceMeta?.hasAdf || 
-    (isBrotherMfc && capabilities?.adf !== false) ||
-    /adf|feeder|mfc|pro|mfp/i.test(devName)
+    /adf|feeder/i.test(devName)
   );
   
   const hasDuplex = Boolean(capabilities?.duplex || capabilities?.hasDuplex || deviceMeta?.hasDuplex || /duplex|dn|dw|dwe/i.test(devName));
@@ -1584,7 +1582,7 @@ async function triggerWiaScan(options = {}, onProgress = null, jobTracker = null
       $docCap    = [int](Get-WiaProp $dev.Properties 3086 0)
       $docStatus = [int](Get-WiaProp $dev.Properties 3087 0)
       
-      $hasAdfHardware = (($docCap -band 1) -ne 0) -or ($selectedDevName -match 'MFC|ADF|Feeder|L2860|MFP|Pro')
+      $hasAdfHardware = (($docCap -band 1) -ne 0) -or ($selectedDevName -match 'ADF|Feeder')
       $hasDuplexHardware = (($docCap -band 4) -ne 0) -or ($selectedDevName -match 'Duplex|DN|DW|DWE')
 
       # Check child item tree for Feeder vs Flatbed items (WIA 2.0 item tree)
