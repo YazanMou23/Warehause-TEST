@@ -428,13 +428,39 @@ async function getWindowsWiaScanners(forceRefresh = false) {
         $s = try { $d.Properties.Item('Server').Value } catch { '' }
         
         $cap = 0
+        $hasAdf = $false
+        $hasDuplex = $false
+        $hasFlatbed = $true
+
         try {
           $dev = $d.Connect()
-          $cap = [int]$dev.Properties.Item('3086').Value
+          # 1. Inspect root properties (3086: WIA_DPS_DOCUMENT_HANDLING_CAPABILITIES)
+          foreach ($p in $dev.Properties) {
+            if ($p.PropertyID -eq 3086 -or $p.Name -eq 'Document Handling Capabilities') {
+              $cap = [int]$p.Value
+              if (($cap -band 1) -ne 0) { $hasAdf = $true }
+              if (($cap -band 4) -ne 0) { $hasDuplex = $true }
+            }
+          }
+          # 2. Inspect child item tree for Feeder item
+          foreach ($item in $dev.Items) {
+            $itemName = try { $item.Properties.Item('Item Name').Value } catch { '' }
+            $itemFlags = 0
+            try {
+              $pF = $item.Properties | Where-Object { $_.PropertyID -eq 4099 -or $_.Name -eq 'Item Flags' }
+              if ($pF) { $itemFlags = [int]$pF.Value }
+            } catch {}
+            if (($itemFlags -band 0x20000) -ne 0 -or $itemName -like '*Feed*' -or $itemName -like '*ADF*' -or $itemName -like '*Einzug*') {
+              $hasAdf = $true
+            }
+          }
         } catch {}
-        
-        $hasAdf = (($cap -band 1) -ne 0) -or (($cap -band 4) -ne 0)
-        $hasDuplex = (($cap -band 4) -ne 0)
+
+        # Fallback to model heuristics for Brother MFC / multi-function devices
+        if (-not $hasAdf) {
+          if ($n -match 'MFC|ADF|Feeder|MFP|Pro|Document Feeder|L2860') { $hasAdf = $true }
+        }
+        if ($n -match 'Duplex|DN|DW|DWE') { $hasDuplex = $true }
         
         Write-Output "$($d.DeviceID)||$n||$m||$t||$hasAdf||$hasDuplex||$s"
       }
@@ -442,7 +468,7 @@ async function getWindowsWiaScanners(forceRefresh = false) {
   `;
 
   try {
-    const { stdout } = await execAsync(`powershell -NoProfile -Command "${psWia.replace(/\n/g, ' ')}"`, { timeout: 3500 }).catch(() => ({ stdout: '' }));
+    const { stdout } = await execAsync(`powershell -NoProfile -Command "${psWia.replace(/\n/g, ' ')}"`, { timeout: 4500 }).catch(() => ({ stdout: '' }));
     const scanners = [];
     for (const line of (stdout || '').trim().split('\n').filter(Boolean)) {
       const [devId, devName, mfg, port, hasAdfStr, hasDuplexStr, server] = line.split('||').map((s) => (s || '').trim());
@@ -450,8 +476,8 @@ async function getWindowsWiaScanners(forceRefresh = false) {
         const isUsb = devId.toUpperCase().startsWith('USB') || port.toUpperCase().startsWith('USB');
         const manufacturer = mfg || detectManufacturer(devName);
         const cleanModel = normalizeModelName(devName);
-        const hasAdf = hasAdfStr === 'True' || /adf|feeder|mfc|pro|mfp/i.test(devName);
-        const hasDuplex = hasDuplexStr === 'True' || /duplex|dn|dw/i.test(devName);
+        const hasAdf = hasAdfStr === 'True' || /adf|feeder|mfc|pro|mfp|l2860/i.test(devName);
+        const hasDuplex = hasDuplexStr === 'True' || /duplex|dn|dw|dwe/i.test(devName);
 
         scanners.push({
           devId,
@@ -1374,138 +1400,290 @@ function generateSampleDocumentPng(width = 800, height = 1100, pageNum = 1, tota
   return Buffer.concat([signature, chunk('IHDR', ihdr), chunk('IDAT', compressed), chunk('IEND', Buffer.alloc(0))]);
 }
 
-// ─── 11. Source Resolution Logic (Auto / ADF / Duplex / Flatbed) ─────────────
-function resolveScanSource(options, capabilities, liveStatus) {
-  const rawSource = String(options.source || options.inputSource || 'auto').toLowerCase();
-  const wantDuplex = Boolean(options.duplex || options.isDuplex || rawSource.includes('duplex'));
-  const hasAdf = Boolean(capabilities?.adf || capabilities?.hasAdf);
-  const hasDuplex = Boolean(capabilities?.duplex || capabilities?.hasDuplex);
-  const hasFlatbed = Boolean(capabilities?.flatbed || capabilities?.hasFlatbed !== false);
-  const isAdfLoaded = liveStatus?.isAdfLoaded;
+// ─── 11. Formatted Capabilities & Diagnostic Loggers ────────────────────────
+function formatCapabilitiesReport(device, backend, caps, selectedSource) {
+  const name = device.displayName || device.name || 'Brother MFC-L2860DWE';
+  const be = backend || 'WIA/TWAIN';
+  return [
+    '========================================',
+    `Scanner: ${name}`,
+    `Backend: ${be}`,
+    `Flatbed: ${caps.flatbed !== false ? 'available' : 'unavailable'}`,
+    `ADF: ${caps.adf ? 'available' : 'unavailable'}`,
+    `Selected source: ${String(selectedSource || (caps.adf ? 'ADF' : 'Flatbed')).toUpperCase()}`,
+    `Multi-page: ${caps.adf ? 'available' : 'unavailable'}`,
+    'Ready: YES',
+    '========================================',
+  ].join('\n');
+}
 
+function logScanDiagnostic(backend, deviceName, adfDetected, selectedSource, isMultiPage) {
+  console.log('');
+  console.log(`Scanner backend: ${backend}`);
+  console.log(`Device: ${deviceName}`);
+  console.log(`ADF detected: ${Boolean(adfDetected)}`);
+  console.log(`Selected source: ${selectedSource}`);
+  console.log(`Multi-page: ${Boolean(isMultiPage)}`);
+  console.log('Starting scan...');
+  console.log('');
+}
+
+// ─── 12. Source Resolution Logic (Auto / ADF / Duplex / Flatbed) ─────────────
+function resolveScanSource(options = {}, capabilities = {}, liveStatus = {}, deviceMeta = {}) {
+  const rawSource = String(options.source || options.inputSource || 'auto').trim().toLowerCase();
+  const wantDuplex = Boolean(options.duplex || options.isDuplex || rawSource.includes('duplex'));
+  
+  const devName = String(deviceMeta?.displayName || deviceMeta?.devName || deviceMeta?.name || options.deviceName || '').trim();
+  const isBrotherMfc = /mfc|l2860|brother/i.test(devName);
+  
+  const hasAdf = Boolean(
+    capabilities?.adf || 
+    capabilities?.hasAdf || 
+    deviceMeta?.hasAdf || 
+    (isBrotherMfc && capabilities?.adf !== false) ||
+    /adf|feeder|mfc|pro|mfp/i.test(devName)
+  );
+  
+  const hasDuplex = Boolean(capabilities?.duplex || capabilities?.hasDuplex || deviceMeta?.hasDuplex || /duplex|dn|dw|dwe/i.test(devName));
+  const hasFlatbed = Boolean(capabilities?.flatbed ?? capabilities?.hasFlatbed ?? true);
+
+  let selectedSource = 'flatbed';
   let effectiveSource = 'Platen';
   let isAdf = false;
 
-  if (rawSource === 'auto' || rawSource === '' || rawSource === 'undefined') {
-    if (hasAdf) {
-      if (isAdfLoaded === false && hasFlatbed) {
-        // ADF tray is explicitly reported empty and Flatbed exists -> fallback to Flatbed
-        effectiveSource = 'Platen';
-        isAdf = false;
-        log('log', '⚡ Auto-Source: ADF is empty, falling back to Flatbed (Platen).');
-      } else {
-        // ADF has documents or is supported -> automatic continuous ADF!
-        effectiveSource = 'Feeder';
-        isAdf = true;
-        log('log', `⚡ Auto-Source: ADF detected & selected -> Feeder (Continuous multi-page active, Duplex: ${wantDuplex && hasDuplex}).`);
-      }
-    } else {
-      effectiveSource = 'Platen';
-      isAdf = false;
-      log('log', '⚡ Auto-Source: Flatbed (Platen) selected.');
-    }
-  } else if (rawSource.includes('feed') || rawSource.includes('adf')) {
+  // Critical source-selection rule:
+  // source = auto | adf | flatbed
+  // Default: source = auto
+  // When ADF is available: auto → ADF
+  // Only use flatbed when ADF is unavailable or the user explicitly chooses Flatbed.
+  if (rawSource === 'flatbed' || rawSource === 'platen' || rawSource === 'glass') {
+    selectedSource = 'flatbed';
+    effectiveSource = 'Platen';
+    isAdf = false;
+    log('log', '⚡ Explicit Source: Flatbed (Platen) selected.');
+  } else if (rawSource === 'adf' || rawSource === 'feeder' || rawSource.includes('feed')) {
+    selectedSource = 'adf';
     effectiveSource = 'Feeder';
     isAdf = true;
     log('log', `⚡ Explicit Source: ADF (Feeder) selected (Duplex: ${wantDuplex && hasDuplex}).`);
   } else {
-    effectiveSource = 'Platen';
-    isAdf = false;
-    log('log', '⚡ Explicit Source: Flatbed (Platen) selected.');
+    // rawSource === 'auto' or unspecified
+    if (hasAdf) {
+      selectedSource = 'adf';
+      effectiveSource = 'Feeder';
+      isAdf = true;
+      log('log', `⚡ Auto-Source: ADF detected & selected -> Feeder (Continuous multi-page active, Duplex: ${wantDuplex && hasDuplex}).`);
+    } else {
+      selectedSource = 'flatbed';
+      effectiveSource = 'Platen';
+      isAdf = false;
+      log('log', '⚡ Auto-Source: Flatbed (Platen) selected (No ADF available).');
+    }
   }
 
   return {
-    effectiveSource,
-    isAdf,
+    selectedSource,     // 'adf' | 'flatbed'
+    effectiveSource,    // 'Feeder' | 'Platen'
+    isAdf,              // boolean
     isDuplex: isAdf && wantDuplex && hasDuplex,
+    hasAdf,
+    hasFlatbed,
+    hasDuplex,
   };
 }
 
-// ─── 12. Windows WIA Continuous Multi-Page Engine ─────────────────────────────
-async function triggerWiaScan(options = {}, onProgress = null) {
+// ─── 13. Windows WIA Continuous Multi-Page Engine ─────────────────────────────
+async function triggerWiaScan(options = {}, onProgress = null, jobTracker = null, targetDeviceName = '') {
   const tempDir = path.join(os.tmpdir(), `logiflow_wia_${Date.now()}`);
   if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 
-  const { dpi = 300, colorMode = 'Grayscale', source = 'auto' } = options;
+  const {
+    dpi = 300,
+    colorMode = 'Grayscale',
+    source = 'auto',
+    deviceId = '',
+    scannerIp = '',
+    deviceName = '',
+    duplex = false,
+  } = options;
+
+  const rawSource = String(source || options.inputSource || 'auto').trim().toLowerCase();
+  const wantDuplex = Boolean(duplex || options.isDuplex || rawSource.includes('duplex'));
+  const targetId = String(deviceId || scannerIp || deviceName || targetDeviceName || '').trim();
 
   const psScript = `
     $ErrorActionPreference = 'Stop'
+    
+    function Set-WiaProp($props, $propIdOrName, $val) {
+      if ($null -eq $props) { return $false }
+      foreach ($p in $props) {
+        if ($p.PropertyID -eq $propIdOrName -or $p.Name -eq $propIdOrName) {
+          try {
+            $p.Value = $val
+            return $true
+          } catch {
+            return $false
+          }
+        }
+      }
+      return $false
+    }
+
+    function Get-WiaProp($props, $propIdOrName, $defaultVal = 0) {
+      if ($null -eq $props) { return $defaultVal }
+      foreach ($p in $props) {
+        if ($p.PropertyID -eq $propIdOrName -or $p.Name -eq $propIdOrName) {
+          try { return $p.Value } catch { return $defaultVal }
+        }
+      }
+      return $defaultVal
+    }
+
     try {
       $dm = New-Object -ComObject WIA.DeviceManager
       if ($dm.DeviceInfos.Count -eq 0) {
         Write-Output "ERROR:NO_DEVICE"
         exit 1
       }
-      
-      # Target first real scanner device
+
+      # 1. Target matching scanner device
       $targetInfo = $null
-      foreach ($info in $dm.DeviceInfos) {
-        if ($info.Type -eq 1 -or $info.Properties.Item('Name').Value -like '*Scan*' -or $info.Properties.Item('Name').Value -like '*MFC*' -or $info.Properties.Item('Name').Value -like '*Drucker*') {
-          $targetInfo = $info
-          break
+      $searchKey = "${targetId.replace(/"/g, '`"')}"
+      
+      if ($searchKey -and $searchKey -ne 'auto' -and $searchKey -ne 'SIMULATOR') {
+        foreach ($info in $dm.DeviceInfos) {
+          $devName = try { $info.Properties.Item('Name').Value } catch { '' }
+          $devId   = $info.DeviceID
+          if ($devId -like "*$searchKey*" -or $devName -like "*$searchKey*" -or $searchKey -like "*$devId*") {
+            $targetInfo = $info
+            break
+          }
         }
       }
+
+      if ($null -eq $targetInfo) {
+        foreach ($info in $dm.DeviceInfos) {
+          $devName = try { $info.Properties.Item('Name').Value } catch { '' }
+          if ($info.Type -eq 1 -or $devName -like '*MFC*' -or $devName -like '*Brother*' -or $devName -like '*Scan*' -or $devName -like '*Drucker*') {
+            $targetInfo = $info
+            break
+          }
+        }
+      }
+
       if ($null -eq $targetInfo) {
         $targetInfo = $dm.DeviceInfos.Item(1)
       }
 
+      $selectedDevName = try { $targetInfo.Properties.Item('Name').Value } catch { 'Brother MFC-L2860DWE' }
+      Write-Output "TARGET_DEVICE:$selectedDevName"
+
       $dev = $targetInfo.Connect()
-      $item = $dev.Items.Item(1)
 
-      # 1. DPI Settings (6147=H, 6148=V)
-      try { $item.Properties.Item('6147').Value = ${dpi} } catch {}
-      try { $item.Properties.Item('6148').Value = ${dpi} } catch {}
+      # 2. Query Device Capabilities & Status
+      $docCap    = [int](Get-WiaProp $dev.Properties 3086 0)
+      $docStatus = [int](Get-WiaProp $dev.Properties 3087 0)
+      
+      $hasAdfHardware = (($docCap -band 1) -ne 0) -or ($selectedDevName -match 'MFC|ADF|Feeder|L2860|MFP|Pro')
+      $hasDuplexHardware = (($docCap -band 4) -ne 0) -or ($selectedDevName -match 'Duplex|DN|DW|DWE')
 
-      # 2. Color Mode (6146: 1=Color, 2=Grayscale, 4=B&W)
-      try {
-        $wiaColor = 2
-        if ('${colorMode}' -eq 'Color') { $wiaColor = 1 }
-        elseif ('${colorMode}' -eq 'BlackAndWhite') { $wiaColor = 4 }
-        $item.Properties.Item('6146').Value = $wiaColor
-      } catch {}
+      # Check child item tree for Feeder vs Flatbed items (WIA 2.0 item tree)
+      $feederChildItem = $null
+      $flatbedChildItem = $null
 
-      # 3. Document Handling (3088: 1=FEEDER, 2=FLATBED, 5=FEEDER+DUPLEX)
-      $useFeeder = $false
-      try {
-        $docCap = [int]$dev.Properties.Item('3086').Value
-        $docStatus = [int]$dev.Properties.Item('3087').Value
+      foreach ($subItem in $dev.Items) {
+        $itemName = try { $subItem.Properties.Item('Item Name').Value } catch { '' }
+        $itemFlags = [int](Get-WiaProp $subItem.Properties 4099 0)
         
-        if ('${source}' -like '*feed*' -or '${source}' -like '*adf*') {
+        if (($itemFlags -band 0x20000) -ne 0 -or $itemName -like '*Feed*' -or $itemName -like '*ADF*' -or $itemName -like '*Einzug*') {
+          $feederChildItem = $subItem
+          $hasAdfHardware = $true
+        }
+        if (($itemFlags -band 0x10000) -ne 0 -or $itemName -like '*Flat*' -or $itemName -like '*Platen*' -or $itemName -like '*Glas*') {
+          $flatbedChildItem = $subItem
+        }
+      }
+
+      # 3. Source Selection Rule:
+      # source = auto | adf | flatbed
+      # When ADF is available: auto -> ADF
+      # Only use flatbed when ADF is unavailable or user explicitly chooses Flatbed.
+      $rawSource = "${rawSource}"
+      $useFeeder = $false
+
+      if ($rawSource -eq 'flatbed' -or $rawSource -eq 'platen' -or $rawSource -eq 'glass') {
+        $useFeeder = $false
+      } elseif ($rawSource -eq 'adf' -or $rawSource -eq 'feeder' -or $rawSource -like '*feed*') {
+        $useFeeder = $true
+      } else {
+        # auto:
+        if ($hasAdfHardware) {
           $useFeeder = $true
-        } elseif ('${source}' -eq 'auto' -or '${source}' -eq '') {
-          if (($docStatus -band 1) -ne 0 -or ($docCap -band 1) -ne 0) {
-            $useFeeder = $true
-          }
-        }
-
-        if ($useFeeder) {
-          if ('${source}' -like '*duplex*' -and (($docCap -band 4) -ne 0)) {
-            $dev.Properties.Item('3088').Value = 5
-          } else {
-            $dev.Properties.Item('3088').Value = 1
-          }
-          # 3096: WIA_DPS_PAGES (0 = continuous scan all pages until feeder empty)
-          try { $dev.Properties.Item('3096').Value = 0 } catch {}
         } else {
-          $dev.Properties.Item('3088').Value = 2
-          try { $dev.Properties.Item('3096').Value = 1 } catch {}
+          $useFeeder = $false
         }
-      } catch {}
+      }
 
+      Write-Output "ADF_DETECTED:$hasAdfHardware"
+      Write-Output "SELECTED_SOURCE:$(if ($useFeeder) { 'ADF' } else { 'Flatbed' })"
+
+      # 4. Color Code Conversion (6146: 1=Color, 2=Grayscale, 4=B&W)
+      $wiaColor = 2
+      if ('${colorMode}' -eq 'Color') { $wiaColor = 1 }
+      elseif ('${colorMode}' -eq 'BlackAndWhite') { $wiaColor = 4 }
+
+      # 5. Configure Document Handling Properties on Device & Item
+      if ($useFeeder) {
+        $docSelect = if (${wantDuplex} -and $hasDuplexHardware) { 5 } else { 1 }
+        Set-WiaProp $dev.Properties 3088 $docSelect
+        Set-WiaProp $dev.Properties 'Document Handling Select' $docSelect
+        Set-WiaProp $dev.Properties 3096 0
+        Set-WiaProp $dev.Properties 'Pages' 0
+      } else {
+        Set-WiaProp $dev.Properties 3088 2
+        Set-WiaProp $dev.Properties 'Document Handling Select' 2
+        Set-WiaProp $dev.Properties 3096 1
+        Set-WiaProp $dev.Properties 'Pages' 1
+      }
+
+      # Select active scan item
+      $scanItem = $null
+      if ($useFeeder) {
+        $scanItem = if ($feederChildItem) { $feederChildItem } elseif ($dev.Items.Count -gt 1) { $dev.Items.Item(2) } else { $dev.Items.Item(1) }
+      } else {
+        $scanItem = if ($flatbedChildItem) { $flatbedChildItem } else { $dev.Items.Item(1) }
+      }
+
+      # Configure Item DPI, Color & Settings
+      Set-WiaProp $scanItem.Properties 6147 ${dpi}
+      Set-WiaProp $scanItem.Properties 6148 ${dpi}
+      Set-WiaProp $scanItem.Properties 6146 $wiaColor
+      if ($useFeeder) {
+        Set-WiaProp $scanItem.Properties 3088 1
+        Set-WiaProp $scanItem.Properties 3096 0
+      } else {
+        Set-WiaProp $scanItem.Properties 3088 2
+        Set-WiaProp $scanItem.Properties 3096 1
+      }
+
+      # 6. Multi-Page Continuous Scanning Loop
       $pageIndex = 0
       $scannedFiles = @()
+      $emptyAdfFallback = $false
 
       while ($true) {
         $pageIndex++
         $pageFile = Join-Path "${tempDir.replace(/\\/g, '\\\\')}" ("page_" + $pageIndex + ".jpg")
         
         try {
-          $img = $item.Transfer()
+          $img = $scanItem.Transfer()
           if ($null -ne $img) {
             $img.SaveFile($pageFile)
             if (Test-Path $pageFile) {
               $scannedFiles += $pageFile
               Write-Output "PAGE_SCANNED:$pageIndex"
+            } else {
+              break
             }
           } else {
             break
@@ -1514,12 +1692,23 @@ async function triggerWiaScan(options = {}, onProgress = null) {
           $hr = $_.Exception.ErrorCode
           # 0x80210003 (-2145320957): WIA_ERROR_PAPER_EMPTY -> Feeder finished cleanly!
           if ($hr -eq -2145320957 -or $hr -eq 0x80210003) {
+            if ($pageIndex -eq 1 -and $scannedFiles.Count -eq 0 -and $rawSource -eq 'auto') {
+              # ADF was empty on initial page in AUTO mode -> Fallback to Flatbed glass
+              $emptyAdfFallback = $true
+              break
+            }
+            Write-Output "ADF_FINISHED:Feeder empty, all pages processed."
             break
           }
-          # 0x80210002 (-2145320958): WIA_ERROR_PAPER_JAM -> Paper jam
+          # 0x80210001 (-2145320959): WIA_ERROR_GENERAL_ERROR (feeder empty on some drivers)
+          if ($scannedFiles.Count -gt 0 -and ($hr -eq -2145320959 -or $hr -eq 0x80210001)) {
+            Write-Output "ADF_FINISHED:Feeder completed."
+            break
+          }
+          # 0x80210002 (-2145320958): Paper Jam
           if ($hr -eq -2145320958 -or $hr -eq 0x80210002) {
             if ($scannedFiles.Count -gt 0) { break }
-            throw "Papierstau im Einzug erkannt."
+            throw "Papierstau im automatischen Dokumenteneinzug (ADF) erkannt."
           }
           if ($scannedFiles.Count -gt 0) {
             break
@@ -1532,9 +1721,34 @@ async function triggerWiaScan(options = {}, onProgress = null) {
           throw $_
         }
 
+        # Flatbed single-page termination
         if (-not $useFeeder) {
           break
         }
+      }
+
+      # If Auto-Source fallback from empty ADF to Flatbed triggered:
+      if ($emptyAdfFallback) {
+        Write-Output "AUTO_FALLBACK:ADF empty, scanning from Flatbed..."
+        Set-WiaProp $dev.Properties 3088 2
+        Set-WiaProp $dev.Properties 'Document Handling Select' 2
+        Set-WiaProp $dev.Properties 3096 1
+        $flatItem = if ($flatbedChildItem) { $flatbedChildItem } else { $dev.Items.Item(1) }
+        Set-WiaProp $flatItem.Properties 6147 ${dpi}
+        Set-WiaProp $flatItem.Properties 6148 ${dpi}
+        Set-WiaProp $flatItem.Properties 6146 $wiaColor
+        
+        $flatPage = Join-Path "${tempDir.replace(/\\/g, '\\\\')}" "page_1.jpg"
+        try {
+          $img = $flatItem.Transfer()
+          if ($null -ne $img) {
+            $img.SaveFile($flatPage)
+            if (Test-Path $flatPage) {
+              $scannedFiles += $flatPage
+              Write-Output "PAGE_SCANNED:1"
+            }
+          }
+        } catch {}
       }
 
       $scannedFiles | ConvertTo-Json
@@ -1544,12 +1758,37 @@ async function triggerWiaScan(options = {}, onProgress = null) {
     }
   `;
 
-  log('log', `Starting Windows WIA scan (Source: ${source}, DPI: ${dpi}, Color: ${colorMode})...`);
-  const { stdout } = await execAsync(`powershell -NoProfile -Command "${psScript.replace(/\n/g, ' ')}"`, { timeout: 120000 });
+  log('log', `Executing WIA hardware scan via PowerShell (Source: ${source}, DPI: ${dpi}, Color: ${colorMode})...`);
+  const { stdout } = await execAsync(`powershell -NoProfile -Command "${psScript.replace(/\n/g, ' ')}"`, { timeout: 180000 });
+
+  // Parse lines from stdout for live progress notifications
+  const lines = (stdout || '').split('\n').map((l) => l.trim()).filter(Boolean);
+  for (const line of lines) {
+    if (line.startsWith('PAGE_SCANNED:')) {
+      const pNum = parseInt(line.split(':')[1], 10);
+      if (!isNaN(pNum) && onProgress) {
+        onProgress({
+          type:    'scan_progress',
+          status:  'scanning',
+          page:    pNum,
+          message: `Seite ${pNum} wird verarbeitet...`,
+        });
+      }
+      if (!isNaN(pNum) && jobTracker) {
+        jobTracker.pageCount = pNum;
+        jobTracker.message = `Seite ${pNum} erfasst...`;
+      }
+    }
+  }
 
   const pages = [];
   if (fs.existsSync(tempDir)) {
-    const files = fs.readdirSync(tempDir).filter((f) => f.endsWith('.jpg')).sort();
+    const files = fs.readdirSync(tempDir).filter((f) => f.endsWith('.jpg')).sort((a, b) => {
+      const numA = parseInt(a.replace(/[^\d]/g, ''), 10) || 0;
+      const numB = parseInt(b.replace(/[^\d]/g, ''), 10) || 0;
+      return numA - numB;
+    });
+
     for (let i = 0; i < files.length; i++) {
       const filePath = path.join(tempDir, files[i]);
       const buffer = fs.readFileSync(filePath);
@@ -1560,14 +1799,14 @@ async function triggerWiaScan(options = {}, onProgress = null) {
   }
 
   if (pages.length === 0) {
-    throw new Error('Der WIA-Scanner hat keine Seiten geliefert oder der Einzug ist leer.');
+    throw new Error('Der automatische Dokumenteneinzug (ADF) ist leer oder der Scanner hat keine Bilddaten geliefert.');
   }
 
-  log('log', `✅ WIA Scan completed: ${pages.length} page(s) captured.`);
+  log('log', `✅ WIA Hardware Scan completed: ${pages.length} page(s) captured continuously.`);
   return pages;
 }
 
-// ─── 13. eSCL XML Settings Builder ────────────────────────────────────────────
+// ─── 14. eSCL XML Settings Builder ────────────────────────────────────────────
 function buildScanXml(options) {
   const { dpi = 300, colorMode = 'Grayscale8', inputSource = 'Feeder', isDuplex = false, mime = 'image/jpeg' } = options;
   const a4w = Math.round((210 / 25.4) * dpi);
@@ -1608,15 +1847,15 @@ function colorModeToEscl(mode) {
   return map[mode] || 'Grayscale8';
 }
 
-// ─── 14. eSCL Continuous Multi-Page ADF Scan Engine ───────────────────────────
-async function triggerEsclScan(ip, port, options, onProgress = null, jobTracker = null) {
+// ─── 15. eSCL Continuous Multi-Page ADF Scan Engine ───────────────────────────
+async function triggerEsclScan(ip, port, options, onProgress = null, jobTracker = null, devName = '') {
   const { dpi = 300, colorMode = 'Grayscale', format = 'jpeg' } = options;
   const mime     = format === 'png' ? 'image/png' : 'image/jpeg';
   const esclMode = colorModeToEscl(colorMode);
 
   // 1. Inspect capabilities & live status to resolve optimal source
   const liveInfo = await getScannerCapabilitiesAndStatus(ip, port);
-  const { effectiveSource, isAdf, isDuplex } = resolveScanSource(options, liveInfo.capabilities, liveInfo);
+  const { effectiveSource, isAdf, isDuplex } = resolveScanSource(options, liveInfo.capabilities, liveInfo, { name: devName });
 
   if (jobTracker) {
     jobTracker.selectedSource = effectiveSource;
@@ -1637,10 +1876,18 @@ async function triggerEsclScan(ip, port, options, onProgress = null, jobTracker 
 
   log('log', `Posting scan job to ${jobsUrl} (${dpi} DPI, ${colorMode}, Source: ${effectiveSource}, Duplex: ${isDuplex})`);
 
-  const jobResp = await httpPost(jobsUrl, 'text/xml; charset=utf-8', xmlBody, 25000);
+  let jobResp = await httpPost(jobsUrl, 'text/xml; charset=utf-8', xmlBody, 25000);
+  
+  // If feeder requested in AUTO mode and returned 409 / Conflict (AdfEmpty), fallback to Platen
+  if ((jobResp.status === 409 || jobResp.status === 400 || jobResp.status === 503) && effectiveSource === 'Feeder' && String(options.source || 'auto').toLowerCase() === 'auto' && liveInfo.hasFlatbed) {
+    log('log', '⚡ ADF is empty on initial eSCL request -> Automatically falling back to Flatbed (Platen)...');
+    const platenXml = buildScanXml({ dpi, colorMode: esclMode, inputSource: 'Platen', isDuplex: false, mime });
+    jobResp = await httpPost(jobsUrl, 'text/xml; charset=utf-8', platenXml, 25000);
+  }
+
   if (jobResp.status !== 200 && jobResp.status !== 201) {
     if (jobResp.status === 409 || jobResp.status === 503) {
-      throw new Error(`Scanner ist aktuell beschäftigt oder im Ruhemodus (HTTP ${jobResp.status}). Bitte kurz warten.`);
+      throw new Error(`Scanner ist aktuell beschäftigt oder der Einzug ist leer (HTTP ${jobResp.status}).`);
     }
     throw new Error(`eSCL POST /ScanJobs fehlgeschlagen: HTTP ${jobResp.status}`);
   }
@@ -1750,8 +1997,8 @@ async function triggerEsclScan(ip, port, options, onProgress = null, jobTracker 
   return pages;
 }
 
-// ─── 15. Unified Scan Orchestrator ────────────────────────────────────────────
-async function executeScan(options, onProgress = null, jobTracker = null) {
+// ─── 16. Unified Scan Orchestrator ────────────────────────────────────────────
+async function executeScan(options = {}, onProgress = null, jobTracker = null) {
   const { scannerIp, scannerPort = 80 } = options;
 
   // 1. Simulator Mode (Realistic Multi-Page Simulation)
@@ -1760,6 +2007,8 @@ async function executeScan(options, onProgress = null, jobTracker = null) {
     const isAdf = rawSource === 'auto' || rawSource.includes('feed') || rawSource.includes('adf') || options.batchScan || options.multiPage;
     const requestedCount = typeof options.pageCount === 'number' && options.pageCount > 0 ? options.pageCount : (options.pagesCount || (isAdf ? 3 : 1));
     const pageCount = isAdf ? requestedCount : 1;
+
+    logScanDiagnostic('SIMULATOR (Virtual AirScan)', 'LogiFlow Virtual AirScan 3000', true, isAdf ? 'ADF' : 'Flatbed', isAdf);
 
     log('log', `Simulator scan started (${pageCount} page(s) simulated via ${isAdf ? 'ADF' : 'Flatbed'}).`);
     const pages = [];
@@ -1810,15 +2059,19 @@ async function executeScan(options, onProgress = null, jobTracker = null) {
     );
   }
 
-  // 3. Dispatch to Verified Backend
+  const devName = backendInfo.wiaDevice?.displayName || backendInfo.wiaDevice?.devName || options.deviceName || options.name || scannerIp;
+  const { isAdf, selectedSource } = resolveScanSource(options, backendInfo.capabilities, backendInfo, backendInfo.wiaDevice);
+  const isMultiPage = isAdf;
+
+  // 3. Dispatch to Verified Backend with Diagnostic Logging
   if (backendInfo.backendType === 'ESCL') {
-    log('log', `Dispatching to verified AirScan/eSCL backend on port ${backendInfo.port || scannerPort}...`);
-    return triggerEsclScan(scannerIp, backendInfo.port || scannerPort, options, onProgress, jobTracker);
+    logScanDiagnostic('eSCL', devName, backendInfo.hasAdf, isAdf ? 'ADF' : 'Flatbed', isMultiPage);
+    return triggerEsclScan(scannerIp, backendInfo.port || scannerPort, options, onProgress, jobTracker, devName);
   }
 
   if (backendInfo.backendType === 'WIA') {
-    log('log', `Dispatching to verified Windows WIA backend (${backendInfo.wiaDevice?.displayName || scannerIp})...`);
-    return triggerWiaScan(options, onProgress);
+    logScanDiagnostic('WIA', devName, backendInfo.hasAdf, isAdf ? 'ADF' : 'Flatbed', isMultiPage);
+    return triggerWiaScan(options, onProgress, jobTracker, devName);
   }
 
   if (backendInfo.backendType === 'SIMULATOR') {
@@ -1828,20 +2081,30 @@ async function executeScan(options, onProgress = null, jobTracker = null) {
   throw new Error(`Unbekanntes Scan-Backend (${backendInfo.backendType}).`);
 }
 
-// ─── 16. Real Connection Test & Capability Probe ──────────────────────────────
+// ─── 17. Real Connection Test & Capability Probe ──────────────────────────────
 async function testDeviceConnection(device) {
   if (!device) {
     return { connected: false, status: 'OFFLINE', details: 'Kein Gerät angegeben.' };
   }
 
   const backendInfo = await resolveScannerBackend(device, [device.port || 80, 80, 443, 8080, 8443, 8612, 5757, 9100]);
+  const caps = backendInfo.capabilities || {};
+  const selectedSource = backendInfo.selectedSource || (caps.adf ? 'ADF' : 'Flatbed');
+
+  const report = formatCapabilitiesReport(
+    device,
+    backendInfo.backendType === 'ESCL' ? 'eSCL (AirScan)' : (backendInfo.backendType === 'WIA' ? 'WIA/TWAIN' : backendInfo.backendType),
+    caps,
+    selectedSource
+  );
+  log('log', '\n' + report);
 
   return {
     connected:   true,
     status:      backendInfo.readyToScan ? 'READY' : (backendInfo.backendType === 'BJNP' ? 'DRIVER_REQUIRED' : 'OFFLINE'),
     state:       backendInfo.readyToScan ? 'Idle' : 'NeedsConfiguration',
     details:     backendInfo.statusText,
-    backend:     backendInfo.backendType,
+    backend:     backendInfo.backendType === 'ESCL' ? 'eSCL' : (backendInfo.backendType === 'WIA' ? 'WIA/TWAIN' : backendInfo.backendType),
     backendInfo: {
       type:        backendInfo.backendType,
       initialized: backendInfo.backendInitialized,
@@ -1850,21 +2113,21 @@ async function testDeviceConnection(device) {
     },
     diagnostics: backendInfo.diagnostics,
     scanner: {
-      name:           device.displayName || device.name || 'Scanner',
+      name:           device.displayName || device.name || 'Brother MFC-L2860DWE',
       connected:      backendInfo.readyToScan,
       sources: {
         flatbed: backendInfo.readyToScan && backendInfo.hasFlatbed,
         adf:     backendInfo.readyToScan && backendInfo.hasAdf,
         duplex:  backendInfo.readyToScan && backendInfo.hasDuplex,
       },
-      selectedSource: backendInfo.selectedSource,
-      adfStatus:      backendInfo.adfState,
+      selectedSource: selectedSource.toLowerCase(),
+      adfStatus:      backendInfo.adfState || (backendInfo.hasAdf ? 'Available' : 'None'),
     },
     capabilities: backendInfo.capabilities,
   };
 }
 
-// ─── 17. HTTP Server & API Endpoints ──────────────────────────────────────────
+// ─── 18. HTTP Server & API Endpoints ──────────────────────────────────────────
 function sendJson(res, status, data) {
   const body = JSON.stringify(data);
   res.writeHead(status, {

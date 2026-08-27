@@ -62,7 +62,7 @@ export default function UniversalPrinterScannerModal({
   const [scanStatusText, setScanStatusText]       = useState('');
 
   // Scan Settings
-  const [inputSource, setInputSource] = useState<'Platen' | 'Feeder'>('Platen');
+  const [inputSource, setInputSource] = useState<'Auto' | 'Feeder' | 'Platen'>('Auto');
   const [colorMode, setColorMode]     = useState<'Color' | 'Grayscale'>('Grayscale');
   const [dpi, setDpi]                 = useState<number>(300);
   const [batchScan, setBatchScan]     = useState<boolean>(true);
@@ -119,34 +119,36 @@ export default function UniversalPrinterScannerModal({
           flatbed:            d.capabilities?.flatbed,
           duplex:             d.capabilities?.duplex,
           color:              d.capabilities?.color,
-          grayscale:          d.capabilities?.grayscale,
           supportedDpi:       d.capabilities?.supportedDpi,
-          documentFormats:    d.capabilities?.documentFormats,
-          supportedPaperSizes: d.capabilities?.supportedPaperSizes,
+          defaultDpi:         d.capabilities?.defaultDpi,
+          supportedFormats:   d.capabilities?.supportedFormats,
+          maxMediaDimensions: d.capabilities?.maxMediaDimensions,
         },
+        backendInfo: d.backendInfo,
       }));
+
       setDevices(mapped);
-      if (mapped.length > 0) {
-        const real = mapped.find((d) => d.id !== 'SIMULATOR' && d.ip !== 'SIMULATOR');
-        handleSelectDevice(real || mapped[0]);
+
+      // Auto-select first scan-ready device if none selected
+      if (!selectedDevice && mapped.length > 0) {
+        const firstScanner = mapped.find(
+          (d) => (d.capabilities?.scanning || d.backendInfo?.readyToScan || d.id === 'SIMULATOR') && d.protocol !== 'SPOOLER'
+        );
+        if (firstScanner) {
+          handleSelectDevice(firstScanner);
+        }
       }
     } catch (err: any) {
-      setErrorMsg('Gerätesuche fehlgeschlagen: ' + (err.message || 'Verbindung zum Connector unterbrochen.'));
+      setErrorMsg('Geräte-Erkennung fehlgeschlagen: ' + err.message);
     } finally {
       setIsDiscovering(false);
     }
   };
 
+  // Run discovery on modal open
   useEffect(() => {
     if (isOpen) {
-      setErrorMsg('');
-      setSelectedDevice(null);
       checkHealthAndDiscover();
-    } else {
-      setStep('check');
-      setDevices([]);
-      setSelectedDevice(null);
-      setErrorMsg('');
     }
   }, [isOpen, checkHealthAndDiscover]);
 
@@ -172,9 +174,8 @@ export default function UniversalPrinterScannerModal({
         }
       }
 
-      // Configure default scan options according to device capabilities
-      const hasAdf = Boolean(device.capabilities?.adf && (device.backendInfo?.readyToScan || device.id === 'SIMULATOR'));
-      setInputSource(hasAdf ? 'Feeder' : 'Platen');
+      // Default to Auto (which auto-prioritizes ADF when documents are present)
+      setInputSource('Auto');
       setStep('configured');
     } catch (err: any) {
       setErrorMsg('Geräteverbindung konnte nicht verifiziert werden: ' + err.message);
@@ -196,22 +197,27 @@ export default function UniversalPrinterScannerModal({
     setScanStatusText(
       inputSource === 'Feeder'
         ? 'Dokumente werden über automatischen Einzug (ADF) gescannt...'
-        : 'Dokument wird von Flachbettglas gescannt...'
+        : inputSource === 'Platen'
+        ? 'Dokument wird von Flachbettglas gescannt...'
+        : 'Scan wird vorbereitet (ADF automatisch bevorzugt)...'
     );
     setErrorMsg('');
 
     scanAbortController.current = new AbortController();
 
     try {
+      const sourceParam = inputSource === 'Feeder' ? 'adf' : (inputSource === 'Platen' ? 'flatbed' : 'auto');
+      const isBatch = inputSource !== 'Platen';
+
       const files = await scanDocument({
         scannerIp:   selectedDevice.ip,
         scannerPort: selectedDevice.port ?? 80,
         dpi,
         colorMode,
-        source:      inputSource === 'Feeder' ? 'adf' : 'flatbed',
-        inputSource,
+        source:      sourceParam,
+        inputSource: inputSource === 'Auto' ? 'auto' : inputSource,
         format:      'jpeg',
-        batchScan:   inputSource === 'Feeder' ? true : false,
+        batchScan:   isBatch,
         multiPage:   true,
         signal:      scanAbortController.current.signal,
         onProgress:  (prog) => {
@@ -642,31 +648,41 @@ export default function UniversalPrinterScannerModal({
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                     {/* Source */}
-                    <div className="space-y-1.5">
+                    <div className="space-y-1.5 sm:col-span-1">
                       <label className="font-semibold text-slate-400">Quelle:</label>
-                      <div className="grid grid-cols-2 gap-1.5">
+                      <div className="grid grid-cols-3 gap-1">
                         <button
                           type="button"
-                          onClick={() => setInputSource('Platen')}
-                          className={`py-2 px-2.5 rounded-xl border text-center font-medium transition-all ${
-                            inputSource === 'Platen'
-                              ? 'bg-blue-600 text-white border-blue-500 font-bold'
+                          onClick={() => setInputSource('Auto')}
+                          className={`py-2 px-1.5 rounded-xl border text-center font-medium text-[11px] transition-all cursor-pointer ${
+                            inputSource === 'Auto'
+                              ? 'bg-blue-600 text-white border-blue-500 font-bold shadow-sm'
                               : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800'
                           }`}
                         >
-                          Flachbett
+                          ⚡ Auto
                         </button>
                         <button
                           type="button"
-                          disabled={!selectedDevice.capabilities?.adf}
                           onClick={() => setInputSource('Feeder')}
-                          className={`py-2 px-2.5 rounded-xl border text-center font-medium transition-all ${
+                          className={`py-2 px-1.5 rounded-xl border text-center font-medium text-[11px] transition-all cursor-pointer ${
                             inputSource === 'Feeder'
-                              ? 'bg-blue-600 text-white border-blue-500 font-bold'
-                              : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed'
+                              ? 'bg-blue-600 text-white border-blue-500 font-bold shadow-sm'
+                              : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800'
                           }`}
                         >
-                          Einzug (ADF)
+                          📄 ADF (Einzug)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setInputSource('Platen')}
+                          className={`py-2 px-1.5 rounded-xl border text-center font-medium text-[11px] transition-all cursor-pointer ${
+                            inputSource === 'Platen'
+                              ? 'bg-blue-600 text-white border-blue-500 font-bold shadow-sm'
+                              : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800'
+                          }`}
+                        >
+                          🔍 Flachbett
                         </button>
                       </div>
                     </div>
@@ -678,7 +694,7 @@ export default function UniversalPrinterScannerModal({
                         <button
                           type="button"
                           onClick={() => setColorMode('Grayscale')}
-                          className={`py-2 px-2.5 rounded-xl border text-center font-medium transition-all ${
+                          className={`py-2 px-2.5 rounded-xl border text-center font-medium transition-all cursor-pointer ${
                             colorMode === 'Grayscale'
                               ? 'bg-blue-600 text-white border-blue-500 font-bold'
                               : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800'
@@ -689,7 +705,7 @@ export default function UniversalPrinterScannerModal({
                         <button
                           type="button"
                           onClick={() => setColorMode('Color')}
-                          className={`py-2 px-2.5 rounded-xl border text-center font-medium transition-all ${
+                          className={`py-2 px-2.5 rounded-xl border text-center font-medium transition-all cursor-pointer ${
                             colorMode === 'Color'
                               ? 'bg-blue-600 text-white border-blue-500 font-bold'
                               : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800'
@@ -715,16 +731,13 @@ export default function UniversalPrinterScannerModal({
                     </div>
                   </div>
 
-                  {inputSource === 'Feeder' && (
-                    <label className="flex items-center gap-2.5 text-xs text-slate-300 pt-1 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={batchScan}
-                        onChange={(e) => setBatchScan(e.target.checked)}
-                        className="rounded border-slate-700 bg-slate-900 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span>Mehrseitiger Einzug: Alle eingelegten Dokumente automatisch nacheinander scannen</span>
-                    </label>
+                  {inputSource !== 'Platen' && (
+                    <div className="flex items-center gap-2 text-[11px] text-emerald-400 bg-emerald-950/40 border border-emerald-900/60 p-2.5 rounded-xl">
+                      <span className="font-bold">✓ Mehrseitiger ADF-Einzug aktiv:</span>
+                      <span className="text-emerald-200">
+                        Legen Sie 1 bis 50 Seiten oben in den automatischen Einzug (ADF). Alle Seiten werden nacheinander erfasst.
+                      </span>
+                    </div>
                   )}
                 </div>
               )}

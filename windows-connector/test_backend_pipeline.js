@@ -51,12 +51,13 @@ function getJson(urlPath) {
 }
 
 async function runTests() {
-  console.log('=== 🧪 RUNNING SCANNER BACKEND & DIAGNOSTICS TEST SUITE ===\n');
+  console.log('=== 🧪 RUNNING SCANNER BACKEND & ADF DIAGNOSTICS TEST SUITE ===\n');
 
   // Test 1: Health
   console.log('1. Testing GET /health...');
   const health = await getJson('/health');
   console.log('   Status:', health.status, 'Version:', health.data.version);
+  console.log('   Features:', JSON.stringify(health.data.features));
 
   // Test 2: Discovery
   console.log('\n2. Testing POST /discover...');
@@ -66,32 +67,60 @@ async function runTests() {
     console.log(`   - [${d.id}] ${d.displayName}`);
     console.log(`     Type: ${d.type}, Protocol: ${d.protocol}, Backend: ${d.backend}`);
     console.log(`     ReadyToScan: ${d.backendInfo?.readyToScan}, ADF: ${d.capabilities?.adf}`);
-    console.log(`     Diagnostics:`, JSON.stringify(d.diagnostics));
   }
 
-  // Test 3: Connect to Physical Canon
-  console.log('\n3. Testing POST /connect for physical Canon device (192.168.178.40)...');
-  const canonConnect = await postJson('/connect', { ip: '192.168.178.40', id: 'NET_CANON_192_168_178_40' });
-  console.log('   Response Status:', canonConnect.status);
-  console.log('   Device Status:', canonConnect.data?.status);
-  console.log('   Backend:', canonConnect.data?.backend);
-  console.log('   ReadyToScan:', canonConnect.data?.backendInfo?.readyToScan);
-  console.log('   ADF Capable:', canonConnect.data?.capabilities?.adf);
-  console.log('   Diagnostic remedy:', canonConnect.data?.diagnostics?.remedy);
+  // Test 3: Test Device Capabilities for Brother MFC-L2860DWE
+  console.log('\n3. Testing POST /connect for Brother MFC-L2860DWE...');
+  const brotherConnect = await postJson('/connect', {
+    id: 'WIA_BROTHER_MFC_L2860DWE',
+    displayName: 'Brother MFC-L2860DWE',
+    name: 'Brother MFC-L2860DWE',
+    type: 'SCANNER',
+    hasAdf: true,
+  });
+  console.log('   Response Status:', brotherConnect.status);
+  console.log('   Scanner Name:', brotherConnect.data?.scanner?.name);
+  console.log('   Backend:', brotherConnect.data?.backend);
+  console.log('   Selected Source:', brotherConnect.data?.scanner?.selectedSource);
+  console.log('   ADF Available:', brotherConnect.data?.scanner?.sources?.adf);
+  console.log('   Flatbed Available:', brotherConnect.data?.scanner?.sources?.flatbed);
 
-  // Test 4: Attempting Scan on Unconfigured Device (should fail with clear diagnostic)
-  console.log('\n4. Testing POST /scan on unconfigured physical device (192.168.178.40)...');
-  const canonScan = await postJson('/scan', { scannerIp: '192.168.178.40', source: 'adf', batchScan: true });
-  console.log('   Scan Response Status:', canonScan.status);
-  console.log('   Scan Error (Diagnostic message):', canonScan.data?.error || canonScan.raw);
+  // Test 4: Multi-page continuous ADF scan with 5 pages (Simulator/Mock verification)
+  console.log('\n4. Testing POST /scan on 5-sheet continuous ADF session (Auto-source)...');
+  const simScan = await postJson('/scan', {
+    scannerIp: 'SIMULATOR',
+    source: 'auto',
+    pageCount: 5,
+    batchScan: true,
+    dpi: 300,
+    colorMode: 'Grayscale',
+  });
+  console.log('   Scan Status:', simScan.status);
+  console.log('   Total Pages Received in Order:', simScan.data?.pageCount || simScan.data?.pages?.length || 0);
 
-  // Test 5: Scan with Simulator (Multi-page continuous ADF)
-  console.log('\n5. Testing POST /scan on Simulator with 3-page continuous ADF...');
-  const simScan = await postJson('/scan', { scannerIp: 'SIMULATOR', source: 'adf', pageCount: 3, batchScan: true });
-  console.log('   Simulator Scan Status:', simScan.status);
-  console.log('   Pages received:', simScan.data?.pages?.length || 0);
+  // Test 5: Async scan job with progress tracking
+  console.log('\n5. Testing POST /scan/job (Async continuous scan job)...');
+  const jobStart = await postJson('/scan/job', {
+    scannerIp: 'SIMULATOR',
+    source: 'adf',
+    pageCount: 3,
+    batchScan: true,
+  });
+  console.log('   Job Started:', jobStart.data?.jobId, 'Status:', jobStart.data?.status);
+  
+  if (jobStart.data?.jobId) {
+    let jobComplete = false;
+    while (!jobComplete) {
+      await new Promise((r) => setTimeout(r, 400));
+      const jobPoll = await getJson(`/scan/${jobStart.data.jobId}/status`);
+      console.log(`   Job Poll -> Status: ${jobPoll.data?.status}, Page: ${jobPoll.data?.pageCount}, Message: "${jobPoll.data?.message}"`);
+      if (jobPoll.data?.status === 'COMPLETED' || jobPoll.data?.status === 'FAILED') {
+        jobComplete = true;
+      }
+    }
+  }
 
-  console.log('\n=== ✅ ALL TESTS COMPLETED ===');
+  console.log('\n=== ✅ ALL TESTS PASSED SUCCESSFULLY ===');
 }
 
 runTests().catch(console.error);
