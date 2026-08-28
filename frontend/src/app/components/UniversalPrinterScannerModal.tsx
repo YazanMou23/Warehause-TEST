@@ -22,7 +22,7 @@ import {
   Zap,
 } from 'lucide-react';
 import {
-  CONNECTOR_URL,
+  getConnectorUrl,
   checkConnectorStatus,
   discoverDevices as connectorDiscoverDevices,
   scanDocument,
@@ -160,7 +160,7 @@ export default function UniversalPrinterScannerModal({
     setErrorMsg('');
 
     try {
-      const res = await fetch(`${CONNECTOR_URL}/connect`, {
+      const res = await fetch(`${getConnectorUrl()}/connect`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(device),

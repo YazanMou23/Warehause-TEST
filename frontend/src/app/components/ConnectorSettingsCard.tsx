@@ -16,6 +16,9 @@ import {
   Cpu,
   Scan,
   Printer,
+  Edit2,
+  Save,
+  Server
 } from "lucide-react";
 import {
   checkConnectorStatus,
@@ -23,7 +26,8 @@ import {
   detectPlatform,
   compareVersions,
   getDevices,
-  CONNECTOR_URL,
+  getConnectorUrl,
+  setConnectorUrl,
   type ConnectorStatusResult,
   type ConnectorReleaseInfo,
   type DiscoveredDevice,
@@ -61,35 +65,6 @@ function formatRelative(isoString: string): string {
   return `vor ${Math.floor(s / 86400)} Tagen`;
 }
 
-// ─── sub-components ───────────────────────────────────────────────────────────
-function StatusPill({ status, version }: { status: ConnectorStatusResult["status"]; version?: string }) {
-  const configs: Record<string, { dot: string; bg: string; text: string; label: string }> = {
-    connected:  { dot: "bg-emerald-500", bg: "bg-emerald-50 border-emerald-200",  text: "text-emerald-700", label: "Verbunden" },
-    outdated:   { dot: "bg-amber-500",   bg: "bg-amber-50 border-amber-200",      text: "text-amber-700",   label: "Veraltet" },
-    missing:    { dot: "bg-slate-400",   bg: "bg-slate-50 border-slate-200",      text: "text-slate-600",   label: "Offline" },
-    error:      { dot: "bg-red-500",     bg: "bg-red-50 border-red-200",          text: "text-red-700",     label: "Fehler" },
-    checking:   { dot: "bg-blue-400 animate-pulse", bg: "bg-blue-50 border-blue-200", text: "text-blue-700", label: "Prüfe..." },
-  };
-  const c = configs[status] ?? configs.checking;
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[12px] font-semibold ${c.bg} ${c.text}`}>
-      <span className={`w-2 h-2 rounded-full shrink-0 ${c.dot}`} />
-      {c.label}
-      {version && status !== "checking" && <span className="opacity-70 font-normal ml-0.5">v{version}</span>}
-    </span>
-  );
-}
-
-function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-2.5 text-[13px]">
-      <span className="text-outline shrink-0">{icon}</span>
-      <span className="text-on-surface-variant w-32 shrink-0">{label}</span>
-      <span className="text-on-surface font-medium flex-1">{value ?? "—"}</span>
-    </div>
-  );
-}
-
 // ─── main component ───────────────────────────────────────────────────────────
 export default function ConnectorSettingsCard() {
   const [connStatus, setConnStatus]         = useState<ConnectorStatusResult>({ status: "checking" });
@@ -103,6 +78,10 @@ export default function ConnectorSettingsCard() {
   const [verifyMsg, setVerifyMsg]           = useState<"idle" | "verifying" | "success" | "fail">("idle");
   const verifyInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // IP Editing State
+  const [isEditingIp, setIsEditingIp] = useState(false);
+  const [ipInput, setIpInput] = useState("");
+
   const platform = detectPlatform();
 
   // derive update state
@@ -115,6 +94,11 @@ export default function ConnectorSettingsCard() {
     !updateDismissed
   );
 
+  // Initialize IP input from current URL
+  useEffect(() => {
+    setIpInput(getConnectorUrl().replace(/^https?:\/\//, ""));
+  }, []);
+
   // ── poll connector health & devices every 8s ────────────────────────────────
   const refresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -123,17 +107,14 @@ export default function ConnectorSettingsCard() {
       setConnStatus(result);
 
       if (result.status === "connected" || result.status === "outdated") {
-        // persist last seen
         const entry = { version: result.version ?? "", ts: new Date().toISOString() };
         try { localStorage.setItem(LAST_SEEN_KEY, JSON.stringify(entry)); } catch {}
         setLastSeen(entry);
 
-        // Fetch real discovered devices from connector
         try {
           const devices = await getDevices();
           setDeviceList(devices || []);
           if (devices && devices.length > 0) {
-            // Prioritize physical scanner (eSCL Wi-Fi or USB) over PDF virtual printer
             const realScanner =
               devices.find((d) => d.protocol === "ESCL" || (d.ip && d.ip !== "SIMULATOR" && !d.id.includes("PDF"))) ||
               devices.find((d) => d.ip && d.ip !== "SIMULATOR") ||
@@ -171,7 +152,7 @@ export default function ConnectorSettingsCard() {
   const startVerifyPolling = useCallback((expectedVersion?: string) => {
     setVerifyMsg("verifying");
     let attempts = 0;
-    const MAX = 15; // 15 × 2s = 30s
+    const MAX = 15;
     verifyInterval.current = setInterval(async () => {
       attempts++;
       const r = await checkConnectorStatus();
@@ -182,7 +163,7 @@ export default function ConnectorSettingsCard() {
           setVerifyMsg("success");
           setConnStatus(r);
           refresh();
-          return; // Stay on success screen until user dismisses or clicks start scanning
+          return;
         }
       }
       if (attempts >= MAX) {
@@ -218,15 +199,15 @@ export default function ConnectorSettingsCard() {
     document.body.removeChild(link);
     setTimeout(() => setDownloading(false), 2000);
 
-    // If update available, we expect the latest version. If initial install, we just expect a connection.
     if (latestVer) startVerifyPolling(latestVer);
     else startVerifyPolling();
   }, [platform, release, latestVer, startVerifyPolling]);
 
-  const handleDismissUpdate = useCallback(() => {
-    setUpdateDismissed(true);
-    try { localStorage.setItem(DISMISSED_UPDATE_KEY, latestVer ?? ""); } catch {}
-  }, [latestVer]);
+  const handleSaveIp = () => {
+    setConnectorUrl(ipInput);
+    setIsEditingIp(false);
+    refresh(); // immediately check new ip
+  };
 
   const isOffline = connStatus.status === "missing" || connStatus.status === "error";
   const hasAdf = activeDevice?.capabilities?.adf ?? activeDevice?.sources?.adf ?? false;
@@ -234,62 +215,46 @@ export default function ConnectorSettingsCard() {
   // ── Render Verification Screens ──
   if (verifyMsg === "verifying") {
     return (
-      <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-8 text-center flex flex-col items-center">
-        <Loader2 className="w-10 h-10 animate-spin text-blue-600 mb-4" />
-        <h2 className="text-lg font-bold text-slate-900 mb-2">Installation wird verifiziert...</h2>
-        <p className="text-sm text-slate-600">Bitte warten, während der Connector im Hintergrund gestartet wird.</p>
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-50/50 border border-blue-100 rounded-2xl shadow-lg p-10 text-center flex flex-col items-center">
+        <Loader2 className="w-12 h-12 animate-spin text-blue-600 mb-6 drop-shadow-sm" />
+        <h2 className="text-xl font-bold text-slate-800 mb-2">Verifying Connection...</h2>
+        <p className="text-slate-600 font-medium">Please wait while the connector is starting in the background.</p>
       </div>
     );
   }
 
   if (verifyMsg === "success") {
     return (
-      <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-8">
-        <h2 className="text-xl font-bold text-slate-900 mb-6 text-center">Connector installed successfully</h2>
+      <div className="bg-gradient-to-br from-emerald-50 to-teal-50/50 border border-emerald-100 rounded-2xl shadow-lg p-10">
+        <h2 className="text-2xl font-black text-slate-800 mb-8 text-center tracking-tight">Connector Verified!</h2>
         
-        <div className="max-w-xs mx-auto space-y-3 mb-8">
-          <div className="flex items-center gap-3 text-emerald-700 font-medium">
-            <CheckCircle className="w-5 h-5 shrink-0" />
-            <span>Connector installed</span>
+        <div className="max-w-sm mx-auto space-y-4 mb-10">
+          <div className="flex items-center gap-4 text-emerald-700 bg-white/60 p-3 rounded-xl border border-emerald-100">
+            <CheckCircle className="w-6 h-6 shrink-0 drop-shadow-sm text-emerald-500" />
+            <span className="font-semibold">Installed successfully</span>
           </div>
-          <div className="flex items-center gap-3 text-emerald-700 font-medium">
-            <CheckCircle className="w-5 h-5 shrink-0" />
-            <span>Connector running</span>
+          <div className="flex items-center gap-4 text-emerald-700 bg-white/60 p-3 rounded-xl border border-emerald-100">
+            <CheckCircle className="w-6 h-6 shrink-0 drop-shadow-sm text-emerald-500" />
+            <span className="font-semibold">Connector running actively</span>
           </div>
-          <div className="flex items-center gap-3 text-emerald-700 font-medium">
-            <CheckCircle className="w-5 h-5 shrink-0" />
-            <span>Connection established</span>
-          </div>
-        </div>
-
-        <div className="bg-slate-50 border border-slate-200 rounded-lg p-5 text-center mb-8">
-          <h3 className="font-bold text-slate-800 mb-4">You're ready to scan documents.</h3>
-          <div className="flex flex-col gap-2 text-sm text-slate-600">
-            <div className="flex justify-center gap-2">
-              <span className="font-medium text-slate-500">Scanner:</span>
-              <span className="font-semibold text-slate-800">{activeDevice?.displayName || activeDevice?.name || "Scanner gefunden"}</span>
-            </div>
-            <div className="flex justify-center gap-2">
-              <span className="font-medium text-slate-500">ADF:</span>
-              <span className={`font-semibold ${hasAdf ? "text-emerald-600" : "text-slate-800"}`}>
-                {hasAdf ? "Ready" : "Not Available"}
-              </span>
-            </div>
+          <div className="flex items-center gap-4 text-emerald-700 bg-white/60 p-3 rounded-xl border border-emerald-100">
+            <CheckCircle className="w-6 h-6 shrink-0 drop-shadow-sm text-emerald-500" />
+            <span className="font-semibold">Connection established</span>
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <a
             href="/timesheets"
-            className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-lg text-center transition-colors shadow-sm"
+            className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white font-bold px-8 py-3 rounded-xl text-center transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
           >
             Start Scanning
           </a>
           <button
             onClick={() => setVerifyMsg("idle")}
-            className="w-full sm:w-auto bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold px-6 py-2.5 rounded-lg transition-colors"
+            className="w-full sm:w-auto bg-white border-2 border-slate-200 hover:border-slate-300 text-slate-700 font-bold px-8 py-3 rounded-xl transition-all"
           >
-            Open Connector Settings
+            Open Settings
           </button>
         </div>
       </div>
@@ -298,107 +263,184 @@ export default function ConnectorSettingsCard() {
 
   if (verifyMsg === "fail") {
     return (
-      <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-8 text-center">
-        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <AlertTriangle className="w-8 h-8 text-red-600" />
+      <div className="bg-white border-2 border-red-100 rounded-2xl shadow-lg p-10 text-center relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-red-400 to-rose-500" />
+        <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
+          <AlertTriangle className="w-10 h-10 text-red-500 drop-shadow-sm" />
         </div>
-        <h2 className="text-xl font-bold text-slate-900 mb-2">Connector installed, but connection could not be verified.</h2>
-        <p className="text-sm text-slate-600 mb-8">
-          The connector might still be starting, or a firewall is blocking the connection.
+        <h2 className="text-2xl font-black text-slate-800 mb-3 tracking-tight">Verification Failed</h2>
+        <p className="text-slate-600 font-medium mb-10 max-w-md mx-auto leading-relaxed">
+          The connector might still be starting, or a firewall is blocking the connection. If you are on another device, check the IP settings.
         </p>
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <button
             onClick={() => startVerifyPolling(latestVer)}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-lg transition-colors shadow-sm"
+            className="bg-red-600 hover:bg-red-700 text-white font-bold px-8 py-3 rounded-xl transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
           >
             Try Again
           </button>
           <button
-            onClick={handleDownload}
-            className="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold px-6 py-2.5 rounded-lg transition-colors"
+            onClick={() => setVerifyMsg("idle")}
+            className="bg-white border-2 border-slate-200 hover:border-slate-300 text-slate-700 font-bold px-8 py-3 rounded-xl transition-all"
           >
-            Re-download Connector
+            Check Settings
           </button>
         </div>
       </div>
     );
   }
 
-  // ── Main UI ──
+  // ── Premium UI Render ──
   return (
-    <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-      <div className="p-6">
-        <h2 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
-          <Scan className="w-5 h-5 text-slate-500" />
-          Scanner Connector
-        </h2>
-
-        <div className="space-y-4 mb-8">
-          <div className="flex items-center gap-3 text-sm">
-            <span className="w-24 text-slate-500 font-medium shrink-0">Status:</span>
-            <div className="flex items-center gap-1.5 font-semibold text-slate-800">
-              <span className={`w-2.5 h-2.5 rounded-full ${isOffline ? "bg-slate-400" : "bg-emerald-500"}`} />
-              {isOffline ? "Offline" : "Connected"}
+    <div className="relative group rounded-3xl p-[2px] bg-gradient-to-b from-slate-200 to-slate-100 shadow-sm hover:shadow-md transition-shadow">
+      <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+      
+      <div className="relative bg-white rounded-[22px] overflow-hidden">
+        {/* Header Section */}
+        <div className="bg-slate-50/80 backdrop-blur-md border-b border-slate-100 p-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`p-2.5 rounded-xl ${isOffline ? "bg-slate-100 text-slate-400" : "bg-indigo-50 text-indigo-600"}`}>
+              <Scan className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-slate-800 tracking-tight">Scanner Connector</h2>
+              <p className="text-xs font-medium text-slate-500">Local Hardware Bridge</p>
             </div>
           </div>
           
-          <div className="flex items-center gap-3 text-sm">
-            <span className="w-24 text-slate-500 font-medium shrink-0">Version:</span>
-            <span className="font-semibold text-slate-800">
-              {connStatus.version ? `${connStatus.version}` : "Not installed"}
+          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-slate-200 shadow-sm">
+            <span className="relative flex h-2.5 w-2.5">
+              {!isOffline && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}
+              <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isOffline ? "bg-slate-300" : "bg-emerald-500"}`}></span>
             </span>
-          </div>
-
-          <div className="flex items-center gap-3 text-sm">
-            <span className="w-24 text-slate-500 font-medium shrink-0">Scanner:</span>
-            <span className="font-semibold text-slate-800">
-              {activeDevice ? (activeDevice.displayName || activeDevice.name) : (isOffline ? "—" : "Searching...")}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3 text-sm">
-            <span className="w-24 text-slate-500 font-medium shrink-0">ADF:</span>
-            <span className={`font-semibold ${hasAdf ? "text-emerald-600" : "text-slate-800"}`}>
-              {isOffline ? "—" : (hasAdf ? "Ready" : "Not Ready")}
+            <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+              {isOffline ? "Offline" : "Connected"}
             </span>
           </div>
         </div>
 
-        {updateAvailable && (
-          <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-8">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h4 className="font-bold text-blue-900 mb-1">Update Available (v{latestVer})</h4>
-                <p className="text-sm text-blue-700">A new version of the Scanner Connector is available for download.</p>
+        {/* Content Section */}
+        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+          
+          {/* Status & Device Details */}
+          <div className="space-y-6">
+            
+            {/* Version & IP */}
+            <div className="space-y-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5 text-slate-600">
+                  <Server className="w-4 h-4" />
+                  <span className="text-sm font-semibold">Connector IP</span>
+                </div>
+                {isEditingIp ? (
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="text" 
+                      value={ipInput} 
+                      onChange={e => setIpInput(e.target.value)}
+                      className="text-sm font-mono border-b-2 border-indigo-400 bg-transparent outline-none w-32 px-1 text-slate-800"
+                      placeholder="127.0.0.1:48281"
+                      autoFocus
+                    />
+                    <button onClick={handleSaveIp} className="p-1 hover:bg-slate-200 rounded-md text-indigo-600 transition-colors">
+                      <Save className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 group/edit cursor-pointer" onClick={() => setIsEditingIp(true)}>
+                    <span className="text-sm font-mono font-medium text-slate-800 bg-white px-2 py-1 rounded-md border border-slate-200 shadow-sm">{ipInput}</span>
+                    <Edit2 className="w-3.5 h-3.5 text-slate-400 group-hover/edit:text-indigo-500 transition-colors" />
+                  </div>
+                )}
               </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5 text-slate-600">
+                  <Cpu className="w-4 h-4" />
+                  <span className="text-sm font-semibold">Version</span>
+                </div>
+                <span className="text-sm font-bold text-slate-800">
+                  {connStatus.version ? `v${connStatus.version}` : "Not installed"}
+                </span>
+              </div>
+            </div>
+
+            {/* Active Scanner Details */}
+            <div className="space-y-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Detected Hardware</h3>
+              
+              <div className={`p-4 rounded-2xl border flex items-center gap-4 transition-all ${
+                activeDevice 
+                  ? "bg-gradient-to-r from-emerald-50/50 to-white border-emerald-100 shadow-sm" 
+                  : "bg-slate-50 border-slate-100"
+              }`}>
+                <div className={`p-2 rounded-lg ${activeDevice ? "bg-emerald-100 text-emerald-600" : "bg-slate-200 text-slate-400"}`}>
+                  {activeDevice ? <Printer className="w-5 h-5" /> : <WifiOff className="w-5 h-5" />}
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-800">
+                    {activeDevice ? (activeDevice.displayName || activeDevice.name) : "No Scanner Found"}
+                  </h4>
+                  <div className="flex gap-2 mt-1">
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold uppercase ${
+                      hasAdf ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"
+                    }`}>
+                      {hasAdf ? "ADF Ready" : "Flatbed Only"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Actions & Updates */}
+          <div className="flex flex-col justify-between space-y-6">
+            
+            {updateAvailable ? (
+              <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden group/update">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full blur-2xl transform translate-x-10 -translate-y-10 group-hover/update:scale-150 transition-transform duration-700" />
+                <div className="relative z-10">
+                  <h4 className="font-black text-lg mb-1 flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-yellow-300 fill-yellow-300" /> Update Available
+                  </h4>
+                  <p className="text-indigo-100 text-sm font-medium mb-4">Version {latestVer} brings new improvements.</p>
+                  
+                  <button
+                    onClick={handleDownload}
+                    disabled={downloading}
+                    className="w-full bg-white text-indigo-600 hover:bg-indigo-50 font-black text-sm px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2"
+                  >
+                    {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                    Download Update
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 flex flex-col items-center justify-center text-center h-full">
+                <CheckCircle className="w-8 h-8 text-slate-300 mb-2" />
+                <h4 className="font-bold text-slate-600">Up to date</h4>
+                <p className="text-xs font-medium text-slate-400 mt-1">You're running the latest connector.</p>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <a
+                href="/timesheets"
+                className="bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2"
+              >
+                <Scan className="w-4 h-4" /> Go Scan
+              </a>
               <button
                 onClick={handleDownload}
                 disabled={downloading}
-                className="shrink-0 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-4 py-2 rounded-md transition-colors shadow-sm flex items-center gap-2"
+                className="bg-white border-2 border-slate-200 hover:border-slate-300 text-slate-700 text-sm font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2"
               >
                 {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                Update Connector
+                Re-install
               </button>
             </div>
           </div>
-        )}
 
-        <div className="flex items-center gap-3 border-t border-slate-100 pt-6">
-          <a
-            href="/timesheets"
-            className="flex-1 sm:flex-none text-center bg-slate-900 hover:bg-slate-800 text-white font-bold px-6 py-2.5 rounded-lg transition-colors shadow-sm flex items-center justify-center gap-2"
-          >
-            <Scan className="w-4 h-4" />
-            Scan Document
-          </a>
-          <button
-            onClick={handleDownload}
-            disabled={downloading}
-            className="flex-1 sm:flex-none bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold px-6 py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
-          >
-            {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            Re-download Connector
-          </button>
         </div>
       </div>
     </div>

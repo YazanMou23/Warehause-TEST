@@ -1,4 +1,31 @@
-export const CONNECTOR_URL = 'http://127.0.0.1:48281';
+let connectorUrlCache = 'http://127.0.0.1:48281';
+
+if (typeof window !== 'undefined') {
+  connectorUrlCache = localStorage.getItem('logiflow_connector_url') || 'http://127.0.0.1:48281';
+}
+
+export function getConnectorUrl(): string {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('logiflow_connector_url') || 'http://127.0.0.1:48281';
+  }
+  return connectorUrlCache;
+}
+
+export function setConnectorUrl(url: string) {
+  let finalUrl = url.trim();
+  if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
+    finalUrl = 'http://' + finalUrl;
+  }
+  // Strip trailing slash if present
+  if (finalUrl.endsWith('/')) {
+    finalUrl = finalUrl.slice(0, -1);
+  }
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('logiflow_connector_url', finalUrl);
+  }
+  connectorUrlCache = finalUrl;
+}
+
 export const CONNECTOR_MIN_VERSION = '2.0.0';
 export const HEALTH_CHECK_TIMEOUT_MS = 2000;
 
@@ -103,7 +130,7 @@ export async function checkConnectorStatus(): Promise<ConnectorStatusResult> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT_MS);
-    const response = await fetch(CONNECTOR_URL + '/health', { signal: controller.signal });
+    const response = await fetch(getConnectorUrl() + '/health', { signal: controller.signal });
     clearTimeout(timeout);
     if (!response.ok) return { status: 'error', errorMessage: 'HTTP ' + response.status };
     const health = await response.json();
@@ -117,13 +144,13 @@ export async function checkConnectorStatus(): Promise<ConnectorStatusResult> {
 }
 
 export async function getDevices(): Promise<DiscoveredDevice[]> {
-  const r = await fetch(CONNECTOR_URL + '/devices', { signal: AbortSignal.timeout(6000) });
+  const r = await fetch(getConnectorUrl() + '/devices', { signal: AbortSignal.timeout(6000) });
   if (!r.ok) throw new Error('GET /devices failed: HTTP ' + r.status);
   return r.json();
 }
 
 export async function discoverDevices(): Promise<DiscoveredDevice[]> {
-  const r = await fetch(CONNECTOR_URL + '/discover', { method: 'POST', signal: AbortSignal.timeout(8000) });
+  const r = await fetch(getConnectorUrl() + '/discover', { method: 'POST', signal: AbortSignal.timeout(8000) });
   if (!r.ok) throw new Error('POST /discover failed: HTTP ' + r.status);
   return r.json();
 }
@@ -146,7 +173,7 @@ export async function scanDocument(opts: ScanOptions): Promise<File[]> {
 
   // Try Async Job Endpoint first for live progress & multi-page ADF status
   try {
-    const jobRes = await fetch(CONNECTOR_URL + '/scan/job', {
+    const jobRes = await fetch(getConnectorUrl() + '/scan/job', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify(payload),
@@ -160,13 +187,13 @@ export async function scanDocument(opts: ScanOptions): Promise<File[]> {
         // Poll Job Status
         while (true) {
           if (opts.signal?.aborted) {
-            try { await fetch(`${CONNECTOR_URL}/scan/${jobId}/cancel`, { method: 'POST' }); } catch {}
+            try { await fetch(`${getConnectorUrl()}/scan/${jobId}/cancel`, { method: 'POST' }); } catch {}
             throw new Error('Scan abgebrochen');
           }
 
           await new Promise((r) => setTimeout(r, 600));
 
-          const statusRes = await fetch(`${CONNECTOR_URL}/scan/${jobId}/status`);
+          const statusRes = await fetch(`${getConnectorUrl()}/scan/${jobId}/status`);
           if (!statusRes.ok) continue;
           const status = await statusRes.json();
 
@@ -205,7 +232,7 @@ export async function scanDocument(opts: ScanOptions): Promise<File[]> {
   }
 
   // Fallback: Synchronous POST /scan
-  const r = await fetch(CONNECTOR_URL + '/scan', {
+  const r = await fetch(getConnectorUrl() + '/scan', {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify(payload),
