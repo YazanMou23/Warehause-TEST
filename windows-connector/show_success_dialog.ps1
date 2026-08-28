@@ -50,24 +50,9 @@ $xaml = @"
 
             <!-- Buttons -->
             <Grid Grid.Row="2">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-
-                <Button Name="BtnOpenApp" Grid.Column="0" Content="🚀 In Web-App Dokumente scannen" 
+                <Button Name="BtnClose" Content="Schließen" 
                         Background="#2563EB" Foreground="White" FontWeight="Bold" FontSize="13" FontFamily="Segoe UI"
-                        Padding="14,10" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand">
-                    <Button.Resources>
-                        <Style TargetType="Border">
-                            <Setter Property="CornerRadius" Value="10"/>
-                        </Style>
-                    </Button.Resources>
-                </Button>
-
-                <Button Name="BtnClose" Grid.Column="1" Content="Schließen" 
-                        Background="#334155" Foreground="#94A3B8" FontWeight="SemiBold" FontSize="13" FontFamily="Segoe UI"
-                        Padding="16,10" BorderThickness="0" Cursor="Hand">
+                        Padding="16,10" BorderThickness="0" Cursor="Hand" HorizontalAlignment="Stretch">
                     <Button.Resources>
                         <Style TargetType="Border">
                             <Setter Property="CornerRadius" Value="10"/>
@@ -83,13 +68,7 @@ $xaml = @"
 $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xaml))
 $window = [System.Windows.Markup.XamlReader]::Load($reader)
 
-$btnOpenApp = $window.FindName("BtnOpenApp")
-$btnClose   = $window.FindName("BtnClose")
-
-$btnOpenApp.Add_Click({
-    Start-Process "http://localhost:3000/timesheets"
-    $window.Close()
-})
+$btnClose = $window.FindName("BtnClose")
 
 $btnClose.Add_Click({
     $window.Close()
