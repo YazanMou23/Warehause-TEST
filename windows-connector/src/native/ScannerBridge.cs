@@ -162,7 +162,7 @@ namespace LogiFlow.ScannerBridge
             if (useFeeder)
             {
                 SetPropertyValue(device.Properties, 3088, 1); // WIA_DPS_DOCUMENT_HANDLING_SELECT = FEEDER
-                SetPropertyValue(device.Properties, 3096, 0); // WIA_DPS_PAGES = 0 (ALL)
+                SetPropertyValue(device.Properties, 3096, 1); // WIA_DPS_PAGES = 1 (1 page at a time for loop)
             }
             else
             {
@@ -178,12 +178,9 @@ namespace LogiFlow.ScannerBridge
             if (colorMode.ToLower() == "color") colorVal = 1;
             else if (colorMode.ToLower() == "blackandwhite") colorVal = 4;
             SetPropertyValue(scanItem.Properties, 6146, colorVal); // Intent/Color
-
-            if (useFeeder)
-            {
-                 SetPropertyValue(scanItem.Properties, 3088, 1);
-                 SetPropertyValue(scanItem.Properties, 3096, 0);
-            }
+            
+            // Force Format to JPEG
+            SetPropertyValue(scanItem.Properties, 4106, "{B96B3CAE-0728-11D3-9D7B-0000F81EF32E}"); // WIA_IPA_FORMAT
 
             int pageIndex = 0;
             var scannedFiles = new List<string>();

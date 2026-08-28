@@ -72,8 +72,21 @@ export class EsclBackend implements IScannerBackend {
     const baseUrl = this.getBaseUrl(device);
     const caps = await this.getCapabilities(device);
     
+    let adfSourceStr = 'Feeder';
+    try {
+      const capRes = await httpGet(`${baseUrl}/eSCL/ScannerCapabilities`, 2000);
+      if (capRes.status === 200 && capRes.body) {
+        const sources = extractAllXmlTags(capRes.body, 'InputSource');
+        const exactAdf = sources.find(s => /feeder|adf/i.test(s));
+        if (exactAdf) adfSourceStr = exactAdf;
+        else if (capRes.body.includes('<pwg:InputSource>Adf</pwg:InputSource>') || capRes.body.includes('<scan:InputSource>Adf</scan:InputSource>')) {
+          adfSourceStr = 'Adf';
+        }
+      }
+    } catch {}
+
     const isAdfRequested = options.source === 'adf' || (options.source === 'auto' && caps.sources.adf);
-    const inputSource = isAdfRequested ? 'Feeder' : 'Platen';
+    const inputSource = isAdfRequested ? adfSourceStr : 'Platen';
     const isDuplex = isAdfRequested && options.duplex && caps.sources.duplex;
     
     const esclColorMode = this.mapColorMode(options.colorMode || 'Grayscale');
