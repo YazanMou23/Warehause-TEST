@@ -42,9 +42,9 @@ if not exist "%SOURCE_DIR%index.js" (
     exit /b 1
 )
 
-copy /Y "%SOURCE_DIR%index.js" "%TARGET_DIR%\" >nul
+copy /Y "%SOURCE_DIR%dist\index.js" "%TARGET_DIR%\" >nul
+copy /Y "%SOURCE_DIR%dist\ScannerBridge.exe" "%TARGET_DIR%\" >nul
 copy /Y "%SOURCE_DIR%start-silent.vbs" "%TARGET_DIR%\" >nul
-copy /Y "%SOURCE_DIR%package.json" "%TARGET_DIR%\" >nul
 copy /Y "%SOURCE_DIR%uninstall.bat" "%TARGET_DIR%\" >nul
 if exist "%SOURCE_DIR%show_success_dialog.ps1" copy /Y "%SOURCE_DIR%show_success_dialog.ps1" "%TARGET_DIR%\" >nul
 if exist "%SOURCE_DIR%run-debug.bat" copy /Y "%SOURCE_DIR%run-debug.bat" "%TARGET_DIR%\" >nul

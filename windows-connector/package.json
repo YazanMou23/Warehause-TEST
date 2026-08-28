@@ -2,11 +2,29 @@
   "name": "logiflow-printer-connector",
   "version": "2.3.0",
   "description": "LogiFlow Windows Local Printer & Scanner Connector",
-  "main": "index.js",
-  "bin": "./index.js",
+  "main": "dist/index.js",
+  "bin": "./dist/index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "build:cs": "C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /out:src\\native\\ScannerBridge.exe src\\native\\ScannerBridge.cs",
+    "build": "npm run build:cs && ncc build src/index.ts -m -o dist && copy /Y src\\native\\ScannerBridge.exe dist\\ScannerBridge.exe"
   },
   "author": "LogiFlow Engineering",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.2.0",
+    "@types/node": "^26.4.0",
+    "bonjour-service": "^1.4.4",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "multer": "^2.2.0",
+    "ts-node": "^10.9.2"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.45.0",
+    "typescript": "^5.5.4"
+  }
 }
