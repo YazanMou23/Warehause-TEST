@@ -68,6 +68,28 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
 start "" wscript.exe "%TARGET_DIR%\start-silent.vbs"
 
 echo.
+echo    Connector wird gestartet. Warte auf Verbindung (max. 15 Sekunden)...
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$maxRetries = 15; $delay = 1; $success = $false; " ^
+  "for ($i = 0; $i -lt $maxRetries; $i++) { " ^
+  "  try { " ^
+  "    $res = Invoke-RestMethod -Uri 'http://127.0.0.1:48281/health' -Method Get -TimeoutSec 2 -ErrorAction Stop; " ^
+  "    if ($res.status -eq 'ok') { $success = $true; break; } " ^
+  "  } catch { } " ^
+  "  Start-Sleep -Seconds $delay; " ^
+  "} " ^
+  "if (-not $success) { " ^
+  "  Write-Host '[FEHLER] Der Connector antwortet nicht auf Port 48281. Moeglicherweise wird der Port blockiert.' -ForegroundColor Red; " ^
+  "  exit 1; " ^
+  "}"
+if %errorlevel% neq 0 (
+    echo.
+    echo Installation unvollstaendig: Der Connector konnte nicht erreicht werden.
+    pause
+    exit /b 1
+)
+
+echo.
 echo =======================================================
 echo    Installation erfolgreich abgeschlossen!
 echo.

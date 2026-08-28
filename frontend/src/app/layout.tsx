@@ -4,6 +4,7 @@ import "./globals.css";
 import { LanguageProvider } from "./i18n/LanguageContext";
 import ClientOnly from "./components/ClientOnly";
 import { DialogProvider } from "./components/DialogProvider";
+import { ConnectorProvider } from "../lib/ConnectorContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -54,7 +55,9 @@ export default function RootLayout({
         <LanguageProvider>
           <ClientOnly>
             <DialogProvider>
-              {children}
+              <ConnectorProvider>
+                {children}
+              </ConnectorProvider>
             </DialogProvider>
           </ClientOnly>
         </LanguageProvider>

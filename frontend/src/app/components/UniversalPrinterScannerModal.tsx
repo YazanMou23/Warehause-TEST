@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Printer,
@@ -23,14 +23,13 @@ import {
 } from 'lucide-react';
 import {
   getConnectorUrl,
-  checkConnectorStatus,
-  discoverDevices as connectorDiscoverDevices,
   scanDocument,
   getInstallerInfo,
   DiscoveredDevice,
   ScannerBackendInfo,
   ScannerDiagnostic,
 } from '../../lib/connector';
+import { useConnector } from '../../lib/ConnectorContext';
 import { API_URL } from '../../config/api';
 
 interface UniversalPrinterScannerModalProps {
@@ -41,8 +40,6 @@ interface UniversalPrinterScannerModalProps {
   description?: string;
 }
 
-type ModalStep = 'check' | 'offline' | 'outdated' | 'discovery' | 'configured' | 'scanning';
-
 export default function UniversalPrinterScannerModal({
   isOpen,
   onClose,
@@ -50,14 +47,19 @@ export default function UniversalPrinterScannerModal({
   title = 'Vom Drucker / Scanner scannen',
   description = 'Dokumente direkt über verbundene WLAN- & USB-Drucker erfassen.',
 }: UniversalPrinterScannerModalProps) {
-  const [step, setStep]                           = useState<ModalStep>('check');
-  const [checkingConnector, setCheckingConnector] = useState(false);
-  const [isDiscovering, setIsDiscovering]         = useState(false);
+  const { 
+    status: connStatus, 
+    devices, 
+    activeDevice, 
+    isChecking, 
+    isDiscovering, 
+    refreshStatus, 
+    discoverDevices, 
+    setActiveDevice 
+  } = useConnector();
+
   const [isConnecting, setIsConnecting]           = useState(false);
   const [isScanning, setIsScanning]               = useState(false);
-  const [connectorVersion, setConnectorVersion]   = useState<string | undefined>(undefined);
-  const [devices, setDevices]                     = useState<DiscoveredDevice[]>([]);
-  const [selectedDevice, setSelectedDevice]       = useState<DiscoveredDevice | null>(null);
   const [errorMsg, setErrorMsg]                   = useState('');
   const [scanStatusText, setScanStatusText]       = useState('');
 
@@ -67,95 +69,18 @@ export default function UniversalPrinterScannerModal({
   const [dpi, setDpi]                 = useState<number>(300);
   const [batchScan, setBatchScan]     = useState<boolean>(true);
 
-  // ── 1. Check Connector Health ───────────────────────────────────────────────
-  const checkHealthAndDiscover = useCallback(async () => {
-    if (!isOpen) return;
-    setCheckingConnector(true);
-    setErrorMsg('');
+  const scanAbortController = useRef<AbortController | null>(null);
 
-    const result = await checkConnectorStatus();
-    setCheckingConnector(false);
-
-    if (result.status === 'connected') {
-      setConnectorVersion(result.version);
-      setErrorMsg('');
-      setStep('discovery');
-      runDiscovery();
-    } else if (result.status === 'outdated') {
-      setConnectorVersion(result.version);
-      setStep('outdated');
-    } else {
-      setStep('offline');
-      if (result.errorMessage) {
-        setErrorMsg(`Connector nicht erreichbar (${result.errorMessage}).`);
-      }
-    }
-  }, [isOpen]);
-
-  // ── 2. Run Local Hardware Discovery ─────────────────────────────────────────
-  const runDiscovery = async () => {
-    setIsDiscovering(true);
-    setErrorMsg('');
-    try {
-      const data = await connectorDiscoverDevices();
-      const mapped: DiscoveredDevice[] = data.map((d) => ({
-        id:             d.id,
-        name:           d.name,
-        displayName:    d.displayName,
-        manufacturer:   d.manufacturer,
-        model:          d.model,
-        type:           d.type,
-        connectionType: d.connectionType as any,
-        ip:             d.ip,
-        port:           d.port,
-        protocol:       d.protocol,
-        serial:         d.serial,
-        status:         d.status,
-        statusDetails:  d.statusDetails,
-        capabilities: {
-          printing:           d.capabilities?.printing,
-          scanning:           d.capabilities?.scanning,
-          adf:                d.capabilities?.adf,
-          flatbed:            d.capabilities?.flatbed,
-          duplex:             d.capabilities?.duplex,
-          color:              d.capabilities?.color,
-          supportedDpi:       d.capabilities?.supportedDpi,
-          defaultDpi:         d.capabilities?.defaultDpi,
-          supportedFormats:   d.capabilities?.supportedFormats,
-          maxMediaDimensions: d.capabilities?.maxMediaDimensions,
-        },
-        backendInfo: d.backendInfo,
-      }));
-
-      setDevices(mapped);
-
-      // Auto-select first scan-ready device if none selected
-      if (!selectedDevice && mapped.length > 0) {
-        const firstScanner = mapped.find(
-          (d) => (d.capabilities?.scanning || d.backendInfo?.readyToScan || d.id === 'SIMULATOR') && d.protocol !== 'SPOOLER'
-        );
-        if (firstScanner) {
-          handleSelectDevice(firstScanner);
-        }
-      }
-    } catch (err: any) {
-      setErrorMsg('Geräte-Erkennung fehlgeschlagen: ' + err.message);
-    } finally {
-      setIsDiscovering(false);
-    }
-  };
-
-  // Run discovery on modal open
+  // Trigger discovery when opening modal if we are connected but have no devices
   useEffect(() => {
-    if (isOpen) {
-      checkHealthAndDiscover();
+    if (isOpen && connStatus.status === 'connected' && devices.length === 0 && !isDiscovering) {
+      discoverDevices();
     }
-  }, [isOpen, checkHealthAndDiscover]);
-
+  }, [isOpen, connStatus.status, devices.length, isDiscovering, discoverDevices]);
 
   // ── 3. Test Connection & Select Device ──────────────────────────────────────
   const handleSelectDevice = async (device: DiscoveredDevice) => {
-    setSelectedDevice(device);
+    setActiveDevice(device);
     setIsConnecting(true);
     setErrorMsg('');
 
@@ -171,12 +96,11 @@ export default function UniversalPrinterScannerModal({
         const result = await res.json();
         if (result.capabilities) {
           device.capabilities = { ...device.capabilities, ...result.capabilities };
+          // Note: Ideally we'd update the device in the context list too, but activeDevice holds the reference for now.
         }
       }
 
-      // Default to Auto (which auto-prioritizes ADF when documents are present)
       setInputSource('Auto');
-      setStep('configured');
     } catch (err: any) {
       setErrorMsg('Geräteverbindung konnte nicht verifiziert werden: ' + err.message);
     } finally {
@@ -184,11 +108,9 @@ export default function UniversalPrinterScannerModal({
     }
   };
 
-  const scanAbortController = React.useRef<AbortController | null>(null);
-
   // ── 4. Execute Physical Scan ────────────────────────────────────────────────
   const handleStartScan = async () => {
-    if (!selectedDevice) {
+    if (!activeDevice) {
       setErrorMsg('Bitte wählen Sie zuerst ein Scan-Gerät aus.');
       return;
     }
@@ -210,8 +132,8 @@ export default function UniversalPrinterScannerModal({
       const isBatch = inputSource !== 'Platen';
 
       const files = await scanDocument({
-        scannerIp:   selectedDevice.ip,
-        scannerPort: selectedDevice.port ?? 80,
+        scannerIp:   activeDevice.ip,
+        scannerPort: activeDevice.port ?? 80,
         dpi,
         colorMode,
         source:      sourceParam,
@@ -246,7 +168,6 @@ export default function UniversalPrinterScannerModal({
     }
   };
 
-  // ── Download Installer Helper ───────────────────────────────────────────────
   const handleDownloadInstaller = () => {
     const { apiPath, fileName } = getInstallerInfo(API_URL);
     const link = document.createElement('a');
@@ -260,6 +181,20 @@ export default function UniversalPrinterScannerModal({
   const installerLabel = getInstallerInfo(API_URL).label;
 
   if (!isOpen) return null;
+
+  // Determine current step based on global state
+  let step: 'check' | 'offline' | 'outdated' | 'discovery' | 'configured' = 'check';
+  if (isChecking) {
+    step = 'check';
+  } else if (connStatus.status === 'missing' || connStatus.status === 'error') {
+    step = 'offline';
+  } else if (connStatus.status === 'outdated') {
+    step = 'outdated';
+  } else {
+    step = activeDevice ? 'configured' : 'discovery';
+  }
+
+  const connectorVersion = connStatus.version;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto">
@@ -290,7 +225,7 @@ export default function UniversalPrinterScannerModal({
 
         {/* Body */}
         <div className="p-5 sm:p-6 space-y-5 max-h-[72vh] overflow-y-auto">
-          {/* Error Message with Action Shortcuts */}
+          {/* Error Message */}
           {errorMsg && (
             <motion.div
               initial={{ opacity: 0, y: -6 }}
@@ -315,17 +250,17 @@ export default function UniversalPrinterScannerModal({
 
               {/* Action Suggestions */}
               <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-red-500/20 text-xs">
-                {selectedDevice?.ip && selectedDevice.ip !== 'SIMULATOR' && (
+                {activeDevice?.ip && activeDevice.ip !== 'SIMULATOR' && (
                   <a
-                    href={`http://${selectedDevice.ip}`}
+                    href={`http://${activeDevice.ip}`}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold border border-slate-700 transition-colors"
                   >
-                    🌐 Drucker Web-Menü öffnen ({selectedDevice.ip})
+                    🌐 Drucker Web-Menü öffnen ({activeDevice.ip})
                   </a>
                 )}
-                {devices.some((d) => d.id === 'SIMULATOR') && selectedDevice?.id !== 'SIMULATOR' && (
+                {devices.some((d) => d.id === 'SIMULATOR') && activeDevice?.id !== 'SIMULATOR' && (
                   <button
                     type="button"
                     onClick={() => {
@@ -364,6 +299,11 @@ export default function UniversalPrinterScannerModal({
                   Ihr Browser kann aus Sicherheitsgründen nicht direkt auf Ihr lokales WLAN zugreifen.
                   Der kleine Windows-Connector verbindet diese Web-App nahtlos mit Ihren physischen Druckern & Scannern.
                 </p>
+                {connStatus.errorMessage && (
+                  <p className="text-[11px] text-amber-200/90 mt-2 bg-amber-500/10 p-2 rounded">
+                    Fehler: {connStatus.errorMessage}
+                  </p>
+                )}
               </div>
 
               {/* 3-Step Guide */}
@@ -398,11 +338,10 @@ export default function UniversalPrinterScannerModal({
                   {installerLabel}
                 </button>
                 <button
-                  onClick={checkHealthAndDiscover}
-                  disabled={checkingConnector}
+                  onClick={refreshStatus}
                   className="w-full sm:w-auto py-3 px-5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm flex items-center justify-center gap-2 border border-slate-700 transition-all cursor-pointer"
                 >
-                  <RefreshCw className={`w-4 h-4 ${checkingConnector ? 'animate-spin' : ''}`} />
+                  <RefreshCw className="w-4 h-4" />
                   Verbindung erneut prüfen
                 </button>
               </div>
@@ -430,11 +369,10 @@ export default function UniversalPrinterScannerModal({
                   {installerLabel}
                 </button>
                 <button
-                  onClick={checkHealthAndDiscover}
-                  disabled={checkingConnector}
+                  onClick={refreshStatus}
                   className="w-full sm:w-auto py-3 px-5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm flex items-center justify-center gap-2 border border-slate-700 transition-all cursor-pointer"
                 >
-                  <RefreshCw className={`w-4 h-4 ${checkingConnector ? 'animate-spin' : ''}`} />
+                  <RefreshCw className="w-4 h-4" />
                   Erneut prüfen
                 </button>
               </div>
@@ -451,7 +389,7 @@ export default function UniversalPrinterScannerModal({
                   <span>Connector: <strong className="text-emerald-400">Aktiv{connectorVersion ? ` v${connectorVersion}` : ''} (127.0.0.1:48281)</strong></span>
                 </div>
                 <button
-                  onClick={runDiscovery}
+                  onClick={discoverDevices}
                   disabled={isDiscovering}
                   className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 font-semibold transition-colors disabled:opacity-50 cursor-pointer"
                 >
@@ -488,7 +426,7 @@ export default function UniversalPrinterScannerModal({
                       Stellen Sie sicher, dass Ihr Drucker eingeschaltet und im gleichen WLAN wie dieser PC ist.
                     </p>
                     <button
-                      onClick={runDiscovery}
+                      onClick={discoverDevices}
                       className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200"
                     >
                       <RefreshCw className="w-3.5 h-3.5" /> Erneut suchen
@@ -497,7 +435,7 @@ export default function UniversalPrinterScannerModal({
                 ) : (
                   <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
                     {devices.map((device) => {
-                      const isSelected = selectedDevice?.id === device.id;
+                      const isSelected = activeDevice?.id === device.id;
                       const isReadyToScan = device.id === 'SIMULATOR' || device.backendInfo?.readyToScan || (device.capabilities?.scanning && device.protocol !== 'SPOOLER');
                       const hasAdf = Boolean(isReadyToScan && device.capabilities?.adf);
                       const hasFlatbed = Boolean(isReadyToScan && (device.capabilities?.flatbed ?? true));
@@ -581,28 +519,28 @@ export default function UniversalPrinterScannerModal({
               </div>
 
               {/* Hardware Diagnostic Banner when selected device is not ready */}
-              {selectedDevice && (selectedDevice.backendInfo?.readyToScan === false || (selectedDevice.id !== 'SIMULATOR' && !selectedDevice.capabilities?.scanning)) && (
+              {activeDevice && (activeDevice.backendInfo?.readyToScan === false || (activeDevice.id !== 'SIMULATOR' && !activeDevice.capabilities?.scanning)) && (
                 <div className="p-4 sm:p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-3">
                   <div className="flex items-center gap-2.5 text-amber-300 font-bold text-sm">
                     <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
-                    <span>Scan-Backend nicht eingerichtet ({selectedDevice.displayName || selectedDevice.name})</span>
+                    <span>Scan-Backend nicht eingerichtet ({activeDevice.displayName || activeDevice.name})</span>
                   </div>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    {selectedDevice.backendInfo?.statusText || 'Dieses Gerät wurde im Netzwerk gefunden, aber es ist noch kein aktiver Windows WIA-Scannertreiber eingerichtet.'}
+                    {activeDevice.backendInfo?.statusText || 'Dieses Gerät wurde im Netzwerk gefunden, aber es ist noch kein aktiver Windows WIA-Scannertreiber eingerichtet.'}
                   </p>
                   
                   {/* Detailed Diagnostics Table */}
                   <div className="bg-slate-900/80 rounded-xl p-3.5 border border-slate-800 space-y-1.5 text-xs">
                     <div className="flex justify-between items-center text-slate-400">
                       <span>Geräte-Erkennung:</span>
-                      <span className="text-emerald-400 font-semibold">✓ Im Netzwerk gefunden ({selectedDevice.ip || 'USB'})</span>
+                      <span className="text-emerald-400 font-semibold">✓ Im Netzwerk gefunden ({activeDevice.ip || 'USB'})</span>
                     </div>
                     <div className="flex justify-between items-center text-slate-400">
                       <span>Scanner erkannt:</span>
-                      <span className="text-emerald-400 font-semibold">✓ {selectedDevice.displayName || selectedDevice.name}</span>
+                      <span className="text-emerald-400 font-semibold">✓ {activeDevice.displayName || activeDevice.name}</span>
                     </div>
                     <div className="flex justify-between items-center text-slate-400">
-                      <span>Scan-Backend ({selectedDevice.backend || 'WIA/AirScan'}):</span>
+                      <span>Scan-Backend ({activeDevice.backend || 'WIA/AirScan'}):</span>
                       <span className="text-amber-400 font-semibold">✗ Nicht initialisiert</span>
                     </div>
                     <div className="flex justify-between items-center text-slate-400">
@@ -615,9 +553,9 @@ export default function UniversalPrinterScannerModal({
                     </div>
                   </div>
 
-                  {selectedDevice.diagnostics?.remedy && (
+                  {activeDevice.diagnostics?.remedy && (
                     <p className="text-[11px] text-amber-200/90 leading-relaxed bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/20">
-                      💡 <strong>Lösung:</strong> {selectedDevice.diagnostics.remedy}
+                      💡 <strong>Lösung:</strong> {activeDevice.diagnostics.remedy}
                     </p>
                   )}
 
@@ -639,11 +577,11 @@ export default function UniversalPrinterScannerModal({
               )}
 
               {/* Scan Options (Available when device is ready to scan) */}
-              {selectedDevice && (selectedDevice.id === 'SIMULATOR' || selectedDevice.backendInfo?.readyToScan || (selectedDevice.capabilities?.scanning && selectedDevice.protocol !== 'SPOOLER')) && (
+              {activeDevice && (activeDevice.id === 'SIMULATOR' || activeDevice.backendInfo?.readyToScan || (activeDevice.capabilities?.scanning && activeDevice.protocol !== 'SPOOLER')) && (
                 <div className="p-4 sm:p-5 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-4">
                   <h4 className="font-bold text-sm text-slate-200 flex items-center gap-2">
                     <Sliders className="w-4 h-4 text-blue-400" />
-                    Scan-Einstellungen ({selectedDevice.displayName || selectedDevice.name})
+                    Scan-Einstellungen ({activeDevice.displayName || activeDevice.name})
                   </h4>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
@@ -722,7 +660,7 @@ export default function UniversalPrinterScannerModal({
                       <select
                         value={dpi}
                         onChange={(e) => setDpi(Number(e.target.value))}
-                        className="w-full py-2 px-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-200 font-medium focus:border-blue-500 focus:outline-hidden"
+                        className="w-full py-2 px-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-200 font-medium focus:border-blue-500 focus:outline-none"
                       >
                         <option value={150}>150 DPI (Schnell)</option>
                         <option value={300}>300 DPI (Empfohlen für OCR)</option>
@@ -762,7 +700,7 @@ export default function UniversalPrinterScannerModal({
           {(step === 'discovery' || step === 'configured') && (
             <button
               onClick={handleStartScan}
-              disabled={!selectedDevice || isScanning || isConnecting || (selectedDevice.backendInfo?.readyToScan === false || (selectedDevice.id !== 'SIMULATOR' && !selectedDevice.capabilities?.scanning))}
+              disabled={!activeDevice || isScanning || isConnecting || (activeDevice.backendInfo?.readyToScan === false || (activeDevice.id !== 'SIMULATOR' && !activeDevice.capabilities?.scanning))}
               className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-600/25 transition-all cursor-pointer"
             >
               {isScanning ? (
@@ -775,7 +713,7 @@ export default function UniversalPrinterScannerModal({
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span>Verbinde Gerät...</span>
                 </>
-              ) : (selectedDevice && selectedDevice.backendInfo?.readyToScan === false) ? (
+              ) : (activeDevice && activeDevice.backendInfo?.readyToScan === false) ? (
                 <>
                   <AlertCircle className="w-4 h-4" />
                   <span>Scan-Backend nicht bereit</span>

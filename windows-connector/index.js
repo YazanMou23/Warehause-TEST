@@ -2194,6 +2194,38 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
+    // ── GET /diagnostics ─────────────────────────────────────────────────────
+    if (req.method === 'GET' && url === '/diagnostics') {
+      const netInterfaces = os.networkInterfaces();
+      const ips = [];
+      for (const key of Object.keys(netInterfaces)) {
+        for (const net of netInterfaces[key]) {
+          if (net.family === 'IPv4' && !net.internal) {
+            ips.push(net.address);
+          }
+        }
+      }
+      return sendJson(res, 200, {
+        status:    'ok',
+        version:   VERSION,
+        platform:  process.platform,
+        hostname:  os.hostname(),
+        uptime:    process.uptime(),
+        timestamp: new Date().toISOString(),
+        features:  ['adf', 'continuous_scan', 'duplex', 'wia', 'escl'],
+        network: {
+          ips,
+          port: PORT
+        },
+        devices: cachedDevices.map(d => ({
+          id: d.id,
+          name: d.name,
+          type: d.type,
+          connectionType: d.connectionType
+        }))
+      });
+    }
+
     // ── GET /devices or GET /scanners ────────────────────────────────────────
     if (req.method === 'GET' && (url === '/devices' || url === '/scanners')) {
       if (cachedDevices.length > 0 && Date.now() - lastDiscoveryTime < CACHE_TTL_MS) {

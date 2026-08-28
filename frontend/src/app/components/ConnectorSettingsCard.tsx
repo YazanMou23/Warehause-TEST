@@ -21,58 +21,23 @@ import {
   Server
 } from "lucide-react";
 import {
-  checkConnectorStatus,
   fetchLatestRelease,
   detectPlatform,
   compareVersions,
-  getDevices,
   getConnectorUrl,
   setConnectorUrl,
-  type ConnectorStatusResult,
   type ConnectorReleaseInfo,
-  type DiscoveredDevice,
 } from "../../lib/connector";
+import { useConnector } from "../../lib/ConnectorContext";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
-const LAST_SEEN_KEY = "logiflow_connector_last_seen";
 const DISMISSED_UPDATE_KEY = "logiflow_dismissed_update";
-
-// ─── helpers ──────────────────────────────────────────────────────────────────
-function saveLastSeen(version: string) {
-  try {
-    localStorage.setItem(
-      LAST_SEEN_KEY,
-      JSON.stringify({ version, ts: new Date().toISOString() })
-    );
-  } catch {}
-}
-
-function loadLastSeen(): { version: string; ts: string } | null {
-  try {
-    const raw = localStorage.getItem(LAST_SEEN_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function formatRelative(isoString: string): string {
-  const diff = Date.now() - new Date(isoString).getTime();
-  const s = Math.floor(diff / 1000);
-  if (s < 60) return "gerade eben";
-  if (s < 3600) return `vor ${Math.floor(s / 60)} Min.`;
-  if (s < 86400) return `vor ${Math.floor(s / 3600)} Std.`;
-  return `vor ${Math.floor(s / 86400)} Tagen`;
-}
 
 // ─── main component ───────────────────────────────────────────────────────────
 export default function ConnectorSettingsCard() {
-  const [connStatus, setConnStatus]         = useState<ConnectorStatusResult>({ status: "checking" });
+  const { status: connStatus, activeDevice, isChecking, refreshStatus } = useConnector();
+  
   const [release, setRelease]               = useState<ConnectorReleaseInfo | null>(null);
-  const [activeDevice, setActiveDevice]     = useState<DiscoveredDevice | null>(null);
-  const [deviceList, setDeviceList]         = useState<DiscoveredDevice[]>([]);
-  const [isRefreshing, setIsRefreshing]     = useState(false);
-  const [lastSeen, setLastSeen]             = useState<{ version: string; ts: string } | null>(null);
   const [updateDismissed, setUpdateDismissed] = useState(false);
   const [downloading, setDownloading]       = useState(false);
   const [verifyMsg, setVerifyMsg]           = useState<"idle" | "verifying" | "success" | "fail">("idle");
@@ -99,80 +64,42 @@ export default function ConnectorSettingsCard() {
     setIpInput(getConnectorUrl().replace(/^https?:\/\//, ""));
   }, []);
 
-  // ── poll connector health & devices every 8s ────────────────────────────────
-  const refresh = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      const result = await checkConnectorStatus();
-      setConnStatus(result);
-
-      if (result.status === "connected" || result.status === "outdated") {
-        const entry = { version: result.version ?? "", ts: new Date().toISOString() };
-        try { localStorage.setItem(LAST_SEEN_KEY, JSON.stringify(entry)); } catch {}
-        setLastSeen(entry);
-
-        try {
-          const devices = await getDevices();
-          setDeviceList(devices || []);
-          if (devices && devices.length > 0) {
-            const realScanner =
-              devices.find((d) => d.protocol === "ESCL" || (d.ip && d.ip !== "SIMULATOR" && !d.id.includes("PDF"))) ||
-              devices.find((d) => d.ip && d.ip !== "SIMULATOR") ||
-              devices[0];
-
-            setActiveDevice(realScanner || null);
-          } else {
-            setActiveDevice(null);
-          }
-        } catch {
-          // Ignore discovery poll failures
-        }
-      } else {
-        setActiveDevice(null);
-      }
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, []);
-
   useEffect(() => {
-    const ls = loadLastSeen();
-    setLastSeen(ls);
     const dismissed = localStorage.getItem(DISMISSED_UPDATE_KEY) ?? "";
     setUpdateDismissed(!!dismissed);
-
-    refresh();
     fetchLatestRelease(API_BASE).then(setRelease);
-
-    const timer = setInterval(refresh, 8000);
-    return () => clearInterval(timer);
-  }, [refresh]);
+  }, []);
 
   // ── verified-update polling ──────────────────────────────────────────────────
-  const startVerifyPolling = useCallback((expectedVersion?: string) => {
+  const startVerifyPolling = useCallback(() => {
     setVerifyMsg("verifying");
     let attempts = 0;
     const MAX = 15;
     verifyInterval.current = setInterval(async () => {
       attempts++;
-      const r = await checkConnectorStatus();
-      if (r.status === "connected" || r.status === "outdated") {
-        const updated = expectedVersion ? compareVersions(r.version || "0", expectedVersion) >= 0 : true;
-        if (updated) {
-          clearInterval(verifyInterval.current!);
-          setVerifyMsg("success");
-          setConnStatus(r);
-          refresh();
-          return;
-        }
-      }
+      await refreshStatus(); // this updates connStatus globally
+      
+      // We need to check if the global state updated. 
+      // It's a bit tricky to read state inside setInterval, so we rely on the next render cycle, 
+      // but for polling we can just keep firing refreshStatus. The component will re-render.
       if (attempts >= MAX) {
         clearInterval(verifyInterval.current!);
         setVerifyMsg("fail");
         setTimeout(() => setVerifyMsg("idle"), 8000);
       }
     }, 2000);
-  }, [refresh]);
+  }, [refreshStatus]);
+
+  useEffect(() => {
+    if (verifyMsg === "verifying") {
+      if (connStatus.status === "connected" || connStatus.status === "outdated") {
+        if (verifyInterval.current) {
+          clearInterval(verifyInterval.current);
+          setVerifyMsg("success");
+        }
+      }
+    }
+  }, [connStatus.status, verifyMsg]);
 
   useEffect(() => () => { if (verifyInterval.current) clearInterval(verifyInterval.current); }, []);
 
@@ -199,14 +126,13 @@ export default function ConnectorSettingsCard() {
     document.body.removeChild(link);
     setTimeout(() => setDownloading(false), 2000);
 
-    if (latestVer) startVerifyPolling(latestVer);
-    else startVerifyPolling();
-  }, [platform, release, latestVer, startVerifyPolling]);
+    startVerifyPolling();
+  }, [platform, release, startVerifyPolling]);
 
-  const handleSaveIp = () => {
+  const handleSaveIp = async () => {
     setConnectorUrl(ipInput);
     setIsEditingIp(false);
-    refresh(); // immediately check new ip
+    await refreshStatus();
   };
 
   const isOffline = connStatus.status === "missing" || connStatus.status === "error";
@@ -274,7 +200,7 @@ export default function ConnectorSettingsCard() {
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <button
-            onClick={() => startVerifyPolling(latestVer)}
+            onClick={() => startVerifyPolling()}
             className="bg-red-600 hover:bg-red-700 text-white font-bold px-8 py-3 rounded-xl transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
           >
             Try Again
@@ -309,12 +235,16 @@ export default function ConnectorSettingsCard() {
           </div>
           
           <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-slate-200 shadow-sm">
-            <span className="relative flex h-2.5 w-2.5">
-              {!isOffline && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}
-              <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isOffline ? "bg-slate-300" : "bg-emerald-500"}`}></span>
-            </span>
+            {isChecking ? (
+              <Loader2 className="w-3.5 h-3.5 text-slate-400 animate-spin" />
+            ) : (
+              <span className="relative flex h-2.5 w-2.5">
+                {!isOffline && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}
+                <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isOffline ? "bg-slate-300" : "bg-emerald-500"}`}></span>
+              </span>
+            )}
             <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
-              {isOffline ? "Offline" : "Connected"}
+              {isOffline ? "Offline" : (isChecking ? "Checking" : "Connected")}
             </span>
           </div>
         </div>
