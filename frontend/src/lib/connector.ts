@@ -26,17 +26,27 @@ export function setConnectorUrl(url: string) {
   connectorUrlCache = finalUrl;
 }
 
-export const CONNECTOR_MIN_VERSION = '2.0.0';
-export const HEALTH_CHECK_TIMEOUT_MS = 2000;
+export const CONNECTOR_MIN_VERSION = '3.0.0';
+export const HEALTH_CHECK_TIMEOUT_MS = 2500;
 
-export type ConnectorStatus = 'checking' | 'connected' | 'outdated' | 'missing' | 'error';
+export type ConnectorStatusType =
+  | 'NOT_INSTALLED'
+  | 'INSTALLED_NOT_RUNNING'
+  | 'STARTING'
+  | 'RECONNECTING'
+  | 'CONNECTED'
+  | 'READY'
+  | 'UPDATE_REQUIRED'
+  | 'ERROR';
 
 export interface ConnectorStatusResult {
-  status: ConnectorStatus;
+  status: ConnectorStatusType;
   version?: string;
   platform?: string;
   connectorId?: string;
+  port?: number;
   errorMessage?: string;
+  lastSeen?: string;
 }
 
 export interface DeviceCapabilities {
@@ -126,21 +136,81 @@ export interface ScannedPage {
   base64Data: string;
 }
 
+const REG_KEY_VERSION = 'logiflow_connector_registered_version';
+const REG_KEY_LAST_SEEN = 'logiflow_connector_last_seen';
+
+/**
+ * Perform a live handshake check against the local connector service.
+ * Correctly differentiates NOT_INSTALLED vs INSTALLED_NOT_RUNNING vs UPDATE_REQUIRED vs CONNECTED.
+ */
 export async function checkConnectorStatus(): Promise<ConnectorStatusResult> {
+  const url = getConnectorUrl();
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT_MS);
-    const response = await fetch(getConnectorUrl() + '/health', { signal: controller.signal });
+    const response = await fetch(`${url}/health`, { signal: controller.signal });
     clearTimeout(timeout);
-    if (!response.ok) return { status: 'error', errorMessage: 'HTTP ' + response.status };
+
+    if (!response.ok) {
+      return { status: 'ERROR', errorMessage: `HTTP ${response.status}` };
+    }
+
     const health = await response.json();
-    const isOutdated = compareVersions(health.version || '0', CONNECTOR_MIN_VERSION) < 0;
-    return { status: isOutdated ? 'outdated' : 'connected', version: health.version, platform: health.platform, connectorId: health.connectorId };
+    const ver = health.connectorVersion || health.version || '3.0.0';
+
+    // Store verified installation registration
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(REG_KEY_VERSION, ver);
+        localStorage.setItem(REG_KEY_LAST_SEEN, new Date().toISOString());
+      } catch {}
+    }
+
+    const isOutdated = compareVersions(ver, CONNECTOR_MIN_VERSION) < 0;
+    return {
+      status: isOutdated ? 'UPDATE_REQUIRED' : 'CONNECTED',
+      version: ver,
+      platform: health.platform || 'windows',
+      connectorId: health.connectorId || 'logiflow-windows-connector',
+      port: health.port || 48281,
+    };
   } catch (err: any) {
     const msg = String(err);
-    if (err?.name === 'AbortError' || msg.includes('fetch') || msg.includes('ECONNREFUSED')) return { status: 'missing' };
-    return { status: 'error', errorMessage: err?.message ?? 'Unknown error' };
+    const isNetworkError = err?.name === 'AbortError' || msg.includes('fetch') || msg.includes('ECONNREFUSED') || msg.includes('Failed to fetch');
+
+    if (isNetworkError && typeof window !== 'undefined') {
+      const recordedVer = localStorage.getItem(REG_KEY_VERSION);
+      const recordedSeen = localStorage.getItem(REG_KEY_LAST_SEEN);
+
+      if (recordedVer || recordedSeen) {
+        return {
+          status: 'INSTALLED_NOT_RUNNING',
+          version: recordedVer || undefined,
+          lastSeen: recordedSeen || undefined,
+          errorMessage: 'Connector ist auf diesem Gerät installiert, läuft aber aktuell nicht.',
+        };
+      }
+      return { status: 'NOT_INSTALLED' };
+    }
+
+    return { status: 'ERROR', errorMessage: err?.message ?? 'Verbindungsfehler' };
   }
+}
+
+/**
+ * Launch the local background connector service via custom protocol handler
+ */
+export function launchLocalConnector() {
+  if (typeof window === 'undefined') return;
+  try {
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = 'logiflow-connector://start';
+    document.body.appendChild(iframe);
+    setTimeout(() => {
+      try { document.body.removeChild(iframe); } catch {}
+    }, 1200);
+  } catch {}
 }
 
 export async function getDevices(): Promise<DiscoveredDevice[]> {
@@ -150,8 +220,14 @@ export async function getDevices(): Promise<DiscoveredDevice[]> {
 }
 
 export async function discoverDevices(): Promise<DiscoveredDevice[]> {
-  const r = await fetch(getConnectorUrl() + '/discover', { method: 'POST', signal: AbortSignal.timeout(8000) });
+  const r = await fetch(getConnectorUrl() + '/discover', { method: 'POST', signal: AbortSignal.timeout(10000) });
   if (!r.ok) throw new Error('POST /discover failed: HTTP ' + r.status);
+  return r.json();
+}
+
+export async function getConnectorDiagnostics(): Promise<any> {
+  const r = await fetch(getConnectorUrl() + '/diagnostics', { signal: AbortSignal.timeout(6000) });
+  if (!r.ok) throw new Error('GET /diagnostics failed: HTTP ' + r.status);
   return r.json();
 }
 
@@ -277,9 +353,9 @@ export function detectPlatform(): Platform {
 
 export function getInstallerInfo(apiBaseUrl: string): { platform: Platform; fileName: string; label: string; apiPath: string } {
   const p = detectPlatform();
-  if (p === 'windows') return { platform: p, fileName: 'LogiFlow-Connector-Setup.exe', label: 'Für Windows herunterladen (.exe)', apiPath: apiBaseUrl + '/scanner/download-installer?platform=windows' };
+  if (p === 'windows') return { platform: p, fileName: 'LogiFlow-Connector-Setup.exe', label: 'Für Windows herunterladen (v3.0.0 .exe)', apiPath: apiBaseUrl + '/scanner/download-installer?platform=windows' };
   if (p === 'macos')   return { platform: p, fileName: 'LogiFlow-Connector.dmg',       label: 'Für macOS herunterladen (.dmg)',  apiPath: apiBaseUrl + '/scanner/download-installer?platform=macos' };
-  return { platform: p, fileName: 'LogiFlow-Connector.zip', label: 'Connector herunterladen', apiPath: apiBaseUrl + '/scanner/download-installer' };
+  return { platform: p, fileName: 'LogiFlow-Connector.zip', label: 'Connector herunterladen (v3.0.0)', apiPath: apiBaseUrl + '/scanner/download-installer' };
 }
 
 export interface ConnectorReleaseInfo {
@@ -311,7 +387,8 @@ export async function fetchLatestRelease(apiBaseUrl: string): Promise<ConnectorR
  * Returns negative if a < b, 0 if equal, positive if a > b.
  */
 export function compareVersions(a: string, b: string): number {
-  const parse = (v: string) => v.split('.').map(n => parseInt(n, 10) || 0);
-  const [a0, a1, a2] = parse(a); const [b0, b1, b2] = parse(b);
+  const parse = (v: string) => v.split('.').map((n) => parseInt(n, 10) || 0);
+  const [a0, a1, a2] = parse(a);
+  const [b0, b1, b2] = parse(b);
   return (a0 - b0) || (a1 - b1) || (a2 - b2);
 }

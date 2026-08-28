@@ -48,7 +48,7 @@ const PROBE_TIMEOUT_MS = 600;
 const FAST_TCP_TIMEOUT = 350;
 const CACHE_TTL_MS     = 30_000;
 const MULTICAST_WAIT   = 1200;
-const VERSION          = '2.3.0';
+const VERSION          = '3.0.0';
 
 // ─── State ────────────────────────────────────────────────────────────────────
 let cachedDevices     = [];
@@ -2184,13 +2184,18 @@ const server = http.createServer(async (req, res) => {
     // ── GET /health ──────────────────────────────────────────────────────────
     if (req.method === 'GET' && url === '/health') {
       return sendJson(res, 200, {
-        status:    'ok',
-        version:   VERSION,
-        platform:  process.platform,
-        hostname:  os.hostname(),
-        uptime:    process.uptime(),
-        timestamp: new Date().toISOString(),
-        features:  ['adf', 'continuous_scan', 'duplex', 'wia', 'escl'],
+        status:           'ready',
+        running:          true,
+        connectorId:      'logiflow-windows-connector',
+        connectorVersion: VERSION,
+        version:          VERSION,
+        apiVersion:       'v1',
+        platform:         process.platform,
+        hostname:         os.hostname(),
+        port:             PORT,
+        uptime:           process.uptime(),
+        timestamp:        new Date().toISOString(),
+        features:         ['adf', 'continuous_scan', 'duplex', 'wia', 'escl', 'diagnostics'],
       });
     }
 
@@ -2206,23 +2211,41 @@ const server = http.createServer(async (req, res) => {
         }
       }
       return sendJson(res, 200, {
-        status:    'ok',
-        version:   VERSION,
-        platform:  process.platform,
-        hostname:  os.hostname(),
-        uptime:    process.uptime(),
-        timestamp: new Date().toISOString(),
-        features:  ['adf', 'continuous_scan', 'duplex', 'wia', 'escl'],
+        connectorRunning:     true,
+        status:               'ready',
+        connectorId:          'logiflow-windows-connector',
+        connectorVersion:     VERSION,
+        version:              VERSION,
+        apiVersion:           'v1',
+        platform:             process.platform,
+        hostname:             os.hostname(),
+        port:                 PORT,
+        webOriginAllowed:     true,
+        uptime:               process.uptime(),
+        timestamp:            new Date().toISOString(),
+        features:             ['adf', 'continuous_scan', 'duplex', 'wia', 'escl', 'diagnostics'],
+        scannerBackendStatus: {
+          wia:       process.platform === 'win32' ? 'ready' : 'unsupported',
+          escl:      'ready',
+          wsd:       'ready',
+          twain:     'unsupported',
+          simulator: 'ready',
+        },
         network: {
           ips,
-          port: PORT
+          port: PORT,
         },
-        devices: cachedDevices.map(d => ({
-          id: d.id,
-          name: d.name,
-          type: d.type,
-          connectionType: d.connectionType
-        }))
+        deviceCount: cachedDevices.length,
+        devices:     cachedDevices.map((d) => ({
+          id:             d.id,
+          name:           d.displayName || d.name,
+          manufacturer:   d.manufacturer,
+          connectionType: d.connectionType,
+          protocol:       d.protocol,
+          backend:        d.backend,
+          hasAdf:         Boolean(d.capabilities?.adf || d.sources?.adf),
+          readyToScan:    Boolean(d.backendInfo?.readyToScan || d.capabilities?.scanning),
+        })),
       });
     }
 

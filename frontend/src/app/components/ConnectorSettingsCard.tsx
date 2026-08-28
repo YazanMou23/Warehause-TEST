@@ -18,7 +18,8 @@ import {
   Printer,
   Edit2,
   Save,
-  Server
+  Server,
+  Play
 } from "lucide-react";
 import {
   fetchLatestRelease,
@@ -33,15 +34,24 @@ import { useConnector } from "../../lib/ConnectorContext";
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 const DISMISSED_UPDATE_KEY = "logiflow_dismissed_update";
 
-// ─── main component ───────────────────────────────────────────────────────────
 export default function ConnectorSettingsCard() {
-  const { status: connStatus, activeDevice, isChecking, refreshStatus } = useConnector();
+  const { 
+    status, 
+    statusDetails,
+    version: installedVer, 
+    devices,
+    activeDevice, 
+    isChecking, 
+    isDiscovering,
+    isStarting,
+    refreshStatus,
+    discoverDevices,
+    startConnector
+  } = useConnector();
   
   const [release, setRelease]               = useState<ConnectorReleaseInfo | null>(null);
   const [updateDismissed, setUpdateDismissed] = useState(false);
   const [downloading, setDownloading]       = useState(false);
-  const [verifyMsg, setVerifyMsg]           = useState<"idle" | "verifying" | "success" | "fail">("idle");
-  const verifyInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // IP Editing State
   const [isEditingIp, setIsEditingIp] = useState(false);
@@ -49,9 +59,7 @@ export default function ConnectorSettingsCard() {
 
   const platform = detectPlatform();
 
-  // derive update state
-  const installedVer = connStatus.version;
-  const latestVer    = release?.latestVersion;
+  const latestVer = release?.latestVersion || '3.0.0';
   const updateAvailable = !!(
     installedVer &&
     latestVer &&
@@ -70,40 +78,6 @@ export default function ConnectorSettingsCard() {
     fetchLatestRelease(API_BASE).then(setRelease);
   }, []);
 
-  // ── verified-update polling ──────────────────────────────────────────────────
-  const startVerifyPolling = useCallback(() => {
-    setVerifyMsg("verifying");
-    let attempts = 0;
-    const MAX = 15;
-    verifyInterval.current = setInterval(async () => {
-      attempts++;
-      await refreshStatus(); // this updates connStatus globally
-      
-      // We need to check if the global state updated. 
-      // It's a bit tricky to read state inside setInterval, so we rely on the next render cycle, 
-      // but for polling we can just keep firing refreshStatus. The component will re-render.
-      if (attempts >= MAX) {
-        clearInterval(verifyInterval.current!);
-        setVerifyMsg("fail");
-        setTimeout(() => setVerifyMsg("idle"), 8000);
-      }
-    }, 2000);
-  }, [refreshStatus]);
-
-  useEffect(() => {
-    if (verifyMsg === "verifying") {
-      if (connStatus.status === "connected" || connStatus.status === "outdated") {
-        if (verifyInterval.current) {
-          clearInterval(verifyInterval.current);
-          setVerifyMsg("success");
-        }
-      }
-    }
-  }, [connStatus.status, verifyMsg]);
-
-  useEffect(() => () => { if (verifyInterval.current) clearInterval(verifyInterval.current); }, []);
-
-  // ── download + verify ────────────────────────────────────────────────────────
   const handleDownload = useCallback(() => {
     const installerPath =
       platform === "windows"
@@ -125,9 +99,7 @@ export default function ConnectorSettingsCard() {
     link.click();
     document.body.removeChild(link);
     setTimeout(() => setDownloading(false), 2000);
-
-    startVerifyPolling();
-  }, [platform, release, startVerifyPolling]);
+  }, [platform, release]);
 
   const handleSaveIp = async () => {
     setConnectorUrl(ipInput);
@@ -135,88 +107,60 @@ export default function ConnectorSettingsCard() {
     await refreshStatus();
   };
 
-  const isOffline = connStatus.status === "missing" || connStatus.status === "error";
+  const isOnline = status === 'CONNECTED' || status === 'READY';
   const hasAdf = activeDevice?.capabilities?.adf ?? activeDevice?.sources?.adf ?? false;
 
-  // ── Render Verification Screens ──
-  if (verifyMsg === "verifying") {
+  // Status Badge UI
+  const getStatusBadge = () => {
+    if (isChecking) {
+      return (
+        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-bold border border-slate-200">
+          <Loader2 className="w-3 h-3 animate-spin" /> Prüfe...
+        </span>
+      );
+    }
+    if (isStarting || status === 'STARTING') {
+      return (
+        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-bold border border-blue-200">
+          <Loader2 className="w-3 h-3 animate-spin" /> Startet...
+        </span>
+      );
+    }
+    if (status === 'READY') {
+      return (
+        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Bereit ({devices.length} Geräte)
+        </span>
+      );
+    }
+    if (status === 'CONNECTED') {
+      return (
+        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200">
+          <span className="w-2 h-2 rounded-full bg-emerald-500" /> Verbunden
+        </span>
+      );
+    }
+    if (status === 'UPDATE_REQUIRED') {
+      return (
+        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-bold border border-orange-200">
+          <AlertTriangle className="w-3 h-3" /> Update erforderlich
+        </span>
+      );
+    }
+    if (status === 'INSTALLED_NOT_RUNNING') {
+      return (
+        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-bold border border-amber-200">
+          <span className="w-2 h-2 rounded-full bg-amber-500" /> Nicht aktiv
+        </span>
+      );
+    }
     return (
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-50/50 border border-blue-100 rounded-2xl shadow-lg p-10 text-center flex flex-col items-center">
-        <Loader2 className="w-12 h-12 animate-spin text-blue-600 mb-6 drop-shadow-sm" />
-        <h2 className="text-xl font-bold text-slate-800 mb-2">Verifying Connection...</h2>
-        <p className="text-slate-600 font-medium">Please wait while the connector is starting in the background.</p>
-      </div>
+      <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-500 text-xs font-bold border border-slate-200">
+        <span className="w-2 h-2 rounded-full bg-slate-400" /> Nicht installiert
+      </span>
     );
-  }
+  };
 
-  if (verifyMsg === "success") {
-    return (
-      <div className="bg-gradient-to-br from-emerald-50 to-teal-50/50 border border-emerald-100 rounded-2xl shadow-lg p-10">
-        <h2 className="text-2xl font-black text-slate-800 mb-8 text-center tracking-tight">Connector Verified!</h2>
-        
-        <div className="max-w-sm mx-auto space-y-4 mb-10">
-          <div className="flex items-center gap-4 text-emerald-700 bg-white/60 p-3 rounded-xl border border-emerald-100">
-            <CheckCircle className="w-6 h-6 shrink-0 drop-shadow-sm text-emerald-500" />
-            <span className="font-semibold">Installed successfully</span>
-          </div>
-          <div className="flex items-center gap-4 text-emerald-700 bg-white/60 p-3 rounded-xl border border-emerald-100">
-            <CheckCircle className="w-6 h-6 shrink-0 drop-shadow-sm text-emerald-500" />
-            <span className="font-semibold">Connector running actively</span>
-          </div>
-          <div className="flex items-center gap-4 text-emerald-700 bg-white/60 p-3 rounded-xl border border-emerald-100">
-            <CheckCircle className="w-6 h-6 shrink-0 drop-shadow-sm text-emerald-500" />
-            <span className="font-semibold">Connection established</span>
-          </div>
-        </div>
-
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <a
-            href="/timesheets"
-            className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white font-bold px-8 py-3 rounded-xl text-center transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-          >
-            Start Scanning
-          </a>
-          <button
-            onClick={() => setVerifyMsg("idle")}
-            className="w-full sm:w-auto bg-white border-2 border-slate-200 hover:border-slate-300 text-slate-700 font-bold px-8 py-3 rounded-xl transition-all"
-          >
-            Open Settings
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (verifyMsg === "fail") {
-    return (
-      <div className="bg-white border-2 border-red-100 rounded-2xl shadow-lg p-10 text-center relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-red-400 to-rose-500" />
-        <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
-          <AlertTriangle className="w-10 h-10 text-red-500 drop-shadow-sm" />
-        </div>
-        <h2 className="text-2xl font-black text-slate-800 mb-3 tracking-tight">Verification Failed</h2>
-        <p className="text-slate-600 font-medium mb-10 max-w-md mx-auto leading-relaxed">
-          The connector might still be starting, or a firewall is blocking the connection. If you are on another device, check the IP settings.
-        </p>
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <button
-            onClick={() => startVerifyPolling()}
-            className="bg-red-600 hover:bg-red-700 text-white font-bold px-8 py-3 rounded-xl transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-          >
-            Try Again
-          </button>
-          <button
-            onClick={() => setVerifyMsg("idle")}
-            className="bg-white border-2 border-slate-200 hover:border-slate-300 text-slate-700 font-bold px-8 py-3 rounded-xl transition-all"
-          >
-            Check Settings
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Premium UI Render ──
   return (
     <div className="relative group rounded-3xl p-[2px] bg-gradient-to-b from-slate-200 to-slate-100 shadow-sm hover:shadow-md transition-shadow">
       <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
@@ -225,27 +169,17 @@ export default function ConnectorSettingsCard() {
         {/* Header Section */}
         <div className="bg-slate-50/80 backdrop-blur-md border-b border-slate-100 p-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-xl ${isOffline ? "bg-slate-100 text-slate-400" : "bg-indigo-50 text-indigo-600"}`}>
+            <div className={`p-2.5 rounded-xl ${isOnline ? "bg-indigo-50 text-indigo-600" : "bg-slate-100 text-slate-400"}`}>
               <Scan className="w-6 h-6" />
             </div>
             <div>
               <h2 className="text-lg font-black text-slate-800 tracking-tight">Scanner Connector</h2>
-              <p className="text-xs font-medium text-slate-500">Local Hardware Bridge</p>
+              <p className="text-xs font-medium text-slate-500">Lokale Hardware-Bridge (WLAN &amp; USB)</p>
             </div>
           </div>
           
-          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-slate-200 shadow-sm">
-            {isChecking ? (
-              <Loader2 className="w-3.5 h-3.5 text-slate-400 animate-spin" />
-            ) : (
-              <span className="relative flex h-2.5 w-2.5">
-                {!isOffline && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}
-                <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isOffline ? "bg-slate-300" : "bg-emerald-500"}`}></span>
-              </span>
-            )}
-            <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
-              {isOffline ? "Offline" : (isChecking ? "Checking" : "Connected")}
-            </span>
+          <div className="flex items-center gap-2">
+            {getStatusBadge()}
           </div>
         </div>
 
@@ -267,7 +201,7 @@ export default function ConnectorSettingsCard() {
                     <input 
                       type="text" 
                       value={ipInput} 
-                      onChange={e => setIpInput(e.target.value)}
+                      onChange={(e) => setIpInput(e.target.value)}
                       className="text-sm font-mono border-b-2 border-indigo-400 bg-transparent outline-none w-32 px-1 text-slate-800"
                       placeholder="127.0.0.1:48281"
                       autoFocus
@@ -290,14 +224,26 @@ export default function ConnectorSettingsCard() {
                   <span className="text-sm font-semibold">Version</span>
                 </div>
                 <span className="text-sm font-bold text-slate-800">
-                  {connStatus.version ? `v${connStatus.version}` : "Not installed"}
+                  {installedVer ? `v${installedVer}` : "Nicht aktiv"}
                 </span>
               </div>
             </div>
 
             {/* Active Scanner Details */}
             <div className="space-y-3">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Detected Hardware</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Erkanntes Scan-Gerät</h3>
+                {isOnline && (
+                  <button
+                    onClick={discoverDevices}
+                    disabled={isDiscovering}
+                    className="text-xs text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1 cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isDiscovering ? 'animate-spin' : ''}`} />
+                    Geräte suchen
+                  </button>
+                )}
+              </div>
               
               <div className={`p-4 rounded-2xl border flex items-center gap-4 transition-all ${
                 activeDevice 
@@ -309,14 +255,19 @@ export default function ConnectorSettingsCard() {
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-slate-800">
-                    {activeDevice ? (activeDevice.displayName || activeDevice.name) : "No Scanner Found"}
+                    {activeDevice ? (activeDevice.displayName || activeDevice.name) : (isOnline ? "Kein Scanner gefunden" : "Connector offline")}
                   </h4>
                   <div className="flex gap-2 mt-1">
                     <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold uppercase ${
                       hasAdf ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"
                     }`}>
-                      {hasAdf ? "ADF Ready" : "Flatbed Only"}
+                      {hasAdf ? "ADF Bereit" : "Flachbett"}
                     </span>
+                    {activeDevice?.ip && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 font-mono">
+                        {activeDevice.ip}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -326,30 +277,51 @@ export default function ConnectorSettingsCard() {
           {/* Actions & Updates */}
           <div className="flex flex-col justify-between space-y-6">
             
-            {updateAvailable ? (
-              <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden group/update">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full blur-2xl transform translate-x-10 -translate-y-10 group-hover/update:scale-150 transition-transform duration-700" />
+            {status === 'UPDATE_REQUIRED' || updateAvailable ? (
+              <div className="bg-gradient-to-br from-orange-500 to-amber-600 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden">
                 <div className="relative z-10">
                   <h4 className="font-black text-lg mb-1 flex items-center gap-2">
-                    <Zap className="w-5 h-5 text-yellow-300 fill-yellow-300" /> Update Available
+                    <Zap className="w-5 h-5 text-yellow-300 fill-yellow-300" /> Update verfügbar (v{latestVer})
                   </h4>
-                  <p className="text-indigo-100 text-sm font-medium mb-4">Version {latestVer} brings new improvements.</p>
+                  <p className="text-orange-100 text-sm font-medium mb-4">
+                    Neue Version mit verbesserter Treiber-Erkennung und robuster ADF-Steuerung.
+                  </p>
                   
                   <button
                     onClick={handleDownload}
                     disabled={downloading}
-                    className="w-full bg-white text-indigo-600 hover:bg-indigo-50 font-black text-sm px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2"
+                    className="w-full bg-white text-orange-600 hover:bg-orange-50 font-black text-sm px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
                   >
                     {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                    Download Update
+                    Update herunterladen
                   </button>
                 </div>
               </div>
+            ) : status === 'INSTALLED_NOT_RUNNING' ? (
+              <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-100 rounded-2xl p-5 space-y-3">
+                <div className="flex items-center gap-2 text-indigo-700 font-bold text-sm">
+                  <Zap className="w-4 h-4 text-indigo-600" />
+                  <span>Dienst im Hintergrund starten</span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Der Connector ist auf Ihrem PC installiert. Klicken Sie hier, um ihn im Hintergrund aufzuwecken.
+                </p>
+                <button
+                  onClick={startConnector}
+                  disabled={isStarting}
+                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {isStarting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-white" />}
+                  <span>{isStarting ? 'Starte Dienst...' : 'Connector jetzt starten'}</span>
+                </button>
+              </div>
             ) : (
               <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 flex flex-col items-center justify-center text-center h-full">
-                <CheckCircle className="w-8 h-8 text-slate-300 mb-2" />
-                <h4 className="font-bold text-slate-600">Up to date</h4>
-                <p className="text-xs font-medium text-slate-400 mt-1">You're running the latest connector.</p>
+                <CheckCircle className="w-8 h-8 text-emerald-400 mb-2" />
+                <h4 className="font-bold text-slate-700">Connector v3.0</h4>
+                <p className="text-xs font-medium text-slate-400 mt-1">
+                  {isOnline ? "Aktiv und einsatzbereit für Scans." : "Bereit zur Installation."}
+                </p>
               </div>
             )}
 
@@ -358,15 +330,15 @@ export default function ConnectorSettingsCard() {
                 href="/timesheets"
                 className="bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2"
               >
-                <Scan className="w-4 h-4" /> Go Scan
+                <Scan className="w-4 h-4" /> Zum Scan
               </a>
               <button
                 onClick={handleDownload}
                 disabled={downloading}
-                className="bg-white border-2 border-slate-200 hover:border-slate-300 text-slate-700 text-sm font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2"
+                className="bg-white border-2 border-slate-200 hover:border-slate-300 text-slate-700 text-sm font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                Re-install
+                Installer laden
               </button>
             </div>
           </div>

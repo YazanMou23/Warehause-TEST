@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Printer,
@@ -20,14 +20,15 @@ import {
   ChevronRight,
   FileScan,
   Zap,
+  Play,
+  ArrowRight,
+  Server
 } from 'lucide-react';
 import {
   getConnectorUrl,
   scanDocument,
   getInstallerInfo,
   DiscoveredDevice,
-  ScannerBackendInfo,
-  ScannerDiagnostic,
 } from '../../lib/connector';
 import { useConnector } from '../../lib/ConnectorContext';
 import { API_URL } from '../../config/api';
@@ -48,20 +49,25 @@ export default function UniversalPrinterScannerModal({
   description = 'Dokumente direkt über verbundene WLAN- & USB-Drucker erfassen.',
 }: UniversalPrinterScannerModalProps) {
   const { 
-    status: connStatus, 
+    status, 
+    statusDetails,
+    version: connectorVersion,
     devices, 
     activeDevice, 
     isChecking, 
-    isDiscovering, 
+    isDiscovering,
+    isStarting,
+    lastError,
     refreshStatus, 
     discoverDevices, 
+    startConnector,
     setActiveDevice 
   } = useConnector();
 
-  const [isConnecting, setIsConnecting]           = useState(false);
-  const [isScanning, setIsScanning]               = useState(false);
-  const [errorMsg, setErrorMsg]                   = useState('');
-  const [scanStatusText, setScanStatusText]       = useState('');
+  const [isConnecting, setIsConnecting]     = useState(false);
+  const [isScanning, setIsScanning]         = useState(false);
+  const [errorMsg, setErrorMsg]             = useState('');
+  const [scanStatusText, setScanStatusText] = useState('');
 
   // Scan Settings
   const [inputSource, setInputSource] = useState<'Auto' | 'Feeder' | 'Platen'>('Auto');
@@ -71,14 +77,14 @@ export default function UniversalPrinterScannerModal({
 
   const scanAbortController = useRef<AbortController | null>(null);
 
-  // Trigger discovery when opening modal if we are connected but have no devices
+  // Trigger discovery when opening modal if connected and no devices yet
   useEffect(() => {
-    if (isOpen && connStatus.status === 'connected' && devices.length === 0 && !isDiscovering) {
+    if (isOpen && (status === 'CONNECTED' || status === 'READY') && devices.length === 0 && !isDiscovering) {
       discoverDevices();
     }
-  }, [isOpen, connStatus.status, devices.length, isDiscovering, discoverDevices]);
+  }, [isOpen, status, devices.length, isDiscovering, discoverDevices]);
 
-  // ── 3. Test Connection & Select Device ──────────────────────────────────────
+  // Connect & probe capabilities for selected device
   const handleSelectDevice = async (device: DiscoveredDevice) => {
     setActiveDevice(device);
     setIsConnecting(true);
@@ -96,7 +102,6 @@ export default function UniversalPrinterScannerModal({
         const result = await res.json();
         if (result.capabilities) {
           device.capabilities = { ...device.capabilities, ...result.capabilities };
-          // Note: Ideally we'd update the device in the context list too, but activeDevice holds the reference for now.
         }
       }
 
@@ -108,7 +113,7 @@ export default function UniversalPrinterScannerModal({
     }
   };
 
-  // ── 4. Execute Physical Scan ────────────────────────────────────────────────
+  // Execute scan
   const handleStartScan = async () => {
     if (!activeDevice) {
       setErrorMsg('Bitte wählen Sie zuerst ein Scan-Gerät aus.');
@@ -182,22 +187,8 @@ export default function UniversalPrinterScannerModal({
 
   if (!isOpen) return null;
 
-  // Determine current step based on global state
-  let step: 'check' | 'offline' | 'outdated' | 'discovery' | 'configured' = 'check';
-  if (isChecking) {
-    step = 'check';
-  } else if (connStatus.status === 'missing' || connStatus.status === 'error') {
-    step = 'offline';
-  } else if (connStatus.status === 'outdated') {
-    step = 'outdated';
-  } else {
-    step = activeDevice ? 'configured' : 'discovery';
-  }
-
-  const connectorVersion = connStatus.version;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto">
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -205,19 +196,19 @@ export default function UniversalPrinterScannerModal({
         className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto"
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-5 sm:p-6 border-b border-slate-800/80 bg-slate-900/90">
+        <div className="flex items-center justify-between p-5 sm:p-6 border-b border-slate-800/80 bg-slate-900/95">
           <div className="flex items-center gap-3.5">
             <div className="p-3 rounded-2xl bg-blue-600/15 border border-blue-500/25 text-blue-400">
               <Printer className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="font-headline-sm font-bold text-slate-100 text-lg sm:text-xl">{title}</h3>
+              <h3 className="font-bold text-slate-100 text-lg sm:text-xl tracking-tight">{title}</h3>
               <p className="text-xs sm:text-sm text-slate-400 mt-0.5">{description}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 transition-colors"
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -257,7 +248,7 @@ export default function UniversalPrinterScannerModal({
                     rel="noreferrer"
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold border border-slate-700 transition-colors"
                   >
-                    🌐 Drucker Web-Menü öffnen ({activeDevice.ip})
+                    🌐 Drucker Web-Menü ({activeDevice.ip})
                   </a>
                 )}
                 {devices.some((d) => d.id === 'SIMULATOR') && activeDevice?.id !== 'SIMULATOR' && (
@@ -276,34 +267,28 @@ export default function UniversalPrinterScannerModal({
             </motion.div>
           )}
 
-          {/* ── STEP: CHECKING / LOADING ── */}
-          {step === 'check' && (
+          {/* ── STATE: STARTING ── */}
+          {status === 'STARTING' && (
             <div className="py-12 flex flex-col items-center justify-center text-center space-y-4">
-              <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
+              <Loader2 className="w-10 h-10 text-emerald-500 animate-spin" />
               <div>
-                <h4 className="font-bold text-slate-200 text-base">Verbindung zum lokalen Connector prüfen...</h4>
-                <p className="text-xs text-slate-400 mt-1">Prüfe 127.0.0.1:48281</p>
+                <h4 className="font-bold text-slate-200 text-base">Connector wird gestartet...</h4>
+                <p className="text-xs text-slate-400 mt-1">Verbindung zu 127.0.0.1:48281 wird aufgebaut</p>
               </div>
             </div>
           )}
 
-          {/* ── STEP: CONNECTOR NOT DETECTED (OFFLINE) ── */}
-          {step === 'offline' && (
+          {/* ── STATE: NOT INSTALLED ── */}
+          {status === 'NOT_INSTALLED' && !isChecking && (
             <div className="space-y-6 py-2">
-              <div className="p-5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-300 space-y-2">
+              <div className="p-5 rounded-2xl bg-blue-500/10 border border-blue-500/25 text-blue-300 space-y-2">
                 <div className="flex items-center gap-2.5 font-bold text-base">
-                  <AlertCircle className="w-5 h-5 text-amber-400" />
-                  <span>LogiFlow Printer Connector nicht aktiv</span>
+                  <ShieldCheck className="w-5 h-5 text-blue-400" />
+                  <span>LogiFlow Printer Connector installieren</span>
                 </div>
                 <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                  Ihr Browser kann aus Sicherheitsgründen nicht direkt auf Ihr lokales WLAN zugreifen.
-                  Der kleine Windows-Connector verbindet diese Web-App nahtlos mit Ihren physischen Druckern & Scannern.
+                  Ihr Browser benötigt den kleinen, lokalen Connector-Dienst, um sicher und ohne Treiberprobleme auf Ihre lokalen WLAN- & USB-Drucker zuzugreifen.
                 </p>
-                {connStatus.errorMessage && (
-                  <p className="text-[11px] text-amber-200/90 mt-2 bg-amber-500/10 p-2 rounded">
-                    Fehler: {connStatus.errorMessage}
-                  </p>
-                )}
               </div>
 
               {/* 3-Step Guide */}
@@ -313,17 +298,17 @@ export default function UniversalPrinterScannerModal({
                   <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5">
                     <span className="inline-block px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 font-bold text-[11px]">Schritt 1</span>
                     <p className="font-medium text-slate-200">Installer herunterladen</p>
-                    <p className="text-slate-400 text-[11px]">ZIP-Paket mit 1 Klick laden.</p>
+                    <p className="text-slate-400 text-[11px]">1-Klick Paket laden.</p>
                   </div>
                   <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5">
                     <span className="inline-block px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 font-bold text-[11px]">Schritt 2</span>
                     <p className="font-medium text-slate-200">install.bat ausführen</p>
-                    <p className="text-slate-400 text-[11px]">Doppelklick genügt (keine CMD-Kenntnisse nötig).</p>
+                    <p className="text-slate-400 text-[11px]">Doppelklick genügt.</p>
                   </div>
                   <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5">
                     <span className="inline-block px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold text-[11px]">Schritt 3</span>
-                    <p className="font-medium text-slate-200">Erneut verbinden</p>
-                    <p className="text-slate-400 text-[11px]">Der Connector startet automatisch im Hintergrund.</p>
+                    <p className="font-medium text-slate-200">Bereit zum Scannen</p>
+                    <p className="text-slate-400 text-[11px]">Web-App verbindet sich automatisch.</p>
                   </div>
                 </div>
               </div>
@@ -339,25 +324,76 @@ export default function UniversalPrinterScannerModal({
                 </button>
                 <button
                   onClick={refreshStatus}
+                  disabled={isChecking}
                   className="w-full sm:w-auto py-3 px-5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm flex items-center justify-center gap-2 border border-slate-700 transition-all cursor-pointer"
                 >
-                  <RefreshCw className="w-4 h-4" />
-                  Verbindung erneut prüfen
+                  <RefreshCw className={`w-4 h-4 ${isChecking ? 'animate-spin' : ''}`} />
+                  Verbindung prüfen
                 </button>
               </div>
             </div>
           )}
 
-          {/* ── STEP: CONNECTOR OUTDATED ── */}
-          {step === 'outdated' && (
+          {/* ── STATE: INSTALLED BUT NOT RUNNING ── */}
+          {status === 'INSTALLED_NOT_RUNNING' && !isChecking && (
+            <div className="space-y-6 py-2">
+              <div className="p-5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-300 space-y-2">
+                <div className="flex items-center gap-2.5 font-bold text-base">
+                  <AlertCircle className="w-5 h-5 text-amber-400" />
+                  <span>Connector ist installiert, aber nicht aktiv</span>
+                </div>
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                  Der LogiFlow Connector wurde auf diesem Computer gefunden, läuft aber aktuell nicht im Hintergrund. Klicken Sie auf <strong>Connector starten</strong>, um ihn aufzuwecken.
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+                <button
+                  onClick={startConnector}
+                  disabled={isStarting}
+                  className="w-full sm:flex-1 py-3.5 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/25 transition-all cursor-pointer"
+                >
+                  {isStarting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Starte Dienst...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-4 h-4 text-emerald-200 fill-emerald-200" />
+                      <span>Connector starten</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={refreshStatus}
+                  disabled={isChecking}
+                  className="w-full sm:w-auto py-3.5 px-5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm flex items-center justify-center gap-2 border border-slate-700 transition-all cursor-pointer"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isChecking ? 'animate-spin' : ''}`} />
+                  Erneut prüfen
+                </button>
+                <button
+                  onClick={handleDownloadInstaller}
+                  className="w-full sm:w-auto py-3.5 px-4 rounded-2xl bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-slate-200 text-xs font-semibold border border-slate-800 transition-all cursor-pointer"
+                >
+                  Neu herunterladen
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── STATE: UPDATE REQUIRED ── */}
+          {status === 'UPDATE_REQUIRED' && (
             <div className="space-y-5 py-2">
               <div className="p-5 rounded-2xl bg-orange-500/10 border border-orange-500/25 space-y-2">
                 <div className="flex items-center gap-2.5 font-bold text-base text-orange-300">
                   <AlertCircle className="w-5 h-5 text-orange-400" />
-                  <span>Connector-Update verfügbar</span>
+                  <span>Connector-Update erforderlich (v3.0.0)</span>
                 </div>
                 <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                  Ihre Connector-Version{connectorVersion ? ` (v${connectorVersion})` : ''} ist veraltet. Bitte laden Sie die aktuelle Version herunter und installieren Sie sie.
+                  Ihre Connector-Version{connectorVersion ? ` (v${connectorVersion})` : ''} ist veraltet. Für die neue Scan-Engine mit robuster ADF-Steuerung laden Sie bitte das Update herunter.
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row items-center gap-3">
@@ -366,27 +402,28 @@ export default function UniversalPrinterScannerModal({
                   className="w-full sm:flex-1 py-3 px-5 rounded-2xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
                 >
                   <Download className="w-4 h-4" />
-                  {installerLabel}
+                  Update herunterladen (v3.0.0)
                 </button>
                 <button
                   onClick={refreshStatus}
+                  disabled={isChecking}
                   className="w-full sm:w-auto py-3 px-5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm flex items-center justify-center gap-2 border border-slate-700 transition-all cursor-pointer"
                 >
-                  <RefreshCw className="w-4 h-4" />
+                  <RefreshCw className={`w-4 h-4 ${isChecking ? 'animate-spin' : ''}`} />
                   Erneut prüfen
                 </button>
               </div>
             </div>
           )}
 
-          {/* ── STEP: DISCOVERY & CONFIGURED ── */}
-          {(step === 'discovery' || step === 'configured') && (
+          {/* ── STATE: CONNECTED & READY ── */}
+          {(status === 'CONNECTED' || status === 'READY') && (
             <div className="space-y-5">
               {/* Connector Status Bar */}
               <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800/80">
                 <div className="flex items-center gap-2.5 text-xs text-slate-300">
                   <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>Connector: <strong className="text-emerald-400">Aktiv{connectorVersion ? ` v${connectorVersion}` : ''} (127.0.0.1:48281)</strong></span>
+                  <span>Connector: <strong className="text-emerald-400">Aktiv v{connectorVersion || '3.0.0'} (Port 48281)</strong></span>
                 </div>
                 <button
                   onClick={discoverDevices}
@@ -427,7 +464,7 @@ export default function UniversalPrinterScannerModal({
                     </p>
                     <button
                       onClick={discoverDevices}
-                      className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200"
+                      className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 cursor-pointer"
                     >
                       <RefreshCw className="w-3.5 h-3.5" /> Erneut suchen
                     </button>
@@ -468,7 +505,7 @@ export default function UniversalPrinterScannerModal({
                                 </span>
                                 {device.id === 'SIMULATOR' || device.protocol === 'SIMULATOR' ? (
                                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-semibold border border-emerald-500/25">
-                                    ✓ Demo-Simulator bereit
+                                    ✓ Demo-Simulator
                                   </span>
                                 ) : isReadyToScan ? (
                                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-semibold border border-emerald-500/25">
@@ -529,7 +566,6 @@ export default function UniversalPrinterScannerModal({
                     {activeDevice.backendInfo?.statusText || 'Dieses Gerät wurde im Netzwerk gefunden, aber es ist noch kein aktiver Windows WIA-Scannertreiber eingerichtet.'}
                   </p>
                   
-                  {/* Detailed Diagnostics Table */}
                   <div className="bg-slate-900/80 rounded-xl p-3.5 border border-slate-800 space-y-1.5 text-xs">
                     <div className="flex justify-between items-center text-slate-400">
                       <span>Geräte-Erkennung:</span>
@@ -543,21 +579,11 @@ export default function UniversalPrinterScannerModal({
                       <span>Scan-Backend ({activeDevice.backend || 'WIA/AirScan'}):</span>
                       <span className="text-amber-400 font-semibold">✗ Nicht initialisiert</span>
                     </div>
-                    <div className="flex justify-between items-center text-slate-400">
-                      <span>ADF-Dauereinzug:</span>
-                      <span className="text-slate-500">✗ Backend nicht bereit</span>
-                    </div>
                     <div className="flex justify-between items-center text-slate-400 pt-1 border-t border-slate-800">
                       <span>Scan-Bereitschaft:</span>
-                      <span className="text-red-400 font-semibold">✗ Treiber erforderlich</span>
+                      <span className="text-red-400 font-semibold">✗ Scannertreiber in Windows installieren</span>
                     </div>
                   </div>
-
-                  {activeDevice.diagnostics?.remedy && (
-                    <p className="text-[11px] text-amber-200/90 leading-relaxed bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/20">
-                      💡 <strong>Lösung:</strong> {activeDevice.diagnostics.remedy}
-                    </p>
-                  )}
 
                   <div className="flex flex-wrap gap-2 pt-1">
                     {devices.some((d) => d.id === 'SIMULATOR') && (
@@ -569,14 +595,14 @@ export default function UniversalPrinterScannerModal({
                         }}
                         className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
                       >
-                        🧪 Zum WLAN-Scanner Simulator wechseln
+                        🧪 Zum Test-Simulator wechseln
                       </button>
                     )}
                   </div>
                 </div>
               )}
 
-              {/* Scan Options (Available when device is ready to scan) */}
+              {/* Scan Options */}
               {activeDevice && (activeDevice.id === 'SIMULATOR' || activeDevice.backendInfo?.readyToScan || (activeDevice.capabilities?.scanning && activeDevice.protocol !== 'SPOOLER')) && (
                 <div className="p-4 sm:p-5 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-4">
                   <h4 className="font-bold text-sm text-slate-200 flex items-center gap-2">
@@ -609,7 +635,7 @@ export default function UniversalPrinterScannerModal({
                               : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800'
                           }`}
                         >
-                          📄 ADF (Einzug)
+                          📄 ADF
                         </button>
                         <button
                           type="button"
@@ -671,9 +697,9 @@ export default function UniversalPrinterScannerModal({
 
                   {inputSource !== 'Platen' && (
                     <div className="flex items-center gap-2 text-[11px] text-emerald-400 bg-emerald-950/40 border border-emerald-900/60 p-2.5 rounded-xl">
-                      <span className="font-bold">✓ Mehrseitiger ADF-Einzug aktiv:</span>
+                      <span className="font-bold">✓ ADF-Dauereinzug aktiv:</span>
                       <span className="text-emerald-200">
-                        Legen Sie 1 bis 50 Seiten oben in den automatischen Einzug (ADF). Alle Seiten werden nacheinander erfasst.
+                        Legen Sie Seiten in den automatischen Einzug (ADF). Alle Seiten werden nacheinander erfasst.
                       </span>
                     </div>
                   )}
@@ -684,7 +710,7 @@ export default function UniversalPrinterScannerModal({
         </div>
 
         {/* Footer */}
-        <div className="p-5 sm:p-6 border-t border-slate-800/80 bg-slate-900/90 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="p-5 sm:p-6 border-t border-slate-800/80 bg-slate-900/95 flex flex-col sm:flex-row items-center justify-between gap-3">
           <button
             onClick={() => {
               if (isScanning) {
@@ -694,10 +720,10 @@ export default function UniversalPrinterScannerModal({
             }}
             className="w-full sm:w-auto px-5 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-sm transition-colors cursor-pointer"
           >
-            {isScanning ? 'Scan abbrechen' : 'Abbrechen'}
+            {isScanning ? 'Scan abbrechen' : 'Schließen'}
           </button>
 
-          {(step === 'discovery' || step === 'configured') && (
+          {(status === 'CONNECTED' || status === 'READY') && (
             <button
               onClick={handleStartScan}
               disabled={!activeDevice || isScanning || isConnecting || (activeDevice.backendInfo?.readyToScan === false || (activeDevice.id !== 'SIMULATOR' && !activeDevice.capabilities?.scanning))}

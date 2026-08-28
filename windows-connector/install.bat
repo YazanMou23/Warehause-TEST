@@ -32,8 +32,8 @@ if exist "%TARGET_DIR%\node.exe" goto :copy_files
 powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object System.Net.WebClient).DownloadFile('https://nodejs.org/dist/v20.18.0/win-x64/node.exe', [System.IO.Path]::Combine($env:LOCALAPPDATA, 'LogiFlowPrinterConnector', 'node.exe'))"
 
 :copy_files
-echo [3/4] Dateien installieren nach %TARGET_DIR%...
-if not exist "%SOURCE_DIR%index.js" (
+echo [3/5] Dateien installieren nach %TARGET_DIR%...
+if not exist "%SOURCE_DIR%index.js" if not exist "%SOURCE_DIR%dist\index.js" (
     echo.
     echo [FEHLER] Quelldateien nicht gefunden.
     echo Bitte entpacken Sie das ZIP-Archiv zuerst vollstaendig!
@@ -42,15 +42,19 @@ if not exist "%SOURCE_DIR%index.js" (
     exit /b 1
 )
 
-copy /Y "%SOURCE_DIR%dist\index.js" "%TARGET_DIR%\" >nul
-copy /Y "%SOURCE_DIR%dist\ScannerBridge.exe" "%TARGET_DIR%\" >nul
+if exist "%SOURCE_DIR%index.js" copy /Y "%SOURCE_DIR%index.js" "%TARGET_DIR%\" >nul
+if exist "%SOURCE_DIR%dist\index.js" if not exist "%TARGET_DIR%\index.js" copy /Y "%SOURCE_DIR%dist\index.js" "%TARGET_DIR%\" >nul
+if exist "%SOURCE_DIR%dist\ScannerBridge.exe" copy /Y "%SOURCE_DIR%dist\ScannerBridge.exe" "%TARGET_DIR%\" >nul
+if exist "%SOURCE_DIR%src\native\ScannerBridge.exe" copy /Y "%SOURCE_DIR%src\native\ScannerBridge.exe" "%TARGET_DIR%\" >nul
 copy /Y "%SOURCE_DIR%start-silent.vbs" "%TARGET_DIR%\" >nul
 copy /Y "%SOURCE_DIR%uninstall.bat" "%TARGET_DIR%\" >nul
 if exist "%SOURCE_DIR%show_success_dialog.ps1" copy /Y "%SOURCE_DIR%show_success_dialog.ps1" "%TARGET_DIR%\" >nul
 if exist "%SOURCE_DIR%run-debug.bat" copy /Y "%SOURCE_DIR%run-debug.bat" "%TARGET_DIR%\" >nul
 
-echo [4/4] Autostart bei Windows-Anmeldung registrieren...
+echo [4/5] Windows-Integration und Autostart registrieren...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$regJson = @{ installed = $true; connectorId = 'logiflow-windows-connector'; version = '3.0.0'; port = 48281; installedAt = (Get-Date).ToString('o') } | ConvertTo-Json; " ^
+  "Set-Content -Path (Join-Path $env:LOCALAPPDATA 'LogiFlowPrinterConnector\registration.json') -Value $regJson; " ^
   "$ws = New-Object -ComObject WScript.Shell; " ^
   "$s = $ws.CreateShortcut([System.IO.Path]::Combine([Environment]::GetFolderPath('Startup'), 'LogiFlowPrinterConnector.lnk')); " ^
   "$s.TargetPath = 'wscript.exe'; " ^
@@ -59,9 +63,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$s.WindowStyle = 7; " ^
   "$s.Description = 'LogiFlow Windows Printer & Scanner Connector'; " ^
   "$s.Save(); " ^
-  "Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'LogiFlowPrinterConnector' -Value ('wscript.exe \"' + [System.IO.Path]::Combine($env:LOCALAPPDATA, 'LogiFlowPrinterConnector', 'start-silent.vbs') + '\"');"
+  "Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'LogiFlowPrinterConnector' -Value ('wscript.exe \"' + [System.IO.Path]::Combine($env:LOCALAPPDATA, 'LogiFlowPrinterConnector', 'start-silent.vbs') + '\"'); " ^
+  "New-Item -Path 'HKCU:\Software\Classes\logiflow-connector' -Force | Out-Null; " ^
+  "Set-ItemProperty -Path 'HKCU:\Software\Classes\logiflow-connector' -Name '(default)' -Value 'URL:LogiFlow Connector Protocol'; " ^
+  "Set-ItemProperty -Path 'HKCU:\Software\Classes\logiflow-connector' -Name 'URL Protocol' -Value ''; " ^
+  "New-Item -Path 'HKCU:\Software\Classes\logiflow-connector\shell\open\command' -Force | Out-Null; " ^
+  "Set-ItemProperty -Path 'HKCU:\Software\Classes\logiflow-connector\shell\open\command' -Name '(default)' -Value ('wscript.exe \"' + [System.IO.Path]::Combine($env:LOCALAPPDATA, 'LogiFlowPrinterConnector', 'start-silent.vbs') + '\" \"%1\"');"
 
-echo [5/5] Connector starten...
+echo [5/5] Connector starten und Verbindung pruefen...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "Get-Process -Name node -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*LogiFlowPrinterConnector*' -or $_.CommandLine -like '*windows-connector*' } | Stop-Process -Force -ErrorAction SilentlyContinue"
 
@@ -74,7 +83,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "for ($i = 0; $i -lt $maxRetries; $i++) { " ^
   "  try { " ^
   "    $res = Invoke-RestMethod -Uri 'http://127.0.0.1:48281/health' -Method Get -TimeoutSec 2 -ErrorAction Stop; " ^
-  "    if ($res.status -eq 'ok') { $success = $true; break; } " ^
+  "    if ($res.status -eq 'ready' -or $res.status -eq 'ok') { $success = $true; break; } " ^
   "  } catch { } " ^
   "  Start-Sleep -Seconds $delay; " ^
   "} " ^
@@ -101,7 +110,7 @@ echo.
 if exist "%TARGET_DIR%\show_success_dialog.ps1" (
     powershell -NoProfile -ExecutionPolicy Bypass -File "%TARGET_DIR%\show_success_dialog.ps1"
 ) else (
-    powershell -NoProfile -Command "[System.Windows.Forms.MessageBox]::Show('Der LogiFlow Printer Connector wurde erfolgreich installiert und im Hintergrund gestartet!`n`nSie koennen jetzt in der Web-App Dokumente direkt von Ihrem Drucker scannen.', 'LogiFlow Connector Bereit', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)" 2>nul
+    powershell -NoProfile -Command "[System.Windows.Forms.MessageBox]::Show('Der LogiFlow Printer Connector v3.0 wurde erfolgreich installiert und im Hintergrund gestartet!`n`nSie koennen jetzt in der Web-App Dokumente direkt von Ihrem Drucker scannen.', 'LogiFlow Connector Bereit', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)" 2>nul
 )
 
 exit /b 0

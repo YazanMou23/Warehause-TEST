@@ -18,8 +18,8 @@ import { Public } from '../common/decorators/public.decorator';
 import { Role } from '@prisma/client';
 
 /** Current connector release version served by this backend. Bump this when a new installer is deployed. */
-const CONNECTOR_LATEST_VERSION = '2.3.0';
-const CONNECTOR_CHANGELOG      = 'Vollständiger automatischer ADF-Dauereinzug (10-20+ Seiten), automatische ADF-Erkennung, Duplex-Unterstützung, Papierstau-Erkennung und verbesserte Windows 10/11 Treiber-Kompatibilität';
+const CONNECTOR_LATEST_VERSION = '3.0.0';
+const CONNECTOR_CHANGELOG      = 'LogiFlow Connector v3.0 mit robuster Handshake-Erkennung, automatischer Dienst-Registrierung und Multi-Page ADF Unterstützung.';
 
 @Controller('scanner')
 @UseGuards(JwtAuthGuard, RolesGuard)
