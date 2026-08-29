@@ -65,6 +65,9 @@ pub async fn probe_escl_device(
             serial,
             status:          "available".into(),
             status_details:  format!("eSCL AirScan ({}:{})", ip, port),
+            backends:        vec!["ESCL".into()],
+            backend:         Some("ESCL".into()),
+            wia_id:          None,
             capabilities:    caps,
         });
     }

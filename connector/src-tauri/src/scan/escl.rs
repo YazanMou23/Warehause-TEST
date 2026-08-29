@@ -5,7 +5,11 @@ use std::time::Duration;
 pub async fn escl_scan(ip: &str, port: u16, opts: &ScanOptions) -> Result<Vec<ScannedPage>, String> {
     let dpi          = opts.dpi.unwrap_or(300);
     let color_mode   = escl_color_mode(opts.color_mode.as_deref().unwrap_or("Grayscale"));
-    let input_source = opts.input_source.as_deref().unwrap_or("Platen");
+    // Resolve the ADF/flatbed source via the shared helper so the caller's
+    // `source` field is honoured (e.g. frontend sending source:"adf").
+    let source       = opts.source(); // "auto"|"adf"|"flatbed"
+    let use_adf      = source == "adf";
+    let input_source = if use_adf { "Feeder" } else { "Platen" };
     let mime         = if opts.format.as_deref() == Some("png") { "image/png" } else { "image/jpeg" };
     let is_https     = port == 443 || port == 8443;
     let proto        = if is_https { "https" } else { "http" };
@@ -46,7 +50,8 @@ pub async fn escl_scan(ip: &str, port: u16, opts: &ScanOptions) -> Result<Vec<Sc
     log::info!("Polling scan result from {}", doc_url);
 
     let mut pages = Vec::new();
-    let batch = (input_source == "Feeder" || input_source == "FeederDuplex") && opts.batch_scan.unwrap_or(false);
+    let batch = use_adf && opts.batch();
+    let page_limit = opts.page_count.unwrap_or(0);
     let mut done = false;
 
     while !done {
@@ -78,7 +83,7 @@ pub async fn escl_scan(ip: &str, port: u16, opts: &ScanOptions) -> Result<Vec<Sc
                 mime_type:   mime.to_string(),
                 base64_data: B64.encode(&bytes),
             });
-            if !batch { done = true; }
+            if !batch || (page_limit > 0 && pages.len() as u32 >= page_limit) { done = true; }
         } else {
             done = true;
         }

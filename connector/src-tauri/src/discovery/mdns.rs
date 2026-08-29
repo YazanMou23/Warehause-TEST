@@ -42,13 +42,13 @@ pub async fn discover_via_mdns() -> Vec<String> {
         let dest = SocketAddrV4::new(MDNS_ADDR, MDNS_PORT);
         let _ = socket.send_to(&packet, &dest.into());
 
-        let mut buf = [0u8; 4096];
+        let mut buf = vec![std::mem::MaybeUninit::<u8>::uninit(); 4096];
         let deadline = std::time::Instant::now() + Duration::from_millis(WAIT_MS);
 
         loop {
             if std::time::Instant::now() >= deadline { break; }
             match socket.recv_from(&mut buf) {
-                Ok((len, addr)) => {
+                Ok((_, addr)) => {
                     if let SocketAddr::V4(v4) = addr.as_socket().unwrap_or(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0))) {
                         let ip = v4.ip().to_string();
                         if !ip.starts_with("127.") {

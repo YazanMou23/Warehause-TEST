@@ -28,6 +28,28 @@ jobs:
         run: npm install
         working-directory: connector
 
+      - name: Compile WIA ScannerBridge (C#, .NET Framework)
+        shell: pwsh
+        run: |
+          # Locate the Roslyn compiler shipped with Visual Studio Build Tools.
+          $csc = Get-ChildItem "C:\Program Files*\Microsoft Visual Studio\2022\*\MSBuild\Current\Bin\Roslyn\csc.exe" -ErrorAction SilentlyContinue |
+                 Select-Object -First 1 -ExpandProperty FullName
+          if (-not $csc) { throw "csc.exe not found" }
+          $refdir = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319"
+          $target = "src-tauri\resources\ScannerBridge.cs"
+          $outdir = "src-tauri\resources\bridge-out"
+          New-Item -ItemType Directory -Force -Path $outdir | Out-Null
+          $refs = @("System.dll","System.Core.dll","Microsoft.CSharp.dll","System.Drawing.dll","System.Xml.dll","System.Management.dll") |
+                  ForEach-Object { "/reference:$refdir\$_" }
+          & $csc -nologo -langversion:latest -target:exe -platform:anycpu -optimize+ -out:"$outdir\ScannerBridge.exe" @refs $target
+          if ($LASTEXITCODE -ne 0) { throw "csc failed with $LASTEXITCODE" }
+          Copy-Item "$outdir\ScannerBridge.exe" "src-tauri\resources\ScannerBridge.exe" -Force
+        working-directory: connector
+
+      - name: Cargo check (type-check Rust)
+        run: cargo check --lib --target x86_64-pc-windows-msvc
+        working-directory: connector/src-tauri
+
       - name: Build Windows connector
         run: npx tauri build
         working-directory: connector

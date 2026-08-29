@@ -30,14 +30,15 @@ pub async fn discover_via_ssdp() -> Vec<String> {
         let dest: std::net::SocketAddr = format!("{}:{}", SSDP_ADDR, SSDP_PORT).parse().unwrap();
         let _ = socket.send_to(M_SEARCH, &dest.into());
 
-        let mut buf = [0u8; 4096];
+        let mut buf = vec![std::mem::MaybeUninit::<u8>::uninit(); 4096];
         let deadline = std::time::Instant::now() + Duration::from_millis(WAIT_MS);
 
         loop {
             if std::time::Instant::now() >= deadline { break; }
             match socket.recv_from(&mut buf) {
                 Ok((len, addr)) => {
-                    let text = String::from_utf8_lossy(&buf[..len]);
+                    let data = unsafe { std::slice::from_raw_parts(buf.as_ptr() as *const u8, len) };
+                    let text = String::from_utf8_lossy(data);
                     if text.to_lowercase().contains("printer")
                         || text.to_lowercase().contains("scanner")
                         || text.to_lowercase().contains("escl")

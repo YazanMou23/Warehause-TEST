@@ -50,6 +50,18 @@ pub struct DiscoveredDevice {
     pub status:          String,
     pub status_details:  String,
     pub capabilities:    DeviceCapabilities,
+    /// Backends that can actually drive this device, in priority order.
+    /// e.g. ["WIA"] for USB devices, ["ESCL"] for WSD/eSCL network scanners,
+    /// or ["WIA","ESCL"] when both are usable. Used by the scan router to pick
+    /// the correct backend instead of guessing from the IP prefix.
+    #[serde(default)]
+    pub backends: Vec<String>,
+    /// The primary backend resolved during discovery (empty = unresolved yet).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backend: Option<String>,
+    /// Raw WIA DeviceID (e.g. `{6BDD1FC6-...}\0000`) used to scan via WIA.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wia_id: Option<String>,
 }
 
 impl DiscoveredDevice {
@@ -68,6 +80,9 @@ impl DiscoveredDevice {
             serial:          None,
             status:          "available".into(),
             status_details:  "Virtueller Testscanner (Demo-Modus)".into(),
+            backends:        vec!["SIMULATOR".into()],
+            backend:         Some("SIMULATOR".into()),
+            wia_id:          None,
             capabilities:    DeviceCapabilities {
                 adf:    true,
                 duplex: true,

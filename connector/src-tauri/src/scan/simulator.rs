@@ -62,7 +62,8 @@ fn write_chunk(out: &mut Vec<u8>, chunk_type: &[u8], data: &[u8]) {
     out.extend_from_slice(&(data.len() as u32).to_be_bytes());
     out.extend_from_slice(chunk_type);
     out.extend_from_slice(data);
-    let mut crc = crc32fast::hash(chunk_type);
-    crc = crc32fast::hash_with_initial(data, crc);
-    out.extend_from_slice(&crc.to_be_bytes());
+    let mut hasher = crc32fast::Hasher::new();
+    hasher.update(chunk_type);
+    hasher.update(data);
+    out.extend_from_slice(&hasher.finalize().to_be_bytes());
 }

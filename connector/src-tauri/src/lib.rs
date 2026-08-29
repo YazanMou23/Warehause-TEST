@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 pub mod auth;
+pub mod bridge;
 pub mod config;
 pub mod discovery;
 pub mod scan;
@@ -10,9 +11,9 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use tauri::{
-    Manager, Runtime,
+    Manager,
     menu::{MenuBuilder, MenuItemBuilder},
-    tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
+    tray::TrayIconBuilder,
 };
 use tauri_plugin_autostart::MacosLauncher;
 
@@ -35,6 +36,23 @@ pub fn run() {
             let cfg = ConnectorConfig::load_or_create();
             let shared_cfg: SharedConfig = Arc::new(RwLock::new(cfg));
             let device_cache: DeviceCache = Arc::new(RwLock::new(vec![]));
+
+            // Resolve the bundled WIA bridge from Tauri's resource dir so scan
+            // works in packaged (NSIS) installs, not just dev builds.
+            #[cfg(target_os = "windows")]
+            {
+                let found = app.path().resource_dir().ok().and_then(|res| {
+                    let direct = res.join(bridge::BRIDGE_EXE);
+                    if direct.exists() { return Some(direct); }
+                    let nested = res.join("resources").join(bridge::BRIDGE_EXE);
+                    if nested.exists() { return Some(nested); }
+                    None
+                });
+                if let Some(p) = &found {
+                    log::info!("WIA bridge resource resolved to {}", p.display());
+                }
+                bridge::init_installed_path(found);
+            }
 
             app.manage(shared_cfg.clone());
             app.manage(device_cache.clone());

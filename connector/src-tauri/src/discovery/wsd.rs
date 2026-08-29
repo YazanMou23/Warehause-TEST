@@ -41,12 +41,12 @@ pub async fn discover_via_wsd() -> Vec<String> {
             let dest: std::net::SocketAddr = format!("{}:{}", WSD_ADDR, WSD_PORT).parse().unwrap();
             let _ = socket.send_to(probe.as_bytes(), &dest.into());
 
-            let mut buf = [0u8; 8192];
+            let mut buf = vec![std::mem::MaybeUninit::<u8>::uninit(); 8192];
             let deadline = std::time::Instant::now() + Duration::from_millis(WAIT_MS);
             loop {
                 if std::time::Instant::now() >= deadline { break; }
                 match socket.recv_from(&mut buf) {
-                    Ok((len, addr)) => {
+                    Ok((_, addr)) => {
                         if let Some(sa) = addr.as_socket() {
                             let ip = sa.ip().to_string();
                             if !ip.starts_with("127.") { discovered.insert(ip); }

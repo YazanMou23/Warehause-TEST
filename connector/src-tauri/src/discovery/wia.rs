@@ -1,60 +1,124 @@
 use std::collections::HashSet;
 use super::types::{DiscoveredDevice, DeviceCapabilities};
+use crate::bridge;
 
-/// Discover scanners and printers via Windows WIA COM and Get-Printer spooler.
-/// Falls back to PowerShell for spooler queries (COM automation preferred for WIA).
+/// Discover scanners and printers on Windows via the C# WIA bridge
+/// (`ScannerBridge.exe`) plus the print spooler.
+///
+/// The bridge enumStates WIA devices with real ADF/duplex capabilities and lets
+/// us probe whether the device can actually be scanned via WIA. Devices whose
+/// WIA id indicates a WSD/eSCL class (`SWD\ESCL...`) that cannot be connected
+/// over WIA are routed to the eSCL backend instead of being incorrectly claimed
+/// as WIA-scanable (this is the source of the "Brother ADF fails" bug).
 pub async fn discover_via_windows_pnp(seen_ids: &mut HashSet<String>) -> Vec<DiscoveredDevice> {
     let mut devices = Vec::new();
 
-    // WIA scanners via PowerShell (temporary — will be replaced with windows-rs COM in future)
-    let wia_out = tokio::process::Command::new("powershell")
-        .args([
-            "-NoProfile", "-NonInteractive", "-Command",
-            r#"try { $dm = New-Object -ComObject WIA.DeviceManager; foreach ($d in $dm.DeviceInfos) { $n = try { $d.Properties.Item('Name').Value } catch { 'Scanner' }; $m = try { $d.Properties.Item('Manufacturer').Value } catch { '' }; $t = try { $d.Properties.Item('Port').Value } catch { '' }; Write-Output "$($d.DeviceID)||$n||$m||$t" } } catch {}"#,
-        ])
-        .output()
-        .await;
+    // ── 1. WIA scanners via the bridge ─────────────────────────────────────
+    if let Some(path) = bridge::bridge_path() {
+        log::info!("WIA bridge present at {:?}", path);
+        match bridge::spawn() {
+            Ok(mut session) => {
+                let lines = session.command(r#"{"cmd":"discover"}"#).unwrap_or_default();
+                for line in lines {
+                    if let Some(arr) = line.get("devices").and_then(|v| v.as_array()) {
+                        for dev in arr {
+                            let raw_id = dev["id"].as_str().unwrap_or("");
+                            if raw_id.is_empty() { continue; }
+                            let name      = dev["name"].as_str().unwrap_or("Scanner").to_string();
+                            let has_adf   = dev["hasAdf"].as_bool().unwrap_or(false);
+                            let has_dup   = dev["hasDuplex"].as_bool().unwrap_or(false);
+                            let has_flat  = dev["hasFlatbed"].as_bool().unwrap_or(true);
 
-    if let Ok(out) = wia_out {
-        let stdout = String::from_utf8_lossy(&out.stdout);
-        for line in stdout.lines().filter(|l| !l.is_empty()) {
-            let parts: Vec<&str> = line.split("||").collect();
-            if parts.len() < 2 { continue; }
-            let dev_id   = parts[0].trim();
-            let dev_name = parts.get(1).unwrap_or(&"Scanner").trim();
-            let mfg      = parts.get(2).unwrap_or(&"").trim();
-            let port     = parts.get(3).unwrap_or(&"").trim();
+                            // eSCL-class WSD scanners (id starts with SWD\ESCL)
+                            let is_escl_class = raw_id.to_uppercase().contains("ESCL")
+                                || raw_id.to_uppercase().starts_with("SWD\\ESCL");
 
-            let id_key = format!("WIA_{}", dev_id.replace(|c: char| !c.is_alphanumeric(), "_"));
-            if seen_ids.contains(&id_key) { continue; }
-            seen_ids.insert(id_key.clone());
+                            // Probe whether WIA can actually connect & scan this device.
+                            let (wia_usable, probe_caps, probe_err) = probe_wia_capabilities(&mut session, raw_id).await;
 
-            let is_usb = dev_id.to_uppercase().starts_with("USB") || port.to_uppercase().starts_with("USB");
+                            let id_key = format!("WIA_{}", raw_id.replace(|c: char| !c.is_alphanumeric(), "_"));
+                            if seen_ids.contains(&id_key) { continue; }
+                            seen_ids.insert(id_key.clone());
 
-            devices.push(DiscoveredDevice {
-                id:              id_key,
-                name:            dev_name.to_string(),
-                display_name:    format!("{} {}", if mfg.is_empty() { "Scanner" } else { mfg }, dev_name),
-                manufacturer:    if mfg.is_empty() { "Generic".into() } else { mfg.to_string() },
-                model:           dev_name.to_string(),
-                device_type:     "scanner".into(),
-                connection_type: if is_usb { "USB".into() } else { "WIFI".into() },
-                ip:              None,
-                port:            None,
-                protocol:        "WIA".into(),
-                serial:          None,
-                status:          "available".into(),
-                status_details:  if is_usb { "USB-Scanner (WIA)".into() } else { "Netzwerk-Scanner (WIA)".into() },
-                capabilities:    DeviceCapabilities {
-                    printing: false,
-                    scanning: true,
-                    ..Default::default()
-                },
-            });
+                            let mut backends: Vec<String> = Vec::new();
+                            if is_escl_class {
+                                // WSD/eSCL scanner (e.g. Brother MFC) — always eSCL-capable
+                                backends.push("ESCL".into());
+                            }
+                            if wia_usable {
+                                // WIA genuinely works for this device (Canon MX490 etc.)
+                                backends.push("WIA".into());
+                            }
+                            if backends.is_empty() {
+                                // Fallback: treat as WIA (will surface a clear error if not)
+                                backends.push("WIA".into());
+                            }
+
+                            let (adf, duplex, flatbed, status, details) = if let Some(c) = probe_caps {
+                                (
+                                    c.adf, c.duplex, c.flatbed,
+                                    "available",
+                                    "WIA-Scanner (verbunden)".to_string(),
+                                )
+                            } else if is_escl_class && !wia_usable {
+                                (
+                                    true, // eSCL classes typically have an ADF; refined when the IP is found
+                                    false,
+                                    true,
+                                    "network_only",
+                                    if let Some(e) = probe_err {
+                                        format!("Netzwerk-Scanner (WIA nicht scanbar: {}) — wird über eSCL angesprochen", e)
+                                    } else {
+                                        "Netzwerk-Scanner — WIA nicht verbindbar, wird über eSCL angesprochen".to_string()
+                                    },
+                                )
+                            } else {
+                                (
+                                    has_adf, has_dup, has_flat,
+                                    "available",
+                                    "WIA-Scanner".to_string(),
+                                )
+                            };
+
+                            devices.push(DiscoveredDevice {
+                                id:              id_key.clone(),
+                                name:            name.clone(),
+                                display_name:    format!("{} {}", guess_manufacturer(&name), name),
+                                manufacturer:    guess_manufacturer(&name),
+                                model:           name.clone(),
+                                device_type:     "scanner".into(),
+                                connection_type: if is_escl_class { "WIFI".into() } else { "USB".into() },
+                                ip:              None,
+                                port:            None,
+                                protocol:        if is_escl_class { "WIA/ESCL".into() } else { "WIA".into() },
+                                serial:          None,
+                                status:          status.into(),
+                                status_details:  details,
+                                backends,
+                                backend:         Some(if is_escl_class { "ESCL".into() } else { "WIA".into() }),
+                                wia_id:          Some(raw_id.to_string()),
+                                capabilities:    DeviceCapabilities {
+                                    printing: false,
+                                    scanning: true,
+                                    adf,
+                                    duplex,
+                                    flatbed,
+                                    ..Default::default()
+                                },
+                            });
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                log::warn!("WIA bridge spawn failed: {}", e);
+            }
         }
+    } else {
+        log::warn!("ScannerBridge.exe missing — WIA discovery skipped");
     }
 
-    // Windows Print Spooler via Get-Printer
+    // ── 2. Windows Print Spooler via Get-Printer ───────────────────────────
     let ps_out = tokio::process::Command::new("powershell")
         .args([
             "-NoProfile", "-NonInteractive", "-Command",
@@ -81,7 +145,6 @@ pub async fn discover_via_windows_pnp(seen_ids: &mut HashSet<String>) -> Vec<Dis
                 let port_name  = p["PortName"].as_str().unwrap_or("").to_string();
                 let driver     = p["DriverName"].as_str().unwrap_or("").to_string();
 
-                // Extract IP from port name if present
                 let ip = port_name.split(',')
                     .find_map(|s| {
                         let s = s.trim();
@@ -98,7 +161,7 @@ pub async fn discover_via_windows_pnp(seen_ids: &mut HashSet<String>) -> Vec<Dis
                     id:              id_key,
                     name:            name.clone(),
                     display_name:    name.clone(),
-                    manufacturer:    "Windows".into(),
+                    manufacturer:    guess_manufacturer(&name),
                     model:           driver,
                     device_type:     "printer_scanner".into(),
                     connection_type: if ip.is_some() { "WIFI".into() } else { "USB".into() },
@@ -108,6 +171,9 @@ pub async fn discover_via_windows_pnp(seen_ids: &mut HashSet<String>) -> Vec<Dis
                     serial:          None,
                     status:          "available".into(),
                     status_details:  "In Windows installiert".into(),
+                    backends:        vec!["WIA".into()],
+                    backend:         Some("WIA".into()),
+                    wia_id:          None,
                     capabilities:    DeviceCapabilities::default(),
                 });
             }
@@ -115,4 +181,55 @@ pub async fn discover_via_windows_pnp(seen_ids: &mut HashSet<String>) -> Vec<Dis
     }
 
     devices
+}
+
+/// Probe a WIA device's true capabilities via the bridge. Returns whether the
+/// device can be connected/scanned over WIA, along with the real capabilities
+/// (or an error message if connection failed).
+async fn probe_wia_capabilities(
+    session: &mut bridge::BridgeSession,
+    raw_id: &str,
+) -> (bool, Option<DeviceCapabilities>, Option<String>) {
+    let cmd = serde_json::json!({ "cmd": "capabilities", "deviceId": raw_id }).to_string();
+    match session.command(&cmd) {
+        Ok(lines) => {
+            for line in lines {
+                if line.get("event").and_then(|e| e.as_str()) == Some("error") {
+                    let msg = line["message"].as_str().unwrap_or("WIA-Verbindung fehlgeschlagen").to_string();
+                    return (false, None, Some(msg));
+                }
+                if let Some(caps) = line.get("capabilities") {
+                    return (
+                        true,
+                        Some(DeviceCapabilities {
+                            printing: false,
+                            scanning: true,
+                            adf:      caps["hasAdf"].as_bool().unwrap_or(false),
+                            duplex:   caps["hasDuplex"].as_bool().unwrap_or(false),
+                            flatbed:  caps["hasFlatbed"].as_bool().unwrap_or(true),
+                            ..Default::default()
+                        }),
+                        None,
+                    );
+                }
+            }
+            (false, None, None)
+        }
+        Err(e) => (false, None, Some(e)),
+    }
+}
+
+fn guess_manufacturer(name: &str) -> String {
+    let n = name.to_uppercase();
+    if n.contains("BROTHER")  { return "Brother".into(); }
+    if n.contains("CANON") || n.contains("PIXMA") { return "Canon".into(); }
+    if n.contains("HP") || n.contains("HEWLETT") || n.contains("OFFICEJET")
+        || n.contains("LASERJET") || n.contains("DESKJET") { return "HP".into(); }
+    if n.contains("EPSON") || n.contains("ECOTANK") { return "Epson".into(); }
+    if n.contains("XEROX")    { return "Xerox".into(); }
+    if n.contains("KYOCERA")  { return "Kyocera".into(); }
+    if n.contains("RICOH")    { return "Ricoh".into(); }
+    if n.contains("LEXMARK")  { return "Lexmark".into(); }
+    if n.contains("SAMSUNG")  { return "Samsung".into(); }
+    "Scanner".into()
 }

@@ -16,7 +16,7 @@ pub async fn run_discovery() -> Vec<DiscoveredDevice> {
     log::info!("Starting unified device discovery...");
 
     let mut ip_set: HashSet<String>           = HashSet::new();
-    let mut meta:   HashMap<String, String>   = HashMap::new();
+    let meta:   HashMap<String, String>   = HashMap::new();
     let mut devices: Vec<DiscoveredDevice>    = Vec::new();
     let mut seen_ids: HashSet<String>         = HashSet::new();
 
@@ -45,7 +45,6 @@ pub async fn run_discovery() -> Vec<DiscoveredDevice> {
     let ip_list: Vec<String> = ip_set.into_iter().collect();
     log::info!("eSCL probing {} candidate IPs...", ip_list.len());
 
-    let mut seen_serials: HashSet<String> = HashSet::new();
     const CHUNK: usize = 25;
     for chunk in ip_list.chunks(CHUNK) {
         let tasks: Vec<_> = chunk.iter().map(|ip| {
@@ -67,7 +66,51 @@ pub async fn run_discovery() -> Vec<DiscoveredDevice> {
         }
     }
 
-    // 4. Always include simulator for demo/testing
+    // 4. Correlate WIA-listed eSCL-class devices (e.g. `SWD\ESCL...`) with
+    //    eSCL devices discovered over the network. If we found the matching
+    //    eSCL endpoint, wire its IP/port into the WIA entry and mark it
+    //    WIA-usable=false / ESCL backend so the scan router uses eSCL.
+    let escl_entries: Vec<DiscoveredDevice> = devices
+        .iter()
+        .filter(|d| d.protocol.to_uppercase().contains("ESCL") && d.ip.is_some())
+        .cloned()
+        .collect();
+
+    for dev in devices.iter_mut() {
+        // Only enrich devices that still lack a network address but are
+        // eSCL-capable/yet-unresolved (typically WIA-listed WSD/eSCL scanners
+        // like the Brother MFC with protocol "WIA/ESCL" and ip=None).
+        if dev.ip.is_some() { continue; }
+        let is_escl_capable = dev.backends.iter().any(|b| b == "ESCL")
+            || dev.protocol.to_uppercase().contains("ESCL");
+        if !is_escl_capable { continue; }
+
+        for e in &escl_entries {
+            let match_model = dev.model.to_lowercase().replace("series", "").trim().to_string();
+            let e_model = e.model.to_lowercase().trim().to_string();
+            if !match_model.is_empty()
+                && (e_model.contains(&match_model) || match_model.contains(&e_model))
+            {
+                dev.ip = e.ip.clone();
+                dev.port = e.port;
+                dev.connection_type = "WIFI".into();
+                dev.protocol = "ESCL".into();
+                dev.backend = Some("ESCL".into());
+                if !dev.backends.iter().any(|b| b == "ESCL") {
+                    dev.backends.insert(0, "ESCL".into());
+                }
+                dev.capabilities = e.capabilities.clone();
+                if dev.status == "network_only" {
+                    dev.status = "available".into();
+                    dev.status_details = format!("eSCL AirScan ({}:{})", e.ip.as_deref().unwrap_or(""), e.port.unwrap_or(0));
+                }
+                log::info!("Correlated eSCL-class WIA device '{}' with network eSCL at {}:{} (backend=ESCL)", dev.name, e.ip.as_deref().unwrap_or(""), e.port.unwrap_or(0));
+                break;
+            }
+        }
+    }
+
+    // 5. Always include simulator for demo/testing
     if !seen_ids.contains("SIMULATOR") {
         devices.push(DiscoveredDevice::simulator());
     }
