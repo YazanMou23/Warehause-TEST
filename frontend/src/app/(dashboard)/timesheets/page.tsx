@@ -2900,8 +2900,11 @@ export default function TimesheetsPage() {
   };
 
   // Process the page at pageIdx: scan → validate → show review.
-  const processPage = async (pageIdx: number) => {
-    const job = pdfJob;
+  // jobOverride must be passed by callers that have the latest PdfJob in hand
+  // (e.g. startJob / advanceToNext) so that the React state flush that follows
+  // setPdfJob() cannot race against this function reading the old null value.
+  const processPage = async (pageIdx: number, jobOverride?: PdfJob) => {
+    const job = jobOverride ?? pdfJob;
     const page = job?.pages[pageIdx];
     if (!job || !page) return;
 
@@ -2950,7 +2953,9 @@ export default function TimesheetsPage() {
     setJobCompleted(false);
     setSavedId(null);
     setSavedName('');
-    await processPage(0);
+    // Pass job directly — setPdfJob() is batched by React and pdfJob would
+    // still be null inside processPage if we relied on the state closure.
+    await processPage(0, job);
   };
 
   const handleFilesSelect = (files: File[]) => { startJob(files); };
@@ -3016,14 +3021,16 @@ export default function TimesheetsPage() {
   };
 
   // Move to the next unprocessed page, or finish the job when all are done.
-  const advanceToNext = () => {
-    const job = pdfJob;
+  // jobOverride lets callers (handleConfirm) pass the live job reference so
+  // we never read a stale pdfJob closure here either.
+  const advanceToNext = (jobOverride?: PdfJob) => {
+    const job = jobOverride ?? pdfJob;
     if (!job) return;
     setRotation(0);
     const nextIdx = currentPage + 1;
     if (nextIdx < job.pages.length) {
       setCurrentPage(nextIdx);
-      processPage(nextIdx);
+      processPage(nextIdx, job);
     } else {
       finishOrSummarize();
     }
@@ -3082,12 +3089,15 @@ export default function TimesheetsPage() {
       setRefreshListKey((prev) => prev + 1);
 
       if (hasQueue && !isLastInQueue) {
-        // Auto-advance to the next page (brief saved flash then scan next)
+        // Auto-advance to the next page (brief saved flash then scan next).
+        // Capture pdfJob now (before the 1600 ms timeout) so the closure
+        // inside advanceToNext always has the live reference.
+        const liveJob = pdfJob ?? undefined;
         setViewMode('saved');
         setTimeout(() => {
           setSavedId(null);
           setSavedName('');
-          advanceToNext();
+          advanceToNext(liveJob);
         }, 1600);
       } else {
         setViewMode('saved');
