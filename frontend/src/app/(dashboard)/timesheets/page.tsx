@@ -403,7 +403,7 @@ function UploadZone({
           }}
           onDragLeave={() => setIsDragOver(false)}
           onDrop={handleDrop}
-          onClick={() => !isLoading && inputRef.current?.click()}
+           onClick={() => { console.log('UPLOAD CLICK', { isLoading, inputRef: inputRef.current ? 'set' : 'null' }); inputRef.current?.click() }}
           className={`
             relative cursor-pointer rounded-3xl border-2 border-dashed
             transition-all duration-300 p-6 flex flex-col justify-between items-center text-center shadow-sm
@@ -439,22 +439,23 @@ function UploadZone({
             <p className="text-slate-600 text-[11px] font-semibold mt-2">Max. 15 MB (PNG, JPG, JPEG, PDF)</p>
           </div>
 
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,application/pdf,.pdf"
-            multiple
-            className="hidden"
-            onChange={(e) => {
-              const files = Array.from(e.target.files ?? []);
-              if (files.length > 1) {
-                onFilesSelect(files);
-              } else if (files.length === 1) {
-                onFileSelect(files[0]);
-              }
-              e.target.value = '';
-            }}
-          />
+           <input
+             ref={inputRef}
+             type="file"
+             accept="image/jpeg,image/png,image/webp,application/pdf,.pdf"
+             multiple
+             className="hidden"
+             onChange={(e) => {
+               const files = Array.from(e.target.files ?? []);
+               console.log('FILE INPUT CHANGE', { count: files.length, names: files.map(f => f.name) });
+               if (files.length > 1) {
+                 onFilesSelect(files);
+               } else if (files.length === 1) {
+                 onFileSelect(files[0]);
+               }
+               e.target.value = '';
+             }}
+           />
         </div>
 
         {/* 2. Camera Capture Card */}
@@ -2941,7 +2942,9 @@ export default function TimesheetsPage() {
 
   // Begin a new upload job with the given files.
   const startJob = async (files: File[]) => {
+    console.log('START_JOB', { fileCount: files.length, names: files.map(f => f.name) });
     const job = await buildJob(files);
+    console.log('BUILD_JOB_RESULT', job ? 'ok' : 'null');
     if (!job) return;
     setPdfJob(job);
     setJobCompleted(false);
