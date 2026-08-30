@@ -217,8 +217,48 @@ interface DailyAttendanceRecord {
   date: string;
 }
 
-type ViewMode = 'upload' | 'scanning' | 'review' | 'saved' | 'error';
+type ViewMode = 'upload' | 'scanning' | 'review' | 'saved' | 'error' | 'done';
 type ActiveTab = 'scanner' | 'list' | 'daily';
+
+// ─── Page-level processing model ──────────────────────────────────────────────
+// A single uploaded file (image or PDF) becomes a PdfJob made of N pages. Every
+// page is an independent processing job, and a page can never finish the whole
+// job: the job is complete only when every page has been accepted or explicitly
+// handled (failed / needs_review).
+type PageStatus =
+  | 'pending'      // waiting to be processed
+  | 'processing'   // currently being scanned
+  | 'extracted'    // OCR result received
+  | 'validated'    // passed validation (shown for review)
+  | 'accepted'     // confirmed by the reviewer
+  | 'failed'       // extraction/validation failed
+  | 'needs_review';// extracted but did not pass automatic validation
+
+interface PageJob {
+  /** Source page number within the job/PDF (1-based). Used as idempotency key. */
+  pageNumber: number;
+  /** The page image File sent to the OCR pipeline. */
+  file: File;
+  status: PageStatus;
+  scanResult?: ScanResult | null;
+  error?: string | null;
+}
+
+interface PdfJob {
+  /** Stable upload/job id. Combined with pageNumber for backend idempotency. */
+  jobId: string;
+  /** Original uploaded file name (before page splitting). */
+  fileName: string;
+  totalPages: number;
+  pages: PageJob[];
+}
+
+function generateJobId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+  return 'job-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -2580,6 +2620,191 @@ function DailyAttendanceView() {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+/**
+ * Independent per-page validation.
+ * A page passes validation when the extraction produced the minimum set of
+ * required Stundenzettel fields (an employee name and at least one timed entry).
+ * A page that does not pass is queued as needs_review instead of silently
+ * being accepted — the reviewer still gets to correct / confirm it.
+ */
+function validateExtraction(result: ScanResult | null | undefined): boolean {
+  if (!result) return false;
+  const hasName = !!result.employeeName?.trim();
+  const hasTimedEntry = (result.entries ?? []).some(
+    (e) => e.startTime && e.startTime.trim() !== '' && e.startTime !== '00:00'
+  );
+  return hasName && hasTimedEntry;
+}
+
+/**
+ * Real page-by-page progress for a PDF/image upload job.
+ * Shows the current page number, a progress bar and one status chip per page so
+ * the user can see that every page is accounted for and the job is never
+ * reported as complete while pages are still unprocessed.
+ */
+function PdfJobProgress({
+  job,
+  currentIndex,
+}: {
+  job: PdfJob;
+  currentIndex: number;
+}) {
+  const total = job.totalPages;
+  const finished = job.pages.filter(
+    (p) => p.status === 'accepted' || p.status === 'failed' || p.status === 'needs_review'
+  ).length;
+  const percent = total > 0 ? Math.round((finished / total) * 100) : 0;
+  const current = job.pages[currentIndex];
+
+  const chipStyle: Record<PageStatus, string> = {
+    pending: 'bg-slate-100 text-slate-500 border-slate-300',
+    processing: 'bg-blue-50 text-blue-700 border-blue-400',
+    extracted: 'bg-blue-50 text-blue-700 border-blue-400',
+    validated: 'bg-emerald-50 text-emerald-700 border-emerald-400',
+    accepted: 'bg-emerald-100 text-emerald-800 border-emerald-400',
+    failed: 'bg-red-50 text-red-700 border-red-400',
+    needs_review: 'bg-amber-50 text-amber-800 border-amber-400',
+  };
+  const chipIcon: Record<PageStatus, React.ReactNode> = {
+    pending: <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />,
+    processing: <Loader2 size={10} className="animate-spin text-blue-600" />,
+    extracted: <Loader2 size={10} className="animate-spin text-blue-600" />,
+    validated: <CheckCircle size={10} className="text-emerald-600" />,
+    accepted: <CheckCircle size={10} className="text-emerald-700" />,
+    failed: <AlertCircle size={10} className="text-red-600" />,
+    needs_review: <AlertCircle size={10} className="text-amber-600" />,
+  };
+
+  return (
+    <div className="w-full mb-5 rounded-2xl bg-slate-50 border-2 border-slate-200 p-4 shadow-xs">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <FileText size={16} className="text-blue-600 shrink-0" />
+          <p className="text-slate-800 font-bold text-sm truncate" title={job.fileName}>
+            {job.fileName}
+          </p>
+        </div>
+        <p className="text-slate-600 text-xs font-bold shrink-0">
+          {current ? `Verarbeite Seite ${current.pageNumber} von ${total}` : `${total} Seiten`}
+        </p>
+      </div>
+
+      <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden mb-1">
+        <div
+          className="h-full bg-blue-600 rounded-full transition-all duration-300"
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+      <p className="text-[11px] text-slate-500 font-semibold mb-3">{percent}%</p>
+
+      <div className="flex flex-wrap gap-1.5">
+        {job.pages.map((p, i) => {
+          const isCurrent = i === currentIndex;
+          return (
+            <span
+              key={p.pageNumber}
+              title={p.status}
+              className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-bold ${
+                chipStyle[p.status]
+              } ${isCurrent ? 'ring-2 ring-blue-300' : ''}`}
+            >
+              {chipIcon[p.status]}
+              {p.pageNumber}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Completion summary for a page-by-page upload job. Lists every page with its
+ * result and clearly flags any page that was not accepted, so the job is never
+ * presented as fully successful while pages still need attention.
+ */
+function JobSummary({ job, onNewUpload }: { job: PdfJob; onNewUpload: () => void }) {
+  const accepted = job.pages.filter((p) => p.status === 'accepted').length;
+  const failed = job.pages.filter((p) => p.status === 'failed' || p.status === 'needs_review').length;
+  const allOk = failed === 0;
+
+  const statusLabel: Record<PageStatus, string> = {
+    pending: 'Ausstehend',
+    processing: 'Wird verarbeitet…',
+    extracted: 'Ermittelt',
+    validated: 'Geprüft',
+    accepted: 'Akzeptiert',
+    failed: 'Fehlgeschlagen',
+    needs_review: 'Prüfung nötig',
+  };
+
+  return (
+    <div className="flex flex-col gap-4 my-2">
+      <div className={`rounded-2xl border-2 p-5 shadow-xs ${allOk ? 'bg-emerald-50 border-emerald-300' : 'bg-amber-50 border-amber-300'}`}>
+        <div className="flex items-center gap-2 mb-1">
+          {allOk
+            ? <CheckCircle size={20} className="text-emerald-600" />
+            : <AlertCircle size={20} className="text-amber-600" />}
+          <h3 className="text-slate-900 font-bold text-lg">
+            {allOk ? 'Alle Seiten verarbeitet' : 'Verarbeitung abgeschlossen — einige Seiten benötigen Aufmerksamkeit'}
+          </h3>
+        </div>
+        <p className="text-slate-600 text-sm mb-3">{job.fileName}</p>
+        <p className="text-slate-800 text-sm font-bold">
+          {accepted} von {job.totalPages} Seiten akzeptiert
+          {failed > 0 ? ` · ${failed} Seite(n) nicht akzeptiert` : ''}
+        </p>
+        {!allOk && (
+          <p className="text-amber-800 text-xs mt-1">
+            Diese Seiten wurden übersprungen, konnten nicht gelesen werden oder müssen manuell geprüft werden. Sie wurden nicht stillschweigend als erfolgreich markiert.
+          </p>
+        )}
+      </div>
+
+      <div className="rounded-2xl border-2 border-slate-200 bg-slate-50 p-4 shadow-xs">
+        <p className="text-slate-800 font-bold text-sm mb-3">Ergebnisse je Seite</p>
+        <div className="flex flex-col divide-y divide-slate-200">
+          {job.pages.map((p) => (
+            <div key={p.pageNumber} className="flex items-center justify-between gap-3 py-2">
+              <div className="flex items-center gap-2 min-w-0">
+                {p.status === 'accepted'
+                  ? <CheckCircle size={15} className="text-emerald-600 shrink-0" />
+                  : p.status === 'failed'
+                    ? <AlertCircle size={15} className="text-red-600 shrink-0" />
+                    : <AlertCircle size={15} className="text-amber-600 shrink-0" />}
+                <span className="text-slate-600 text-xs font-bold w-14 shrink-0">Seite {p.pageNumber}</span>
+                <span className="text-slate-800 text-sm font-medium truncate">
+                  {p.scanResult?.employeeName || '—'}
+                </span>
+              </div>
+              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border shrink-0 ${
+                p.status === 'accepted'
+                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                  : p.status === 'failed'
+                    ? 'bg-red-50 text-red-700 border-red-300'
+                    : 'bg-amber-100 text-amber-800 border-amber-300'
+              }`}>
+                {statusLabel[p.status] ?? p.status}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex gap-3 justify-center pt-1">
+        <button
+          type="button"
+          onClick={onNewUpload}
+          className="px-6 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md flex items-center gap-2 cursor-pointer"
+        >
+          <Upload size={15} />
+          Neues Dokument scannen
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function TimesheetsPage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('scanner');
   const [viewMode, setViewMode] = useState<ViewMode>('upload');
@@ -2597,14 +2822,14 @@ export default function TimesheetsPage() {
   const [rotation, setRotation] = useState<number>(0);
   const [isReanalyzing, setIsReanalyzing] = useState<boolean>(false);
 
-  // ── Multi-photo queue ────────────────────────────────────────────────────────
-  type QueueStatus = 'waiting' | 'scanning' | 'review' | 'done' | 'error' | 'skipped';
-  const [fileQueue, setFileQueue] = useState<File[]>([]);
-  const [queueIndex, setQueueIndex] = useState(0);
-  const [queueStatuses, setQueueStatuses] = useState<QueueStatus[]>([]);
+  // ── Page-level upload job (PDF/image → N independent page jobs) ─────────────
+  const [pdfJob, setPdfJob] = useState<PdfJob | null>(null);
+  const [currentPage, setCurrentPage] = useState(0);          // page index being processed/reviewed
+  const [jobCompleted, setJobCompleted] = useState(false);
 
-  const hasQueue = fileQueue.length > 1;
-  const isLastInQueue = queueIndex >= fileQueue.length - 1;
+  const currentPageJob: PageJob | undefined = pdfJob?.pages[currentPage];
+  const hasQueue = (pdfJob?.pages.length ?? 0) > 1;
+  const isLastInQueue = currentPage >= (pdfJob?.pages.length ?? 1) - 1;
 
   // Clean up object URLs on unmount
   useEffect(() => {
@@ -2615,48 +2840,133 @@ export default function TimesheetsPage() {
     };
   }, [currentPreviewUrl]);
 
-  // Mark status of a specific queue item
-  const markStatus = (idx: number, status: QueueStatus) =>
-    setQueueStatuses(prev => { const next = [...prev]; next[idx] = status; return next; });
+  // Immutably update a page within the current job
+  const patchPage = (pageIdx: number, patch: Partial<PageJob>) => {
+    setPdfJob(prev => {
+      if (!prev) return prev;
+      const pages = prev.pages.map((p, i) => (i === pageIdx ? { ...p, ...patch } : p));
+      return { ...prev, pages };
+    });
+  };
 
-  // Start a queue of files — process the first one immediately
-  const handleFilesSelect = async (files: File[]) => {
+  // Build a PdfJob from uploaded files, splitting multi-page PDFs page-by-page.
+  const buildJob = async (files: File[]): Promise<PdfJob | null> => {
     const validFiles = files.filter(f => f.type.startsWith('image/') || f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
-    if (validFiles.length === 0) return;
+    if (validFiles.length === 0) return null;
 
-    // Expand any multi-page PDF into per-page image files so every page is
-    // scanned one by one (front-end splits before the scan pipeline).
-    const expanded: File[] = [];
+    const expanded: { file: File; pageNumber: number }[] = [];
     for (const f of validFiles) {
       const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
-      if (isPdf) {
-        const pages = await convertPdfToPageImageFiles(f).catch(() => [] as File[]);
-        if (pages.length > 0) expanded.push(...pages);
-        else expanded.push(f);
+      const pages = isPdf ? await convertPdfToPageImageFiles(f).catch(() => [] as File[]) : [];
+      if (pages.length > 1) {
+        pages.forEach((pageFile, i) => expanded.push({ file: pageFile, pageNumber: i + 1 }));
       } else {
-        expanded.push(f);
+        expanded.push({ file: pages[0] ?? f, pageNumber: 1 });
       }
     }
-    if (expanded.length === 0) return;
+    if (expanded.length === 0) return null;
 
-    setFileQueue(expanded);
-    setQueueIndex(0);
-    setRotation(0);
-    setQueueStatuses(expanded.map(() => 'waiting'));
-    processSingleFile(expanded[0], 0, expanded);
+    const jobId = generateJobId();
+    return {
+      jobId,
+      fileName: validFiles[0].name,
+      totalPages: expanded.length,
+      pages: expanded.map(({ file, pageNumber }) => ({
+        pageNumber,
+        file,
+        status: 'pending' as PageStatus,
+        scanResult: null,
+        error: null,
+      })),
+    };
   };
 
-  // Skip current photo and advance to next
-  const skipCurrent = () => {
-    markStatus(queueIndex, 'skipped');
-    advanceQueue(fileQueue, queueIndex + 1);
-  };
-
-  // Retry the current photo
-  const retryCurrent = () => {
-    if (fileQueue[queueIndex]) {
-      processSingleFile(fileQueue[queueIndex], queueIndex, fileQueue);
+  // Upload a single page file to the OCR pipeline (idempotent per job+page).
+  const sendPageToScan = async (job: PdfJob, page: PageJob): Promise<ScanResult> => {
+    const formData = new FormData();
+    formData.append('file', page.file);
+    const qs = new URLSearchParams({ uploadJobId: job.jobId, sourcePage: String(page.pageNumber) });
+    const res = await fetch(`${API_URL}/timesheets/scan?${qs}`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message ?? 'Fehler beim Scannen der Seite');
     }
+    return res.json();
+  };
+
+  // Process the page at pageIdx: scan → validate → show review.
+  const processPage = async (pageIdx: number) => {
+    const job = pdfJob;
+    const page = job?.pages[pageIdx];
+    if (!job || !page) return;
+
+    setCurrentPage(pageIdx);
+    setCurrentFileName(page.file.name);
+    setError(null);
+    patchPage(pageIdx, { status: 'processing' });
+
+    // Preview
+    try {
+      if (currentPreviewUrl && currentPreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(currentPreviewUrl);
+      }
+      if (page.file.type.startsWith('image/')) {
+        setCurrentPreviewUrl(URL.createObjectURL(page.file));
+      } else {
+        setCurrentPreviewUrl(null);
+      }
+    } catch {
+      setCurrentPreviewUrl(null);
+    }
+
+    setRotation(0);
+    setViewMode('scanning');
+
+    try {
+      const result = await sendPageToScan(job, page);
+      const nextStatus: PageStatus = validateExtraction(result) ? 'validated' : 'needs_review';
+      patchPage(pageIdx, { status: nextStatus, scanResult: result, error: null });
+      setScanResult(result);
+      setViewMode('review');
+    } catch (e: any) {
+      patchPage(pageIdx, { status: 'failed', error: e.message ?? 'Seite konnte nicht analysiert werden.' });
+      setError(e.message ?? 'Seite konnte nicht analysiert werden.');
+      setViewMode('error');
+    }
+  };
+
+  // Begin a new upload job with the given files.
+  const startJob = async (files: File[]) => {
+    const job = await buildJob(files);
+    if (!job) return;
+    setPdfJob(job);
+    setJobCompleted(false);
+    setSavedId(null);
+    setSavedName('');
+    await processPage(0);
+  };
+
+  const handleFilesSelect = (files: File[]) => { startJob(files); };
+  const handleFileSelect = (file: File) => { startJob([file]); };
+
+  // Skip the current page (mark it failed/skipped) and advance.
+  const skipCurrent = () => {
+    if (currentPageJob && !currentPageJob.scanResult) {
+      patchPage(currentPage, { status: 'failed', error: 'Übersprungen' });
+    } else {
+      patchPage(currentPage, { status: 'failed', error: 'Vom Benutzer übersprungen' });
+    }
+    advanceToNext();
+  };
+
+  // Retry the current page. The same job+page key is reused so the backend
+  // returns/updates the existing record instead of inserting a duplicate.
+  const retryCurrent = () => {
+    processPage(currentPage);
   };
 
   // Rotate preview angle in 90 degree increments
@@ -2664,37 +2974,22 @@ export default function TimesheetsPage() {
     setRotation((prev) => (prev + 90) % 360);
   };
 
-  // Re-analyze current photo with correctly oriented image
+  // Re-analyze the current page (idempotent — never duplicates the record).
   const handleReanalyze = async () => {
     if (isReanalyzing) return;
+    const job = pdfJob;
+    const page = currentPageJob;
+    if (!job || !page) return;
     setIsReanalyzing(true);
     setError(null);
-
     try {
-      const currentFile = fileQueue[queueIndex];
-      if (currentFile) {
-        // If rotated, produce a real rotated JPEG via Canvas before sending to OCR
-        const fileToSend = rotation % 360 !== 0
-          ? await getRotatedFile(currentFile, rotation)
-          : currentFile;
-
-        const formData = new FormData();
-        formData.append('file', fileToSend);
-
-        const res = await fetch(`${API_URL}/timesheets/scan`, {
-          method: 'POST',
-          headers: getAuthHeaders(),
-          body: formData,
-        });
-
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.message ?? 'Fehler bei der erneuten Analyse');
-        }
-
-        const result: ScanResult = await res.json();
-        setScanResult(result);
-      }
+      const fileToSend = rotation % 360 !== 0 ? await getRotatedFile(page.file, rotation) : page.file;
+      setRotation(0);
+      const rotatedPage: PageJob = { ...page, file: fileToSend };
+      const result = await sendPageToScan(job, rotatedPage);
+      const nextStatus: PageStatus = validateExtraction(result) ? 'validated' : 'needs_review';
+      patchPage(currentPage, { status: nextStatus, scanResult: result, error: null });
+      setScanResult(result);
     } catch (e: any) {
       setError(e.message ?? 'Neu-Analyse fehlgeschlagen');
     } finally {
@@ -2702,7 +2997,7 @@ export default function TimesheetsPage() {
     }
   };
 
-  // Fallback: Manually fill out the timesheet for this photo if OCR fails
+  // Fallback: Manually fill out the timesheet for this page if OCR fails
   const manualEntryForCurrent = () => {
     setScanResult({
       id: 'manual-' + Date.now(),
@@ -2713,84 +3008,32 @@ export default function TimesheetsPage() {
       entries: [],
       employeeMatch: { found: false, confidence: 'none', isNewEmployee: true },
     });
+    patchPage(currentPage, { status: 'needs_review' });
     setViewMode('review');
   };
 
-  // Advance to the next item in the queue
-  const advanceQueue = (queue: File[], nextIdx: number) => {
+  // Move to the next unprocessed page, or finish the job when all are done.
+  const advanceToNext = () => {
+    const job = pdfJob;
+    if (!job) return;
     setRotation(0);
-    if (nextIdx >= queue.length) {
-      // All done — show upload zone
-      setScanResult(null);
-      setViewMode('upload');
-      return;
-    }
-    setQueueIndex(nextIdx);
-    processSingleFile(queue[nextIdx], nextIdx, queue);
-  };
-
-  // Process a single file: scan it and go to review
-  const processSingleFile = async (file: File, idx: number, queue: File[]) => {
-    setCurrentFileName(file.name);
-    setError(null);
-    setViewMode('scanning');
-    markStatus(idx, 'scanning');
-    setRotation(0);
-
-    // Create preview URL for the single current photo
-    try {
-      if (currentPreviewUrl && currentPreviewUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(currentPreviewUrl);
-      }
-      if (file.type.startsWith('image/')) {
-        const url = URL.createObjectURL(file);
-        setCurrentPreviewUrl(url);
-      } else {
-        setCurrentPreviewUrl(null);
-      }
-    } catch {
-      setCurrentPreviewUrl(null);
-    }
-
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const res = await fetch(`${API_URL}/timesheets/scan`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message ?? 'Fehler beim Scannen');
-      }
-
-      const result: ScanResult = await res.json();
-      setScanResult(result);
-      markStatus(idx, 'review');
-      setViewMode('review');
-    } catch (e: any) {
-      markStatus(idx, 'error');
-      setError(e.message ?? 'Dokument konnte nicht analysiert werden.');
-      // Stay on single photo viewer with clear Retry / Skip controls
-      setViewMode('error');
+    const nextIdx = currentPage + 1;
+    if (nextIdx < job.pages.length) {
+      setCurrentPage(nextIdx);
+      processPage(nextIdx);
+    } else {
+      finishOrSummarize();
     }
   };
 
-  // File-upload Handler (single file)
-  const handleFileSelect = async (file: File) => {
-    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-    const filesToQueue: File[] = isPdf
-      ? await convertPdfToPageImageFiles(file).catch(() => [file])
-      : [file];
-    if (filesToQueue.length === 0) return;
-    setFileQueue(filesToQueue);
-    setQueueIndex(0);
-    setRotation(0);
-    setQueueStatuses(filesToQueue.map(() => 'waiting'));
-    await processSingleFile(filesToQueue[0], 0, filesToQueue);
+  const finishOrSummarize = () => {
+    const job = pdfJob;
+    if (!job) return;
+    setScanResult(null);
+    setSavedId(null);
+    setSavedName('');
+    setJobCompleted(true);
+    setViewMode('done');
   };
 
   // Translate raw API error messages to user-friendly German
@@ -2809,7 +3052,8 @@ export default function TimesheetsPage() {
   };
 
   const handleConfirm = async (payload: any) => {
-    if (!scanResult) return;
+    const page = currentPageJob;
+    if (!scanResult || !page) return;
     setIsLoading(true);
     setError(null);
 
@@ -2829,22 +3073,23 @@ export default function TimesheetsPage() {
       }
 
       const confirmed = await res.json();
-      markStatus(queueIndex, 'done');
+      patchPage(currentPage, { status: 'accepted', scanResult: confirmed });
       setSavedId(confirmed.id);
       setSavedName(confirmed.employee?.name ?? confirmed.employeeName);
       setRefreshListKey((prev) => prev + 1);
 
       if (hasQueue && !isLastInQueue) {
-        // Auto-advance to next photo in queue (brief saved flash then scan next)
+        // Auto-advance to the next page (brief saved flash then scan next)
         setViewMode('saved');
         setTimeout(() => {
-          setScanResult(null);
           setSavedId(null);
           setSavedName('');
-          advanceQueue(fileQueue, queueIndex + 1);
+          advanceToNext();
         }, 1600);
       } else {
         setViewMode('saved');
+        // Last page confirmed → show the completion summary after the flash.
+        setTimeout(() => finishOrSummarize(), 1600);
       }
     } catch (e: any) {
       setError(e.message ?? 'Unbekannter Fehler');
@@ -2857,6 +3102,9 @@ export default function TimesheetsPage() {
     if (currentPreviewUrl && currentPreviewUrl.startsWith('blob:')) {
       URL.revokeObjectURL(currentPreviewUrl);
     }
+    setPdfJob(null);
+    setCurrentPage(0);
+    setJobCompleted(false);
     setScanResult(null);
     setSavedId(null);
     setSavedName('');
@@ -2864,11 +3112,9 @@ export default function TimesheetsPage() {
     setCurrentPreviewUrl(null);
     setError(null);
     setRotation(0);
-    setFileQueue([]);
-    setQueueIndex(0);
-    setQueueStatuses([]);
     setViewMode('upload');
   };
+
 
   return (
     <div className="min-h-screen bg-white text-slate-900 overflow-x-hidden">
@@ -2945,10 +3191,10 @@ export default function TimesheetsPage() {
                 )}
 
                 {/* Step Indicator */}
-                {(viewMode === 'upload' || viewMode === 'review' || viewMode === 'error') && (
+                {(viewMode === 'upload' || viewMode === 'scanning' || viewMode === 'review' || viewMode === 'saved' || viewMode === 'error') && (
                   <div className="flex items-center gap-2 mb-6 text-xs text-slate-600 bg-slate-50 p-3 rounded-2xl border border-slate-200 overflow-x-auto whitespace-nowrap">
                     {['Erfassen (Upload)', 'KI-Analyse', 'Prüfen & Speichern'].map((step, i) => {
-                      const stepIndex = viewMode === 'upload' ? 0 : viewMode === 'review' ? 2 : 1;
+                      const stepIndex = viewMode === 'upload' ? 0 : (viewMode === 'scanning' || viewMode === 'error') ? 1 : 2;
                       const isActive = i === stepIndex;
                       const isDone = i < stepIndex;
                       return (
@@ -2968,6 +3214,11 @@ export default function TimesheetsPage() {
                   </div>
                 )}
 
+                {/* Real PDF page-by-page progress — never hides unprocessed pages */}
+                {pdfJob && viewMode !== 'upload' && viewMode !== 'done' && (
+                  <PdfJobProgress job={pdfJob} currentIndex={currentPage} />
+                )}
+
                 {/* View States */}
                 {viewMode === 'upload' && (
                   <UploadZone
@@ -2977,28 +3228,28 @@ export default function TimesheetsPage() {
                   />
                 )}
 
-                {viewMode === 'scanning' && (
+                {viewMode === 'scanning' && pdfJob && currentPageJob && (
                   <ScanningView
                     fileName={currentFileName}
                     previewUrl={currentPreviewUrl}
-                    currentIndex={queueIndex}
-                    totalCount={fileQueue.length || 1}
+                    currentIndex={currentPage}
+                    totalCount={pdfJob.totalPages}
                     photoSize={photoSize}
                     onSizeChange={setPhotoSize}
                     rotation={rotation}
                   />
                 )}
 
-                {viewMode === 'review' && scanResult && (
+                {viewMode === 'review' && scanResult && pdfJob && currentPageJob && (
                   <ReviewView
                     scanResult={scanResult}
                     onConfirm={handleConfirm}
-                    onDiscard={hasQueue && !isLastInQueue ? skipCurrent : resetScanner}
+                    onDiscard={skipCurrent}
                     isLoading={isLoading}
                     currentFileName={currentFileName}
                     currentPreviewUrl={currentPreviewUrl}
-                    queueIndex={queueIndex}
-                    totalQueueCount={fileQueue.length || 1}
+                    queueIndex={currentPage}
+                    totalQueueCount={pdfJob.totalPages}
                     photoSize={photoSize}
                     onPhotoSizeChange={setPhotoSize}
                     isLastInQueue={isLastInQueue}
@@ -3009,35 +3260,39 @@ export default function TimesheetsPage() {
                   />
                 )}
 
-                {viewMode === 'saved' && savedId && (
+                {viewMode === 'saved' && savedId && pdfJob && (
                   <SavedView
                     timesheetId={savedId}
                     employeeName={savedName}
                     onScanAnother={resetScanner}
                     hasQueue={hasQueue}
                     isLastInQueue={isLastInQueue}
-                    queueIndex={queueIndex}
-                    totalCount={fileQueue.length || 1}
-                    onContinueNext={() => advanceQueue(fileQueue, queueIndex + 1)}
+                    queueIndex={currentPage}
+                    totalCount={pdfJob.totalPages}
+                    onContinueNext={advanceToNext}
                   />
                 )}
 
-                {viewMode === 'error' && (
+                {viewMode === 'error' && pdfJob && currentPageJob && (
                   <div className="flex flex-col gap-4 my-2">
                     <SinglePhotoViewer
-                      fileName={currentFileName || `Stundenzettel_${String(queueIndex + 1).padStart(2, '0')}.jpg`}
+                      fileName={currentFileName || `Stundenzettel_${String(currentPageJob.pageNumber).padStart(2, '0')}.jpg`}
                       previewUrl={currentPreviewUrl}
-                      currentIndex={queueIndex}
-                      totalCount={fileQueue.length || 1}
+                      currentIndex={currentPage}
+                      totalCount={pdfJob.totalPages}
                       photoSize={photoSize}
                       onSizeChange={setPhotoSize}
                       status="error"
-                      statusMessage={error || 'Dieses Dokument konnte nicht analysiert werden.'}
+                      statusMessage={currentPageJob.error || error || 'Dieses Dokument konnte nicht analysiert werden.'}
                       onRetry={retryCurrent}
-                      onSkip={hasQueue && !isLastInQueue ? skipCurrent : resetScanner}
+                      onSkip={skipCurrent}
                       onManualEntry={manualEntryForCurrent}
                     />
                   </div>
+                )}
+
+                {viewMode === 'done' && pdfJob && (
+                  <JobSummary job={pdfJob} onNewUpload={resetScanner} />
                 )}
 
               </div>

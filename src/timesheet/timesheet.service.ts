@@ -24,7 +24,42 @@ export class TimesheetService {
 
   // ─── SCAN & CREATE ─────────────────────────────────────────────────────────
 
-  async scanAndCreate(file: Express.Multer.File, creatorId: string) {
+  async scanAndCreate(
+    file: Express.Multer.File,
+    creatorId: string,
+    uploadJobId?: string,
+    sourcePage?: number,
+  ) {
+    // Idempotency guard: if this page already produced a scan record for this
+    // upload job, return it instead of creating a duplicate (prevents retries or
+    // a refresh from inserting the same page twice).
+    if (uploadJobId && sourcePage != null) {
+      const existing = await this.prisma.timesheet.findFirst({
+        where: {
+          uploadJobId,
+          sourcePage,
+          status: TimesheetStatus.PENDING_REVIEW,
+        },
+        include: {
+          entries: { orderBy: { date: 'asc' } },
+          employee: { select: { id: true, name: true } },
+        },
+      });
+      if (existing) {
+        return {
+          ...existing,
+          employeeMatch: {
+            found: !!existing.employeeId,
+            confidence: (existing.ocrConfidence as 'exact' | 'fuzzy' | 'none') ?? 'none',
+            matchedName: existing.employee?.name ?? null,
+            isNewEmployee: !existing.employeeId,
+          },
+          ocrWarning: (existing.ocrRawResponse as any)?.warning,
+          sandbox: (existing.ocrRawResponse as any)?.sandbox ?? false,
+        };
+      }
+    }
+
     // 1. OCR extraction
     const ocrResult = await this.ocrService.extractFromFile(file);
 
@@ -69,7 +104,8 @@ export class TimesheetService {
       };
     });
 
-    // 5. Store timesheet in PENDING_REVIEW state
+    // 5. Store timesheet in PENDING_REVIEW state (scoped to upload job/page
+    //    when provided, so the page can never be inserted twice)
     const timesheet = await this.prisma.timesheet.create({
       data: {
         employeeName: ocrResult.employeeName,
@@ -79,6 +115,8 @@ export class TimesheetService {
         createdById: creatorId,
         ocrConfidence: matchResult.confidence,
         ocrRawResponse: ocrResult as any,
+        uploadJobId: uploadJobId ?? null,
+        sourcePage: sourcePage ?? null,
         entries: {
           create: entriesData,
         },

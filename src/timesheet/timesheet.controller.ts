@@ -38,19 +38,29 @@ export class TimesheetController {
   ) {}
 
   /**
-   * POST /timesheets/scan
-   * Upload a timesheet image → OCR → fuzzy match → return PENDING_REVIEW timesheet
+   * POST /timesheets/scan?uploadJobId=...&sourcePage=...
+   * Upload a single page (image or PDF page) → OCR → fuzzy match → return
+   * PENDING_REVIEW timesheet. The uploadJobId+sourcePage pair makes scanning
+   * idempotent per page so retries / refresh never create duplicate records.
    */
   @Post('scan')
   @UseInterceptors(FileInterceptor('file'))
   async scan(
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() currentUser: any,
+    @Query('uploadJobId') uploadJobId?: string,
+    @Query('sourcePage') sourcePage?: string,
   ) {
     if (!file) {
       throw new BadRequestException('Bitte eine Bilddatei hochladen');
     }
-    return this.timesheetService.scanAndCreate(file, currentUser.id);
+    const pageNum = sourcePage != null && sourcePage !== '' ? parseInt(sourcePage, 10) : undefined;
+    return this.timesheetService.scanAndCreate(
+      file,
+      currentUser.id,
+      uploadJobId && uploadJobId !== '' ? uploadJobId : undefined,
+      Number.isNaN(pageNum) ? undefined : pageNum,
+    );
   }
 
   /**

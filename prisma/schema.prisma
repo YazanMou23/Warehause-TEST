@@ -293,6 +293,8 @@ model Timesheet {
   createdById    String?         // Manager/Admin der den Scan erstellt hat
   ocrConfidence  String?         // 'exact' | 'fuzzy' | 'none'
   ocrRawResponse Json?           // Komplette GPT-Rohantwort für Debugging
+  uploadJobId    String?         // Idempotency: upload job this scan page belongs to
+  sourcePage     Int?            // Source page number within the upload job (1-based)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -303,6 +305,7 @@ model Timesheet {
   @@index([weekStartDate])
   @@index([status])
   @@index([createdAt])
+  @@unique([uploadJobId, sourcePage])
 }
 
 model TimesheetEntry {
