@@ -110,6 +110,52 @@ pub async fn run_discovery() -> Vec<DiscoveredDevice> {
         }
     }
 
+    // 4b. Wire the resolved network IP from the Windows port (e.g. Canon's
+    // `CNBJNP_<MAC>` port) into the matching WIA bridge device so it shows as
+    // a network scanner and scans via WIA with a known address. eSCL-class
+    // devices are skipped here — they are handled by the eSCL correlation above.
+    let spooler_ip_devices: Vec<DiscoveredDevice> = devices
+        .iter()
+        .filter(|d| d.ip.is_some() && d.id.starts_with("WIN_"))
+        .cloned()
+        .collect();
+
+    for dev in devices.iter_mut() {
+        if dev.ip.is_some() { continue; }
+        if dev.backends.iter().any(|b| b == "ESCL") { continue; }
+        if !dev.backends.iter().any(|b| b == "WIA") { continue; }
+        if dev.wia_id.is_none() { continue; }
+
+        let match_model = dev.model.to_lowercase().replace("series", "").replace("(kopie", "").trim().to_string();
+        if match_model.is_empty() { continue; }
+
+        for sp in &spooler_ip_devices {
+            let sp_model = sp.model.to_lowercase().trim().to_string();
+            if sp_model.is_empty() { continue; }
+            let sp_name = sp.name.to_lowercase().trim().to_string();
+            let dev_name = dev.name.to_lowercase().replace("(kopie 1)", "").trim().to_string();
+            let name_match = (!sp_name.is_empty() && !dev_name.is_empty())
+                && (sp_name.contains(&dev_name) || dev_name.contains(&sp_name));
+
+            if name_match || (!match_model.is_empty()
+                && (sp_model.contains(&match_model) || match_model.contains(&sp_model)))
+            {
+                if let Some(ip) = &sp.ip {
+                    dev.ip = Some(ip.clone());
+                    dev.port = sp.port.or(Some(80));
+                    dev.connection_type = "WIFI".into();
+                    dev.protocol = "WIA".into();
+                    if !dev.backends.iter().any(|b| b == "WIA") { dev.backends.push("WIA".into()); }
+                    if dev.status == "available" {
+                        dev.status_details = format!("WIA-Netzwerk-Scanner ({})", ip);
+                    }
+                    log::info!("Wired network IP {} into WIA device '{}' (backend=WIA)", ip, dev.name);
+                }
+                break;
+            }
+        }
+    }
+
     // 5. Always include simulator for demo/testing
     if !seen_ids.contains("SIMULATOR") {
         devices.push(DiscoveredDevice::simulator());

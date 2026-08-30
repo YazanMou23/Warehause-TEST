@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use super::types::{DiscoveredDevice, DeviceCapabilities};
 use crate::bridge;
 
@@ -127,6 +127,8 @@ pub async fn discover_via_windows_pnp(seen_ids: &mut HashSet<String>) -> Vec<Dis
         .output()
         .await;
 
+    let arp = arp_table().await;
+
     if let Ok(out) = ps_out {
         let stdout = String::from_utf8_lossy(&out.stdout);
         if let Ok(val) = serde_json::from_str::<serde_json::Value>(&stdout) {
@@ -145,13 +147,7 @@ pub async fn discover_via_windows_pnp(seen_ids: &mut HashSet<String>) -> Vec<Dis
                 let port_name  = p["PortName"].as_str().unwrap_or("").to_string();
                 let driver     = p["DriverName"].as_str().unwrap_or("").to_string();
 
-                let ip = port_name.split(',')
-                    .find_map(|s| {
-                        let s = s.trim();
-                        if s.starts_with("192.168.") || s.starts_with("10.") || s.starts_with("172.") {
-                            Some(s.to_string())
-                        } else { None }
-                    });
+                let ip = resolve_printer_ip(&port_name, &arp);
 
                 let id_key = format!("WIN_{}", name.replace(|c: char| !c.is_alphanumeric(), "_"));
                 if seen_ids.contains(&id_key) { continue; }
@@ -232,4 +228,82 @@ fn guess_manufacturer(name: &str) -> String {
     if n.contains("LEXMARK")  { return "Lexmark".into(); }
     if n.contains("SAMSUNG")  { return "Samsung".into(); }
     "Scanner".into()
+}
+
+/// Resolve a printer's IP address from its Windows port name.
+///
+/// Port names come in several shapes:
+///  - `IP_192.168.178.40` / bare `192.168.x.x` → literal IP
+///  - `CNBJNP_9C32CE0C3246` (Canon BJNP, encoded MAC) → ARP lookup
+///  - `CONN:...`, `WSD-...`, … → try to find the MAC, else `None`
+fn resolve_printer_ip(port_name: &str, arp: &HashMap<String, String>) -> Option<String> {
+    let pn = port_name.trim();
+    if pn.is_empty() { return None; }
+
+    // 1. Literal IP embedded in the port name.
+    if let Some(ip) = pn.split([' ', ',']).find_map(|s| {
+        let s = s.trim();
+        if s.starts_with("192.168.") || s.starts_with("10.") || s.starts_with("172.") { Some(s.to_string()) } else { None }
+    }) {
+        return Some(ip);
+    }
+
+    // 2. Canon BJNP ports encode the MAC as `CNBJNP_9C32CE0C3246`.
+    if let Some(hex) = pn.to_uppercase().rsplit("CNBJNP_").next() {
+        if hex.len() >= 12 && hex.chars().all(|c| c.is_ascii_hexdigit()) {
+            let mac = format!(
+                "{}-{}-{}-{}-{}-{}",
+                &hex[0..2], &hex[2..4], &hex[4..6], &hex[6..8], &hex[8..10], &hex[10..12]
+            )
+            .to_lowercase();
+            if let Some(ip) = arp.get(&mac) {
+                log::info!("[resolve-ip] port '{}' -> CNBJNP MAC '{}' -> IP {}", pn, mac, ip);
+                return Some(ip.clone());
+            } else {
+                log::warn!("[resolve-ip] port '{}' -> CNBJNP MAC '{}' NOT found in ARP ({} entries)", pn, mac, arp.len());
+            }
+        }
+    }
+
+    // 3. WSD / generic ports sometimes embed the MAC after a GUID or `CONN:`.
+    let macish = pn.chars().filter(|c| c.is_ascii_hexdigit()).take(12).collect::<String>().to_uppercase();
+    if macish.len() == 12 {
+        let mac = format!(
+            "{}-{}-{}-{}-{}-{}",
+            &macish[0..2], &macish[2..4], &macish[4..6], &macish[6..8], &macish[8..10], &macish[10..12]
+        )
+        .to_lowercase();
+        if let Some(ip) = arp.get(&mac) { return Some(ip.clone()); }
+    }
+
+    None
+}
+
+/// Collect the current ARP table as `MAC(lowercase) -> IP`.
+async fn arp_table() -> HashMap<String, String> {
+    let mut map = HashMap::new();
+    let out = tokio::process::Command::new("arp")
+        .arg("-a")
+        .output()
+        .await;
+    if let Ok(o) = out {
+        let stdout = String::from_utf8_lossy(&o.stdout);
+        for line in stdout.lines().skip(1) {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 2 {
+                let ip  = parts[0].trim();
+                let mac = parts[1].trim().to_lowercase();
+                if ip.starts_with("192.") || ip.starts_with("10.") || ip.starts_with("172.")
+                    || ip.starts_with("169.254.") {
+                    if mac.len() == 17 && mac.matches('-').count() == 5 {
+                        map.insert(mac, ip.to_string());
+                    }
+                }
+            }
+        }
+        log::info!("[arp-table] got {} reachable IPv4 MAC->IP entries from arp -a", map.len());
+    } else {
+        log::warn!("[arp-table] arp -a failed: {:?}", out.err());
+    }
+    map
 }
