@@ -28,6 +28,10 @@ fn cors_headers(res: &mut actix_web::http::header::HeaderMap, origin: Option<&st
     res.insert(ACCESS_CONTROL_ALLOW_ORIGIN, HeaderValue::from_str(&o).unwrap());
     res.insert(ACCESS_CONTROL_ALLOW_METHODS, HeaderValue::from_static("GET, POST, PUT, DELETE, OPTIONS"));
     res.insert(ACCESS_CONTROL_ALLOW_HEADERS, HeaderValue::from_static("Content-Type, Authorization"));
+    res.insert(
+        actix_web::http::header::HeaderName::from_static("access-control-allow-private-network"),
+        HeaderValue::from_static("true")
+    );
 }
 
 fn reject_forbidden() -> HttpResponse {
