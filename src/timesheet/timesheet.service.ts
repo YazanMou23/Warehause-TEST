@@ -5,6 +5,8 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { TimesheetOcrService } from './timesheet-ocr.service';
+import { TimesheetMatcherService } from './timesheet-matcher.service';
 import { ConfirmTimesheetDto } from './dto/confirm-timesheet.dto';
 import { TimesheetQueryDto } from './dto/timesheet-query.dto';
 import { UpdateTimesheetDto } from './dto/update-timesheet.dto';
@@ -16,7 +18,98 @@ import * as bcrypt from 'bcrypt';
 export class TimesheetService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly ocrService: TimesheetOcrService,
+    private readonly matcherService: TimesheetMatcherService,
   ) {}
+
+  // ─── SCAN & CREATE ─────────────────────────────────────────────────────────
+
+  async scanAndCreate(file: Express.Multer.File, creatorId: string) {
+    // 1. OCR extraction
+    const ocrResult = await this.ocrService.extractFromFile(file);
+
+    // 2. Fuzzy employee matching
+    const matchResult = await this.matcherService.findBestMatch(ocrResult.employeeName);
+
+    // 3. Derive week start (Monday) from first entry date if available
+    const weekStartDate = this.deriveWeekStart(ocrResult);
+
+    // 4. Guarantee all 7 calendar week days (Montag - Sonntag) exist
+    const weekDays = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+    const entriesData = weekDays.map((weekdayName, i) => {
+      const dayDate = new Date(weekStartDate);
+      dayDate.setUTCDate(dayDate.getUTCDate() + i);
+      const dayDateStr = dayDate.toISOString().slice(0, 10);
+      const matchedOcr = ocrResult.entries.find(
+        (e) => e.weekday?.toLowerCase() === weekdayName.toLowerCase() || e.date === dayDateStr
+      );
+
+      if (matchedOcr && matchedOcr.startTime?.trim()) {
+        return {
+          weekday: weekdayName,
+          date: dayDate,
+          startTime: matchedOcr.startTime.trim(),
+          endTime: matchedOcr.endTime?.trim() || null,
+          breakMinutes: matchedOcr.breakMinutes || 0,
+          totalHours: matchedOcr.totalHours || 0,
+          location: matchedOcr.location || null,
+          isActive: true,
+        };
+      }
+
+      return {
+        weekday: weekdayName,
+        date: dayDate,
+        startTime: '',
+        endTime: null,
+        breakMinutes: 0,
+        totalHours: 0,
+        location: null,
+        isActive: false,
+      };
+    });
+
+    // 5. Store timesheet in PENDING_REVIEW state
+    const timesheet = await this.prisma.timesheet.create({
+      data: {
+        employeeName: ocrResult.employeeName,
+        employeeId: matchResult.found ? matchResult.employeeId ?? null : null,
+        weekStartDate,
+        status: TimesheetStatus.PENDING_REVIEW,
+        createdById: creatorId,
+        ocrConfidence: matchResult.confidence,
+        ocrRawResponse: ocrResult as any,
+        entries: {
+          create: entriesData,
+        },
+      },
+      include: {
+        entries: { orderBy: { date: 'asc' } },
+        employee: { select: { id: true, name: true } },
+      },
+    });
+
+    // 6. Log action
+    await this.prisma.actionLog.create({
+      data: {
+        userId: creatorId,
+        action: 'TIMESHEET_SCAN',
+        details: `Stundenzettel gescannt für "${ocrResult.employeeName}" (KW ${this.getKw(weekStartDate)}). Match: ${matchResult.confidence}`,
+      },
+    });
+
+    return {
+      ...timesheet,
+      employeeMatch: {
+        found: matchResult.found,
+        confidence: matchResult.confidence,
+        matchedName: matchResult.matchedName,
+        isNewEmployee: !matchResult.found,
+      },
+      ocrWarning: ocrResult.warning,
+      sandbox: ocrResult.sandbox ?? false,
+    };
+  }
 
   // ─── CONFIRM & SAVE ────────────────────────────────────────────────────────
 
@@ -603,5 +696,36 @@ export class TimesheetService {
         `Endzeit (${entry.endTime}) muss nach Startzeit (${entry.startTime}) liegen`,
       );
     }
+  }
+
+  private deriveWeekStart(ocrResult: { entries: Array<{ date: string }> }): Date {
+    if (ocrResult.entries.length > 0) {
+      const firstDate = new Date(ocrResult.entries[0].date);
+      if (!isNaN(firstDate.getTime())) {
+        // Find the Monday of that week
+        const day = firstDate.getUTCDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+        const distToMonday = day === 0 ? 6 : day - 1;
+        const monday = new Date(firstDate);
+        monday.setUTCDate(monday.getUTCDate() - distToMonday);
+        monday.setUTCHours(0, 0, 0, 0);
+        return monday;
+      }
+    }
+
+    // Fallback: current week's Monday
+    const now = new Date();
+    const day = now.getUTCDay();
+    const distToMonday = day === 0 ? 6 : day - 1;
+    const monday = new Date(now);
+    monday.setUTCDate(monday.getUTCDate() - distToMonday);
+    monday.setUTCHours(0, 0, 0, 0);
+    return monday;
+  }
+
+  private getKw(date: Date): string {
+    const startOfYear = new Date(date.getUTCFullYear(), 0, 1);
+    const diff = (date.getTime() - startOfYear.getTime()) / 86400000;
+    const week = Math.ceil((diff + startOfYear.getDay() + 1) / 7);
+    return `${week}/${date.getUTCFullYear()}`;
   }
 }
