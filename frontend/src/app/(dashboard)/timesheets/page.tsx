@@ -101,50 +101,86 @@ async function getRotatedFile(file: File, rotationDeg: number): Promise<File> {
 
 /**
  * Splits a multi-page PDF into individual page-image Files (JPEG) so the scan
- * pipeline reads and OCRs every page one by one. Matches the Documents feature.
+ * pipeline reads and OCRs every page one by one.
+ *
+ * IMPORTANT: this function THROWS on any failure — callers must NOT silently
+ * swallow the error (doing so would fall back to sending raw PDF bytes to the
+ * backend, which causes an image_parse_error from OpenAI).
  */
 async function convertPdfToPageImageFiles(file: File): Promise<File[]> {
   const pdfjsLib = (await import('pdfjs-dist')).default as typeof import('pdfjs-dist');
-  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.min.mjs',
-    import.meta.url
-  ).toString();
+  try {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+      'pdfjs-dist/build/pdf.worker.min.mjs',
+      import.meta.url
+    ).toString();
+  } catch {
+    // Fallback: run pdfjs on the main thread (no worker) — slower but compatible.
+    (pdfjsLib.GlobalWorkerOptions as any).workerSrc = '';
+  }
 
   const arrayBuffer = await file.arrayBuffer();
   const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-  const pdf = await loadingTask.promise;
+
+  let pdf: any;
+  try {
+    pdf = await loadingTask.promise;
+  } catch {
+    throw new Error('Das PDF ist beschädigt oder konnte nicht gelesen werden.');
+  }
+
   const scale = 2; // high quality for OCR
+  const base = file.name.replace(/\.pdf$/i, '');
+  const pages: File[] = [];
 
   try {
-    const base = file.name.replace(/\.pdf$/i, '');
-    const pages: File[] = [];
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      const page = await pdf.getPage(pageNum);
+      let page: any;
+      try {
+        page = await pdf.getPage(pageNum);
+      } catch {
+        throw new Error(`Seite ${pageNum} des PDFs konnte nicht verarbeitet werden.`);
+      }
+
       const viewport = page.getViewport({ scale });
       const canvas = document.createElement('canvas');
       canvas.width = Math.floor(viewport.width);
       canvas.height = Math.floor(viewport.height);
       const context = canvas.getContext('2d');
       if (!context) {
-        throw new Error('Canvas-Rendering wird nicht unterstützt.');
+        throw new Error('Canvas-Rendering wird nicht unterstützt. Bitte einen aktuellen Browser verwenden.');
       }
       context.fillStyle = '#ffffff';
       context.fillRect(0, 0, canvas.width, canvas.height);
-      await page.render({ canvas, canvasContext: context, viewport }).promise;
+
+      try {
+        await page.render({ canvas, canvasContext: context, viewport }).promise;
+      } catch {
+        throw new Error(`Seite ${pageNum} des PDFs konnte nicht als Bild gerendert werden.`);
+      }
+
       const blob = await new Promise<Blob | null>((resolve) =>
         canvas.toBlob(resolve, 'image/jpeg', 0.9)
       );
       page.cleanup();
-      if (blob) {
-        pages.push(
-          new File([blob], `${base}_Seite${pageNum}.jpg`, { type: 'image/jpeg' })
-        );
+
+      if (!blob) {
+        throw new Error(`Seite ${pageNum} des PDFs konnte nicht als Bild gespeichert werden.`);
       }
+
+      pages.push(
+        new File([blob], `${base}_Seite${pageNum}.jpg`, { type: 'image/jpeg' })
+      );
     }
-    return pages;
   } finally {
     loadingTask.destroy();
   }
+
+  if (pages.length === 0) {
+    throw new Error('Das PDF enthält keine lesbaren Seiten.');
+  }
+
+  return pages;
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -2851,6 +2887,9 @@ export default function TimesheetsPage() {
   };
 
   // Build a PdfJob from uploaded files, splitting multi-page PDFs page-by-page.
+  // THROWS on PDF conversion failure — do NOT catch internally.  The old code
+  // silently caught errors and fell back to `pages[0] ?? f`, which sent raw PDF
+  // bytes to the backend causing an image_parse_error from OpenAI Vision API.
   const buildJob = async (files: File[]): Promise<PdfJob | null> => {
     const validFiles = files.filter(f => f.type.startsWith('image/') || f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
     if (validFiles.length === 0) return null;
@@ -2858,11 +2897,15 @@ export default function TimesheetsPage() {
     const expanded: { file: File; pageNumber: number }[] = [];
     for (const f of validFiles) {
       const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
-      const pages = isPdf ? await convertPdfToPageImageFiles(f).catch(() => [] as File[]) : [];
-      if (pages.length > 1) {
+      if (isPdf) {
+        // Convert every PDF page to a JPEG image before sending to the OCR backend.
+        // If this throws, let the error propagate — startJob() will catch it and
+        // display a specific German error message to the user.
+        const pages = await convertPdfToPageImageFiles(f);
         pages.forEach((pageFile, i) => expanded.push({ file: pageFile, pageNumber: i + 1 }));
       } else {
-        expanded.push({ file: pages[0] ?? f, pageNumber: 1 });
+        // Images are sent directly — no conversion needed.
+        expanded.push({ file: f, pageNumber: 1 });
       }
     }
     if (expanded.length === 0) return null;
@@ -2946,7 +2989,19 @@ export default function TimesheetsPage() {
   // Begin a new upload job with the given files.
   const startJob = async (files: File[]) => {
     console.log('START_JOB', { fileCount: files.length, names: files.map(f => f.name) });
-    const job = await buildJob(files);
+    let job: PdfJob | null = null;
+    try {
+      job = await buildJob(files);
+    } catch (e: any) {
+      // Surface PDF conversion errors (e.g. corrupted PDF, canvas unavailable)
+      // to the user with a specific message. Never silently swallow these errors
+      // — the old behaviour was to fall back to sending raw PDF bytes which
+      // caused an image_parse_error from OpenAI.
+      const msg: string = e?.message ?? 'Das PDF konnte nicht geöffnet werden.';
+      setError(msg);
+      // Stay on 'upload' view so the user can select a different file.
+      return;
+    }
     console.log('BUILD_JOB_RESULT', job ? 'ok' : 'null');
     if (!job) return;
     setPdfJob(job);

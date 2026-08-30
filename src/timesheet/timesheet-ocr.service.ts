@@ -1,5 +1,6 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PDFParse } from 'pdf-parse';
 
 export interface OcrTimesheetEntry {
   weekday: string;
@@ -38,7 +39,7 @@ export class TimesheetOcrService {
 
     const isImage = file.mimetype.startsWith('image/');
     const isPdf = file.mimetype === 'application/pdf' || file.originalname.toLowerCase().endsWith('.pdf');
-    
+
     if (!isImage && !isPdf) {
       this.logger.warn(`Unsupported file type: ${file.mimetype}`);
       return this.getSandboxFallback(
@@ -53,12 +54,21 @@ export class TimesheetOcrService {
     }
 
     try {
+      if (isPdf && !isImage) {
+        // Backend safety-net: the frontend normally converts PDFs to JPEG images
+        // before upload, so raw PDFs should never reach here in normal operation.
+        // If they do (direct API call, frontend canvas failure, etc.) we extract
+        // text or render screenshot and pass it to GPT-4o.
+        return await this.extractFromPdfBuffer(file, apiKey);
+      }
       return await this.callVisionApi(file, apiKey);
     } catch (error: any) {
       this.logger.error(`OCR-Extraktion fehlgeschlagen: ${error.message}`);
       let userFriendlyWarning = 'OCR-Verarbeitung konnte das Dokument nicht analysieren. Demo-Daten werden angezeigt.';
       if (error.message?.includes('image_parse_error') || error.message?.includes('unsupported image')) {
         userFriendlyWarning = 'Das gescannte Bild konnte nicht verarbeitet werden. Bitte Dokument erneut scannen oder ein anderes Bild hochladen.';
+      } else if (error.message?.includes('PDF') || error.message?.includes('pdf')) {
+        userFriendlyWarning = 'Das PDF konnte nicht verarbeitet werden. Bitte das Dokument erneut hochladen.';
       } else if (error.message?.includes('401') || error.message?.includes('invalid_api_key')) {
         userFriendlyWarning = 'OpenAI API-Schlüssel ist ungültig oder abgelaufen.';
       } else if (error.message?.includes('429')) {
@@ -66,6 +76,202 @@ export class TimesheetOcrService {
       }
       return this.getSandboxFallback(userFriendlyWarning);
     }
+  }
+
+  // ─── PDF safety-net (text extraction & render fallback) ────────────────────
+
+  /**
+   * Handle a raw PDF that arrived at the backend directly.
+   *
+   * Strategy:
+   *   1. Use PDFParse to extract plain text from the PDF.
+   *   2. If the PDF contains sufficient text (>= 80 chars) — it is a digital/text
+   *      PDF — send the text to GPT-4o as a text-only prompt and extract data.
+   *   3. If the text is sparse (scanned PDF), attempt screenshot rendering to image
+   *      and forward to callVisionApi.
+   *   4. Otherwise return a helpful fallback message.
+   */
+  private async extractFromPdfBuffer(
+    file: Express.Multer.File,
+    apiKey: string,
+  ): Promise<OcrTimesheetResult> {
+    this.logger.warn(
+      `Raw PDF received at backend (${file.originalname}, ${file.size} bytes). ` +
+      'This is unexpected — the frontend should have converted it to JPEG first.',
+    );
+
+    let pdfText = '';
+    let parser: PDFParse | null = null;
+
+    try {
+      parser = new PDFParse({ data: new Uint8Array(file.buffer) });
+      const textResult = await parser.getText();
+      pdfText = (textResult.text ?? '').trim();
+    } catch (err: any) {
+      this.logger.error(`PDF parsing failed: ${err.message}`);
+      return this.getSandboxFallback(
+        'Das PDF ist beschädigt oder konnte nicht gelesen werden.',
+      );
+    }
+
+    const MIN_TEXT_LENGTH = 80;
+    if (pdfText.length >= MIN_TEXT_LENGTH) {
+      if (parser) {
+        await parser.destroy().catch(() => {});
+      }
+      this.logger.log(`PDF text extracted (${pdfText.length} chars) — sending to GPT-4o as text.`);
+      return await this.callTextApi(pdfText, apiKey);
+    }
+
+    // If text is short, try rendering page 1 screenshot as an image fallback
+    try {
+      if (parser) {
+        const screenshotResult = await parser.getScreenshot({ partial: [1], scale: 2, imageBuffer: true });
+        await parser.destroy().catch(() => {});
+        parser = null;
+
+        const firstPage = screenshotResult.pages?.[0];
+        if (firstPage?.data) {
+          const imgBuffer = Buffer.from(firstPage.data);
+          const fakeImageFile: Express.Multer.File = {
+            ...file,
+            buffer: imgBuffer,
+            mimetype: 'image/png',
+          };
+          this.logger.log('Rendered PDF page 1 to image buffer on backend — calling Vision API.');
+          return await this.callVisionApi(fakeImageFile, apiKey);
+        }
+      }
+    } catch (renderErr: any) {
+      this.logger.warn(`Server-side PDF screenshot render fallback failed: ${renderErr.message}`);
+    } finally {
+      if (parser) {
+        await parser.destroy().catch(() => {});
+      }
+    }
+
+    return this.getSandboxFallback(
+      'Das hochgeladene PDF enthält nur gescannten Inhalt und konnte nicht direkt verarbeitet werden. ' +
+      'Bitte das Dokument über den Browser-Upload erneut hochladen — die Anwendung konvertiert es dann automatisch in einzelne Seiten.',
+    );
+  }
+
+  /**
+   * Send plain text extracted from a PDF to GPT-4o for Stundenzettel extraction.
+   * Uses the same system prompt and output schema as the image path.
+   */
+  private async callTextApi(
+    text: string,
+    apiKey: string,
+  ): Promise<OcrTimesheetResult> {
+    const systemPrompt = `Du bist ein hochpräzises Extraktionssystem für handgeschriebene und gedruckte deutsche Wochenarbeitszeitblätter (Stundenzettel).
+Deine Aufgabe ist es, Arbeitszeiten, Datum, Mitarbeitername und Hallen/Einsatzorte strukturiert als JSON zu extrahieren.
+WENN keine Tabelle, kein Text oder ein leeres Bild übergeben wird, antworte immer mit dem Standard-JSON (kein Fehler, keine Weigerung):
+{
+  "employeeName": "",
+  "weekStartDate": "",
+  "entries": []
+}`;
+
+    const userPrompt = `Analysiere diesen Stundenzettel-Text und extrahiere alle Einträge:
+
+${text}
+
+═══════════ DATUMSFORMATE — ALLE AKZEPTIEREN ═══════════
+Eingabe: TT.MM.JJJJ · TT.MM.JJ · TT/MM/JJJJ · TT/MM/JJ · TT.MM
+Ausgabe IMMER: YYYY-MM-DD (z.B. 16.07.2026 → 2026-07-16)
+
+═══════════ ZEITFORMATE — ALLE AKZEPTIEREN ═══════════
+Eingabe: HH:MM · HH.MM · HHMM · HHhMM · HH h MM · H:MM
+Ausgabe IMMER: HH:MM (24h-Format, zweistellig, z.B. 08:00, 16:30)
+
+═══════════ STUNDEN (totalHours) ═══════════
+- Netto-Stunden (ohne Pause) als Dezimalzahl (z.B. 8.5)
+- Wenn nicht lesbar: aus Startzeit - Endzeit - Pause berechnen
+
+═══════════ NAME BEREINIGEN ═══════════
+- Prefixe entfernen: "Name:", "Mitarbeiter:", "AN:", "MA:"
+- Nur reinen Vor- und Nachnamen extrahieren
+
+═══════════ AUSGABEFORMAT (NUR JSON) ═══════════
+{
+  "employeeName": "Vorname Nachname",
+  "weekStartDate": "YYYY-MM-DD",
+  "entries": [
+    {
+      "weekday": "Montag",
+      "date": "YYYY-MM-DD",
+      "startTime": "08:00",
+      "endTime": "16:30",
+      "breakMinutes": 30,
+      "totalHours": 8.0,
+      "location": "Halle 1"
+    }
+  ]
+}`;
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        response_format: { type: 'json_object' },
+        max_tokens: 4000,
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`OpenAI API ${response.status}: ${errText}`);
+    }
+
+    const result = await response.json();
+    const contentStr = result.choices?.[0]?.message?.content;
+    if (!contentStr) {
+      throw new Error('Keine lesbaren Stundenzettel-Daten im PDF-Text erkannt');
+    }
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(contentStr);
+    } catch {
+      throw new Error('Ungültiges Antwortformat von OCR-API erhalten');
+    }
+
+    // Reuse the same sanitization as the image path by delegating to a minimal
+    // inline parse (mirrors callVisionApi's sanitization block).
+    const employeeName = this.cleanEmployeeName(parsed.employeeName);
+    const entries = Array.isArray(parsed.entries) ? parsed.entries : [];
+    const sanitizedEntries: OcrTimesheetEntry[] = [];
+
+    for (const entry of entries) {
+      const date = this.normalizeDate(entry.date);
+      if (!date) continue;
+      const startTime = this.normalizeTime(entry.startTime);
+      const endTime   = this.normalizeTime(entry.endTime);
+      if (!startTime || !endTime) continue;
+      const breakMinutes = Math.max(0, Math.floor(this.parseNumber(entry.breakMinutes)));
+      let totalHours = this.parseNumber(entry.totalHours);
+      if (totalHours <= 0) totalHours = this.calcHours(startTime, endTime, breakMinutes);
+      const weekday = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'][new Date(date).getUTCDay()];
+      sanitizedEntries.push({
+        weekday, date, startTime, endTime, breakMinutes,
+        totalHours: Math.round(totalHours * 100) / 100,
+        location: String(entry.location ?? '').trim() || undefined,
+      });
+    }
+
+    let weekStartDate = this.normalizeDate(parsed.weekStartDate) ?? undefined;
+    if (!weekStartDate) weekStartDate = this.deriveWeekStart(sanitizedEntries);
+
+    return { employeeName, weekStartDate, entries: sanitizedEntries };
   }
 
   // ─── Vision API call ──────────────────────────────────────────────────────
