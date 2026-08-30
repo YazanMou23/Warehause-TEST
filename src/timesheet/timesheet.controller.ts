@@ -1,6 +1,5 @@
 import {
   Controller,
-  Post,
   Get,
   Put,
   Patch,
@@ -8,13 +7,9 @@ import {
   Param,
   Body,
   Query,
-  UploadedFile,
-  UseInterceptors,
   UseGuards,
-  BadRequestException,
   Res,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { TimesheetService } from './timesheet.service';
 import { TimesheetExportService } from './timesheet-export.service';
@@ -36,22 +31,6 @@ export class TimesheetController {
     private readonly timesheetService: TimesheetService,
     private readonly exportService: TimesheetExportService,
   ) {}
-
-  /**
-   * POST /timesheets/scan
-   * Upload a timesheet image → OCR → fuzzy match → return PENDING_REVIEW timesheet
-   */
-  @Post('scan')
-  @UseInterceptors(FileInterceptor('file'))
-  async scan(
-    @UploadedFile() file: Express.Multer.File,
-    @CurrentUser() currentUser: any,
-  ) {
-    if (!file) {
-      throw new BadRequestException('Bitte eine Bilddatei hochladen');
-    }
-    return this.timesheetService.scanAndCreate(file, currentUser.id);
-  }
 
   /**
    * GET /timesheets

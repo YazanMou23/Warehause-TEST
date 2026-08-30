@@ -64,18 +64,37 @@ export default function UploadCaptureTab({ onFilesAdded }: UploadCaptureTabProps
       }
 
       try {
-        const base64 = await readFileAsBase64(file);
-        validDocs.push({
-          originalFileName: file.name,
-          source,
-          mimeType: file.type || (isPdf ? "application/pdf" : "image/jpeg"),
-          pages: [
+        let pages: { pageNumber: number; base64Data: string; mimeType: string }[];
+        let mimeType: string;
+
+        if (isPdf) {
+          // Split a multi-page PDF into individual page images so the
+          // processing pipeline reads and OCRs every page one by one.
+          const rendered = await convertPdfToPageImages(file);
+          if (rendered.length === 0) {
+            throw new Error("Das PDF enthält keine lesbaren Seiten.");
+          }
+          pages = rendered;
+          // Pages are rendered as JPEG images for OCR; keeping this as the
+          // document mime type ensures the backend stores/OCR's images.
+          mimeType = "image/jpeg";
+        } else {
+          const base64 = await readFileAsBase64(file);
+          mimeType = file.type || "image/jpeg";
+          pages = [
             {
               pageNumber: 1,
               base64Data: base64,
-              mimeType: file.type || "image/jpeg",
+              mimeType,
             },
-          ],
+          ];
+        }
+
+        validDocs.push({
+          originalFileName: file.name,
+          source,
+          mimeType,
+          pages,
         });
       } catch (err: any) {
         setErrorMsg(`Fehler beim Lesen von "${file.name}": ${err.message}`);
@@ -98,6 +117,49 @@ export default function UploadCaptureTab({ onFilesAdded }: UploadCaptureTabProps
       reader.onerror = (err) => reject(err);
       reader.readAsDataURL(file);
     });
+  };
+
+  // Render every page of a PDF to a JPEG image using pdf.js.
+  const convertPdfToPageImages = async (
+    file: File
+  ): Promise<{ pageNumber: number; base64Data: string; mimeType: string }[]> => {
+    // Lazily load pdf.js only when a PDF is actually uploaded, and only in
+    // the browser (this handler runs client-side). This keeps the library out
+    // of the initial bundle and avoids Node/SSR evaluation of the module.
+    const pdfjsLib = (await import("pdfjs-dist")).default as typeof import("pdfjs-dist");
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+      "pdfjs-dist/build/pdf.worker.min.mjs",
+      import.meta.url
+    ).toString();
+
+    const arrayBuffer = await file.arrayBuffer();
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const pdf = await loadingTask.promise;
+    const scale = 2; // high quality for OCR
+
+    try {
+      const pageImages: { pageNumber: number; base64Data: string; mimeType: string }[] = [];
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale });
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+        const context = canvas.getContext("2d");
+        if (!context) {
+          throw new Error("Canvas-Rendering wird nicht unterstützt.");
+        }
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        await page.render({ canvas, canvasContext: context, viewport }).promise;
+        const base64Data = canvas.toDataURL("image/jpeg", 0.9);
+        pageImages.push({ pageNumber: pageNum, base64Data, mimeType: "image/jpeg" });
+        page.cleanup();
+      }
+      return pageImages;
+    } finally {
+      loadingTask.destroy();
+    }
   };
 
   return (

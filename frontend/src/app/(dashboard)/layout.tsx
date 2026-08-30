@@ -11,8 +11,6 @@ import {
   Grid,
   Package,
   Clock,
-  Scan,
-  Settings,
   LogOut,
   Menu,
   X,
@@ -45,11 +43,9 @@ const sidebarLinks: SidebarLink[] = [
   { name: "Halls", href: "/halls", icon: Grid, section: "resources" },
   { name: "Containers", href: "/containers", icon: Package, section: "resources" },
   { name: "Attendance", href: "/attendance", icon: Clock, section: "ops" },
-  { name: "OCR Upload", href: "/ocr", icon: Scan, section: "ops" },
   { name: "Stundenzettel", href: "/timesheets", icon: FileCheck, section: "ops" },
   { name: "Reports", href: "/reports", icon: FileSpreadsheet, section: "ops" },
   { name: "Profile", href: "/profile", icon: User, section: "system" },
-  { name: "Settings", href: "/settings", icon: Settings, section: "system" },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -193,18 +189,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       Halls: "halls",
       Containers: "containers",
       Attendance: "attendance",
-      "OCR Upload": "ocrUpload",
       Stundenzettel: "stundenzettel",
       Reports: "reports",
       Profile: "profile",
-      Settings: "settings",
     };
     return map[name] || name;
   };
 
   const SidebarContent = () => {
     const allowedLinks = sidebarLinks.filter((link) => {
-      if (userRole === "EMPLOYEE") return ["Dashboard", "Profile", "Settings", "Chat"].includes(link.name);
+      if (userRole === "EMPLOYEE") return ["Dashboard", "Profile", "Chat"].includes(link.name);
       if (userRole === "ADMIN") return !["Reports", "Admins"].includes(link.name);
       return true;
     });

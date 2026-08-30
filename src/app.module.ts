@@ -9,15 +9,12 @@ import { HallModule } from './hall/hall.module';
 import { ContainerModule } from './container/container.module';
 import { PlanningModule } from './planning/planning.module';
 import { AttendanceModule } from './attendance/attendance.module';
-import { OcrModule } from './ocr/ocr.module';
-import { TelegramModule } from './telegram/telegram.module';
 import { EmailModule } from './email/email.module';
 import { MessagingModule } from './messaging/messaging.module';
 import { ActionLogModule } from './action-log/action-log.module';
 import { TimesheetModule } from './timesheet/timesheet.module';
 import { ChatModule } from './chat/chat.module';
 import { NotificationModule } from './notification/notification.module';
-import { ScannerModule } from './scanner/scanner.module';
 import { DocumentsModule } from './documents/documents.module';
 
 @Module({
@@ -33,15 +30,12 @@ import { DocumentsModule } from './documents/documents.module';
     ContainerModule,
     PlanningModule,
     AttendanceModule,
-    OcrModule,
-    TelegramModule,
     EmailModule,
     MessagingModule,
     ActionLogModule,
     TimesheetModule,
     ChatModule,
     NotificationModule,
-    ScannerModule,
     DocumentsModule,
   ],
   controllers: [AppController],

@@ -121,8 +121,6 @@ export class AppController {
       <div class="route"><span class="m get">GET</span><span class="path">/users</span></div>
       <div class="route"><span class="m get">GET</span><span class="path">/attendance/daily</span></div>
       <div class="route"><span class="m post">POST</span><span class="path">/planning</span></div>
-      <div class="route"><span class="m post">POST</span><span class="path">/ocr/upload</span></div>
-      <div class="route"><span class="m post">POST</span><span class="path">/telegram/broadcast</span></div>
       <div class="route"><span class="m post">POST</span><span class="path">/employees/import-excel</span></div>
     </div>
 
@@ -253,15 +251,6 @@ export class AppController {
       <textarea id="body-ci">{"userId":"PASTE_USER_ID_HERE"}</textarea>
       <button class="btn btn-primary" onclick="callApi('POST','/attendance/clock-in','body-ci','resp-ci',false)">⏰ Clock In</button>
       <div class="response" id="resp-ci"></div>
-    </div>
-  </div>
-  <div class="card">
-    <div class="card-header"><span class="method method-post">POST</span><span class="endpoint">/telegram/broadcast</span></div>
-    <div class="card-body">
-      <p class="desc">Send broadcast message via Telegram.</p>
-      <textarea id="body-tg">{"message":"Test from LogiFlow 🚀"}</textarea>
-      <button class="btn btn-primary" onclick="callApi('POST','/telegram/broadcast','body-tg','resp-tg',false)">📣 Broadcast</button>
-      <div class="response" id="resp-tg"></div>
     </div>
   </div>
 </div>

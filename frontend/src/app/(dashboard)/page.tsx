@@ -12,7 +12,6 @@ import {
   TrendingUp,
   Activity,
   PlusCircle,
-  UploadCloud,
   FileSpreadsheet,
   AlertTriangle,
   Calendar,
@@ -1514,7 +1513,7 @@ export default function DashboardPage() {
             <h6 className="text-[10px] font-bold tracking-widest text-[#4b5563] uppercase px-1">
               {t("quickOperations")}
             </h6>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               <Link
                 href="/planning"
                 className="flex items-center gap-4 p-5 bg-white border border-slate-100 rounded-xl hover:border-blue-300 hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-all group text-left cursor-pointer shadow-sm"
@@ -1525,19 +1524,6 @@ export default function DashboardPage() {
                 <div>
                   <span className="font-bold text-slate-800 block text-xs">{t("createNewPlan")}</span>
                   <span className="text-[10px] text-slate-400 mt-0.5 block">{t("createPlanDesc")}</span>
-                </div>
-              </Link>
-
-              <Link
-                href="/ocr"
-                className="flex items-center gap-4 p-5 bg-white border border-slate-100 rounded-xl hover:border-blue-300 hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-all group text-left cursor-pointer shadow-sm"
-              >
-                <div className="w-10 h-10 flex items-center justify-center bg-blue-50 border border-blue-100 rounded-lg text-blue-600 group-hover:scale-105 transition-transform shrink-0">
-                  <UploadCloud className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="font-bold text-slate-800 block text-xs">{t("ocrUpload")}</span>
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">{t("ocrDesc")}</span>
                 </div>
               </Link>
 
