@@ -126,11 +126,23 @@ export default function UploadCaptureTab({ onFilesAdded }: UploadCaptureTabProps
     // Lazily load pdf.js only when a PDF is actually uploaded, and only in
     // the browser (this handler runs client-side). This keeps the library out
     // of the initial bundle and avoids Node/SSR evaluation of the module.
-    const pdfjsLib = (await import("pdfjs-dist")).default as typeof import("pdfjs-dist");
-    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-      "pdfjs-dist/build/pdf.worker.min.mjs",
-      import.meta.url
-    ).toString();
+    const pdfjs = await import("pdfjs-dist");
+    const pdfjsLib: any = (pdfjs as any).default || pdfjs;
+
+    if (pdfjsLib?.GlobalWorkerOptions) {
+      try {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+          "pdfjs-dist/build/pdf.worker.min.mjs",
+          import.meta.url
+        ).toString();
+      } catch {
+        try {
+          pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version || '6.3.289'}/build/pdf.worker.min.mjs`;
+        } catch {
+          pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+        }
+      }
+    }
 
     const arrayBuffer = await file.arrayBuffer();
     const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });

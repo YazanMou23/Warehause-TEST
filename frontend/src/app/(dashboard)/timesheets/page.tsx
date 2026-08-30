@@ -108,15 +108,22 @@ async function getRotatedFile(file: File, rotationDeg: number): Promise<File> {
  * backend, which causes an image_parse_error from OpenAI).
  */
 async function convertPdfToPageImageFiles(file: File): Promise<File[]> {
-  const pdfjsLib = (await import('pdfjs-dist')).default as typeof import('pdfjs-dist');
-  try {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-      'pdfjs-dist/build/pdf.worker.min.mjs',
-      import.meta.url
-    ).toString();
-  } catch {
-    // Fallback: run pdfjs on the main thread (no worker) — slower but compatible.
-    (pdfjsLib.GlobalWorkerOptions as any).workerSrc = '';
+  const pdfjs = await import('pdfjs-dist');
+  const pdfjsLib: any = (pdfjs as any).default || pdfjs;
+
+  if (pdfjsLib?.GlobalWorkerOptions) {
+    try {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+        'pdfjs-dist/build/pdf.worker.min.mjs',
+        import.meta.url
+      ).toString();
+    } catch {
+      try {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version || '6.3.289'}/build/pdf.worker.min.mjs`;
+      } catch {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+      }
+    }
   }
 
   const arrayBuffer = await file.arrayBuffer();
