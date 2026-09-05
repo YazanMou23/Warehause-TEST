@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Warehouse,
   Key,
@@ -276,9 +277,26 @@ export default function LoginPage() {
               </button>
             </form>
 
-            <p className="text-center text-[11px] text-[#94a3b8] mt-8">
-              LogiFlow Warehouse Management System
-            </p>
+            <div className="text-center mt-8 space-y-1.5">
+              <p className="text-[11px] text-[#94a3b8]">
+                LogiFlow Warehouse Management System · MDL
+              </p>
+              <div className="flex items-center justify-center gap-3 text-[11px] text-[#64748b]">
+                <Link
+                  href="/datenschutz"
+                  className="hover:text-[#1d4ed8] underline transition-colors"
+                >
+                  {language === "de" ? "Datenschutz" : "Privacy Policy"}
+                </Link>
+                <span>•</span>
+                <Link
+                  href="/datenloeschung"
+                  className="hover:text-[#1d4ed8] underline transition-colors"
+                >
+                  {language === "de" ? "Datenlöschung" : "Data Deletion"}
+                </Link>
+              </div>
+            </div>
           </div>
         )}
 
