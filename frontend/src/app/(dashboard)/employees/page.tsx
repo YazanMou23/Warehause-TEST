@@ -63,7 +63,7 @@ export default function EmployeesPage() {
   const { t, language } = useTranslation();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isOffline, setIsOffline] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState("");
   const [warehouses, setWarehouses] = useState<any[]>([]);
@@ -149,14 +149,9 @@ export default function EmployeesPage() {
       const empJson = res.ok ? await res.json() : null;
       const empList = empJson && Array.isArray(empJson.data) ? empJson.data : (Array.isArray(empJson) ? empJson : []);
       setEmployees(empList);
-      setIsOffline(false);
     } catch (err) {
-      setIsOffline(true);
-      setEmployees([
-        { id: "emp-1", username: "employee1", name: "Johannes Müller", phone: "+491704444444", email: "j.mueller@logiflow.de", role: "EMPLOYEE", isActive: true, telegramId: "@jmueller", warehouseId: "wh-1", hallId: "hall-1", employmentStart: "2025-01-15T00:00:00.000Z" },
-        { id: "emp-2", username: "employee2", name: "Dieter Schmidt", phone: "+491705555555", email: null, role: "EMPLOYEE", isActive: true, telegramId: null, warehouseId: "wh-1", hallId: "hall-2", employmentStart: "2025-02-10T00:00:00.000Z" },
-        { id: "emp-3", username: "employee3", name: "Anna Weber", phone: "+491706666666", email: "a.weber@logiflow.de", role: "EMPLOYEE", isActive: true, telegramId: "@aweber", warehouseId: "wh-2", hallId: "hall-3", employmentStart: "2025-03-01T00:00:00.000Z" },
-      ]);
+      console.error("Failed to load employees:", err);
+      setEmployees([]);
     } finally {
       setLoading(false);
     }
@@ -254,28 +249,6 @@ export default function EmployeesPage() {
 
     const token = localStorage.getItem("accessToken");
     try {
-      if (isOffline) {
-        const newEmp: Employee = {
-          id: "emp-" + Date.now(),
-          username: formUsername,
-          name: submittedName,
-          phone: formPhone,
-          email: formEmail || null,
-          treffpunkt: formTreffpunkt || null,
-          treffpunktTime: formTreffpunktTime || null,
-          role: "EMPLOYEE",
-          isActive: true,
-          telegramId: formTelegram || null,
-          warehouseId: formWarehouse || null,
-          hallId: formHall || null,
-          employmentStart: new Date(formEmploymentStart).toISOString(),
-          employmentEnd: formEmploymentEnd ? new Date(formEmploymentEnd).toISOString() : null,
-        };
-        setEmployees(prev => [...prev, newEmp]);
-        setAddModalOpen(false);
-        return;
-      }
-
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees`, {
         method: "POST",
         headers: {
@@ -326,26 +299,6 @@ export default function EmployeesPage() {
 
     const token = localStorage.getItem("accessToken");
     try {
-      if (isOffline) {
-        setEmployees(prev => prev.map(emp => emp.id === selectedEmp.id ? {
-          ...emp,
-          username: formUsername,
-          name: submittedName,
-          phone: formPhone,
-          email: formEmail || null,
-          treffpunkt: formTreffpunkt || null,
-          treffpunktTime: formTreffpunktTime || null,
-          role: userRole === "MANAGER" ? formRole : emp.role,
-          telegramId: formTelegram || null,
-          warehouseId: formWarehouse || null,
-          hallId: formHall || null,
-          employmentStart: new Date(formEmploymentStart).toISOString(),
-          employmentEnd: formEmploymentEnd ? new Date(formEmploymentEnd).toISOString() : null,
-        } : emp));
-        setEditModalOpen(false);
-        return;
-      }
-
       const body: any = {
         username: formUsername,
         name: submittedName,
@@ -402,11 +355,6 @@ export default function EmployeesPage() {
       onConfirm: async () => {
         const token = localStorage.getItem("accessToken");
         try {
-          if (isOffline) {
-            setEmployees(prev => prev.filter(emp => emp.id !== id));
-            return;
-          }
-
           const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${id}`, {
             method: "DELETE",
             headers: { Authorization: `Bearer ${token}` },
@@ -437,12 +385,6 @@ export default function EmployeesPage() {
       onConfirm: async () => {
         const token = localStorage.getItem("accessToken");
         try {
-          if (isOffline) {
-            setEmployees(prev => prev.filter(emp => !selectedEmpIds.includes(emp.id)));
-            setSelectedEmpIds([]);
-            return;
-          }
-
           const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/bulk-deactivate`, {
             method: "PATCH",
             headers: {
@@ -478,12 +420,6 @@ export default function EmployeesPage() {
       onConfirm: async () => {
         const token = localStorage.getItem("accessToken");
         try {
-          if (isOffline) {
-            showAlert({ title: "Offline-Modus", message: "Bulk activate simulated", type: "info" });
-            setSelectedEmpIds([]);
-            return;
-          }
-
           const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/bulk-activate`, {
             method: "PATCH",
             headers: {
@@ -513,12 +449,6 @@ export default function EmployeesPage() {
 
     const token = localStorage.getItem("accessToken");
     try {
-      if (isOffline) {
-        showAlert({ title: "Offline-Modus", message: "Bulk assign hall simulated", type: "info" });
-        setSelectedEmpIds([]);
-        return;
-      }
-
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/bulk-assign-hall`, {
         method: "PATCH",
         headers: {
@@ -544,12 +474,6 @@ export default function EmployeesPage() {
 
     const token = localStorage.getItem("accessToken");
     try {
-      if (isOffline) {
-        showAlert({ title: "Offline-Modus", message: "Bulk assign role simulated", type: "info" });
-        setSelectedEmpIds([]);
-        return;
-      }
-
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/bulk-assign-role`, {
         method: "PATCH",
         headers: {
@@ -642,18 +566,22 @@ export default function EmployeesPage() {
     printWindow.document.close();
   };
 
-  const getWhatsAppLink = (phone: string, name: string) => {
+  /**
+   * Bug#6 FIX: Phone normalisation is now a single shared utility (mirrors
+   * backend MessagingService.formatPhoneNumber) to avoid duplicated logic.
+   */
+  const formatPhoneForWhatsApp = (phone: string): string => {
     const trimmed = (phone || "").trim();
-    let cleaned = trimmed.replace(/\D/g, "");
-    if (trimmed.startsWith("+")) {
-      // keep digits as is (country code already present)
-    } else if (cleaned.startsWith("00")) {
-      cleaned = cleaned.substring(2);
-    } else if (cleaned.startsWith("0")) {
-      cleaned = "49" + cleaned.substring(1);
-    } else if (!cleaned.startsWith("49") && cleaned.length <= 11) {
-      cleaned = "49" + cleaned;
-    }
+    let digits = trimmed.replace(/\D/g, "");
+    if (trimmed.startsWith("+")) return digits;
+    if (digits.startsWith("00")) return digits.substring(2);
+    if (digits.startsWith("0")) return "49" + digits.substring(1);
+    if (!digits.startsWith("49") && digits.length <= 11) return "49" + digits;
+    return digits;
+  };
+
+  const getWhatsAppLink = (phone: string, name: string) => {
+    const cleaned = formatPhoneForWhatsApp(phone);
     const text = encodeURIComponent(`Hallo ${name}, dies ist eine Nachricht von LogiFlow Warehouse Management.`);
     return `https://wa.me/${cleaned}?text=${text}`;
   };
@@ -1221,20 +1149,27 @@ export default function EmployeesPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <a
-                          href={getWhatsAppLink(emp.phone, emp.name)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="badge-premium badge-success hover:bg-emerald-100 font-bold transition-all cursor-pointer"
-                        >
-                          WhatsApp
-                        </a>
-                        <a
-                          href={getSmsLink(emp.phone)}
-                          className="badge-premium badge-info hover:bg-sky-100 font-bold transition-all cursor-pointer"
-                        >
-                          SMS
-                        </a>
+                        {/* Bug#8 FIX: Only render links when employee has a phone number */}
+                        {emp.phone ? (
+                          <>
+                            <a
+                              href={getWhatsAppLink(emp.phone, emp.name)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="badge-premium badge-success hover:bg-emerald-100 font-bold transition-all cursor-pointer"
+                            >
+                              WhatsApp
+                            </a>
+                            <a
+                              href={getSmsLink(emp.phone)}
+                              className="badge-premium badge-info hover:bg-sky-100 font-bold transition-all cursor-pointer"
+                            >
+                              SMS
+                            </a>
+                          </>
+                        ) : (
+                          <span className="text-slate-400 italic text-xs">No phone</span>
+                        )}
                         {canManage && emp.email && (
                           <button
                             onClick={() => openEmailModal(emp)}

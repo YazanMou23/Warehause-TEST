@@ -99,7 +99,7 @@ export default function ContainersPage() {
   const [historyLogs, setHistoryLogs] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
-  const [isOffline, setIsOffline] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState({ text: "", type: "" });
@@ -132,37 +132,6 @@ export default function ContainersPage() {
 
     const token = localStorage.getItem("accessToken");
     if (!token) return;
-
-    if (isOffline) {
-      setContainers((prev) =>
-        prev.map((c) =>
-          c.id === activeContainer.id
-            ? {
-                ...c,
-                containerNumber: moveContainerNumber.toUpperCase(),
-                status: moveStatus,
-                warehouseId: moveWarehouseId,
-                warehouseName: warehouses.find((w) => w.id === moveWarehouseId)?.name || "Local WH",
-                hallId: moveHallId,
-                hallName: halls.find((h) => h.id === moveHallId)?.name || "Local Hall",
-                workedHours: moveWorkedHours,
-                notes: moveNotes,
-                employees: moveAssignedEmployeeIds.map((id) => ({
-                  employee: {
-                    id,
-                    name: employeesList.find((e) => e.id === id)?.name || "Local Staff",
-                    role: "EMPLOYEE",
-                  },
-                })),
-              }
-            : c
-        )
-      );
-      setIsMoveModalOpen(false);
-      setMessage({ text: "Container updated successfully (Offline mock).", type: "success" });
-      setSubmitting(false);
-      return;
-    }
 
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/containers/${activeContainer.id}`, {
@@ -238,63 +207,8 @@ export default function ContainersPage() {
           hallName: c.hall?.name || "Main Staging",
         }))
       );
-      setIsOffline(false);
     } catch (err) {
-      setIsOffline(true);
-      // Fallback mocks
-      const mockWH = [
-        { id: "wh-1", name: "Duisburg Port Hub" },
-        { id: "wh-2", name: "Rhein-Ruhr Logistics" },
-      ];
-      const mockHalls = [
-        { id: "hall-a", name: "Hall A - Cold Storage", warehouseId: "wh-1" },
-        { id: "hall-b", name: "Hall B - General Cargo", warehouseId: "wh-1" },
-        { id: "hall-c", name: "Hall C - Hazmat", warehouseId: "wh-2" },
-      ];
-      const mockEmployees = [
-        { id: "emp-1", name: "Johannes Müller", role: "EMPLOYEE" },
-        { id: "emp-2", name: "Dieter Schmidt", role: "EMPLOYEE" },
-        { id: "emp-3", name: "Anna Weber", role: "TEAM_LEADER" },
-      ];
-      const mockContainers: Container[] = [
-        {
-          id: "c-1",
-          containerNumber: "MSCU1284920",
-          status: "FULL",
-          warehouseId: "wh-1",
-          warehouseName: "Duisburg Port Hub",
-          hallId: "hall-a",
-          hallName: "Hall A - Cold Storage",
-          arrivalDate: new Date().toISOString(),
-          workedHours: 4.5,
-          notes: "Kühlladung mit hoher Dringlichkeit.",
-          employees: [
-            { employee: { id: "emp-1", name: "Johannes Müller", role: "EMPLOYEE" } },
-            { employee: { id: "emp-3", name: "Anna Weber", role: "TEAM_LEADER" } },
-          ],
-        },
-        {
-          id: "c-2",
-          containerNumber: "HLXU8472910",
-          status: "EMPTY",
-          warehouseId: "wh-1",
-          warehouseName: "Duisburg Port Hub",
-          hallId: "hall-b",
-          hallName: "Hall B - General Cargo",
-          arrivalDate: new Date().toISOString(),
-          workedHours: 1.5,
-          notes: "Leercontainer gereinigt.",
-          employees: [
-            { employee: { id: "emp-2", name: "Dieter Schmidt", role: "EMPLOYEE" } },
-          ],
-        },
-      ];
-
-      setWarehouses(mockWH);
-      setNewWarehouseId(mockWH[0].id);
-      setHalls(mockHalls);
-      setEmployeesList(mockEmployees);
-      setContainers(mockContainers);
+      console.error("Failed to load containers data:", err);
     } finally {
       setLoading(false);
     }
@@ -331,77 +245,39 @@ export default function ContainersPage() {
         return;
       }
 
-      if (isOffline) {
-        const mockHallId = "mock-hall-" + Date.now();
-        const newHall: HallData = {
-          id: mockHallId,
-          name: inlineHallName,
-          warehouseId: newWarehouseId,
-        };
-        setHalls((prev) => [...prev, newHall]);
-        targetHallId = mockHallId;
-      } else {
-        try {
-          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/halls`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              name: inlineHallName,
-              warehouseId: newWarehouseId,
-              capacity: parseInt(inlineHallCapacity, 10) || 100,
-            }),
-          });
-          const hallData = await res.json();
-          if (!res.ok) {
-            throw new Error(hallData.message || "Failed to create inline hall");
-          }
-          setHalls((prev) => [...prev, {
-            id: hallData.id,
-            name: hallData.name,
-            warehouseId: hallData.warehouseId,
-          }]);
-          targetHallId = hallData.id;
-        } catch (err: any) {
-          setMessage({ text: err.message || "Halle konnte nicht erstellt werden.", type: "error" });
-          setSubmitting(false);
-          return;
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/halls`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            name: inlineHallName,
+            warehouseId: newWarehouseId,
+            capacity: parseInt(inlineHallCapacity, 10) || 100,
+          }),
+        });
+        const hallData = await res.json();
+        if (!res.ok) {
+          throw new Error(hallData.message || "Failed to create inline hall");
         }
+        setHalls((prev) => [...prev, {
+          id: hallData.id,
+          name: hallData.name,
+          warehouseId: hallData.warehouseId,
+        }]);
+        targetHallId = hallData.id;
+      } catch (err: any) {
+        setMessage({ text: err.message || "Halle konnte nicht erstellt werden.", type: "error" });
+        setSubmitting(false);
+        return;
       }
     }
 
+
     if (!targetHallId) {
       setMessage({ text: "Bitte wählen Sie eine Halle aus.", type: "error" });
-      setSubmitting(false);
-      return;
-    }
-
-    if (isOffline) {
-      const newC: Container = {
-        id: "mock-" + Date.now(),
-        containerNumber: newContainerNumber.toUpperCase(),
-        status: newStatus,
-        warehouseId: newWarehouseId,
-        warehouseName: warehouses.find((w) => w.id === newWarehouseId)?.name || "Local WH",
-        hallId: targetHallId,
-        hallName: inlineHallName || halls.find((h) => h.id === targetHallId)?.name || "Local Hall",
-        arrivalDate: new Date().toISOString(),
-        workedHours: newWorkedHours,
-        notes: newNotes,
-        employees: newAssignedEmployeeIds.map((id) => ({
-          employee: {
-            id,
-            name: employeesList.find((e) => e.id === id)?.name || "Staff",
-            role: "EMPLOYEE",
-          },
-        })),
-      };
-      setContainers((prev) => [newC, ...prev]);
-      setIsModalOpen(false);
-      resetAddForm();
-      setMessage({ text: "Container registriert (Offline mock).", type: "success" });
       setSubmitting(false);
       return;
     }
@@ -460,12 +336,6 @@ export default function ContainersPage() {
         const token = localStorage.getItem("accessToken");
         if (!token) return;
 
-        if (isOffline) {
-          setContainers((prev) => prev.filter((c) => c.id !== id));
-          setMessage({ text: "Container gelöscht (Offline mock).", type: "success" });
-          return;
-        }
-
         try {
           const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/containers/${id}`, {
             method: "DELETE",
@@ -494,19 +364,8 @@ export default function ContainersPage() {
     setHistoryLogs([]);
 
     const token = localStorage.getItem("accessToken");
-    if (!token || isOffline) {
-      setTimeout(() => {
-        setHistoryLogs([
-          {
-            id: "l-1",
-            timestamp: new Date().toISOString(),
-            action: "CREATE_CONTAINER",
-            details: `Created worked container ${container.containerNumber} by Manager`,
-            user: { name: "System Admin" },
-          },
-        ]);
-        setHistoryLoading(false);
-      }, 300);
+    if (!token) {
+      setHistoryLoading(false);
       return;
     }
 
@@ -575,12 +434,7 @@ export default function ContainersPage() {
         </button>
       </div>
 
-      {isOffline && (
-        <div className="bg-amber-50 text-amber-800 border border-amber-200 rounded-xl p-3 flex items-center gap-2 text-xs font-semibold">
-          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
-          <span>Offline-Modus aktiv. Planänderungen werden lokal simuliert.</span>
-        </div>
-      )}
+
 
       {/* Filter and Search Bar */}
       <div className="bg-white border border-slate-100 p-5 rounded-xl shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">

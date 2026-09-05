@@ -31,10 +31,9 @@ interface AttendanceRecord {
 interface ActiveEmployeeCalendarProps {
   logs: AttendanceRecord[];
   loading: boolean;
-  isOffline: boolean;
 }
 
-export default function ActiveEmployeeCalendar({ logs, loading, isOffline }: ActiveEmployeeCalendarProps) {
+export default function ActiveEmployeeCalendar({ logs, loading }: ActiveEmployeeCalendarProps) {
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
 
   // Update clock every minute for live progress bar
@@ -155,11 +154,7 @@ export default function ActiveEmployeeCalendar({ logs, loading, isOffline }: Act
         </div>
         
         <div className="flex items-center gap-4">
-          {isOffline && (
-            <span className="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
-              Offline-Modus
-            </span>
-          )}
+
           <span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-200 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider flex items-center gap-1.5 animate-pulse">
             <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full"></span> Live
           </span>

@@ -4,6 +4,12 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
+import {
+  SendWhatsAppDto,
+  SendWhatsAppBulkDto,
+  BroadcastDto,
+  SendWhatsAppToAllDto,
+} from './dto/send-whatsapp.dto';
 
 @Controller('messaging')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -12,14 +18,14 @@ export class MessagingController {
 
   @Post('whatsapp')
   @Roles(Role.MANAGER, Role.ADMIN)
-  getWhatsAppLink(@Body() body: { phone: string; message: string }) {
+  getWhatsAppLink(@Body() body: SendWhatsAppDto) {
     const link = this.messagingService.generateWhatsAppLink(body.phone, body.message);
     return { link };
   }
 
   @Post('whatsapp/send')
   @Roles(Role.MANAGER, Role.ADMIN)
-  async sendWhatsAppDirect(@Body() body: { phone: string; message: string }) {
+  async sendWhatsAppDirect(@Body() body: SendWhatsAppDto) {
     return this.messagingService.sendWhatsAppDirect(body.phone, body.message);
   }
 
@@ -31,20 +37,20 @@ export class MessagingController {
    */
   @Post('whatsapp/bulk')
   @Roles(Role.MANAGER, Role.ADMIN)
-  async sendWhatsAppBulk(@Body() body: { phones: string[]; message: string }) {
+  async sendWhatsAppBulk(@Body() body: SendWhatsAppBulkDto) {
     return this.messagingService.sendWhatsAppBulk(body.phones, body.message);
   }
 
   @Post('sms')
   @Roles(Role.MANAGER, Role.ADMIN)
-  async sendSMS(@Body() body: { phone: string; message: string }) {
-    const success = await this.messagingService.sendSMS(body.phone, body.message);
-    return { success };
+  async sendSMS(@Body() body: SendWhatsAppDto) {
+    // Bug#7: sendSMS now returns { success, error } — proxy result directly
+    return this.messagingService.sendSMS(body.phone, body.message);
   }
 
   @Post('broadcast')
   @Roles(Role.MANAGER, Role.ADMIN)
-  async broadcast(@Body() body: { type: 'sms' | 'whatsapp'; userIds: string[]; message: string }) {
+  async broadcast(@Body() body: BroadcastDto) {
     return this.messagingService.broadcastMessage(body.type, body.userIds, body.message);
   }
 
@@ -55,7 +61,7 @@ export class MessagingController {
    */
   @Post('whatsapp/send-all')
   @Roles(Role.MANAGER, Role.ADMIN)
-  async sendWhatsAppToAll(@Body() body: { message: string }) {
+  async sendWhatsAppToAll(@Body() body: SendWhatsAppToAllDto) {
     return this.messagingService.sendWhatsAppToAllUsers(body.message);
   }
 }

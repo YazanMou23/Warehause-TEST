@@ -51,7 +51,7 @@ export default function AdminsPage() {
     setAlertConfig({ ...options, isOpen: true });
   };
   const [searchTerm, setSearchTerm] = useState("");
-  const [isOffline, setIsOffline] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState("");
   const [warehouses, setWarehouses] = useState<any[]>([]);
@@ -92,13 +92,9 @@ export default function AdminsPage() {
       const adminJson = res.ok ? await res.json() : null;
       const adminList = adminJson && Array.isArray(adminJson.data) ? adminJson.data : (Array.isArray(adminJson) ? adminJson : []);
       setAdmins(adminList);
-      setIsOffline(false);
     } catch (err) {
-      setIsOffline(true);
-      setAdmins([
-        { id: "admin-1", username: "admin1", name: "Sarah Connor", phone: "+491707777777", email: "s.connor@logiflow.de", role: "ADMIN", isActive: true, telegramId: "@sconnor", warehouseId: "wh-1", hallId: "hall-1", employmentStart: "2024-06-01T00:00:00.000Z" },
-        { id: "admin-2", username: "admin2", name: "John Doe", phone: "+491708888888", email: "j.doe@logiflow.de", role: "ADMIN", isActive: true, telegramId: null, warehouseId: "wh-2", hallId: "hall-3", employmentStart: "2024-09-15T00:00:00.000Z" },
-      ]);
+      console.error("Failed to load admins:", err);
+      setAdmins([]);
     } finally {
       setLoading(false);
     }
@@ -183,25 +179,6 @@ export default function AdminsPage() {
 
     const token = localStorage.getItem("accessToken");
     try {
-      if (isOffline) {
-        const newAdmin: Admin = {
-          id: "admin-" + Date.now(),
-          username: formUsername,
-          name: formName,
-          phone: formPhone,
-          email: formEmail || null,
-          role: formRole,
-          isActive: true,
-          telegramId: formTelegram || null,
-          warehouseId: formWarehouse || null,
-          hallId: formHall || null,
-          employmentStart: new Date(formEmploymentStart).toISOString(),
-        };
-        setAdmins(prev => [...prev, newAdmin]);
-        setAddModalOpen(false);
-        return;
-      }
-
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees`, {
         method: "POST",
         headers: {
@@ -244,23 +221,6 @@ export default function AdminsPage() {
 
     const token = localStorage.getItem("accessToken");
     try {
-      if (isOffline) {
-        setAdmins(prev => prev.map(a => a.id === selectedAdmin.id ? {
-          ...a,
-          username: formUsername,
-          name: formName,
-          phone: formPhone,
-          email: formEmail || null,
-          role: formRole,
-          telegramId: formTelegram || null,
-          warehouseId: formWarehouse || null,
-          hallId: formHall || null,
-          employmentStart: new Date(formEmploymentStart).toISOString(),
-        } : a));
-        setEditModalOpen(false);
-        return;
-      }
-
       const body: any = {
         username: formUsername,
         name: formName,
@@ -310,11 +270,6 @@ export default function AdminsPage() {
       onConfirm: async () => {
         const token = localStorage.getItem("accessToken");
         try {
-          if (isOffline) {
-            setAdmins(prev => prev.filter(a => a.id !== id));
-            return;
-          }
-
           const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${id}`, {
             method: "DELETE",
             headers: { Authorization: `Bearer ${token}` },
@@ -345,12 +300,6 @@ export default function AdminsPage() {
       onConfirm: async () => {
         const token = localStorage.getItem("accessToken");
         try {
-          if (isOffline) {
-            setAdmins(prev => prev.filter(a => !selectedAdminIds.includes(a.id)));
-            setSelectedAdminIds([]);
-            return;
-          }
-
           const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/bulk`, {
             method: "DELETE",
             headers: {

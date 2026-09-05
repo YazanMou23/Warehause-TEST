@@ -69,7 +69,7 @@ export default function ReportsPage() {
   const [filterStartDate, setFilterStartDate] = useState("");
   const [filterEndDate, setFilterEndDate] = useState("");
 
-  const [isOffline, setIsOffline] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState({ text: "", type: "" });
   const [generatedOn, setGeneratedOn] = useState("");
@@ -93,17 +93,9 @@ export default function ReportsPage() {
       if (nonAdmin.length > 0) {
         setSelectedEmployeeId(nonAdmin[0].id);
       }
-      setIsOffline(false);
     } catch (err) {
-      setIsOffline(true);
-      const mockEmployees = [
-        { id: "emp-1", name: "Johannes Müller", phone: "+491704444444", role: "EMPLOYEE" },
-        { id: "emp-2", name: "Dieter Schmidt", phone: "+491705555555", role: "EMPLOYEE" },
-        { id: "emp-3", name: "Anna Weber", phone: "+491706666666", role: "TEAM_LEADER" },
-        { id: "emp-4", name: "M. Warehouse", phone: "+491701111111", role: "ADMIN" },
-      ];
-      setEmployees(mockEmployees.filter(e => e.role !== "ADMIN"));
-      setSelectedEmployeeId(mockEmployees[0].id);
+      console.error("Failed to load employees:", err);
+      setEmployees([]);
     } finally {
       setLoading(false);
     }
@@ -125,54 +117,6 @@ export default function ReportsPage() {
     setMessage({ text: "", type: "" });
 
     const token = localStorage.getItem("accessToken");
-
-    if (isOffline) {
-      setTimeout(() => {
-        const selectedEmp = employees.find((emp) => emp.id === selectedEmployeeId);
-        if (!selectedEmp) return;
-
-        const mockRecords: AttendanceRecord[] = [
-          {
-            id: "att-1",
-            date: `${year}-${String(month).padStart(2, "0")}-04`,
-            clockIn: new Date(year, month - 1, 4, 8, 0).toISOString(),
-            clockOut: new Date(year, month - 1, 4, 16, 30).toISOString(),
-            totalHours: 8.5,
-            warehouseName: "Duisburg Port Hub",
-            hallName: "Hall A - Cold Storage",
-          },
-          {
-            id: "att-2",
-            date: `${year}-${String(month).padStart(2, "0")}-11`,
-            clockIn: new Date(year, month - 1, 11, 8, 15).toISOString(),
-            clockOut: new Date(year, month - 1, 11, 17, 0).toISOString(),
-            totalHours: 8.75,
-            warehouseName: "Duisburg Port Hub",
-            hallName: "Hall A - Cold Storage",
-          },
-          {
-            id: "att-3",
-            date: `${year}-${String(month).padStart(2, "0")}-18`,
-            clockIn: new Date(year, month - 1, 18, 7, 50).toISOString(),
-            clockOut: new Date(year, month - 1, 18, 16, 20).toISOString(),
-            totalHours: 8.5,
-            warehouseName: "Duisburg Port Hub",
-            hallName: "Hall A - Cold Storage",
-          },
-        ];
-
-        setReport({
-          employee: selectedEmp,
-          month,
-          year,
-          totalHours: 25.75,
-          recordCount: mockRecords.length,
-          records: mockRecords,
-        });
-        setFetchingReport(false);
-      }, 600);
-      return;
-    }
 
     try {
       const headers = { Authorization: `Bearer ${token}` };
@@ -198,17 +142,6 @@ export default function ReportsPage() {
     const token = localStorage.getItem("accessToken");
     const headers = { Authorization: `Bearer ${token}` };
     try {
-      if (isOffline) {
-        const mockLogs = [
-          { id: "log-1", timestamp: new Date().toISOString(), action: "CREATE_PLAN", details: "Created shift plan for Duisburg Hall A", user: { name: "Lars Leader" } },
-          { id: "log-2", timestamp: new Date(Date.now() - 3600000).toISOString(), action: "UPDATE_USER", details: "Updated employee Anna Weber", user: { name: "M. Warehouse" } },
-          { id: "log-3", timestamp: new Date(Date.now() - 86400000).toISOString(), action: "CLOCK_IN", details: "Clocked in at Wesel Hall B", user: { name: "Erik Employee" } },
-        ];
-        setLogs(mockLogs);
-        setLogsTotalPages(1);
-        return;
-      }
-
       let queryParams = `page=${logsPage}&limit=12`;
       if (filterUserId) queryParams += `&userId=${filterUserId}`;
       if (filterAction) queryParams += `&action=${filterAction}`;
@@ -232,13 +165,13 @@ export default function ReportsPage() {
     if (selectedEmployeeId && activeTab === "timesheets") {
       handleFetchReport();
     }
-  }, [selectedEmployeeId, month, year, isOffline, activeTab]);
+  }, [selectedEmployeeId, month, year, activeTab]);
 
   useEffect(() => {
     if (activeTab === "activity") {
       fetchLogs();
     }
-  }, [activeTab, logsPage, filterUserId, filterAction, filterStartDate, filterEndDate, isOffline]);
+  }, [activeTab, logsPage, filterUserId, filterAction, filterStartDate, filterEndDate]);
 
   const handlePrint = () => {
     window.print();
@@ -286,12 +219,7 @@ export default function ReportsPage() {
         )}
       </div>
 
-      {isOffline && (
-        <div className="bg-tertiary-container text-on-tertiary-container border border-on-tertiary-container/20 px-3.5 py-2.5 rounded-lg flex items-center gap-2 text-label-md print:hidden">
-          <AlertTriangle className="w-5 h-5 shrink-0 text-amber-500" />
-          <span>Offline mock active. Reports and event logs will display simulated data.</span>
-        </div>
-      )}
+
 
       {/* Tabs Selector */}
       <div className="flex border-b border-outline-variant print:hidden">

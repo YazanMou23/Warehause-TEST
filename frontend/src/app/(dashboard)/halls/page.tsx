@@ -47,7 +47,7 @@ interface HallItem {
 function HallsPageContent() {
   const [halls, setHalls] = useState<HallItem[]>([]);
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>([]);
-  const [isOffline, setIsOffline] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
 
@@ -144,72 +144,9 @@ function HallsPageContent() {
       const list = dataJson && Array.isArray(dataJson.data) ? dataJson.data : (Array.isArray(dataJson) ? dataJson : []);
       
       setHalls(list);
-      setIsOffline(false);
     } catch (err) {
-      setIsOffline(true);
-      // Premium Mock fallback data
-      const mockHalls: HallItem[] = [
-        {
-          id: "hall-1",
-          name: "Hall A - Cold Store",
-          warehouseId: "wh-1",
-          warehouse: { id: "wh-1", name: "Duisburg Port Hub" },
-          capacity: 100,
-          containers: Array(18).fill({}),
-          users: [{ id: "u2", name: "Emil Employee", role: "EMPLOYEE" }],
-        },
-        {
-          id: "hall-2",
-          name: "Hall B - Heavy Cargo",
-          warehouseId: "wh-1",
-          warehouse: { id: "wh-1", name: "Duisburg Port Hub" },
-          capacity: 250,
-          containers: Array(10).fill({}),
-          users: [{ id: "u3", name: "Elsa Employee", role: "EMPLOYEE" }],
-        },
-        {
-          id: "hall-3",
-          name: "Hall A - Logistics",
-          warehouseId: "wh-2",
-          warehouse: { id: "wh-2", name: "Wesel NRW-North" },
-          capacity: 350,
-          containers: Array(30).fill({}),
-          users: [{ id: "u5", name: "Erik Employee", role: "EMPLOYEE" }],
-        },
-        {
-          id: "hall-4",
-          name: "Hall B - Dangerous Goods",
-          warehouseId: "wh-2",
-          warehouse: { id: "wh-2", name: "Wesel NRW-North" },
-          capacity: 80,
-          containers: Array(15).fill({}),
-          users: [],
-        },
-        {
-          id: "hall-5",
-          name: "Hall A - Fulfillment",
-          warehouseId: "wh-3",
-          warehouse: { id: "wh-3", name: "Gelsenkirchen Zone" },
-          capacity: 100,
-          containers: Array(12).fill({}),
-          users: [{ id: "u6", name: "Egon Employee", role: "EMPLOYEE" }],
-        },
-        {
-          id: "hall-6",
-          name: "Hall A - Transit",
-          warehouseId: "wh-4",
-          warehouse: { id: "wh-4", name: "Hückelhoven South" },
-          capacity: 50,
-          containers: Array(8).fill({}),
-          users: [],
-        },
-      ];
-
-      // Filter local mock by warehouse if selected
-      const filtered = selectedWhId 
-        ? mockHalls.filter(h => h.warehouseId === selectedWhId) 
-        : mockHalls;
-      setHalls(filtered);
+      console.error("Failed to load halls:", err);
+      setHalls([]);
     } finally {
       setLoading(false);
     }
@@ -250,24 +187,7 @@ function HallsPageContent() {
       setCreateModalOpen(false);
       await fetchHalls();
     } catch (err: any) {
-      if (isOffline) {
-        const createdMock: HallItem = {
-          id: `hall-mock-${Date.now()}`,
-          name: newHallName,
-          warehouseId: newHallWhId,
-          warehouse: warehouses.find((w) => w.id === newHallWhId) || { id: newHallWhId, name: "Warehouse Sector" },
-          capacity: parseInt(newHallCapacity, 10),
-          color: newHallColor,
-          containers: [],
-          users: [],
-        };
-        setHalls((prev) => [createdMock, ...prev]);
-        setNewHallName("");
-        setNewHallColor("#1d4ed8");
-        setCreateModalOpen(false);
-      } else {
-        setCreateError(err.message || "Network error occurred.");
-      }
+      setCreateError(err.message || "Network error occurred.");
     } finally {
       setCreateLoading(false);
     }
@@ -307,26 +227,7 @@ function HallsPageContent() {
       setEditingHall(null);
       await fetchHalls();
     } catch (err: any) {
-      if (isOffline) {
-        setHalls((prev) =>
-          prev.map((h) =>
-            h.id === editingHall.id
-              ? {
-                  ...h,
-                  name: editHallName,
-                  warehouseId: editHallWhId,
-                  capacity: parseInt(editHallCapacity, 10),
-                  color: editHallColor,
-                  warehouse: warehouses.find((w) => w.id === editHallWhId) || h.warehouse,
-                }
-              : h
-          )
-        );
-        setEditModalOpen(false);
-        setEditingHall(null);
-      } else {
         setEditError(err.message || "Network error occurred.");
-      }
     } finally {
       setEditLoading(false);
     }
@@ -365,17 +266,7 @@ function HallsPageContent() {
       setQuickColorHall(null);
       await fetchHalls();
     } catch (err: any) {
-      if (isOffline) {
-        setHalls((prev) =>
-          prev.map((h) =>
-            h.id === quickColorHall.id ? { ...h, color: quickColorHex } : h
-          )
-        );
-        setQuickColorModalOpen(false);
-        setQuickColorHall(null);
-      } else {
         setQuickColorError(err.message || "Could not update hall color.");
-      }
     } finally {
       setQuickColorLoading(false);
     }
@@ -449,12 +340,7 @@ function HallsPageContent() {
         </div>
       </div>
 
-      {isOffline && (
-        <div className="bg-tertiary-container text-on-tertiary-container border border-on-tertiary-container/20 px-3.5 py-2.5 rounded-lg flex items-center gap-2 text-label-md">
-          <AlertTriangle className="w-5 h-5 shrink-0 text-amber-500" />
-          <span>Offline mock active. Displaying local staging halls.</span>
-        </div>
-      )}
+
 
       {/* Filter Toolbar */}
       <div className="bg-white border border-outline-variant p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">

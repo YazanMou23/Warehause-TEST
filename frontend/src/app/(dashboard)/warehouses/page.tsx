@@ -47,7 +47,7 @@ interface WarehouseItem {
 
 export default function WarehousesPage() {
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>([]);
-  const [isOffline, setIsOffline] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
   
@@ -97,108 +97,14 @@ export default function WarehousesPage() {
       const whList = whJson && Array.isArray(whJson.data) ? whJson.data : (Array.isArray(whJson) ? whJson : []);
       
       setWarehouses(whList);
-      setIsOffline(false);
-      
-      // If a warehouse was already selected, update its reference in local state
+
       if (selectedWh) {
         const updatedWh = whList.find((w: WarehouseItem) => w.id === selectedWh.id);
-        if (updatedWh) {
-          setSelectedWh(updatedWh);
-        }
+        if (updatedWh) setSelectedWh(updatedWh);
       }
     } catch (err) {
-      setIsOffline(true);
-      // Premium Fallback Mock Database
-      const mockList: WarehouseItem[] = [
-        {
-          id: "wh-1",
-          name: "Duisburg Port Hub",
-          containers: Array(28).fill({}),
-          users: [
-            { id: "u1", name: "Lars Leader", role: "TEAM_LEADER" },
-            { id: "u2", name: "Emil Employee", role: "EMPLOYEE" },
-            { id: "u3", name: "Elsa Employee", role: "EMPLOYEE" },
-          ],
-          halls: [
-            {
-              id: "hall-1",
-              name: "Hall A",
-              capacity: 100,
-              containers: Array(18).fill({}),
-              users: [{ id: "u2", name: "Emil Employee", role: "EMPLOYEE" }],
-            },
-            {
-              id: "hall-2",
-              name: "Hall B",
-              capacity: 100,
-              containers: Array(10).fill({}),
-              users: [{ id: "u3", name: "Elsa Employee", role: "EMPLOYEE" }],
-            },
-          ],
-        },
-        {
-          id: "wh-2",
-          name: "Wesel NRW-North",
-          containers: Array(45).fill({}),
-          users: [
-            { id: "u4", name: "Lena Leader", role: "TEAM_LEADER" },
-            { id: "u5", name: "Erik Employee", role: "EMPLOYEE" },
-          ],
-          halls: [
-            {
-              id: "hall-3",
-              name: "Hall A",
-              capacity: 100,
-              containers: Array(30).fill({}),
-              users: [{ id: "u5", name: "Erik Employee", role: "EMPLOYEE" }],
-            },
-            {
-              id: "hall-4",
-              name: "Hall B",
-              capacity: 100,
-              containers: Array(15).fill({}),
-              users: [],
-            },
-          ],
-        },
-        {
-          id: "wh-3",
-          name: "Gelsenkirchen Zone",
-          containers: Array(12).fill({}),
-          users: [{ id: "u6", name: "Egon Employee", role: "EMPLOYEE" }],
-          halls: [
-            {
-              id: "hall-5",
-              name: "Hall A",
-              capacity: 100,
-              containers: Array(12).fill({}),
-              users: [{ id: "u6", name: "Egon Employee", role: "EMPLOYEE" }],
-            },
-          ],
-        },
-        {
-          id: "wh-4",
-          name: "Hückelhoven South",
-          containers: Array(8).fill({}),
-          users: [],
-          halls: [
-            {
-              id: "hall-6",
-              name: "Hall A",
-              capacity: 50,
-              containers: Array(8).fill({}),
-              users: [],
-            },
-          ],
-        },
-      ];
-      setWarehouses(mockList);
-      if (selectedWh) {
-        const updatedWh = mockList.find((w: WarehouseItem) => w.id === selectedWh.id);
-        if (updatedWh) {
-          setSelectedWh(updatedWh);
-        }
-      }
+      console.error("Failed to load warehouses:", err);
+      setWarehouses([]);
     } finally {
       setLoading(false);
     }
@@ -212,37 +118,6 @@ export default function WarehousesPage() {
     setCreateLoading(true);
     setCreateError("");
     const token = localStorage.getItem("accessToken");
-
-    if (isOffline) {
-      const mockWhId = "mock-wh-" + Date.now();
-      const mockHalls: HallItem[] = initialHallName.trim()
-        ? [
-            {
-              id: "mock-hall-" + Date.now(),
-              name: initialHallName,
-              capacity: parseInt(initialHallCapacity, 10) || 100,
-              containers: [],
-              users: [],
-            },
-          ]
-        : [];
-      
-      const newWh: WarehouseItem = {
-        id: mockWhId,
-        name: newWhName,
-        halls: mockHalls,
-        containers: [],
-        users: [],
-      };
-
-      setWarehouses((prev) => [...prev, newWh]);
-      setNewWhName("");
-      setInitialHallName("Hall A");
-      setInitialHallCapacity("100");
-      setCreateModalOpen(false);
-      setCreateLoading(false);
-      return;
-    }
 
     try {
       const headers = {
@@ -363,12 +238,7 @@ export default function WarehousesPage() {
         </div>
       </div>
 
-      {isOffline && (
-        <div className="bg-tertiary-container text-on-tertiary-container border border-on-tertiary-container/20 px-3.5 py-2.5 rounded-lg flex items-center gap-2 text-label-md">
-          <AlertTriangle className="w-5 h-5 shrink-0 text-amber-500" />
-          <span>Offline mock active. Displaying local depot listings.</span>
-        </div>
-      )}
+
 
       {/* Summary KPI Bar */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-stack-md bg-surface-container-low border border-outline-variant p-stack-md rounded-xl">

@@ -38,7 +38,7 @@ export default function ProfilePage() {
   const { t, language } = useTranslation();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isOffline, setIsOffline] = useState(false);
+
   const [userRole, setUserRole] = useState("");
   
   // Edit Details State
@@ -78,31 +78,11 @@ export default function ProfilePage() {
         setName(data.name);
         setEmail(data.email || "");
         setTelegramId(data.telegramId || "");
-        setIsOffline(false);
       } else {
         throw new Error("Failed to load profile");
       }
     } catch (err) {
-      console.warn("Using offline mock profile data.");
-      setIsOffline(true);
-      // Premium Mock Profile
-      const mockData: UserProfile = {
-        id: userId,
-        name: "Lars Leader",
-        phone: "+491701234567",
-        email: "lars.leader@logiflow.de",
-        profilePhoto: null,
-        role: "TEAM_LEADER",
-        warehouseId: "wh-1",
-        hallId: "hall-1",
-        telegramId: "123456789",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      setProfile(mockData);
-      setName(mockData.name);
-      setEmail(mockData.email || "");
-      setTelegramId(mockData.telegramId || "");
+      console.error("Failed to load profile:", err);
     } finally {
       setLoading(false);
     }
@@ -137,16 +117,6 @@ export default function ProfilePage() {
 
     const token = getAuthToken();
     if (!token || !profile) return;
-
-    if (isOffline) {
-      setProfile((prev) => prev ? { ...prev, name, email, telegramId } : null);
-      setUpdateSuccess(language === "de" ? "Profildaten erfolgreich aktualisiert (Offline-Modus)." : "Profile details updated successfully (Offline Mode).");
-      setUpdateLoading(false);
-      
-      updateDecodedTokenName(name);
-      window.dispatchEvent(new Event("profile-updated"));
-      return;
-    }
 
     try {
       const res = await fetch(
@@ -210,15 +180,6 @@ export default function ProfilePage() {
     const token = getAuthToken();
     if (!token || !profile) return;
 
-    if (isOffline) {
-      setPasswordSuccess(language === "de" ? "Passwort erfolgreich geändert (Offline-Modus)." : "Password changed successfully (Offline Mode).");
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-      setPasswordLoading(false);
-      return;
-    }
-
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/auth/change-password`,
@@ -262,12 +223,6 @@ export default function ProfilePage() {
 
     setPhotoLoading(true);
     setPhotoError("");
-
-    if (isOffline) {
-      setPhotoError(language === "de" ? "Das Hochladen von Fotos erfordert eine Verbindung zum Backend." : "Photo upload requires connection to backend.");
-      setPhotoLoading(false);
-      return;
-    }
 
     const token = getAuthToken();
     if (!token) return;
@@ -334,12 +289,7 @@ export default function ProfilePage() {
         </p>
       </div>
 
-      {isOffline && (
-        <div className="bg-tertiary-container text-on-tertiary-container border border-on-tertiary-container/20 px-3.5 py-2.5 rounded-lg flex items-center gap-2 text-label-md">
-          <AlertTriangle className="w-5 h-5 shrink-0 text-amber-500" />
-          <span>{t("sandboxMode")}</span>
-        </div>
-      )}
+
 
       {userRole === "EMPLOYEE" && (
         <div className="bg-blue-500/10 text-blue-300 border border-blue-500/20 px-4 py-3 rounded-lg flex items-start gap-2.5 text-xs">

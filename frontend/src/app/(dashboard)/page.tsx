@@ -94,7 +94,7 @@ export default function DashboardPage() {
     message: "",
   });
   const [userRole, setUserRole] = useState("");
-  const [isOffline, setIsOffline] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
   const router = useRouter();
@@ -206,48 +206,6 @@ export default function DashboardPage() {
     const token = localStorage.getItem("accessToken");
     const headers = { Authorization: `Bearer ${token}` };
     try {
-      if (isOffline) {
-        // Mock fallback plans
-        const mockPlans = [
-          {
-            id: "mock-p-1",
-            date: new Date().toISOString(),
-            warehouseId: "wh-1",
-            warehouseName: "Duisburg Port Hub",
-            hallId: "hall-1",
-            hallName: "Hall A",
-            shift: "06:00 - 14:00 (Frühschicht)",
-            locations: [
-              { warehouseId: "wh-1", warehouseName: "Duisburg Port Hub", hallId: "hall-1", hallName: "Hall A" },
-              { warehouseId: "wh-1", warehouseName: "Duisburg Port Hub", hallId: "hall-2", hallName: "Hall B" }
-            ],
-            assignedEmployees: [{ id: "u2", name: "Emil Employee", role: "EMPLOYEE" }, { id: "u3", name: "Elsa Employee", role: "EMPLOYEE" }],
-            assignedContainers: [{ containerNumber: "MSKU887652", status: "FULL" }],
-          },
-          {
-            id: "mock-p-2",
-            date: new Date().toISOString(),
-            warehouseId: "wh-2",
-            warehouseName: "Wesel NRW-North",
-            hallId: "hall-3",
-            hallName: "Hall A",
-            shift: "14:00 - 22:00 (Spätschicht)",
-            locations: [
-              { warehouseId: "wh-2", warehouseName: "Wesel NRW-North", hallId: "hall-3", hallName: "Hall A" }
-            ],
-            assignedEmployees: [{ id: "u5", name: "Erik Employee", role: "EMPLOYEE" }],
-            assignedContainers: [],
-          },
-        ];
-        
-        if (showAll) {
-          setPlans(mockPlans);
-        } else {
-          setPlans(mockPlans.filter(p => p.date.split("T")[0] === date));
-        }
-        return;
-      }
-
       let url = "";
       if (showAll) {
         url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning?limit=100`;
@@ -276,12 +234,6 @@ export default function DashboardPage() {
       onConfirm: async () => {
         const token = localStorage.getItem("accessToken");
         try {
-          if (isOffline) {
-            setPlans(prev => prev.filter(p => !selectedPlanIds.includes(p.id)));
-            setSelectedPlanIds([]);
-            return;
-          }
-
           const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/bulk`, {
             method: "DELETE",
             headers: {
@@ -317,12 +269,6 @@ export default function DashboardPage() {
       onConfirm: async () => {
         const token = localStorage.getItem("accessToken");
         try {
-          if (isOffline) {
-            showAlert({ title: "Simuliert", message: "Schichtpläne im Offline-Modus dupliziert!", type: "info" });
-            setSelectedPlanIds([]);
-            return;
-          }
-
           const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/bulk-duplicate`, {
             method: "POST",
             headers: {
@@ -352,12 +298,6 @@ export default function DashboardPage() {
 
     const token = localStorage.getItem("accessToken");
     try {
-      if (isOffline) {
-        showAlert({ title: "Simuliert", message: "Halle im Offline-Modus geändert!", type: "info" });
-        setSelectedPlanIds([]);
-        return;
-      }
-
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/bulk-change-hall`, {
         method: "PATCH",
         headers: {
@@ -385,12 +325,6 @@ export default function DashboardPage() {
 
     const token = localStorage.getItem("accessToken");
     try {
-      if (isOffline) {
-        showAlert({ title: "Simuliert", message: "Schicht im Offline-Modus geändert!", type: "info" });
-        setSelectedPlanIds([]);
-        return;
-      }
-
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/bulk-change-shift`, {
         method: "PATCH",
         headers: {
@@ -418,12 +352,6 @@ export default function DashboardPage() {
 
     const token = localStorage.getItem("accessToken");
     try {
-      if (isOffline) {
-        showAlert({ title: "Simuliert", message: "Mitarbeiter im Offline-Modus zugewiesen!", type: "info" });
-        setSelectedPlanIds([]);
-        return;
-      }
-
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/bulk-assign-employees`, {
         method: "PATCH",
         headers: {
@@ -509,34 +437,6 @@ export default function DashboardPage() {
     };
 
     try {
-      if (isOffline) {
-        const isCurrentlyActive = !!employeeSummary?.activeShift;
-        if (isCurrentlyActive) {
-          setEmployeeSummary((prev: any) => ({
-            ...prev,
-            activeShift: null,
-          }));
-          showAlert({ title: "Ausgestempelt (QR)", message: "Erfolgreich aus der Halle ausgestempelt!", type: "success" });
-        } else {
-          const wh = allWarehouses.find((w: any) => w.id === warehouseId) || { name: "Lager Sector" };
-          const hl = allHalls.find((h: any) => h.id === hallId) || { name: "Halle Sector" };
-          setEmployeeSummary((prev: any) => ({
-            ...prev,
-            activeShift: {
-              id: "att-mock-qr",
-              warehouseId,
-              hallId,
-              warehouseName: wh.name,
-              hallName: hl.name,
-              clockIn: new Date().toISOString(),
-            },
-          }));
-          showAlert({ title: "Eingestempelt (QR)", message: `Erfolgreich in ${hl.name} (${wh.name}) eingestempelt!`, type: "success" });
-        }
-        setIsQrScannerOpen(false);
-        return;
-      }
-
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/attendance/qr-scan`, {
         method: "POST",
         headers,
@@ -627,7 +527,6 @@ export default function DashboardPage() {
           if (summaryJson && infoJson) {
             setEmployeeSummary(summaryJson);
             setEmployeeInfo(infoJson);
-            setIsOffline(false);
           } else {
             throw new Error("Failed to fetch employee details");
           }
@@ -671,149 +570,9 @@ export default function DashboardPage() {
 
           // Fetch dashboard analytics
           fetchAnalytics("weekly");
-
-          setIsOffline(false);
         }
       } catch (err) {
-        console.warn("Failed to fetch live API metrics, using offline mock database.");
-        setIsOffline(true);
-
-        if (payload.role === "EMPLOYEE") {
-          setEmployeeInfo({
-            id: payload.sub || "emp-mock",
-            username: payload.username || "employee1",
-            name: payload.name || "Emil Employee",
-            phone: "+491704444444",
-            email: "e.employee@logiflow.de",
-            role: "EMPLOYEE",
-            warehouse: { name: "Duisburg Port Hub" },
-            hall: { name: "Hall A" },
-          });
-
-          setEmployeeSummary({
-            activeShift: null,
-            hoursSummary: { today: 6.5, week: 38.5, month: 142.0 },
-            plansToday: [
-              {
-                id: "mock-p-1",
-                date: new Date().toISOString(),
-                warehouseName: "Duisburg Port Hub",
-                hallName: "Hall A",
-                assignedContainers: [{ containerNumber: "MSKU887652", status: "FULL" }],
-                assignedEmployees: [{ name: "Emil Employee", role: "EMPLOYEE" }],
-              }
-            ],
-            plansHistory: [
-              {
-                id: "mock-p-old-1",
-                date: new Date(Date.now() - 86400000).toISOString(),
-                warehouseName: "Duisburg Port Hub",
-                hallName: "Hall A",
-                assignedContainers: [{ containerNumber: "MSKU112233", status: "EMPTY" }],
-                assignedEmployees: [{ name: "Emil Employee", role: "EMPLOYEE" }],
-              }
-            ],
-            workHistory: [
-              {
-                id: "att-1",
-                date: new Date(Date.now() - 86400000).toISOString(),
-                clockIn: new Date(Date.now() - 86400000 - 8*3600000).toISOString(),
-                clockOut: new Date(Date.now() - 86400000).toISOString(),
-                totalHours: 8.0,
-                warehouseName: "Duisburg Port Hub",
-                hallName: "Hall A",
-              }
-            ],
-          });
-
-          setAllWarehouses([
-            { id: "wh-1", name: "Duisburg Port Hub" },
-            { id: "wh-2", name: "Wesel NRW-North" }
-          ]);
-          setAllHalls([
-            { id: "hall-1", warehouseId: "wh-1", name: "Hall A" },
-            { id: "hall-2", warehouseId: "wh-1", name: "Hall B" },
-            { id: "hall-3", warehouseId: "wh-2", name: "Hall A" }
-          ]);
-        } else {
-          setMetrics({
-            employeesCount: 450,
-            activeTodayCount: 382,
-            containersCount: 180,
-            hallsCount: 18,
-          });
-
-          // Generate mock today date format
-          const baseToday = new Date();
-          const yyyy = baseToday.getFullYear();
-          const mm = String(baseToday.getMonth() + 1).padStart(2, "0");
-          const dd = String(baseToday.getDate()).padStart(2, "0");
-          const todayPrefix = `${yyyy}-${mm}-${dd}`;
-
-          setDailyAttendance([
-            {
-              id: "att-mock-1",
-              employeeId: "emp-1",
-              employeeName: "Alex Arbeiter",
-              employee: { id: "emp-1", name: "Alex Arbeiter", phone: "+491701111111" },
-              clockIn: `${todayPrefix}T06:30:00.000Z`,
-              clockOut: null,
-              warehouseId: "wh-1",
-              warehouseName: "Duisburg Port Hub",
-              hallId: "hall-1",
-              hallName: "Hall A",
-              date: `${todayPrefix}T00:00:00.000Z`
-            },
-            {
-              id: "att-mock-2",
-              employeeId: "emp-2",
-              employeeName: "Bella Buche",
-              employee: { id: "emp-2", name: "Bella Buche", phone: "+491702222222" },
-              clockIn: `${todayPrefix}T08:00:00.000Z`,
-              clockOut: `${todayPrefix}T16:00:00.000Z`,
-              warehouseId: "wh-1",
-              warehouseName: "Duisburg Port Hub",
-              hallId: "hall-2",
-              hallName: "Hall B",
-              date: `${todayPrefix}T00:00:00.000Z`
-            },
-            {
-              id: "att-mock-3",
-              employeeId: "emp-3",
-              employeeName: "Chris Container",
-              employee: { id: "emp-3", name: "Chris Container", phone: "+491703333333" },
-              clockIn: `${todayPrefix}T09:15:00.000Z`,
-              clockOut: null,
-              warehouseId: "wh-2",
-              warehouseName: "Wesel NRW-North",
-              hallId: "hall-3",
-              hallName: "Hall A",
-              date: `${todayPrefix}T00:00:00.000Z`
-            },
-            {
-              id: "att-mock-4",
-              employeeId: "emp-4",
-              employeeName: "Dieter Depots",
-              employee: { id: "emp-4", name: "Dieter Depots", phone: "+491704444444" },
-              clockIn: `${todayPrefix}T07:45:00.000Z`,
-              clockOut: null,
-              warehouseId: "wh-2",
-              warehouseName: "Wesel NRW-North",
-              hallId: "hall-3",
-              hallName: "Hall A",
-              date: `${todayPrefix}T00:00:00.000Z`
-            }
-          ]);
-
-          if (payload.role === "MANAGER") {
-            setRecentActivityLogs([
-              { id: "log-1", timestamp: new Date().toISOString(), action: "LOGIN", user: { name: "Admin User", username: "admin" }, details: "User Admin User logged in" },
-              { id: "log-2", timestamp: new Date(Date.now() - 600000).toISOString(), action: "CREATE_PLAN", user: { name: "Lars Leader", username: "manager" }, details: "Created shift plan for Duisburg Port Hub" },
-              { id: "log-3", timestamp: new Date(Date.now() - 3600000).toISOString(), action: "ROLE_CHANGE", user: { name: "Lars Leader", username: "manager" }, details: "Promoted Emil Employee to ADMIN" },
-              { id: "log-4", timestamp: new Date(Date.now() - 7200000).toISOString(), action: "CREDENTIAL_CHANGE", user: { name: "Lars Leader", username: "manager" }, details: "Updated password for user Elsa Employee" },
-            ]);
-          }
-        }
+        console.error("Failed to fetch dashboard data from API:", err);
       } finally {
         setLoading(false);
       }
@@ -826,7 +585,7 @@ export default function DashboardPage() {
     if (selectedDate && userRole !== "EMPLOYEE") {
       fetchPlans(selectedDate, showAllPlans);
     }
-  }, [selectedDate, showAllPlans, isOffline, userRole]);
+  }, [selectedDate, showAllPlans, userRole]);
 
   if (loading) {
     return (
@@ -1231,12 +990,7 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            {isOffline && (
-              <span className="badge-premium badge-warning animate-pulse">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                <span>{t("sandboxMode")}</span>
-              </span>
-            )}
+
           </div>
 
           {/* Key Metrics Grid */}
@@ -1505,7 +1259,6 @@ export default function DashboardPage() {
           <ActiveEmployeeCalendar
             logs={dailyAttendance}
             loading={loading}
-            isOffline={isOffline}
           />
 
           {/* Quick Operations Section */}

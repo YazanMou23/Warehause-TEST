@@ -71,7 +71,7 @@ export default function ChatPage() {
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [isOffline, setIsOffline] = useState(false);
+
   const [errorMsg, setErrorMsg] = useState("");
   
   // Actor info from JWT
@@ -105,79 +105,6 @@ export default function ChatPage() {
     if (!silent) setLoading(true);
     const token = localStorage.getItem("accessToken");
     try {
-      if (isOffline) {
-        // Load mock offline conversations from localStorage
-        const storedConvs = localStorage.getItem(`mock_convs_${actorId}`);
-        if (storedConvs) {
-          setConversations(JSON.parse(storedConvs));
-        } else {
-          // Generate default mock conversations
-          const defaultConvs = actorRole === "EMPLOYEE" ? [
-            {
-              id: "mgr-1",
-              name: "Yazan Manager",
-              username: "yazan_mgr",
-              role: "MANAGER",
-              isChatBlocked: false,
-              lastMessage: {
-                id: "msg-init-1",
-                content: "Willkommen im LogiFlow-Chat. Wie kann ich helfen?",
-                createdAt: new Date(Date.now() - 3600000).toISOString(),
-                senderId: "mgr-1",
-              },
-              unreadCount: 0,
-            },
-            {
-              id: "adm-1",
-              name: "Admin Logiflow",
-              username: "admin_hub",
-              role: "ADMIN",
-              isChatBlocked: false,
-              lastMessage: null,
-              unreadCount: 0,
-            }
-          ] : [
-            {
-              id: "emp-1",
-              name: "Alex Arbeiter",
-              username: "alex_arb",
-              role: "EMPLOYEE",
-              isChatBlocked: false,
-              lastMessage: {
-                id: "msg-init-2",
-                content: "Hallo, ich habe eine Frage zu meiner Schicht morgen.",
-                createdAt: new Date(Date.now() - 1800000).toISOString(),
-                senderId: "emp-1",
-              },
-              unreadCount: 1,
-            },
-            {
-              id: "emp-2",
-              name: "Bella Buche",
-              username: "bella_bu",
-              role: "EMPLOYEE",
-              isChatBlocked: true,
-              lastMessage: {
-                id: "msg-init-3",
-                content: "Danke für die Schichtfreigabe.",
-                createdAt: new Date(Date.now() - 7200000).toISOString(),
-                senderId: "emp-2",
-              },
-              unreadCount: 0,
-            }
-          ];
-          localStorage.setItem(`mock_convs_${actorId}`, JSON.stringify(defaultConvs));
-          setConversations(defaultConvs);
-        }
-        
-        // Check if employee actor is blocked
-        if (actorRole === "EMPLOYEE") {
-          const storedBlock = localStorage.getItem(`mock_blocked_${actorId}`);
-          setIsActorBlocked(storedBlock === "true");
-        }
-        return;
-      }
-
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/chat/conversations`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -186,7 +113,7 @@ export default function ChatPage() {
       const data = await res.json();
       setConversations(data);
       
-      // If we are an employee, we must find our own user details from endpoint or user settings to know if we are blocked
+      // If we are an employee, find if we are blocked
       if (actorRole === "EMPLOYEE") {
         const empRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${actorId}`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -196,10 +123,8 @@ export default function ChatPage() {
           setIsActorBlocked(empData.isChatBlocked || false);
         }
       }
-      setIsOffline(false);
     } catch (e) {
-      console.warn("API offline, falling back to mock database.");
-      setIsOffline(true);
+      console.error("Failed to load conversations", e);
     } finally {
       if (!silent) setLoading(false);
     }
@@ -209,42 +134,6 @@ export default function ChatPage() {
   const fetchHistory = async (partnerId: string, silent = false) => {
     const token = localStorage.getItem("accessToken");
     try {
-      if (isOffline) {
-        // Load mock history from localStorage
-        const storedMsgs = localStorage.getItem(`mock_msgs_${actorId}_${partnerId}`);
-        if (storedMsgs) {
-          setMessages(JSON.parse(storedMsgs));
-        } else {
-          // Default mock messages
-          const defaultMsgs = [
-            {
-              id: "msg-init-1",
-              senderId: partnerId,
-              receiverId: actorId,
-              content: partnerId === "mgr-1" || partnerId === "adm-1" 
-                ? "Hallo! Wie kann ich Ihnen heute helfen?"
-                : "Hallo, ich habe eine Frage zu meiner Schicht morgen.",
-              createdAt: new Date(Date.now() - 3600000).toISOString(),
-              read: true,
-              sender: { id: partnerId, name: "Partner", role: "PARTNER" },
-              receiver: { id: actorId, name: actorName, role: actorRole },
-            }
-          ];
-          localStorage.setItem(`mock_msgs_${actorId}_${partnerId}`, JSON.stringify(defaultMsgs));
-          setMessages(defaultMsgs);
-        }
-        
-        // Reset unread count for this partner in localStorage
-        const storedConvs = localStorage.getItem(`mock_convs_${actorId}`);
-        if (storedConvs) {
-          const convList = JSON.parse(storedConvs) as Conversation[];
-          const updated = convList.map(c => c.id === partnerId ? { ...c, unreadCount: 0 } : c);
-          localStorage.setItem(`mock_convs_${actorId}`, JSON.stringify(updated));
-          setConversations(updated);
-        }
-        return;
-      }
-
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/chat/history/${partnerId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -253,7 +142,7 @@ export default function ChatPage() {
       const data = await res.json();
       setMessages(data);
       
-      // Update unread count locally for smooth UI update
+      // Update unread count locally for smooth UI
       setConversations(prev =>
         prev.map(c => c.id === partnerId ? { ...c, unreadCount: 0 } : c)
       );
@@ -276,7 +165,7 @@ export default function ChatPage() {
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [actorId, selectedPartnerId, isOffline]);
+  }, [actorId, selectedPartnerId]);
 
   // Fetch history when selecting partner
   useEffect(() => {
@@ -301,106 +190,6 @@ export default function ChatPage() {
     const content = newMessage.trim();
 
     try {
-      if (isOffline) {
-        // Offline / Sandbox sending simulation
-        // 1) Load current history
-        const historyKey = `mock_msgs_${actorId}_${selectedPartnerId}`;
-        const storedMsgs = JSON.parse(localStorage.getItem(historyKey) || "[]");
-        
-        // 2) Throttling logic check
-        if (actorRole === "EMPLOYEE") {
-          if (isActorBlocked) {
-            throw new Error("Sie wurden von der Chat-Kommunikation ausgeschlossen.");
-          }
-          const lastMsg = storedMsgs[storedMsgs.length - 1];
-          if (lastMsg && lastMsg.senderId === actorId) {
-            throw new Error(
-              "Sie können erst wieder eine Nachricht senden, wenn der Manager oder Admin auf Ihre vorherige Nachricht geantwortet hat."
-            );
-          }
-        }
-
-        const newMsgItem: ChatMessage = {
-          id: `msg-${Date.now()}`,
-          senderId: actorId,
-          receiverId: selectedPartnerId,
-          content: content,
-          createdAt: new Date().toISOString(),
-          read: false,
-          sender: { id: actorId, name: actorName, role: actorRole },
-          receiver: { id: selectedPartnerId, name: selectedPartner?.name || "Partner", role: selectedPartner?.role || "PARTNER" },
-        };
-
-        const updatedHistory = [...storedMsgs, newMsgItem];
-        localStorage.setItem(historyKey, JSON.stringify(updatedHistory));
-        setMessages(updatedHistory);
-        setNewMessage("");
-
-        // Update last message in conversation list
-        const storedConvs = localStorage.getItem(`mock_convs_${actorId}`);
-        if (storedConvs) {
-          const convList = JSON.parse(storedConvs) as Conversation[];
-          const updated = convList.map(c =>
-            c.id === selectedPartnerId
-              ? {
-                  ...c,
-                  lastMessage: {
-                    id: newMsgItem.id,
-                    content: newMsgItem.content,
-                    createdAt: newMsgItem.createdAt,
-                    senderId: actorId,
-                  },
-                }
-              : c
-          );
-          localStorage.setItem(`mock_convs_${actorId}`, JSON.stringify(updated));
-          setConversations(updated);
-        }
-
-        // Simulate auto manager response after 5 seconds to help test flow
-        if (actorRole === "EMPLOYEE") {
-          setTimeout(() => {
-            const currentMsgs = JSON.parse(localStorage.getItem(historyKey) || "[]");
-            const botMsg: ChatMessage = {
-              id: `msg-bot-${Date.now()}`,
-              senderId: selectedPartnerId,
-              receiverId: actorId,
-              content: `[Auto-Antwort] Ich habe deine Nachricht erhalten: "${content}". Wir melden uns in Kürze.`,
-              createdAt: new Date().toISOString(),
-              read: false,
-              sender: { id: selectedPartnerId, name: selectedPartner?.name || "Manager", role: selectedPartner?.role || "MANAGER" },
-              receiver: { id: actorId, name: actorName, role: actorRole },
-            };
-            const withBot = [...currentMsgs, botMsg];
-            localStorage.setItem(historyKey, JSON.stringify(withBot));
-            
-            // Trigger refresh if still viewing the same chat
-            if (selectedPartnerId) {
-              setMessages(withBot);
-              // Update last message in conversation list
-              const latestConvs = JSON.parse(localStorage.getItem(`mock_convs_${actorId}`) || "[]") as Conversation[];
-              const updatedConvs = latestConvs.map(c =>
-                c.id === selectedPartnerId
-                  ? {
-                      ...c,
-                      lastMessage: {
-                        id: botMsg.id,
-                        content: botMsg.content,
-                        createdAt: botMsg.createdAt,
-                        senderId: selectedPartnerId,
-                      },
-                      unreadCount: c.unreadCount + 1,
-                    }
-                  : c
-              );
-              localStorage.setItem(`mock_convs_${actorId}`, JSON.stringify(updatedConvs));
-              setConversations(updatedConvs);
-            }
-          }, 4000);
-        }
-        return;
-      }
-
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/chat/send`, {
         method: "POST",
         headers: {
@@ -438,25 +227,6 @@ export default function ChatPage() {
         const nextBlockStatus = !currentBlockStatus;
 
         try {
-          if (isOffline) {
-            // Offline block simulation
-            const storedConvs = localStorage.getItem(`mock_convs_${actorId}`);
-            if (storedConvs) {
-              const convList = JSON.parse(storedConvs) as Conversation[];
-              const updated = convList.map(c => c.id === employeeId ? { ...c, isChatBlocked: nextBlockStatus } : c);
-              localStorage.setItem(`mock_convs_${actorId}`, JSON.stringify(updated));
-              setConversations(updated);
-            }
-            // Save global mock blocked state for employee's perspective
-            localStorage.setItem(`mock_blocked_${employeeId}`, String(nextBlockStatus));
-            showAlert({
-              title: nextBlockStatus ? "Mitarbeiter blockiert" : "Mitarbeiter entsperrt",
-              message: `Mitarbeiter wurde erfolgreich ${nextBlockStatus ? "blockiert" : "entsperrt"}.`,
-              type: "success"
-            });
-            return;
-          }
-
           const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/users/${employeeId}/chat-block`, {
             method: "PATCH",
             headers: {

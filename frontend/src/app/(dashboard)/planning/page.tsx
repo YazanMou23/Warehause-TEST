@@ -180,7 +180,7 @@ function PlanningPageContent() {
   const [planId, setPlanId] = useState<string | null>(null);
   const [lastSavedPlanId, setLastSavedPlanId] = useState<string | null>(null);
   const [allCreatedPlans, setAllCreatedPlans] = useState<any[]>([]);
-  const [isOffline, setIsOffline] = useState(false);
+
   const [isLoading, setIsLoading] = useState(false);
   const createdPlansSectionRef = useRef<HTMLDivElement>(null);
   const isEditingRef = useRef(false);
@@ -334,34 +334,11 @@ function PlanningPageContent() {
         } else {
           throw new Error("API failed");
         }
-        setIsOffline(false);
       } catch (err) {
-        setIsOffline(true);
-        const mockWH = [
-          { id: "wh-1", name: "Duisburg Port Hub" },
-          { id: "wh-2", name: "Rhein-Ruhr Logistics" },
-        ];
-        const mockHalls = [
-          { id: "hall-a", name: "Hall A - Cold Storage", warehouseId: "wh-1" },
-          { id: "hall-b", name: "Hall B - General Cargo", warehouseId: "wh-1" },
-          { id: "hall-c", name: "Hall C - Hazmat", warehouseId: "wh-2" },
-        ];
-        const mockEmployees = [
-          { id: "emp-1", name: "Johannes Müller", phone: "+491704444444", role: "EMPLOYEE" },
-          { id: "emp-2", name: "Dieter Schmidt", phone: "+491705555555", role: "EMPLOYEE" },
-          { id: "emp-3", name: "Anna Weber", phone: "+491706666666", role: "TEAM_LEADER" },
-          { id: "emp-4", name: "Lukas Wagner", phone: "+491707777777", role: "EMPLOYEE" },
-          { id: "emp-5", name: "Sarah Meyer", phone: "+491708888888", role: "EMPLOYEE" },
-        ];
-
-        setWarehouses(mockWH);
-        setHalls(mockHalls);
-        if (qWh && qHall && mockHalls.some((h: any) => h.id === qHall)) {
-          setSelectedLocations([{ warehouseId: qWh, hallId: qHall }]);
-        } else {
-          setSelectedLocations([{ warehouseId: mockWH[0].id, hallId: mockHalls[0].id }]);
-        }
-        setEmployees(mockEmployees);
+        console.error("Failed to load planning metadata from API:", err);
+        setWarehouses([]);
+        setHalls([]);
+        setEmployees([]);
       } finally {
         setHasInitializedFromQuery(true);
       }
@@ -377,7 +354,7 @@ function PlanningPageContent() {
     if (!date) return;
     const fetchExistingPlansAndAbsences = async () => {
       const token = localStorage.getItem("accessToken");
-      if (!token || isOffline) return;
+      if (!token) return;
 
       setIsLoading(true);
       try {
@@ -408,7 +385,7 @@ function PlanningPageContent() {
     };
 
     fetchExistingPlansAndAbsences();
-  }, [date, isOffline]);
+  }, [date]);
 
   // Auto-load plan into edit mode when planId is provided in URL
   useEffect(() => {
@@ -527,7 +504,7 @@ function PlanningPageContent() {
 
   const fetchExistingPlanManual = async () => {
     const token = localStorage.getItem("accessToken");
-    if (!token || isOffline) return;
+    if (!token) return;
     try {
       const [resPlans, resAbs] = await Promise.all([
         fetch(
@@ -556,7 +533,7 @@ function PlanningPageContent() {
     };
     window.addEventListener("focus", handleFocus);
     return () => window.removeEventListener("focus", handleFocus);
-  }, [date, isOffline]);
+  }, [date]);
 
   const toggleLocation = (warehouseId: string, hallId: string) => {
     setSelectedLocations((prev) => {
@@ -731,8 +708,7 @@ function PlanningPageContent() {
 
         setIsLoading(true);
         try {
-          if (!isOffline) {
-            const res = await fetch(
+          const res = await fetch(
               `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/${idToDelete}`,
               {
                 method: "DELETE",
@@ -743,7 +719,6 @@ function PlanningPageContent() {
               const err = await res.json();
               throw new Error(err.message || "Fehler beim Löschen des Plans");
             }
-          }
 
           setAllCreatedPlans((prev) => prev.filter((p: any) => p.id !== idToDelete));
           if (planId === idToDelete) {
@@ -845,48 +820,6 @@ function PlanningPageContent() {
           });
         });
       });
-
-      if (isOffline) {
-        setTimeout(() => {
-          const primaryLoc = selectedLocations[0] || { warehouseId: "", hallId: "" };
-          const mockPlan = {
-            id: planId || `mock-plan-${Date.now()}`,
-            date,
-            shift: formattedShift,
-            treffpunktTime,
-            treffpunkt,
-            notes,
-            warehouseId: primaryLoc.warehouseId,
-            hallId: primaryLoc.hallId,
-            locations: selectedLocations,
-            assignedEmployees: employees.filter((e) => assignedEmployeeIds.includes(e.id)),
-            assignedContainers: assignedContainerNumbers.map((c) => ({ containerNumber: c })),
-            employeeSegments: allSegments,
-          };
-          setAllCreatedPlans((prev) => {
-            const exists = prev.some((p: any) => p.id === mockPlan.id);
-            return exists ? prev.map((p: any) => (p.id === mockPlan.id ? mockPlan : p)) : [mockPlan, ...prev];
-          });
-          setLastSavedPlanId(mockPlan.id);
-          setFilterWarehouseId("ALL");
-          isEditingRef.current = false;
-          setPlanId(null);
-          setNotes("");
-          setAssignedEmployeeIds([]);
-          setEmployeeSegments({});
-          setAssignedContainerNumbers([]);
-          showAlert({
-            title: "Schichtplan gespeichert",
-            message: "Tagesplan wurde im Offline-Modus erfolgreich simuliert!",
-            type: "success",
-          });
-          setIsLoading(false);
-          setTimeout(() => {
-            createdPlansSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-          }, 300);
-        }, 500);
-        return;
-      }
 
       const primaryLocation = selectedLocations[0];
       const payload = {
@@ -1135,12 +1068,7 @@ function PlanningPageContent() {
         </div>
       </div>
 
-      {isOffline && (
-        <div className="bg-amber-50 text-amber-800 border border-amber-200 px-4 py-3 rounded-xl flex items-center gap-3 text-xs font-semibold shadow-sm">
-          <AlertTriangle className="w-5 h-5 shrink-0 text-amber-500" />
-          <span>Offline-Modus aktiv. Planänderungen werden lokal simuliert und validiert.</span>
-        </div>
-      )}
+
 
       {/* Daily Statistics Banner */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

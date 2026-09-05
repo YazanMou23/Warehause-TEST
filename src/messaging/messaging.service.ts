@@ -43,10 +43,13 @@ export class MessagingService {
     const ultraInstance = process.env.ULTRAMSG_INSTANCE_ID;
     const ultraToken = process.env.ULTRAMSG_TOKEN;
 
+    // Bug#5: API version configurable via env, defaulting to v22.0
+    const apiVersion = process.env.WHATSAPP_API_VERSION || 'v22.0';
+
     let metaError: string | null = null;
 
     if (phoneNumberId && accessToken) {
-      const url = `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`;
+      const url = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`;
 
       try {
         const response = await fetch(url, {
@@ -103,17 +106,31 @@ export class MessagingService {
       }
     }
 
-    this.logger.log(`WhatsApp notification ready for +${cleanedPhone}. Direct web link: ${waLink}`);
+    // Bug#1 FIX: No provider delivered the message — return success: false.
+    // A wa.me fallback link is still provided so the caller can open it manually.
+    const errorMsg = metaError
+      ? `Meta API: ${metaError}. No fallback provider configured.`
+      : 'No WhatsApp API credentials configured. Use the wa.me link to send manually.';
+
+    this.logger.warn(`WhatsApp delivery failed for +${cleanedPhone}. Fallback link: ${waLink}`);
     return {
-      success: true,
-      error: metaError ? `Meta API Hinweis: ${metaError} -> Web-Link als Fallback erzeugt` : 'Direct API token missing or returned warning, generated direct wa.me link',
+      success: false,
+      error: errorMsg,
       waLink,
     };
   }
 
-  async sendSMS(phone: string, message: string): Promise<boolean> {
-    this.logger.log(`[SMS Simulation] Sending to ${phone}: "${message}"`);
-    return true;
+  /**
+   * Bug#7 FIX: SMS delivery is not yet implemented.
+   * Returns a structured response instead of silently returning true,
+   * so callers are aware no message was actually delivered.
+   */
+  async sendSMS(phone: string, message: string): Promise<{ success: boolean; error: string }> {
+    this.logger.warn(`[SMS] Not implemented. Would send to ${phone}: "${message}"`);
+    return {
+      success: false,
+      error: 'SMS delivery is not yet implemented. Please configure an SMS provider.',
+    };
   }
 
   /**
@@ -121,15 +138,24 @@ export class MessagingService {
    * Calls sendWhatsAppDirect sequentially for each number and returns
    * an aggregated results array with per-number success/error/waLink.
    */
+  /**
+   * Bug#4 FIX: Sends WhatsApp messages in parallel with a concurrency cap of 5
+   * to avoid overwhelming the Meta API and reduce total send time.
+   */
   async sendWhatsAppBulk(
     phones: string[],
     message: string,
+    concurrency = 5,
   ): Promise<{ success: boolean; results: Array<{ phone: string; success: boolean; waLink?: string; error?: string; data?: any }> }> {
     const results: Array<{ phone: string; success: boolean; waLink?: string; error?: string; data?: any }> = [];
 
-    for (const phone of phones) {
-      const res = await this.sendWhatsAppDirect(phone, message);
-      results.push({ phone, ...res });
+    // Process in batches of `concurrency` to avoid rate-limit spikes
+    for (let i = 0; i < phones.length; i += concurrency) {
+      const batch = phones.slice(i, i + concurrency);
+      const batchResults = await Promise.all(
+        batch.map((phone) => this.sendWhatsAppDirect(phone, message).then((res) => ({ phone, ...res }))),
+      );
+      results.push(...batchResults);
     }
 
     return {
@@ -147,14 +173,16 @@ export class MessagingService {
     });
 
     if (type === 'sms') {
-      let allSuccess = true;
-      for (const user of users) {
-        const result = await this.sendSMS(user.phone, message);
-        if (!result) allSuccess = false;
-      }
-      return { success: allSuccess };
+      // Bug#7: sendSMS now returns { success, error } instead of boolean
+      const smsResults = await Promise.all(
+        users
+          .filter((u) => u.phone) // Bug#3 guard: skip users without phone
+          .map((user) => this.sendSMS(user.phone, message)),
+      );
+      return { success: smsResults.every((r) => r.success), results: smsResults };
     } else {
-      const phones = users.map((u) => u.phone);
+      // Bug#3 FIX: filter out null/undefined phones before sending
+      const phones = users.map((u) => u.phone).filter(Boolean) as string[];
       return this.sendWhatsAppBulk(phones, message);
     }
   }
