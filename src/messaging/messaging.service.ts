@@ -208,4 +208,42 @@ export class MessagingService {
       results: result.results,
     };
   }
+
+  /**
+   * Process Meta WhatsApp Cloud API webhook events
+   */
+  handleWebhookPayload(body: any): void {
+    if (!body || body.object !== 'whatsapp_business_account') return;
+
+    for (const entry of body.entry || []) {
+      for (const change of entry.changes || []) {
+        const value = change.value;
+        if (!value) continue;
+
+        // Log status updates (sent, delivered, read, failed)
+        if (value.statuses && Array.isArray(value.statuses)) {
+          for (const status of value.statuses) {
+            this.logger.log(
+              `[WhatsApp Webhook] Status: ${status.status} | Recipient: ${status.recipient_id} | MsgId: ${status.id}`,
+            );
+            if (status.errors && status.errors.length > 0) {
+              this.logger.error(
+                `[WhatsApp Webhook] Delivery Error: ${JSON.stringify(status.errors)}`,
+              );
+            }
+          }
+        }
+
+        // Log incoming messages from employees/users
+        if (value.messages && Array.isArray(value.messages)) {
+          for (const msg of value.messages) {
+            this.logger.log(
+              `[WhatsApp Webhook] Received message from ${msg.from}: ${msg.text?.body || msg.type}`,
+            );
+          }
+        }
+      }
+    }
+  }
 }
+

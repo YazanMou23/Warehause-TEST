@@ -1,8 +1,19 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Query,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+  ForbiddenException,
+} from '@nestjs/common';
 import { MessagingService } from './messaging.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { Public } from '../common/decorators/public.decorator';
 import { Role } from '@prisma/client';
 import {
   SendWhatsAppDto,
@@ -15,6 +26,42 @@ import {
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class MessagingController {
   constructor(private readonly messagingService: MessagingService) {}
+
+  /**
+   * GET /messaging/webhook
+   * Meta Webhook Verification.
+   * When you click "Verifizieren und speichern" in the Meta Developer Dashboard,
+   * Meta sends a GET request with hub.mode, hub.verify_token, and hub.challenge.
+   */
+  @Get('webhook')
+  @Public()
+  verifyWebhook(
+    @Query('hub.mode') mode: string,
+    @Query('hub.verify_token') token: string,
+    @Query('hub.challenge') challenge: string,
+  ) {
+    const verifyToken =
+      process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || 'logiflow_whatsapp_verify_2026';
+
+    if (mode === 'subscribe' && token === verifyToken) {
+      return challenge;
+    }
+
+    throw new ForbiddenException('Invalid verification token');
+  }
+
+  /**
+   * POST /messaging/webhook
+   * Meta Webhook Event Receiver.
+   * Meta sends incoming messages and message delivery status updates here.
+   */
+  @Post('webhook')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  handleWebhook(@Body() body: any) {
+    this.messagingService.handleWebhookPayload(body);
+    return 'EVENT_RECEIVED';
+  }
 
   @Post('whatsapp')
   @Roles(Role.MANAGER, Role.ADMIN)
