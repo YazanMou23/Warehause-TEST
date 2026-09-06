@@ -706,10 +706,19 @@ export class PlanningService {
         if (empSegments.length > 0) {
           segSummary = '\n\nIhre Abschnitte & Treffzeiten:\n' + empSegments.map((s: any, i: number) => `${i + 1}. Treff: ${s.treffpunktTime || '-'} (${s.treffpunkt}) | Zeit: ${s.startTime}-${s.endTime || 'offen'}`).join('\n');
         }
-        const waMessage = `Hallo ${empName},\n${isUpdate ? 'Ihr Schichtplan wurde aktualisiert:' : 'Sie wurden für eine neue Schicht eingeteilt:'}\n\n📅 Datum: ${formattedDate} (KW ${kw})\n🕒 Offizielle Arbeitszeit: ${shiftTime}${segSummary}${plan.notes ? `\n\n📝 Notizen: ${plan.notes}` : ''}\n\nBitte loggen Sie sich in das Portal ein für weitere Details.`;
+        const waMessage = `Hallo ${empName},\n${isUpdate ? 'Ihr Schichtplan wurde aktualisiert:' : 'Sie wurden für eine neue Schicht eingeteilt:'}\n\n📅 Datum: ${formattedDate} (KW ${kw})\n🕒 Offizielle Arbeitszeit: ${shiftTime}${segSummary}${plan.notes ? `\n\n📝 Notizen: ${plan.notes}` : ''}\n\nBitte bestätigen Sie Ihre Schicht oder loggen Sie sich in das Portal ein.`;
 
         this.messagingService
-          .sendWhatsAppDirect(targetPhone, waMessage)
+          .sendWhatsAppInteractive(
+            targetPhone,
+            waMessage,
+            [
+              { id: `accept_${plan.id}_${employee.id}`, title: '✅ Bestätigen' },
+              { id: `decline_${plan.id}_${employee.id}`, title: '❌ Ablehnen' },
+            ],
+            headerTitle,
+            'LogiFlow Schichtplan',
+          )
           .then((res) => {
             this.prisma.actionLog
               .create({

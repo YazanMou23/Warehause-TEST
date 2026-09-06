@@ -30,6 +30,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import CustomAlertModal, { CustomAlertOptions } from "../../components/CustomAlertModal";
+import WhatsAppModal from "../../components/WhatsAppModal";
 
 interface Warehouse {
   id: string;
@@ -99,6 +100,8 @@ function PlanningPageContent() {
 
   // Selection states for planning
   const [assignedEmployeeIds, setAssignedEmployeeIds] = useState<string[]>([]);
+  const [whatsAppModalOpen, setWhatsAppModalOpen] = useState(false);
+  const [whatsAppTargetEmp, setWhatsAppTargetEmp] = useState<{ name: string; phone: string } | null>(null);
   const [shiftPreset, setShiftPreset] = useState("Frühschicht");
   const [startTime, setStartTime] = useState("06:00");
   const [endTime, setEndTime] = useState("14:00");
@@ -487,8 +490,8 @@ function PlanningPageContent() {
         throw new Error(data.message || "Fehler beim Versenden der Benachrichtigungen");
       }
       showAlert({
-        title: "E-Mails erfolgreich versendet",
-        message: "Die vollständigen Dienstplan-Benachrichtigungen (inkl. Master-, Hallen- und Mitarbeiter-Zeiten) wurden erfolgreich an alle eingeteilten Mitarbeiter verschickt.",
+        title: "WhatsApp & E-Mail erfolgreich versendet",
+        message: "Der Schichtplan wurde per WhatsApp (mit interaktiven Bestätigungs-Buttons) und E-Mail an alle eingeteilten Mitarbeiter verschickt.",
         type: "success",
       });
     } catch (err: any) {
@@ -2105,6 +2108,24 @@ function PlanningPageContent() {
 
                         <button
                           type="button"
+                          disabled={isResendingEmailForPlanId === plan.id}
+                          onClick={() => handleResendPlanNotification(plan.id)}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+                          title="Schichtplan per WhatsApp an alle eingeteilten Mitarbeiter senden"
+                        >
+                          {isResendingEmailForPlanId === plan.id ? (
+                            <>
+                              <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                              <span>Sendet...</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>💬 WhatsApp an alle</span>
+                            </>
+                          )}
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => {
                             isEditingRef.current = true;
                             setPlanId(plan.id);
@@ -2272,6 +2293,19 @@ function PlanningPageContent() {
                                   <div className="flex items-center gap-2">
                                     <span className="font-extrabold text-slate-900">{emp.name}</span>
                                     <span className="text-[10px] font-mono text-slate-500">{emp.phone || ""}</span>
+                                    {emp.phone && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setWhatsAppTargetEmp({ name: emp.name, phone: emp.phone });
+                                          setWhatsAppModalOpen(true);
+                                        }}
+                                        className="px-2 py-0.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 text-[10px] font-bold rounded-md transition flex items-center gap-1 cursor-pointer"
+                                        title="WhatsApp Nachricht an diesen Mitarbeiter senden"
+                                      >
+                                        💬 WhatsApp
+                                      </button>
+                                    )}
                                   </div>
                                   <span className="text-[11px] font-bold font-mono text-blue-900 bg-blue-100 px-2.5 py-0.5 rounded-lg border border-blue-200">
                                     Gesamt: {totalEmpHours > 0 ? `${totalEmpHours.toFixed(1)} h` : (plan.shift || "Master")}
@@ -2516,6 +2550,19 @@ function PlanningPageContent() {
         {...alertConfig}
         onClose={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
       />
+
+      {/* WhatsApp Message & Interactive Button Modal */}
+      {whatsAppModalOpen && whatsAppTargetEmp && (
+        <WhatsAppModal
+          isOpen={whatsAppModalOpen}
+          onClose={() => {
+            setWhatsAppModalOpen(false);
+            setWhatsAppTargetEmp(null);
+          }}
+          recipientName={whatsAppTargetEmp.name}
+          recipientPhone={whatsAppTargetEmp.phone}
+        />
+      )}
     </div>
   );
 }
