@@ -63,6 +63,17 @@ export class MessagingController {
     return 'EVENT_RECEIVED';
   }
 
+  /**
+   * GET /messaging/check-connection
+   * Diagnostic check of Meta WhatsApp Cloud API credentials
+   */
+  @Get('check-connection')
+  @Public()
+  async checkConnection() {
+    return this.messagingService.checkConnection();
+  }
+
+
   @Post('whatsapp')
   @Roles(Role.MANAGER, Role.ADMIN)
   getWhatsAppLink(@Body() body: SendWhatsAppDto) {

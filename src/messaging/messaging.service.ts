@@ -245,5 +245,64 @@ export class MessagingService {
       }
     }
   }
+
+  /**
+   * Diagnostic check of the Meta WhatsApp Cloud API credentials
+   */
+  async checkConnection(): Promise<{
+    configured: boolean;
+    phoneNumberId?: string;
+    tokenMasked?: string;
+    metaResponse?: any;
+    error?: string;
+    status?: string;
+  }> {
+    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+    const apiVersion = process.env.WHATSAPP_API_VERSION || 'v22.0';
+
+    if (!phoneNumberId || !accessToken) {
+      return {
+        configured: false,
+        error: 'Missing WHATSAPP_PHONE_NUMBER_ID or WHATSAPP_ACCESS_TOKEN in environment variables',
+      };
+    }
+
+    const tokenMasked = `${accessToken.substring(0, 8)}...${accessToken.slice(-6)}`;
+
+    try {
+      const url = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}?fields=verified_name,code_verification_status,display_phone_number,quality_rating,platform_type&access_token=${accessToken}`;
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (response.ok) {
+        return {
+          configured: true,
+          status: 'CONNECTED',
+          phoneNumberId,
+          tokenMasked,
+          metaResponse: data,
+        };
+      } else {
+        return {
+          configured: true,
+          status: 'FAILED',
+          phoneNumberId,
+          tokenMasked,
+          metaResponse: data,
+          error: data.error?.message || 'Meta API returned an error',
+        };
+      }
+    } catch (err: any) {
+      return {
+        configured: true,
+        status: 'NETWORK_ERROR',
+        phoneNumberId,
+        tokenMasked,
+        error: err.message,
+      };
+    }
+  }
 }
+
 
