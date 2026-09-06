@@ -237,12 +237,120 @@ export class MessagingService {
         // Log incoming messages from employees/users
         if (value.messages && Array.isArray(value.messages)) {
           for (const msg of value.messages) {
-            this.logger.log(
-              `[WhatsApp Webhook] Received message from ${msg.from}: ${msg.text?.body || msg.type}`,
-            );
+            if (msg.type === 'interactive' && msg.interactive?.button_reply) {
+              const reply = msg.interactive.button_reply;
+              this.logger.log(
+                `[WhatsApp Webhook] 🔘 User clicked button: "${reply.title}" (ID: ${reply.id}) from +${msg.from}`,
+              );
+            } else {
+              this.logger.log(
+                `[WhatsApp Webhook] Received message from ${msg.from}: ${msg.text?.body || msg.type}`,
+              );
+            }
           }
         }
       }
+    }
+  }
+
+  /**
+   * Send an interactive WhatsApp message with quick-reply buttons (Meta Cloud API).
+   * Up to 3 buttons allowed by Meta.
+   */
+  async sendWhatsAppInteractive(
+    phone: string,
+    bodyText: string,
+    buttons: Array<{ id: string; title: string }>,
+    headerText?: string,
+    footerText?: string,
+  ): Promise<{ success: boolean; data?: any; error?: string; waLink?: string }> {
+    const cleanedPhone = this.formatPhoneNumber(phone);
+    const waLink = this.generateWhatsAppLink(phone, bodyText);
+
+    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+    const apiVersion = process.env.WHATSAPP_API_VERSION || 'v22.0';
+
+    if (!phoneNumberId || !accessToken) {
+      return {
+        success: false,
+        error: 'No WhatsApp API credentials configured in environment variables.',
+        waLink,
+      };
+    }
+
+    // Limit to max 3 buttons per WhatsApp Cloud API specification
+    const validButtons = (buttons || []).slice(0, 3).map((btn, idx) => ({
+      type: 'reply',
+      reply: {
+        id: (btn.id || `btn_${idx}`).substring(0, 256),
+        title: (btn.title || `Button ${idx + 1}`).substring(0, 20),
+      },
+    }));
+
+    if (validButtons.length === 0) {
+      return this.sendWhatsAppDirect(phone, bodyText);
+    }
+
+    const interactivePayload: any = {
+      type: 'button',
+      body: {
+        text: bodyText,
+      },
+      action: {
+        buttons: validButtons,
+      },
+    };
+
+    if (headerText) {
+      interactivePayload.header = {
+        type: 'text',
+        text: headerText.substring(0, 60),
+      };
+    }
+
+    if (footerText) {
+      interactivePayload.footer = {
+        text: footerText.substring(0, 60),
+      };
+    }
+
+    const url = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: cleanedPhone,
+          type: 'interactive',
+          interactive: interactivePayload,
+        }),
+      });
+
+      const resData = await response.json();
+
+      if (response.ok) {
+        this.logger.log(
+          `Interactive WhatsApp button message sent to +${cleanedPhone} (${validButtons.length} buttons)`,
+        );
+        return { success: true, data: resData, waLink };
+      } else {
+        const errorMsg =
+          resData.error?.message || 'Meta API rejected interactive button message';
+        this.logger.warn(
+          `Failed sending interactive WhatsApp message to +${cleanedPhone}: ${errorMsg}`,
+        );
+        return { success: false, error: errorMsg, waLink };
+      }
+    } catch (err: any) {
+      this.logger.error(`Error sending interactive WhatsApp message: ${err.message}`);
+      return { success: false, error: err.message, waLink };
     }
   }
 

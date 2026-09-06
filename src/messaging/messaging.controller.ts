@@ -20,6 +20,7 @@ import {
   SendWhatsAppBulkDto,
   BroadcastDto,
   SendWhatsAppToAllDto,
+  SendWhatsAppInteractiveDto,
 } from './dto/send-whatsapp.dto';
 
 @Controller('messaging')
@@ -85,6 +86,22 @@ export class MessagingController {
   @Roles(Role.MANAGER, Role.ADMIN)
   async sendWhatsAppDirect(@Body() body: SendWhatsAppDto) {
     return this.messagingService.sendWhatsAppDirect(body.phone, body.message);
+  }
+
+  /**
+   * POST /messaging/whatsapp/interactive
+   * Send an interactive message with buttons (max 3) via WhatsApp Cloud API
+   */
+  @Post('whatsapp/interactive')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  async sendWhatsAppInteractive(@Body() body: SendWhatsAppInteractiveDto) {
+    return this.messagingService.sendWhatsAppInteractive(
+      body.phone,
+      body.body,
+      body.buttons,
+      body.header,
+      body.footer,
+    );
   }
 
   /**

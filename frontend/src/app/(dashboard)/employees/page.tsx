@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "../../i18n/LanguageContext";
 import CustomAlertModal, { CustomAlertOptions } from "../../components/CustomAlertModal";
+import WhatsAppModal from "../../components/WhatsAppModal";
 
 interface Employee {
   id: string;
@@ -121,6 +122,10 @@ export default function EmployeesPage() {
   const [emailLoading, setEmailLoading] = useState(false);
   const [emailError, setEmailError] = useState("");
   const [emailSuccess, setEmailSuccess] = useState("");
+
+  // WhatsApp Modal State
+  const [whatsAppModalOpen, setWhatsAppModalOpen] = useState(false);
+  const [whatsAppTargetEmp, setWhatsAppTargetEmp] = useState<Employee | null>(null);
 
   // Excel Import State
   const [importModalOpen, setImportModalOpen] = useState(false);
@@ -588,6 +593,11 @@ export default function EmployeesPage() {
 
   const getSmsLink = (phone: string) => {
     return `sms:${phone}`;
+  };
+
+  const openWhatsAppModal = (emp: Employee) => {
+    setWhatsAppTargetEmp(emp);
+    setWhatsAppModalOpen(true);
   };
 
   const openEmailModal = (emp: Employee) => {
@@ -1152,14 +1162,14 @@ export default function EmployeesPage() {
                         {/* Bug#8 FIX: Only render links when employee has a phone number */}
                         {emp.phone ? (
                           <>
-                            <a
-                              href={getWhatsAppLink(emp.phone, emp.name)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="badge-premium badge-success hover:bg-emerald-100 font-bold transition-all cursor-pointer"
+                            <button
+                              type="button"
+                              onClick={() => openWhatsAppModal(emp)}
+                              className="badge-premium badge-success hover:bg-emerald-100 font-bold transition-all cursor-pointer flex items-center gap-1"
+                              title="WhatsApp Nachricht oder Button-Nachricht senden"
                             >
-                              WhatsApp
-                            </a>
+                              <span>WhatsApp</span>
+                            </button>
                             <a
                               href={getSmsLink(emp.phone)}
                               className="badge-premium badge-info hover:bg-sky-100 font-bold transition-all cursor-pointer"
@@ -1979,6 +1989,19 @@ export default function EmployeesPage() {
         {...alertConfig}
         onClose={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
       />
+
+      {/* WhatsApp Message & Interactive Button Modal */}
+      {whatsAppModalOpen && whatsAppTargetEmp && (
+        <WhatsAppModal
+          isOpen={whatsAppModalOpen}
+          onClose={() => {
+            setWhatsAppModalOpen(false);
+            setWhatsAppTargetEmp(null);
+          }}
+          recipientName={whatsAppTargetEmp.name}
+          recipientPhone={whatsAppTargetEmp.phone}
+        />
+      )}
     </div>
   );
 }

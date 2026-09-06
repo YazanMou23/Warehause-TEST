@@ -41,3 +41,34 @@ export class SendWhatsAppToAllDto {
   @IsNotEmpty({ message: 'message must not be empty' })
   message: string;
 }
+
+export class WhatsAppButtonDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Button id is required' })
+  id: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'Button title is required' })
+  title: string;
+}
+
+export class SendWhatsAppInteractiveDto {
+  @IsString()
+  @IsNotEmpty({ message: 'phone must not be empty' })
+  phone: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'body text is required' })
+  body: string;
+
+  @IsArray()
+  @ArrayNotEmpty({ message: 'buttons array must contain at least 1 button (max 3)' })
+  buttons: WhatsAppButtonDto[];
+
+  @IsString()
+  header?: string;
+
+  @IsString()
+  footer?: string;
+}
+
