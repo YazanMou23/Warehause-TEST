@@ -37,11 +37,18 @@ import {
   QrCode,
   Camera,
   ScanLine,
+  Plus,
+  Timer,
+  CheckCircle2,
+  Coffee,
+  Sparkles,
+  Layers,
 } from "lucide-react";
 import { useTranslation } from "../i18n/LanguageContext";
 import ActiveEmployeeCalendar from "../components/ActiveEmployeeCalendar";
 import CustomAlertModal, { CustomAlertOptions } from "../components/CustomAlertModal";
 import QRScannerCameraModal from "../components/QRScannerCameraModal";
+import EmployeeLogHoursModal from "../components/EmployeeLogHoursModal";
 
 interface Metrics {
   employeesCount: number;
@@ -107,6 +114,9 @@ export default function DashboardPage() {
   const [allWarehouses, setAllWarehouses] = useState<any[]>([]);
   const [allHalls, setAllHalls] = useState<any[]>([]);
   const [clockLoading, setClockLoading] = useState(false);
+  const [isLogHoursOpen, setIsLogHoursOpen] = useState(false);
+  const [employeeActiveTab, setEmployeeActiveTab] = useState<"overview" | "shifts" | "logs" | "profile">("overview");
+  const [activeShiftElapsed, setActiveShiftElapsed] = useState("");
 
   // Manager/Admin Dashboard States
   const [recentActivityLogs, setRecentActivityLogs] = useState<any[]>([]);
@@ -487,6 +497,92 @@ export default function DashboardPage() {
     }
   };
 
+  const refreshEmployeeData = async () => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) return;
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      if (!payload.sub) return;
+      const headers = { Authorization: `Bearer ${token}` };
+      const empSummaryRes = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${payload.sub}/dashboard-summary`,
+        { headers }
+      );
+      if (empSummaryRes.ok) {
+        const summaryJson = await empSummaryRes.json();
+        setEmployeeSummary(summaryJson);
+      }
+    } catch (e) {
+      console.error("Failed to refresh employee dashboard summary", e);
+    }
+  };
+
+  const handleDeleteAttendanceEntry = (entryId: string) => {
+    showAlert({
+      title: t("deleteEntry"),
+      message: t("deleteConfirm"),
+      type: "warning",
+      confirmText: t("deleteEntry"),
+      cancelText: t("clear"),
+      onConfirm: async () => {
+        const token = localStorage.getItem("accessToken");
+        if (!token) return;
+        try {
+          const res = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/attendance/${entryId}`,
+            {
+              method: "DELETE",
+              headers: { Authorization: `Bearer ${token}` },
+            }
+          );
+          if (res.ok) {
+            showAlert({
+              title: t("success"),
+              message: "Zeiterfassungseintrag erfolgreich gelöscht.",
+              type: "success",
+            });
+            refreshEmployeeData();
+          } else {
+            const data = await res.json();
+            showAlert({
+              title: "Fehler",
+              message: data.message || "Löschen fehlgeschlagen.",
+              type: "error",
+            });
+          }
+        } catch (e: any) {
+          showAlert({
+            title: "Fehler",
+            message: e.message || "Fehler beim Löschen.",
+            type: "error",
+          });
+        }
+      },
+    });
+  };
+
+  useEffect(() => {
+    if (!employeeSummary?.activeShift?.clockIn) {
+      setActiveShiftElapsed("");
+      return;
+    }
+
+    const updateElapsed = () => {
+      const start = new Date(employeeSummary.activeShift.clockIn).getTime();
+      const diffSec = Math.max(0, Math.floor((Date.now() - start) / 1000));
+      const h = Math.floor(diffSec / 3600);
+      const m = Math.floor((diffSec % 3600) / 60);
+      const s = diffSec % 60;
+      setActiveShiftElapsed(
+        `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+      );
+    };
+
+    updateElapsed();
+    const timer = setInterval(updateElapsed, 1000);
+    return () => clearInterval(timer);
+  }, [employeeSummary?.activeShift?.clockIn]);
+
   useEffect(() => {
     const today = new Date().toLocaleDateString('en-CA');
     setTodayStr(today);
@@ -602,378 +698,691 @@ export default function DashboardPage() {
       
       {/* 1. EMPLOYEE DASHBOARD */}
       {userRole === "EMPLOYEE" ? (
-        <div className="space-y-6 print:hidden">
-          {/* Welcome Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="space-y-5 print:hidden pb-20 sm:pb-0">
+          {/* Top Welcome Header & Quick Action Buttons */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs">
             <div>
-              <h3 className="text-xl font-bold text-slate-800 tracking-tight">
-                {t("employeeDashboard")}
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
+                  {t("employeeDashboard")}
+                </h3>
+                {employeeSummary?.activeShift ? (
+                  <span className="badge-premium badge-success animate-pulse text-[11px] font-bold">
+                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span> {t("clockedIn")}
+                  </span>
+                ) : (
+                  <span className="badge-premium badge-error text-[11px] font-bold">
+                    <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span> {t("clockedOut")}
+                  </span>
+                )}
+              </div>
               <p className="text-slate-500 text-xs mt-1">
-                {t("welcomeBack")}, <span className="font-semibold text-slate-800">{employeeInfo?.name || "Mitarbeiter"}</span>. {t("manageShiftsDesc")}
+                {t("welcomeBack")},{" "}
+                <span className="font-semibold text-slate-800">
+                  {employeeInfo?.name || "Mitarbeiter"}
+                </span>
+                . {t("manageShiftsDesc")}
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              {employeeSummary?.activeShift ? (
-                <span className="badge-premium badge-success animate-pulse">
-                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span> {t("clockedIn")}
-                </span>
-              ) : (
-                <span className="badge-premium badge-error">
-                  <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span> {t("clockedOut")}
-                </span>
-              )}
+
+            {/* Quick Primary Actions (Visible on header on tablet/desktop, thumb bar on mobile) */}
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setIsLogHoursOpen(true)}
+                className="btn-primary py-2.5 px-4 text-xs font-bold shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>{t("logHoursCTA")}</span>
+              </button>
+              <button
+                onClick={() => setIsQrScannerOpen(true)}
+                disabled={clockLoading}
+                className="btn-secondary py-2.5 px-3.5 text-xs font-bold flex items-center gap-1.5 cursor-pointer hover:bg-slate-100"
+              >
+                <Camera className="w-4 h-4 text-blue-600" />
+                <span>QR-Scan</span>
+              </button>
             </div>
           </div>
 
-          {/* Main Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Side: Clock Widget, Stats & Profile */}
-            <div className="lg:col-span-1 space-y-6">
-              
-              {/* QR Code Zeiterfassung Card (Eingang & Ausgang) */}
-              <div className="card-premium space-y-4 border-2 border-blue-500/20 shadow-md">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-                    <QrCode className="w-4 h-4 text-blue-600 animate-pulse" />
-                    <span>QR-Code Zeiterfassung</span>
-                  </h4>
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-100 text-blue-700">
-                    Ein- & Ausgang
+          {/* Active Shift Live Ticker Banner (If Clocked In) */}
+          {employeeSummary?.activeShift && (
+            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-900 via-slate-900 to-blue-950 text-white shadow-lg border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in duration-300">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                  <Clock className="w-6 h-6 animate-pulse" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] uppercase font-extrabold tracking-wider bg-emerald-500 text-slate-950 px-2 py-0.5 rounded-full">
+                      ● Schicht läuft
+                    </span>
+                    <span className="text-xs text-slate-300 font-medium">
+                      Seit {new Date(employeeSummary.activeShift.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} Uhr
+                    </span>
+                  </div>
+                  <p className="font-bold text-sm sm:text-base text-white mt-0.5">
+                    {employeeSummary.activeShift.warehouseName} — {employeeSummary.activeShift.hallName}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-white/10">
+                <div className="text-left sm:text-right">
+                  <span className="text-[10px] text-emerald-300 uppercase font-bold tracking-wider block">
+                    {t("shiftActiveSince")}
+                  </span>
+                  <span className="text-xl sm:text-2xl font-black font-mono tracking-tight text-emerald-400">
+                    {activeShiftElapsed || "00:00:00"}
                   </span>
                 </div>
-                
-                {employeeSummary?.activeShift ? (
-                  <div className="space-y-4">
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <p className="text-[10px] text-emerald-700 uppercase tracking-wider font-bold">
-                          Aktive Schicht
-                        </p>
-                        <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                          Eingestempelt
-                        </span>
-                      </div>
-                      <p className="font-bold text-slate-800 text-sm">{employeeSummary.activeShift.warehouseName}</p>
-                      <p className="text-xs text-slate-600 font-medium">{employeeSummary.activeShift.hallName}</p>
-                      <p className="text-xs text-slate-500 flex items-center gap-1.5 pt-1 border-t border-emerald-200/60 font-mono">
-                        <LogIn className="w-3.5 h-3.5 text-emerald-600" />
-                        {language === "de" ? "Gestartet um:" : "Started at:"} {new Date(employeeSummary.activeShift.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} Uhr
+                <button
+                  onClick={() => setIsQrScannerOpen(true)}
+                  disabled={clockLoading}
+                  className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2.5 px-4 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span>Ausstempeln</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Mobile Segmented Navigation Tabs (< sm screens) */}
+          <div className="sm:hidden flex rounded-xl bg-slate-200/70 p-1 gap-1 text-xs font-bold">
+            <button
+              onClick={() => setEmployeeActiveTab("overview")}
+              className={`flex-1 py-2 rounded-lg text-center transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                employeeActiveTab === "overview"
+                  ? "bg-white text-blue-900 shadow-xs font-extrabold"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <span>{t("tabOverview")}</span>
+            </button>
+            <button
+              onClick={() => setEmployeeActiveTab("shifts")}
+              className={`flex-1 py-2 rounded-lg text-center transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                employeeActiveTab === "shifts"
+                  ? "bg-white text-blue-900 shadow-xs font-extrabold"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <span>{t("tabShifts")}</span>
+              {employeeSummary?.plansUpcoming?.length > 0 && (
+                <span className="w-4 h-4 rounded-full bg-blue-100 text-blue-700 text-[10px] flex items-center justify-center font-mono">
+                  {employeeSummary.plansUpcoming.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setEmployeeActiveTab("logs")}
+              className={`flex-1 py-2 rounded-lg text-center transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                employeeActiveTab === "logs"
+                  ? "bg-white text-blue-900 shadow-xs font-extrabold"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <span>{t("tabLogs")}</span>
+              {employeeSummary?.workHistory?.length > 0 && (
+                <span className="w-4 h-4 rounded-full bg-slate-200 text-slate-700 text-[10px] flex items-center justify-center font-mono">
+                  {employeeSummary.workHistory.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setEmployeeActiveTab("profile")}
+              className={`flex-1 py-2 rounded-lg text-center transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                employeeActiveTab === "profile"
+                  ? "bg-white text-blue-900 shadow-xs font-extrabold"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <span>{t("tabProfile")}</span>
+            </button>
+          </div>
+
+          {/* Quick Hours Action Card (Shown on mobile overview and desktop) */}
+          <div className={`card-premium border-2 border-blue-500/20 shadow-sm bg-gradient-to-r from-blue-50/50 via-white to-indigo-50/40 p-4 sm:p-5 ${employeeActiveTab !== "overview" ? "hidden sm:block" : ""}`}>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0 mt-0.5">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
+                    <span>Arbeitszeit & Stunden eintragen</span>
+                    <span className="text-[10px] bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded-md uppercase">Neu</span>
+                  </h4>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    Haben Sie heute oder gestern gearbeitet? Tragen Sie Ihre Stunden mit flexiblen Vorlagen oder freier Zeiteingabe ein.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsLogHoursOpen(true)}
+                className="btn-primary py-2.5 px-5 text-xs font-extrabold shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer self-stretch sm:self-auto shrink-0"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Jetzt Stunden erfassen</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Responsive Layout Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* Left Column (Stats, Clock-in, Profile) */}
+            <div className={`lg:col-span-1 space-y-6 ${employeeActiveTab !== "overview" && employeeActiveTab !== "profile" ? "hidden sm:block" : ""}`}>
+              
+              {/* Work Hours Statistics */}
+              {(employeeActiveTab === "overview" || employeeActiveTab === "logs") && (
+                <div className="card-premium space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-blue-600" />
+                      <span>{t("workHours")}</span>
+                    </h4>
+                    <button
+                      onClick={() => setIsLogHoursOpen(true)}
+                      className="text-[11px] font-bold text-blue-600 hover:text-blue-700 cursor-pointer"
+                    >
+                      + Eintragen
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-center">
+                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">{t("today")}</p>
+                      <p className="text-xl font-extrabold text-slate-900 font-mono mt-1">
+                        {employeeSummary?.hoursSummary?.today || 0}
+                        <span className="text-xs font-normal text-slate-400">h</span>
                       </p>
                     </div>
+                    <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-3">
+                      <p className="text-[10px] text-blue-600 uppercase tracking-wider font-bold">{t("thisWeek")}</p>
+                      <p className="text-xl font-extrabold text-blue-700 font-mono mt-1">
+                        {employeeSummary?.hoursSummary?.week || 0}
+                        <span className="text-xs font-normal text-blue-400">h</span>
+                      </p>
+                    </div>
+                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">{t("thisMonth")}</p>
+                      <p className="text-xl font-extrabold text-slate-900 font-mono mt-1">
+                        {employeeSummary?.hoursSummary?.month || 0}
+                        <span className="text-xs font-normal text-slate-400">h</span>
+                      </p>
+                    </div>
+                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">{t("totalHours")}</p>
+                      <p className="text-xl font-extrabold text-slate-900 font-mono mt-1">
+                        {employeeSummary?.hoursSummary?.total || 0}
+                        <span className="text-xs font-normal text-slate-400">h</span>
+                      </p>
+                    </div>
+                  </div>
 
+                  {/* Weekly Progress bar against 40h standard */}
+                  <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+                      <span>Wochensoll (40h):</span>
+                      <span className="font-mono text-slate-800">
+                        {Math.min(100, Math.round(((employeeSummary?.hoursSummary?.week || 0) / 40) * 100))}%
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-blue-600 rounded-full transition-all duration-500"
+                        style={{
+                          width: `${Math.min(100, Math.round(((employeeSummary?.hoursSummary?.week || 0) / 40) * 100))}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* QR Code Zeiterfassung Card */}
+              {employeeActiveTab === "overview" && (
+                <div className="card-premium space-y-4 border-2 border-blue-500/20 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                      <QrCode className="w-4 h-4 text-blue-600" />
+                      <span>QR-Code Zeiterfassung</span>
+                    </h4>
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-100 text-blue-700">
+                      Ein- & Ausgang
+                    </span>
+                  </div>
+
+                  {employeeSummary?.activeShift ? (
                     <div className="space-y-3 text-center">
                       <p className="text-xs text-slate-500 leading-relaxed">
-                        Beim Verlassen der Halle den offiziellen QR-Code am Hallenausgang scannen um auszustempeln.
+                        Beim Verlassen der Halle den offiziellen QR-Code am Ausgang scannen.
                       </p>
-                      
                       <button
                         onClick={() => setIsQrScannerOpen(true)}
                         disabled={clockLoading}
-                        className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-xl text-xs shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                        className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                       >
-                        <Camera className="w-4.5 h-4.5" />
-                        <span>{clockLoading ? "Wird verarbeitet..." : "📷 QR-Code scannen (Ausgang / Ausstempeln)"}</span>
+                        <Camera className="w-4 h-4" />
+                        <span>{clockLoading ? "Wird verarbeitet..." : "📷 QR-Code scannen (Ausstempeln)"}</span>
                       </button>
                     </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="p-5 rounded-2xl bg-blue-50/70 border border-blue-100 text-center space-y-3">
-                      <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center mx-auto shadow-md">
-                        <ScanLine className="w-7 h-7 animate-pulse" />
-                      </div>
-                      <div className="space-y-1">
-                        <p className="font-bold text-slate-800 text-sm">
-                          Hallen QR-Code scannen (Eingang)
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-100 text-center space-y-2">
+                        <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center mx-auto shadow-sm">
+                          <ScanLine className="w-6 h-6 animate-pulse" />
+                        </div>
+                        <p className="font-bold text-slate-800 text-xs">
+                          Hallen QR-Code beim Eingang scannen
                         </p>
-                        <p className="text-xs text-slate-500 leading-relaxed">
-                          Sie sind aktuell nicht eingestempelt. Scannen Sie den QR-Code am Halleneingang mit Ihrer Kamera oder laden Sie ein QR-Foto hoch um Ihre Arbeitszeit zu starten.
+                        <p className="text-[11px] text-slate-500 leading-normal">
+                          Scannen Sie den QR-Code am Halleneingang um Ihre Schicht zu starten.
                         </p>
                       </div>
+
+                      <button
+                        onClick={() => setIsQrScannerOpen(true)}
+                        disabled={clockLoading}
+                        className="w-full btn-primary py-3 text-xs font-bold shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <Camera className="w-4 h-4" />
+                        <span>{clockLoading ? "Wird verarbeitet..." : "📷 QR-Code scannen (Einstempeln)"}</span>
+                      </button>
                     </div>
-
-                    <button
-                      onClick={() => setIsQrScannerOpen(true)}
-                      disabled={clockLoading}
-                      className="w-full btn-primary py-3.5 text-xs font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <Camera className="w-5 h-5" />
-                      <span>{clockLoading ? "Wird verarbeitet..." : "📷 QR-Code scannen (Eingang / Einstempeln)"}</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Hours Summary Statistics */}
-              <div className="card-premium space-y-4">
-                <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-slate-500" /> {t("workHours")}
-                </h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
-                  <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5">
-                    <p className="text-[9px] text-slate-400 uppercase tracking-wider font-bold">{t("today")}</p>
-                    <p className="text-lg font-bold text-slate-800 font-mono mt-1">{employeeSummary?.hoursSummary?.today || 0}h</p>
-                  </div>
-                  <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5">
-                    <p className="text-[9px] text-slate-400 uppercase tracking-wider font-bold">{t("thisWeek")}</p>
-                    <p className="text-lg font-bold text-blue-600 font-mono mt-1">{employeeSummary?.hoursSummary?.week || 0}h</p>
-                  </div>
-                  <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5">
-                    <p className="text-[9px] text-slate-400 uppercase tracking-wider font-bold">{t("thisMonth")}</p>
-                    <p className="text-lg font-bold text-slate-800 font-mono mt-1">{employeeSummary?.hoursSummary?.month || 0}h</p>
-                  </div>
-                  <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5">
-                    <p className="text-[9px] text-slate-400 uppercase tracking-wider font-bold">{t("totalHours")}</p>
-                    <p className="text-lg font-bold text-slate-800 font-mono mt-1">{employeeSummary?.hoursSummary?.total || 0}h</p>
-                  </div>
+                  )}
                 </div>
-              </div>
+              )}
 
               {/* Personal Profile Details Card */}
-              <div className="card-premium space-y-4">
-                <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-                  <User className="w-4 h-4 text-slate-500" /> {t("profileDetails")}
-                </h4>
-                <div className="divide-y divide-slate-100 text-xs text-slate-600">
-                  <div className="py-2.5 flex justify-between">
-                    <span className="text-slate-400">{t("usernameLabel")}</span>
-                    <span className="font-semibold text-slate-800 font-mono">{employeeInfo?.username}</span>
-                  </div>
-                  <div className="py-2.5 flex justify-between">
-                    <span className="text-slate-400">{t("employmentStart")}</span>
-                    <span suppressHydrationWarning className="font-semibold text-slate-800">
-                      {employeeSummary?.employmentStart 
-                        ? new Date(employeeSummary.employmentStart).toLocaleDateString(language === "de" ? "de-DE" : "en-CA") 
-                        : "—"}
-                    </span>
-                  </div>
-                  <div className="py-2.5 flex justify-between">
-                    <span className="text-slate-400">{t("phone")}</span>
-                    <span className="font-semibold text-slate-800">{employeeInfo?.phone}</span>
-                  </div>
-                  <div className="py-2.5 flex justify-between">
-                    <span className="text-slate-400">{t("email")}</span>
-                    <span className="font-semibold text-slate-800">{employeeInfo?.email || "—"}</span>
-                  </div>
-                  <div className="py-2.5 flex justify-between">
-                    <span className="text-slate-400">{t("telegramId")}</span>
-                    <span className="font-semibold text-slate-800">{employeeInfo?.telegramId || "—"}</span>
+              {(employeeActiveTab === "overview" || employeeActiveTab === "profile") && (
+                <div className="card-premium space-y-3">
+                  <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                    <User className="w-4 h-4 text-slate-500" /> {t("profileDetails")}
+                  </h4>
+                  <div className="divide-y divide-slate-100 text-xs text-slate-600">
+                    <div className="py-2 flex justify-between">
+                      <span className="text-slate-400">{t("usernameLabel")}</span>
+                      <span className="font-semibold text-slate-800 font-mono">{employeeInfo?.username}</span>
+                    </div>
+                    <div className="py-2 flex justify-between">
+                      <span className="text-slate-400">{t("employmentStart")}</span>
+                      <span suppressHydrationWarning className="font-semibold text-slate-800">
+                        {employeeSummary?.employmentStart
+                          ? new Date(employeeSummary.employmentStart).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")
+                          : "—"}
+                      </span>
+                    </div>
+                    <div className="py-2 flex justify-between">
+                      <span className="text-slate-400">{t("phone")}</span>
+                      <span className="font-semibold text-slate-800">{employeeInfo?.phone}</span>
+                    </div>
+                    <div className="py-2 flex justify-between">
+                      <span className="text-slate-400">{t("email")}</span>
+                      <span className="font-semibold text-slate-800">{employeeInfo?.email || "—"}</span>
+                    </div>
+                    <div className="py-2 flex justify-between">
+                      <span className="text-slate-400">{t("telegramId")}</span>
+                      <span className="font-semibold text-slate-800">{employeeInfo?.telegramId || "—"}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
             </div>
 
-            {/* Right Side: Assigned Plans, Plans History & Work History */}
-            <div className="lg:col-span-2 space-y-6">
+            {/* Right Column (Shifts & Timesheet Work Logs) */}
+            <div className={`lg:col-span-2 space-y-6 ${employeeActiveTab === "profile" ? "hidden sm:block" : ""}`}>
               
-              {/* All Upcoming & Active Shift Plans */}
-              <div className="card-premium p-0 overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                  <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-blue-600" />
-                    {language === "de" ? "Geplante & Zukünftige Schichten" : "Scheduled & Upcoming Shifts"}
-                  </h5>
-                  {employeeSummary?.plansUpcoming?.length > 0 && (
-                    <span className="badge-premium badge-info text-[10px]">
-                      {employeeSummary.plansUpcoming.length} {language === "de" ? "Schicht(en)" : "Shift(s)"}
-                    </span>
-                  )}
+              {/* Scheduled & Upcoming Shifts */}
+              {(employeeActiveTab === "overview" || employeeActiveTab === "shifts") && (
+                <div className="card-premium p-0 overflow-hidden shadow-xs">
+                  <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                    <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-blue-600" />
+                      <span>{language === "de" ? "Geplante Schichten" : "Scheduled Shifts"}</span>
+                    </h5>
+                    {employeeSummary?.plansUpcoming?.length > 0 && (
+                      <span className="badge-premium badge-info text-[10px] font-bold">
+                        {employeeSummary.plansUpcoming.length} {language === "de" ? "Schicht(en)" : "Shift(s)"}
+                      </span>
+                    )}
+                  </div>
+                  <div className="divide-y divide-slate-100">
+                    {(!employeeSummary?.plansUpcoming || employeeSummary.plansUpcoming.length === 0) &&
+                    (!employeeSummary?.plansToday || employeeSummary.plansToday.length === 0) ? (
+                      <div className="py-8 text-center text-slate-400 text-xs">
+                        <Calendar className="w-7 h-7 text-slate-200 mx-auto mb-1.5" />
+                        <p>{language === "de" ? "Keine kommenden Schichten geplant." : "No upcoming shifts scheduled."}</p>
+                      </div>
+                    ) : (
+                      (employeeSummary?.plansUpcoming || [...(employeeSummary?.plansToday || []), ...(employeeSummary?.plansTomorrow || [])]).map((p: any) => {
+                        const planDateStr = new Date(p.date).toLocaleDateString('en-CA');
+                        const todayStr = new Date().toLocaleDateString('en-CA');
+                        const tom = new Date();
+                        tom.setDate(tom.getDate() + 1);
+                        const tomStr = tom.toLocaleDateString('en-CA');
+
+                        let dateLabel = new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA");
+                        let badgeClass = "bg-slate-100 text-slate-700 border-slate-200";
+                        if (planDateStr === todayStr) {
+                          dateLabel = language === "de" ? "HEUTE" : "TODAY";
+                          badgeClass = "bg-blue-100 text-blue-800 border-blue-200 font-bold";
+                        } else if (planDateStr === tomStr) {
+                          dateLabel = language === "de" ? "MORGEN" : "TOMORROW";
+                          badgeClass = "bg-amber-100 text-amber-800 border-amber-200 font-bold";
+                        }
+
+                        return (
+                          <div key={p.id} className="p-4 sm:p-5 flex flex-col sm:flex-row justify-between sm:items-start hover:bg-slate-50/50 transition-colors gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <span className={`text-[10px] uppercase px-2 py-0.5 rounded-full border ${badgeClass}`}>
+                                  {dateLabel}
+                                </span>
+                                <span suppressHydrationWarning className="text-[11px] font-mono text-slate-400">
+                                  {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
+                                </span>
+                              </div>
+                              {p.locations && Array.isArray(p.locations) && p.locations.length > 0 ? (
+                                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                  {p.locations.map((loc: any, lidx: number) => (
+                                    <span key={lidx} className="inline-flex items-center gap-1 bg-white text-slate-800 text-xs font-bold px-2 py-0.5 rounded border border-slate-200 shadow-2xs">
+                                      <Warehouse className="w-3 h-3 text-blue-600 shrink-0" />
+                                      <span>{loc.warehouseName || loc.warehouse?.name || p.warehouseName || "Lager"}</span>
+                                      <span className="text-slate-300">|</span>
+                                      <span className="text-slate-600">{loc.hallName || loc.hall?.name || p.hallName || "Halle"}</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-sm font-bold text-slate-900 block mt-1">
+                                  {p.warehouseName} — {p.hallName}
+                                </span>
+                              )}
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {p.shift && (
+                                  <span className="flex items-center gap-1 text-[10px] font-semibold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-100">
+                                    <Clock className="w-3 h-3" /> {p.shift}
+                                  </span>
+                                )}
+                                {p.treffpunkt && (
+                                  <span className="flex items-center gap-1 text-[10px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200">
+                                    <MapPin className="w-3 h-3 text-amber-600" /> {p.treffpunkt}{p.treffpunktTime ? ` (${p.treffpunktTime})` : ""}
+                                  </span>
+                                )}
+                                <span className="flex items-center gap-1 text-[10px] text-slate-500 font-semibold">
+                                  <Users className="w-3 h-3 text-slate-400" />
+                                  {p.assignedEmployees?.length || 0} {language === "de" ? "Mitarbeiter" : "Staff"}
+                                </span>
+                                <span className="flex items-center gap-1 text-[10px] text-slate-500 font-semibold">
+                                  <Package className="w-3 h-3 text-slate-400" />
+                                  {p.assignedContainers?.length || 0} {language === "de" ? "Container" : "Containers"}
+                                </span>
+                              </div>
+                              {p.notes && (
+                                <p className="text-[10px] text-slate-500 mt-1.5 italic bg-slate-50 p-1.5 rounded border border-slate-100">
+                                  "{p.notes}"
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => setSelectedPlanForView(p)}
+                              className="btn-secondary py-1.5 px-3 text-[10px] uppercase font-bold tracking-wider hover:bg-slate-50 cursor-pointer self-start sm:self-center shrink-0"
+                            >
+                              {t("viewDetails")}
+                            </button>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
-                <div className="divide-y divide-slate-100">
-                  {(!employeeSummary?.plansUpcoming || employeeSummary.plansUpcoming.length === 0) &&
-                   (!employeeSummary?.plansToday || employeeSummary.plansToday.length === 0) ? (
-                    <div className="py-10 text-center text-slate-400 text-xs">
-                      <Calendar className="w-8 h-8 text-slate-200 mx-auto mb-2" />
-                      <p>{language === "de" ? "Keine kommenden Schichten geplant." : "No upcoming shifts scheduled."}</p>
-                    </div>
-                  ) : (
-                    (employeeSummary?.plansUpcoming || [...(employeeSummary?.plansToday || []), ...(employeeSummary?.plansTomorrow || [])]).map((p: any) => {
-                      const planDateStr = new Date(p.date).toLocaleDateString('en-CA');
-                      const todayStr = new Date().toLocaleDateString('en-CA');
-                      const tom = new Date();
-                      tom.setDate(tom.getDate() + 1);
-                      const tomStr = tom.toLocaleDateString('en-CA');
+              )}
 
-                      let dateLabel = new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA");
-                      let badgeClass = "bg-slate-100 text-slate-700 border-slate-200";
-                      if (planDateStr === todayStr) {
-                        dateLabel = language === "de" ? "HEUTE" : "TODAY";
-                        badgeClass = "bg-blue-100 text-blue-800 border-blue-200 font-bold";
-                      } else if (planDateStr === tomStr) {
-                        dateLabel = language === "de" ? "MORGEN" : "TOMORROW";
-                        badgeClass = "bg-amber-100 text-amber-800 border-amber-200 font-bold";
-                      }
-
-                      return (
-                        <div key={p.id} className="p-5 flex flex-col sm:flex-row justify-between sm:items-start hover:bg-slate-50/50 transition-colors gap-3">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap mb-1">
-                              <span className={`text-[10px] uppercase px-2 py-0.5 rounded-full border ${badgeClass}`}>
-                                {dateLabel}
-                              </span>
-                              <span suppressHydrationWarning className="text-[11px] font-mono text-slate-400">
+              {/* Past Shifts History (Shown on Shifts tab or Desktop) */}
+              {(employeeActiveTab === "shifts" || (employeeActiveTab === "overview" && (!employeeSummary?.plansUpcoming || employeeSummary.plansUpcoming.length === 0))) && (
+                <div className="card-premium p-0 overflow-hidden shadow-xs">
+                  <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                    <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                      <History className="w-4 h-4 text-slate-500" /> {t("shiftHistory")}
+                    </h5>
+                    {employeeSummary?.plansHistory?.length > 0 && (
+                      <span className="text-[10px] font-mono text-slate-400 font-semibold">
+                        {employeeSummary.plansHistory.length} {language === "de" ? "Einträge" : "Records"}
+                      </span>
+                    )}
+                  </div>
+                  <div className="divide-y divide-slate-100 max-h-[360px] overflow-y-auto">
+                    {!employeeSummary?.plansHistory || employeeSummary.plansHistory.length === 0 ? (
+                      <div className="py-8 text-center text-slate-400 text-xs">
+                        <p>{t("noPastShifts")}</p>
+                      </div>
+                    ) : (
+                      employeeSummary.plansHistory.map((p: any) => (
+                        <div key={p.id} className="p-4 flex flex-col sm:flex-row justify-between sm:items-center hover:bg-slate-50/30 transition-colors gap-2.5">
+                          <div>
+                            <span className="text-xs font-bold text-slate-800 block">
+                              {p.warehouseName} — {p.hallName}
+                            </span>
+                            <div className="flex flex-wrap gap-2 mt-1 text-[10px] text-slate-400 font-semibold">
+                              <span suppressHydrationWarning className="font-mono text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
                                 {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
                               </span>
-                            </div>
-                            {p.locations && Array.isArray(p.locations) && p.locations.length > 0 ? (
-                              <div className="flex flex-wrap gap-1.5 mt-1.5">
-                                {p.locations.map((loc: any, lidx: number) => (
-                                  <span key={lidx} className="inline-flex items-center gap-1 bg-white text-slate-800 text-xs font-bold px-2 py-0.5 rounded border border-slate-200 shadow-2xs">
-                                    <Warehouse className="w-3 h-3 text-blue-600 shrink-0" />
-                                    <span>{loc.warehouseName || loc.warehouse?.name || p.warehouseName || "Lager"}</span>
-                                    <span className="text-slate-300">|</span>
-                                    <span className="text-slate-600">{loc.hallName || loc.hall?.name || p.hallName || "Halle"}</span>
-                                  </span>
-                                ))}
-                              </div>
-                            ) : (
-                              <span className="text-sm font-bold text-slate-900 block mt-1">
-                                {p.warehouseName} — {p.hallName}
-                              </span>
-                            )}
-                            <div className="flex flex-wrap gap-2 mt-2">
                               {p.shift && (
-                                <span className="flex items-center gap-1 text-[10px] font-semibold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-100">
-                                  <Clock className="w-3 h-3" /> {p.shift}
+                                <span className="font-mono text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
+                                  {p.shift}
                                 </span>
                               )}
-                              {p.treffpunkt && (
-                                <span className="flex items-center gap-1 text-[10px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200">
-                                  <MapPin className="w-3 h-3 text-amber-600" /> {p.treffpunkt}{p.treffpunktTime ? ` (${p.treffpunktTime})` : ""}
-                                </span>
-                              )}
-                              <span className="flex items-center gap-1 text-[10px] text-slate-500 font-semibold">
-                                <Users className="w-3 h-3 text-slate-400" />
-                                {p.assignedEmployees?.length || 0} {language === "de" ? "Mitarbeiter" : "Staff"}
-                              </span>
-                              <span className="flex items-center gap-1 text-[10px] text-slate-500 font-semibold">
-                                <Package className="w-3 h-3 text-slate-400" />
-                                {p.assignedContainers?.length || 0} {language === "de" ? "Container" : "Containers"}
-                              </span>
+                              <span>{p.assignedContainers?.length || 0} Container</span>
                             </div>
-                            {p.notes && (
-                              <p className="text-[10px] text-slate-500 mt-1.5 italic bg-slate-50 p-1.5 rounded border border-slate-100">
-                                "{p.notes}"
-                              </p>
-                            )}
                           </div>
                           <button
                             onClick={() => setSelectedPlanForView(p)}
-                            className="btn-secondary py-1.5 px-3 text-[10px] uppercase font-bold tracking-wider hover:bg-slate-50 cursor-pointer self-start sm:self-center shrink-0"
+                            className="btn-secondary py-1 px-2.5 text-[10px] uppercase font-bold tracking-wider hover:bg-slate-50 cursor-pointer self-start sm:self-center"
                           >
-                            {t("viewDetails")}
+                            {t("details")}
                           </button>
                         </div>
-                      );
-                    })
-                  )}
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Plans History (All Past Worked Shifts) */}
-              <div className="card-premium p-0 overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                  <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-                    <History className="w-4 h-4 text-slate-500" /> {t("shiftHistory")}
-                  </h5>
-                  {employeeSummary?.plansHistory?.length > 0 && (
-                    <span className="text-[10px] font-mono text-slate-400 font-semibold">
-                      {employeeSummary.plansHistory.length} {language === "de" ? "Einträge" : "Records"}
-                    </span>
-                  )}
-                </div>
-                <div className="divide-y divide-slate-100 max-h-[450px] overflow-y-auto">
-                  {!employeeSummary?.plansHistory || employeeSummary.plansHistory.length === 0 ? (
-                    <div className="py-10 text-center text-slate-400 text-xs">
-                      <p>{t("noPastShifts")}</p>
+              {/* Work Logs & Timesheets: Mobile Cards + Desktop Table */}
+              {(employeeActiveTab === "overview" || employeeActiveTab === "logs") && (
+                <div className="card-premium p-0 overflow-hidden shadow-xs">
+                  <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                    <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-blue-600" />
+                      <span>{t("timesheetsTitle")}</span>
+                    </h5>
+                    <button
+                      onClick={() => setIsLogHoursOpen(true)}
+                      className="btn-primary py-1.5 px-3 text-[11px] font-bold flex items-center gap-1 cursor-pointer shadow-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>{t("logHoursCTA")}</span>
+                    </button>
+                  </div>
+
+                  {/* Empty state */}
+                  {!employeeSummary?.workHistory || employeeSummary.workHistory.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400 text-xs space-y-2">
+                      <Clock className="w-8 h-8 text-slate-200 mx-auto" />
+                      <p>{t("noAttendanceLogs")}</p>
+                      <button
+                        onClick={() => setIsLogHoursOpen(true)}
+                        className="btn-secondary py-1.5 px-3 text-xs font-semibold cursor-pointer"
+                      >
+                        + Erste Arbeitszeit erfassen
+                      </button>
                     </div>
                   ) : (
-                    employeeSummary.plansHistory.map((p: any) => (
-                      <div key={p.id} className="p-5 flex flex-col sm:flex-row justify-between sm:items-center hover:bg-slate-50/30 transition-colors gap-3">
-                        <div>
-                          {p.locations && Array.isArray(p.locations) && p.locations.length > 0 ? (
-                            <div className="flex flex-wrap gap-1.5 mb-1">
-                              {p.locations.map((loc: any, lidx: number) => (
-                                <span key={lidx} className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 text-[11px] font-bold px-2 py-0.5 rounded border border-slate-200">
-                                  <Warehouse className="w-3 h-3 text-blue-600 shrink-0" />
-                                  <span>{loc.warehouseName || loc.warehouse?.name || p.warehouseName || "Lager"}</span>
-                                  <span className="text-slate-300">|</span>
-                                  <span className="text-slate-600">{loc.hallName || loc.hall?.name || p.hallName || "Halle"}</span>
+                    <>
+                      {/* Mobile Card List (< sm screens) */}
+                      <div className="sm:hidden divide-y divide-slate-100">
+                        {employeeSummary.workHistory.map((r: any) => {
+                          const isManual = r.source === "MANUAL";
+                          return (
+                            <div key={r.id} className="p-4 space-y-2.5 hover:bg-slate-50/50 transition-colors">
+                              <div className="flex items-center justify-between">
+                                <span suppressHydrationWarning className="font-bold text-xs text-slate-900 font-mono">
+                                  {new Date(r.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA", {
+                                    weekday: "short",
+                                    day: "2-digit",
+                                    month: "2-digit",
+                                    year: "numeric",
+                                  })}
                                 </span>
-                              ))}
+                                <div className="flex items-center gap-1.5">
+                                  {isManual ? (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full">
+                                      <span>Manuell</span>
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">
+                                      <QrCode className="w-3 h-3" />
+                                      <span>QR-Scan</span>
+                                    </span>
+                                  )}
+                                  <span className="text-xs font-black font-mono bg-slate-100 text-slate-800 px-2 py-0.5 rounded-lg border border-slate-200">
+                                    {r.totalHours ? `${r.totalHours}h` : t("activeShiftLabel")}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                                <Warehouse className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                <span className="font-medium truncate">{r.warehouseName} — {r.hallName}</span>
+                              </div>
+
+                              <div className="flex items-center justify-between text-[11px] font-mono text-slate-500 pt-1 border-t border-slate-100">
+                                <div className="flex items-center gap-2">
+                                  <span>
+                                    {new Date(r.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    {" → "}
+                                    {r.clockOut ? new Date(r.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "läuft"}
+                                  </span>
+                                  {r.breakMinutes > 0 && (
+                                    <span className="text-slate-400">
+                                      (Pause: {r.breakMinutes}m)
+                                    </span>
+                                  )}
+                                </div>
+
+                                {isManual && (
+                                  <button
+                                    onClick={() => handleDeleteAttendanceEntry(r.id)}
+                                    className="text-red-500 hover:text-red-700 font-sans font-semibold text-[10px] flex items-center gap-1 cursor-pointer p-1 rounded hover:bg-red-50"
+                                    title="Löschen"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <span>Löschen</span>
+                                  </button>
+                                )}
+                              </div>
                             </div>
-                          ) : (
-                            <span className="text-sm font-bold text-slate-800 block">
-                              {p.warehouseName} — {p.hallName}
-                            </span>
-                          )}
-                          <div className="flex flex-wrap gap-3 mt-1.5 text-[10px] text-slate-400 font-semibold">
-                            <span suppressHydrationWarning className="font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                              {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
-                            </span>
-                            {p.shift && (
-                              <span className="font-mono text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
-                                {p.shift}
-                              </span>
-                            )}
-                            <span>{p.assignedContainers?.length || 0} {language === "de" ? "Container bearbeitet" : "Containers processed"}</span>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => setSelectedPlanForView(p)}
-                          className="btn-secondary py-1.5 px-3 text-[10px] uppercase font-bold tracking-wider hover:bg-slate-50 cursor-pointer self-start sm:self-center"
-                        >
-                          {t("details")}
-                        </button>
+                          );
+                        })}
                       </div>
-                    ))
+
+                      {/* Desktop Table View (>= sm screens) */}
+                      <div className="hidden sm:block overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-500">
+                              <th className="px-5 py-3 font-semibold">{t("date")}</th>
+                              <th className="px-5 py-3 font-semibold">{t("warehouse")}</th>
+                              <th className="px-4 py-3 font-semibold">Zeitraum</th>
+                              <th className="px-3 py-3 font-semibold text-center">{t("breakDuration")}</th>
+                              <th className="px-4 py-3 font-semibold text-right">{t("totalHours")}</th>
+                              <th className="px-4 py-3 font-semibold text-center">Quelle</th>
+                              <th className="px-4 py-3 font-semibold text-right">Aktion</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 text-slate-600">
+                            {employeeSummary.workHistory.map((r: any) => {
+                              const isManual = r.source === "MANUAL";
+                              return (
+                                <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
+                                  <td suppressHydrationWarning className="px-5 py-3 font-mono text-slate-800 font-semibold">
+                                    {new Date(r.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
+                                  </td>
+                                  <td className="px-5 py-3 text-slate-700 font-medium">
+                                    {r.warehouseName} — {r.hallName}
+                                  </td>
+                                  <td suppressHydrationWarning className="px-4 py-3 font-mono text-slate-500">
+                                    {new Date(r.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    {" – "}
+                                    {r.clockOut ? new Date(r.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Aktiv"}
+                                  </td>
+                                  <td className="px-3 py-3 font-mono text-center text-slate-500">
+                                    {r.breakMinutes ? `${r.breakMinutes}m` : "—"}
+                                  </td>
+                                  <td className="px-4 py-3 font-mono text-right text-slate-900 font-bold">
+                                    {r.totalHours ? `${r.totalHours}h` : t("activeShiftLabel")}
+                                  </td>
+                                  <td className="px-4 py-3 text-center">
+                                    {isManual ? (
+                                      <span className="inline-flex items-center text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full">
+                                        Manuell
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">
+                                        <QrCode className="w-3 h-3" />
+                                        <span>QR</span>
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3 text-right">
+                                    {isManual && (
+                                      <button
+                                        onClick={() => handleDeleteAttendanceEntry(r.id)}
+                                        className="text-slate-400 hover:text-red-600 transition-colors p-1 rounded-md hover:bg-red-50 cursor-pointer inline-flex items-center"
+                                        title="Löschen"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
                   )}
                 </div>
-              </div>
-
-              {/* Work History (Attendance Logs) */}
-              <div className="card-premium p-0 overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-                  <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-slate-500" /> {t("timesheetsTitle")}
-                  </h5>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-500">
-                        <th className="px-6 py-3 font-semibold">{t("date")}</th>
-                        <th className="px-6 py-3 font-semibold">{t("warehouse")}</th>
-                        <th className="px-6 py-3 font-semibold">{t("clockedIn")}</th>
-                        <th className="px-6 py-3 font-semibold">{t("clockedOut")}</th>
-                        <th className="px-6 py-3 font-semibold text-right">{t("totalHours")}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-600">
-                      {!employeeSummary?.workHistory || employeeSummary.workHistory.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="p-6 text-center text-slate-400 italic">{t("noAttendanceLogs")}</td>
-                        </tr>
-                      ) : (
-                        employeeSummary.workHistory.map((r: any) => (
-                          <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
-                            <td suppressHydrationWarning className="px-6 py-3 font-mono text-slate-800"> {new Date(r.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}</td>
-                            <td className="px-6 py-3 text-slate-600">{r.warehouseName} — {r.hallName}</td>
-                            <td suppressHydrationWarning className="px-6 py-3 font-mono text-slate-500"> {new Date(r.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                            <td className="px-6 py-3 font-mono text-slate-500">{r.clockOut ? new Date(r.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "—"}</td>
-                            <td className="px-6 py-3 font-mono text-right text-slate-800 font-semibold">{r.totalHours ? `${r.totalHours}h` : t("activeShiftLabel")}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              )}
 
             </div>
+          </div>
+
+          {/* Sticky Mobile Bottom Bar for Mitarbeiter (< sm screens) */}
+          <div
+            className="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-3 z-40 sm:hidden flex items-center gap-3 shadow-lg shadow-slate-900/10"
+            style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+          >
+            <button
+              onClick={() => setIsLogHoursOpen(true)}
+              className="flex-1 btn-primary py-3 text-xs font-extrabold flex items-center justify-center gap-2 shadow-md"
+            >
+              <Plus className="w-4 h-4" />
+              <span>{t("logHoursCTA")}</span>
+            </button>
+            <button
+              onClick={() => setIsQrScannerOpen(true)}
+              disabled={clockLoading}
+              className="btn-secondary py-3 px-4 text-xs font-bold flex items-center justify-center gap-1.5 shrink-0"
+            >
+              <Camera className="w-4 h-4 text-blue-600" />
+              <span>QR-Scan</span>
+            </button>
           </div>
         </div>
       ) : (
@@ -1991,6 +2400,25 @@ export default function DashboardPage() {
         onScanSuccess={({ warehouseId, hallId }) => {
           handleQrScan(warehouseId, hallId);
         }}
+      />
+
+      {/* Employee Log Hours Modal (Special UI/UX for Mitarbeiter) */}
+      <EmployeeLogHoursModal
+        isOpen={isLogHoursOpen}
+        onClose={() => setIsLogHoursOpen(false)}
+        onSuccess={() => {
+          refreshEmployeeData();
+          showAlert({
+            title: t("success"),
+            message: "Arbeitszeit erfolgreich erfasst!",
+            type: "success",
+          });
+        }}
+        employeeId={employeeInfo?.id || ""}
+        defaultWarehouseId={employeeInfo?.warehouseId}
+        defaultHallId={employeeInfo?.hallId}
+        warehouses={allWarehouses}
+        halls={allHalls}
       />
 
       {/* Custom Popup Alert Modal */}

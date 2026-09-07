@@ -97,15 +97,19 @@ export class AttendanceController {
   }
 
   @Post('manual')
-  @Roles(Role.MANAGER, Role.ADMIN)
-  async createManual(@Body() dto: any) {
+  @Roles(Role.MANAGER, Role.ADMIN, Role.EMPLOYEE)
+  async createManual(@Body() dto: any, @CurrentUser() currentUser: any) {
+    // If an employee calls this, ensure they can only log hours for themselves
+    if (currentUser.role === Role.EMPLOYEE) {
+      dto.employeeId = currentUser.id;
+    }
     return this.attendanceService.createManualEntry(dto);
   }
 
   @Delete(':id')
-  @Roles(Role.MANAGER, Role.ADMIN)
+  @Roles(Role.MANAGER, Role.ADMIN, Role.EMPLOYEE)
   async delete(@Param('id') id: string, @CurrentUser() currentUser: any) {
-    return this.attendanceService.deleteAttendance(id, currentUser.id);
+    return this.attendanceService.deleteAttendance(id, currentUser.id, currentUser.role);
   }
 }
 

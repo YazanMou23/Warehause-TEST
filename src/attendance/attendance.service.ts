@@ -1,4 +1,5 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClockInDto } from './dto/clock-in.dto';
 import { ClockOutDto } from './dto/clock-out.dto';
@@ -491,7 +492,7 @@ export class AttendanceService {
     return manualEntry;
   }
 
-  async deleteAttendance(id: string, actorId: string) {
+  async deleteAttendance(id: string, actorId: string, actorRole?: Role) {
     const record = await this.prisma.attendance.findUnique({
       where: { id },
       include: { employee: { select: { name: true } } },
@@ -499,6 +500,10 @@ export class AttendanceService {
 
     if (!record) {
       throw new NotFoundException(`Zeiterfassungseintrag mit ID ${id} nicht gefunden`);
+    }
+
+    if (actorRole === Role.EMPLOYEE && record.employeeId !== actorId) {
+      throw new ForbiddenException('Sie können nur Ihre eigenen Zeiterfassungen löschen');
     }
 
     await this.prisma.attendance.delete({

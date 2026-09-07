@@ -728,6 +728,8 @@ export class UsersService {
       clockIn: r.clockIn,
       clockOut: r.clockOut,
       totalHours: r.totalHours,
+      breakMinutes: r.breakMinutes ?? 0,
+      source: r.source || 'MANUAL',
       warehouseName: r.warehouse.name,
       hallName: r.hall.name,
     }));
