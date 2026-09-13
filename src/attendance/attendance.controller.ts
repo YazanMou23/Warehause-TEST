@@ -72,7 +72,7 @@ export class AttendanceController {
       throw new BadRequestException('Invalid year or month format');
     }
 
-    return this.attendanceService.getMonthlyReport(employeeId, y, m);
+    return this.attendanceService.getMonthlyReport(employeeId, y, m, currentUser.role);
   }
 
   @Get('report')
@@ -103,7 +103,7 @@ export class AttendanceController {
     if (currentUser.role === Role.EMPLOYEE) {
       dto.employeeId = currentUser.id;
     }
-    return this.attendanceService.createManualEntry(dto);
+    return this.attendanceService.createManualEntry(dto, currentUser.role);
   }
 
   @Delete(':id')

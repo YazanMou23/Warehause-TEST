@@ -195,7 +195,28 @@ export class AttendanceService {
     return data;
   }
 
-  async getMonthlyReport(employeeId: string, year: number, month: number) {
+  async isWorkHoursHiddenForEmployee(employeeId: string): Promise<boolean> {
+    const globalSetting = await this.prisma.systemSetting.findUnique({
+      where: { key: 'HIDE_EMPLOYEE_WORK_HOURS' },
+    });
+    if (globalSetting?.value === 'true') {
+      return true;
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { id: employeeId },
+      select: { hideWorkHours: true },
+    });
+    return user?.hideWorkHours ?? false;
+  }
+
+  async getMonthlyReport(employeeId: string, year: number, month: number, actorRole?: Role) {
+    if (actorRole === Role.EMPLOYEE) {
+      const isHidden = await this.isWorkHoursHiddenForEmployee(employeeId);
+      if (isHidden) {
+        throw new ForbiddenException('Arbeitszeitberichte sind für Mitarbeiter deaktiviert.');
+      }
+    }
+
     // Verify user
     const user = await this.prisma.user.findFirst({
       where: { id: employeeId, deletedAt: null },
@@ -427,7 +448,14 @@ export class AttendanceService {
     });
   }
 
-  async createManualEntry(dto: any) {
+  async createManualEntry(dto: any, actorRole?: Role) {
+    if (actorRole === Role.EMPLOYEE) {
+      const isHidden = await this.isWorkHoursHiddenForEmployee(dto.employeeId);
+      if (isHidden) {
+        throw new ForbiddenException('Die manuelle Erfassung von Arbeitszeiten und Stundenzetteln ist für Mitarbeiter deaktiviert.');
+      }
+    }
+
     const clockIn = new Date(dto.clockIn);
     const clockOut = dto.clockOut ? new Date(dto.clockOut) : null;
 
@@ -504,6 +532,13 @@ export class AttendanceService {
 
     if (actorRole === Role.EMPLOYEE && record.employeeId !== actorId) {
       throw new ForbiddenException('Sie können nur Ihre eigenen Zeiterfassungen löschen');
+    }
+
+    if (actorRole === Role.EMPLOYEE) {
+      const isHidden = await this.isWorkHoursHiddenForEmployee(actorId);
+      if (isHidden) {
+        throw new ForbiddenException('Aktion nicht erlaubt: Zeiterfassungen sind für Mitarbeiter gesperrt.');
+      }
     }
 
     await this.prisma.attendance.delete({

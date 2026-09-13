@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsOptional, IsString, IsEmail } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, IsEmail, IsBoolean } from 'class-validator';
 import { Role } from '@prisma/client';
 
 export class CreateUserDto {
@@ -57,4 +57,8 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   employmentEnd?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  hideWorkHours?: boolean;
 }

@@ -61,4 +61,8 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   employmentEnd?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  hideWorkHours?: boolean;
 }

@@ -84,6 +84,7 @@ model User {
   sentMessages        ChatMessage[] @relation("SentMessages")
   receivedMessages    ChatMessage[] @relation("ReceivedMessages")
   isChatBlocked       Boolean       @default(false)
+  hideWorkHours       Boolean       @default(false)
 
   // Custom relations
   notifications       Notification[]
@@ -601,5 +602,17 @@ model EmployeeAbsence {
   @@unique([employeeId, date])
   @@index([employeeId, date])
   @@index([date])
+}
+
+// ─── System Settings & Operational Feature Flags ─────────────────────────────
+
+model SystemSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@index([key])
 }
 

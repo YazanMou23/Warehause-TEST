@@ -16,6 +16,7 @@ import { TimesheetModule } from './timesheet/timesheet.module';
 import { ChatModule } from './chat/chat.module';
 import { NotificationModule } from './notification/notification.module';
 import { DocumentsModule } from './documents/documents.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { DocumentsModule } from './documents/documents.module';
     ChatModule,
     NotificationModule,
     DocumentsModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [],

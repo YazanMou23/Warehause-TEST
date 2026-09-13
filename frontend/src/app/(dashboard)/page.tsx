@@ -130,6 +130,69 @@ export default function DashboardPage() {
   const [analyticsData, setAnalyticsData] = useState<any>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
+  // Global Work Hours & Timesheets Visibility State (for Admin & Manager)
+  const [isGlobalWorkHoursHidden, setIsGlobalWorkHoursHidden] = useState(false);
+  const [toggleWorkHoursLoading, setToggleWorkHoursLoading] = useState(false);
+
+  const fetchWorkHoursVisibility = async () => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) return;
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/settings/work-hours-visibility`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setIsGlobalWorkHoursHidden(Boolean(data.isGlobalHidden));
+      }
+    } catch (e) {
+      console.warn("Could not load work hours visibility", e);
+    }
+  };
+
+  const handleToggleGlobalWorkHoursVisibility = async (newVal: boolean) => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) return;
+    setToggleWorkHoursLoading(true);
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/settings/work-hours-visibility`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ hideWorkHours: newVal }),
+        }
+      );
+      if (res.ok) {
+        setIsGlobalWorkHoursHidden(newVal);
+        showAlert({
+          title: t("success"),
+          message: newVal ? t("workHoursHiddenAlertMsg") : t("workHoursVisibleAlertMsg"),
+          type: "success",
+        });
+      } else {
+        showAlert({
+          title: t("errorOccurred"),
+          message: "Fehler beim Ändern der Sichtbarkeit",
+          type: "error",
+        });
+      }
+    } catch (e) {
+      console.error(e);
+      showAlert({
+        title: t("errorOccurred"),
+        message: "Verbindungsfehler beim Ändern der Sichtbarkeit",
+        type: "error",
+      });
+    } finally {
+      setToggleWorkHoursLoading(false);
+    }
+  };
+
   const fetchAnalytics = async (tf: "weekly" | "monthly") => {
     const token = localStorage.getItem("accessToken");
     if (!token) return;
@@ -665,7 +728,8 @@ export default function DashboardPage() {
           }
 
           // Fetch dashboard analytics
-          fetchAnalytics("weekly");
+          fetchAnalytics(analyticsTimeframe);
+          fetchWorkHoursVisibility();
         }
       } catch (err) {
         console.error("Failed to fetch dashboard data from API:", err);
@@ -692,6 +756,7 @@ export default function DashboardPage() {
   }
 
   const canManage = userRole === "ADMIN" || userRole === "MANAGER";
+  const isWorkHoursHidden = Boolean(employeeSummary?.isWorkHoursHidden);
 
   return (
     <div className="space-y-stack-lg animate-fadeIn">
@@ -727,13 +792,15 @@ export default function DashboardPage() {
 
             {/* Quick Primary Actions (Visible on header on tablet/desktop, thumb bar on mobile) */}
             <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => setIsLogHoursOpen(true)}
-                className="btn-primary py-2.5 px-4 text-xs font-bold shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>{t("logHoursCTA")}</span>
-              </button>
+              {!isWorkHoursHidden && (
+                <button
+                  onClick={() => setIsLogHoursOpen(true)}
+                  className="btn-primary py-2.5 px-4 text-xs font-bold shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>{t("logHoursCTA")}</span>
+                </button>
+              )}
               <button
                 onClick={() => setIsQrScannerOpen(true)}
                 disabled={clockLoading}
@@ -768,14 +835,25 @@ export default function DashboardPage() {
               </div>
 
               <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-white/10">
-                <div className="text-left sm:text-right">
-                  <span className="text-[10px] text-emerald-300 uppercase font-bold tracking-wider block">
-                    {t("shiftActiveSince")}
-                  </span>
-                  <span className="text-xl sm:text-2xl font-black font-mono tracking-tight text-emerald-400">
-                    {activeShiftElapsed || "00:00:00"}
-                  </span>
-                </div>
+                {!isWorkHoursHidden ? (
+                  <div className="text-left sm:text-right">
+                    <span className="text-[10px] text-emerald-300 uppercase font-bold tracking-wider block">
+                      {t("shiftActiveSince")}
+                    </span>
+                    <span className="text-xl sm:text-2xl font-black font-mono tracking-tight text-emerald-400">
+                      {activeShiftElapsed || "00:00:00"}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="text-left sm:text-right">
+                    <span className="text-[10px] text-emerald-300 uppercase font-bold tracking-wider block">
+                      Status
+                    </span>
+                    <span className="text-xs font-extrabold text-emerald-400 bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-500/30">
+                      ● Schicht aktiv
+                    </span>
+                  </div>
+                )}
                 <button
                   onClick={() => setIsQrScannerOpen(true)}
                   disabled={clockLoading}
@@ -815,21 +893,23 @@ export default function DashboardPage() {
                 </span>
               )}
             </button>
-            <button
-              onClick={() => setEmployeeActiveTab("logs")}
-              className={`flex-1 py-2 rounded-lg text-center transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                employeeActiveTab === "logs"
-                  ? "bg-white text-blue-900 shadow-xs font-extrabold"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <span>{t("tabLogs")}</span>
-              {employeeSummary?.workHistory?.length > 0 && (
-                <span className="w-4 h-4 rounded-full bg-slate-200 text-slate-700 text-[10px] flex items-center justify-center font-mono">
-                  {employeeSummary.workHistory.length}
-                </span>
-              )}
-            </button>
+            {!isWorkHoursHidden && (
+              <button
+                onClick={() => setEmployeeActiveTab("logs")}
+                className={`flex-1 py-2 rounded-lg text-center transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                  employeeActiveTab === "logs"
+                    ? "bg-white text-blue-900 shadow-xs font-extrabold"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <span>{t("tabLogs")}</span>
+                {employeeSummary?.workHistory?.length > 0 && (
+                  <span className="w-4 h-4 rounded-full bg-slate-200 text-slate-700 text-[10px] flex items-center justify-center font-mono">
+                    {employeeSummary.workHistory.length}
+                  </span>
+                )}
+              </button>
+            )}
             <button
               onClick={() => setEmployeeActiveTab("profile")}
               className={`flex-1 py-2 rounded-lg text-center transition-all cursor-pointer flex items-center justify-center gap-1 ${
@@ -842,32 +922,53 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          {/* Quick Hours Action Card (Shown on mobile overview and desktop) */}
-          <div className={`card-premium border-2 border-blue-500/20 shadow-sm bg-gradient-to-r from-blue-50/50 via-white to-indigo-50/40 p-4 sm:p-5 ${employeeActiveTab !== "overview" ? "hidden sm:block" : ""}`}>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* Quick Hours Action Card (Shown only when hours are visible) */}
+          {!isWorkHoursHidden && (
+            <div className={`card-premium border-2 border-blue-500/20 shadow-sm bg-gradient-to-r from-blue-50/50 via-white to-indigo-50/40 p-4 sm:p-5 ${employeeActiveTab !== "overview" ? "hidden sm:block" : ""}`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0 mt-0.5">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
+                      <span>Arbeitszeit & Stunden eintragen</span>
+                      <span className="text-[10px] bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded-md uppercase">Neu</span>
+                    </h4>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      Haben Sie heute oder gestern gearbeitet? Tragen Sie Ihre Stunden mit flexiblen Vorlagen oder freier Zeiteingabe ein.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsLogHoursOpen(true)}
+                  className="btn-primary py-2.5 px-5 text-xs font-extrabold shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer self-stretch sm:self-auto shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ Jetzt Stunden erfassen</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Shift Focus Info Banner (When hours are hidden) */}
+          {isWorkHoursHidden && employeeActiveTab === "overview" && (
+            <div className="card-premium border-2 border-slate-200/80 shadow-xs bg-gradient-to-r from-slate-50 via-white to-blue-50/20 p-4 sm:p-5">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0 mt-0.5">
-                  <Clock className="w-5 h-5" />
+                  <Calendar className="w-5 h-5" />
                 </div>
                 <div>
                   <h4 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
-                    <span>Arbeitszeit & Stunden eintragen</span>
-                    <span className="text-[10px] bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded-md uppercase">Neu</span>
+                    <span>{t("shiftsOverviewTitle")}</span>
                   </h4>
                   <p className="text-xs text-slate-600 mt-0.5">
-                    Haben Sie heute oder gestern gearbeitet? Tragen Sie Ihre Stunden mit flexiblen Vorlagen oder freier Zeiteingabe ein.
+                    {t("myAssignedShiftsDesc")}
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => setIsLogHoursOpen(true)}
-                className="btn-primary py-2.5 px-5 text-xs font-extrabold shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer self-stretch sm:self-auto shrink-0"
-              >
-                <Plus className="w-4 h-4" />
-                <span>+ Jetzt Stunden erfassen</span>
-              </button>
             </div>
-          </div>
+          )}
 
           {/* Responsive Layout Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -875,8 +976,8 @@ export default function DashboardPage() {
             {/* Left Column (Stats, Clock-in, Profile) */}
             <div className={`lg:col-span-1 space-y-6 ${employeeActiveTab !== "overview" && employeeActiveTab !== "profile" ? "hidden sm:block" : ""}`}>
               
-              {/* Work Hours Statistics */}
-              {(employeeActiveTab === "overview" || employeeActiveTab === "logs") && (
+              {/* Work Hours Statistics (Hidden when isWorkHoursHidden is true) */}
+              {!isWorkHoursHidden && (employeeActiveTab === "overview" || employeeActiveTab === "logs") && (
                 <div className="card-premium space-y-4">
                   <div className="flex items-center justify-between">
                     <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
@@ -1192,8 +1293,8 @@ export default function DashboardPage() {
                 </div>
               )}
 
-              {/* Work Logs & Timesheets: Mobile Cards + Desktop Table */}
-              {(employeeActiveTab === "overview" || employeeActiveTab === "logs") && (
+              {/* Work Logs & Timesheets: Mobile Cards + Desktop Table (Hidden when isWorkHoursHidden is true) */}
+              {!isWorkHoursHidden && (employeeActiveTab === "overview" || employeeActiveTab === "logs") && (
                 <div className="card-premium p-0 overflow-hidden shadow-xs">
                   <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
                     <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
@@ -1368,17 +1469,19 @@ export default function DashboardPage() {
             className="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-3 z-40 sm:hidden flex items-center gap-3 shadow-lg shadow-slate-900/10"
             style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
           >
-            <button
-              onClick={() => setIsLogHoursOpen(true)}
-              className="flex-1 btn-primary py-3 text-xs font-extrabold flex items-center justify-center gap-2 shadow-md"
-            >
-              <Plus className="w-4 h-4" />
-              <span>{t("logHoursCTA")}</span>
-            </button>
+            {!isWorkHoursHidden && (
+              <button
+                onClick={() => setIsLogHoursOpen(true)}
+                className="flex-1 btn-primary py-3 text-xs font-extrabold flex items-center justify-center gap-2 shadow-md"
+              >
+                <Plus className="w-4 h-4" />
+                <span>{t("logHoursCTA")}</span>
+              </button>
+            )}
             <button
               onClick={() => setIsQrScannerOpen(true)}
               disabled={clockLoading}
-              className="btn-secondary py-3 px-4 text-xs font-bold flex items-center justify-center gap-1.5 shrink-0"
+              className={`${isWorkHoursHidden ? "w-full" : ""} btn-secondary py-3 px-4 text-xs font-bold flex items-center justify-center gap-1.5 shrink-0`}
             >
               <Camera className="w-4 h-4 text-blue-600" />
               <span>QR-Scan</span>
@@ -1388,8 +1491,8 @@ export default function DashboardPage() {
       ) : (
         /* 2. MANAGER & ADMIN DASHBOARD */
         <div className="space-y-6 print:hidden">
-          {/* Welcome header & Offline status */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          {/* Welcome header & Admin/Manager Controls */}
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
               <h3 className="text-xl font-bold text-slate-800 tracking-tight">
                 {userRole === "MANAGER" ? t("roleManager") + " Dashboard" : t("operationalDashboard")}
@@ -1399,7 +1502,42 @@ export default function DashboardPage() {
               </p>
             </div>
 
-
+            {/* Global Work Hours & Timesheets Visibility Control for Admin & Manager */}
+            <div className="flex items-center gap-3 bg-white px-4 py-2.5 rounded-xl border border-slate-200/80 shadow-xs">
+              <div className="flex items-center gap-2">
+                <span className={`w-2.5 h-2.5 rounded-full ${isGlobalWorkHoursHidden ? "bg-amber-500 animate-pulse" : "bg-emerald-500"}`} />
+                <div className="text-left">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                    {t("workHoursVisibilityTitle")}
+                  </span>
+                  <span className={`text-xs font-extrabold ${isGlobalWorkHoursHidden ? "text-amber-700" : "text-emerald-700"}`}>
+                    {isGlobalWorkHoursHidden ? t("workHoursHiddenBadge") : t("workHoursVisibleBadge")}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => handleToggleGlobalWorkHoursVisibility(!isGlobalWorkHoursHidden)}
+                disabled={toggleWorkHoursLoading}
+                className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 ${
+                  isGlobalWorkHoursHidden
+                    ? "bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 shadow-xs"
+                    : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200 shadow-xs"
+                }`}
+                title={isGlobalWorkHoursHidden ? t("showWorkHoursToggleBtn") : t("hideWorkHoursToggleBtn")}
+              >
+                {isGlobalWorkHoursHidden ? (
+                  <>
+                    <Eye className="w-3.5 h-3.5 text-amber-600" />
+                    <span>{t("showWorkHoursToggleBtn")}</span>
+                  </>
+                ) : (
+                  <>
+                    <EyeOff className="w-3.5 h-3.5 text-slate-500" />
+                    <span>{t("hideWorkHoursToggleBtn")}</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Key Metrics Grid */}

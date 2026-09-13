@@ -227,6 +227,20 @@ export const translations = {
     descriptionLabel: "Shift Description / Special Instructions",
     titlePlaceholder: "e.g., Morning Unloading Shift",
     descriptionPlaceholder: "e.g., Unload cargo from Duisburg Port and verify seals.",
+
+    // Work Hours & Timesheet Visibility
+    workHoursVisibilityTitle: "Employee View: Work Hours & Timesheets",
+    workHoursHiddenBadge: "Hidden from Employees",
+    workHoursVisibleBadge: "Visible to Employees",
+    hideWorkHoursToggleBtn: "Hide Work Hours for Employees",
+    showWorkHoursToggleBtn: "Show Work Hours for Employees",
+    hideWorkHoursPerEmployee: "Hide work hours & timesheets for this employee",
+    hideWorkHoursPerEmployeeDesc: "This employee will not see work hours statistics, timesheets, or hour logging.",
+    workHoursHiddenAlertMsg: "Work hours and timesheets are now hidden from employees.",
+    workHoursVisibleAlertMsg: "Work hours and timesheets are now visible to employees.",
+    shiftsOverviewTitle: "My Shifts & Schedule",
+    myAssignedShiftsDesc: "View your assigned shifts, work locations, halls, and meeting points.",
+    timesheetsRestrictedNotice: "Work hours and timesheet logging are managed directly by administration.",
   },
   de: {
     // General / Sidebar
@@ -456,5 +470,19 @@ export const translations = {
     descriptionLabel: "Schichtbeschreibung / Besondere Anweisungen",
     titlePlaceholder: "z.B. Frühschicht Entladung",
     descriptionPlaceholder: "z.B. Entladen Sie Fracht aus dem Duisburger Hafen und überprüfen Sie die Plomben.",
+
+    // Work Hours & Timesheet Visibility
+    workHoursVisibilityTitle: "Mitarbeiter-Ansicht: Arbeitszeit & Stundenzettel",
+    workHoursHiddenBadge: "Für Mitarbeiter verborgen",
+    workHoursVisibleBadge: "Für Mitarbeiter sichtbar",
+    hideWorkHoursToggleBtn: "Arbeitszeit für Mitarbeiter verbergen",
+    showWorkHoursToggleBtn: "Arbeitszeit für Mitarbeiter anzeigen",
+    hideWorkHoursPerEmployee: "Arbeitszeit & Stundenzettel für diesen Mitarbeiter verbergen",
+    hideWorkHoursPerEmployeeDesc: "Dieser Mitarbeiter sieht keine Stundenstatistiken, Zeiterfassungen oder Stundenzettel.",
+    workHoursHiddenAlertMsg: "Arbeitszeit und Stundenzettel-Erfassungen sind nun für alle Mitarbeiter ausgeblendet.",
+    workHoursVisibleAlertMsg: "Arbeitszeit und Stundenzettel-Erfassungen sind nun für Mitarbeiter sichtbar.",
+    shiftsOverviewTitle: "Meine Schichten & Einsätze",
+    myAssignedShiftsDesc: "Hier finden Sie alle Informationen zu Ihren Einsatzorten, Hallen und Treffpunkten.",
+    timesheetsRestrictedNotice: "Arbeitszeiten und Stundenzettel werden zentral von der Einsatzleitung verwaltet.",
   }
 };

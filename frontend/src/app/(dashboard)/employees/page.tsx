@@ -24,6 +24,8 @@ import {
   FileSpreadsheet,
   CheckCircle2,
   MapPin,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useTranslation } from "../../i18n/LanguageContext";
 import CustomAlertModal, { CustomAlertOptions } from "../../components/CustomAlertModal";
@@ -45,6 +47,7 @@ interface Employee {
   hallId?: string | null;
   employmentStart?: string;
   employmentEnd?: string | null;
+  hideWorkHours?: boolean;
 }
 
 const getFirstName = (fullName: string) => {
@@ -100,8 +103,72 @@ export default function EmployeesPage() {
   const [formTelegram, setFormTelegram] = useState("");
   const [formEmploymentStart, setFormEmploymentStart] = useState("");
   const [formEmploymentEnd, setFormEmploymentEnd] = useState("");
+  const [formHideWorkHours, setFormHideWorkHours] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [formRole, setFormRole] = useState("EMPLOYEE");
+
+  // Global Work Hours Visibility State
+  const [isGlobalWorkHoursHidden, setIsGlobalWorkHoursHidden] = useState(false);
+  const [toggleWorkHoursLoading, setToggleWorkHoursLoading] = useState(false);
+
+  const fetchWorkHoursVisibility = async () => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) return;
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/settings/work-hours-visibility`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setIsGlobalWorkHoursHidden(Boolean(data.isGlobalHidden));
+      }
+    } catch (e) {
+      console.warn("Could not load work hours visibility", e);
+    }
+  };
+
+  const handleToggleGlobalWorkHoursVisibility = async (newVal: boolean) => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) return;
+    setToggleWorkHoursLoading(true);
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/settings/work-hours-visibility`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ hideWorkHours: newVal }),
+        }
+      );
+      if (res.ok) {
+        setIsGlobalWorkHoursHidden(newVal);
+        showAlert({
+          title: t("success"),
+          message: newVal ? t("workHoursHiddenAlertMsg") : t("workHoursVisibleAlertMsg"),
+          type: "success",
+        });
+      } else {
+        showAlert({
+          title: t("errorOccurred"),
+          message: "Fehler beim Ändern der Sichtbarkeit",
+          type: "error",
+        });
+      }
+    } catch (e) {
+      console.error(e);
+      showAlert({
+        title: t("errorOccurred"),
+        message: "Verbindungsfehler beim Ändern der Sichtbarkeit",
+        type: "error",
+      });
+    } finally {
+      setToggleWorkHoursLoading(false);
+    }
+  };
 
   // Sorting & Range Filtering
   const [sortBy, setSortBy] = useState<"name" | "contractPeriod">("name");
@@ -195,6 +262,7 @@ export default function EmployeesPage() {
     };
 
     loadEmployees();
+    fetchWorkHoursVisibility();
     if (token) loadInfo();
   }, [router]);
 
@@ -218,6 +286,7 @@ export default function EmployeesPage() {
     setFormRole("EMPLOYEE");
     setFormEmploymentStart(new Date().toISOString().split("T")[0]);
     setFormEmploymentEnd("");
+    setFormHideWorkHours(false);
     setFormError("");
     setAddModalOpen(true);
   };
@@ -239,6 +308,7 @@ export default function EmployeesPage() {
     setFormRole(emp.role);
     setFormEmploymentStart(emp.employmentStart ? emp.employmentStart.split("T")[0] : new Date().toISOString().split("T")[0]);
     setFormEmploymentEnd(emp.employmentEnd ? emp.employmentEnd.split("T")[0] : "");
+    setFormHideWorkHours(Boolean(emp.hideWorkHours));
     setFormError("");
     setEditModalOpen(true);
   };
@@ -275,6 +345,7 @@ export default function EmployeesPage() {
           telegramId: formTelegram || undefined,
           employmentStart: new Date(formEmploymentStart).toISOString(),
           employmentEnd: formEmploymentEnd ? new Date(formEmploymentEnd).toISOString() : undefined,
+          hideWorkHours: formHideWorkHours,
         }),
       });
 
@@ -317,6 +388,7 @@ export default function EmployeesPage() {
         telegramId: formTelegram || null,
         employmentStart: new Date(formEmploymentStart).toISOString(),
         employmentEnd: formEmploymentEnd ? new Date(formEmploymentEnd).toISOString() : null,
+        hideWorkHours: formHideWorkHours,
       };
 
       if (userRole === "MANAGER") {
@@ -826,6 +898,22 @@ export default function EmployeesPage() {
 
         {canManage && (
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            {/* Global Work Hours & Timesheets Visibility Control */}
+            <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
+              <span className={`w-2 h-2 rounded-full ${isGlobalWorkHoursHidden ? "bg-amber-500 animate-pulse" : "bg-emerald-500"}`} />
+              <span className={`text-[11px] font-bold ${isGlobalWorkHoursHidden ? "text-amber-700" : "text-emerald-700"}`}>
+                {isGlobalWorkHoursHidden ? t("workHoursHiddenBadge") : t("workHoursVisibleBadge")}
+              </span>
+              <button
+                onClick={() => handleToggleGlobalWorkHoursVisibility(!isGlobalWorkHoursHidden)}
+                disabled={toggleWorkHoursLoading}
+                className="ml-1 p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors cursor-pointer"
+                title={isGlobalWorkHoursHidden ? t("showWorkHoursToggleBtn") : t("hideWorkHoursToggleBtn")}
+              >
+                {isGlobalWorkHoursHidden ? <Eye size={14} className="text-amber-600" /> : <EyeOff size={14} className="text-slate-500" />}
+              </button>
+            </div>
+
             {/* Download Template */}
             <button
               onClick={handleDownloadTemplate}
@@ -1108,7 +1196,17 @@ export default function EmployeesPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 font-semibold text-slate-800">
-                      {getLastName(emp.name)}
+                      <div className="flex items-center gap-1.5">
+                        <span>{getLastName(emp.name)}</span>
+                        {emp.hideWorkHours && (
+                          <span
+                            className="inline-flex items-center text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-1 py-0.5 rounded"
+                            title="Arbeitszeit & Stundenzettel für diesen Mitarbeiter verborgen"
+                          >
+                            🔒 Verborgen
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-slate-700">
                       {emp.username}
@@ -1653,6 +1751,24 @@ export default function EmployeesPage() {
                 />
               </div>
 
+              {/* Hide Work Hours & Timesheets toggle */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3">
+                <div>
+                  <span className="text-xs font-bold text-slate-800 block">
+                    {t("hideWorkHoursPerEmployee")}
+                  </span>
+                  <span className="text-[11px] text-slate-500 block">
+                    {t("hideWorkHoursPerEmployeeDesc")}
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={formHideWorkHours}
+                  onChange={(e) => setFormHideWorkHours(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                />
+              </div>
+
               <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 -mx-6 -mb-6">
                 <button
                   type="button"
@@ -1855,6 +1971,24 @@ export default function EmployeesPage() {
                   </select>
                 </div>
               )}
+
+              {/* Hide Work Hours & Timesheets toggle */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3">
+                <div>
+                  <span className="text-xs font-bold text-slate-800 block">
+                    {t("hideWorkHoursPerEmployee")}
+                  </span>
+                  <span className="text-[11px] text-slate-500 block">
+                    {t("hideWorkHoursPerEmployeeDesc")}
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={formHideWorkHours}
+                  onChange={(e) => setFormHideWorkHours(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                />
+              </div>
 
               <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 -mx-6 -mb-6">
                 <button
