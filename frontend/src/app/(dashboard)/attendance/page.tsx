@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { API_URL } from "../../../config/api";
 import { useDialog } from "../../components/DialogProvider";
+import WorkHoursVisibilityToggle from "../../components/WorkHoursVisibilityToggle";
 
 interface AttendanceRecord {
   id: string;
@@ -677,12 +678,15 @@ export default function AttendancePage() {
             Zeigt alle Arbeitszeiten (gescannte Stundenzettel und manuelle Buchungen) in einer einheitlichen Tabelle.
           </p>
         </div>
-        <button
-          onClick={() => window.print()}
-          className="bg-secondary hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 cursor-pointer text-xs print:hidden"
-        >
-          <Printer className="w-4 h-4" /> Drucken
-        </button>
+        <div className="flex items-center gap-3 print:hidden">
+          <WorkHoursVisibilityToggle />
+          <button
+            onClick={() => window.print()}
+            className="bg-secondary hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 cursor-pointer text-xs print:hidden"
+          >
+            <Printer className="w-4 h-4" /> Drucken
+          </button>
+        </div>
       </div>
 
       <div className="flex justify-center sm:justify-start print:hidden">

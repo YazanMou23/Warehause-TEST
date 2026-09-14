@@ -26,10 +26,12 @@ import {
   MapPin,
   Eye,
   EyeOff,
+  ShieldAlert,
 } from "lucide-react";
 import { useTranslation } from "../../i18n/LanguageContext";
 import CustomAlertModal, { CustomAlertOptions } from "../../components/CustomAlertModal";
 import WhatsAppModal from "../../components/WhatsAppModal";
+import WorkHoursVisibilityToggle from "../../components/WorkHoursVisibilityToggle";
 
 interface Employee {
   id: string;
@@ -449,6 +451,43 @@ export default function EmployeesPage() {
         }
       },
     });
+  };
+
+  const handleQuickToggleIndividualVisibility = async (emp: Employee) => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) return;
+    const newVal = !emp.hideWorkHours;
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${emp.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ hideWorkHours: newVal }),
+      });
+      if (res.ok) {
+        setEmployees((prev) =>
+          prev.map((e) => (e.id === emp.id ? { ...e, hideWorkHours: newVal } : e))
+        );
+        showAlert({
+          title: t("success"),
+          message: newVal
+            ? `Arbeitszeiten für ${emp.name} wurden ausgeblendet.`
+            : `Arbeitszeiten für ${emp.name} sind nun sichtbar.`,
+          type: "success",
+        });
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showAlert({
+          title: t("errorOccurred"),
+          message: err.message || "Fehler beim Aktualisieren der Sichtbarkeit.",
+          type: "error",
+        });
+      }
+    } catch (err) {
+      console.error("Quick toggle error", err);
+    }
   };
 
   const handleBulkDeactivate = () => {
@@ -899,20 +938,7 @@ export default function EmployeesPage() {
         {canManage && (
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
             {/* Global Work Hours & Timesheets Visibility Control */}
-            <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
-              <span className={`w-2 h-2 rounded-full ${isGlobalWorkHoursHidden ? "bg-amber-500 animate-pulse" : "bg-emerald-500"}`} />
-              <span className={`text-[11px] font-bold ${isGlobalWorkHoursHidden ? "text-amber-700" : "text-emerald-700"}`}>
-                {isGlobalWorkHoursHidden ? t("workHoursHiddenBadge") : t("workHoursVisibleBadge")}
-              </span>
-              <button
-                onClick={() => handleToggleGlobalWorkHoursVisibility(!isGlobalWorkHoursHidden)}
-                disabled={toggleWorkHoursLoading}
-                className="ml-1 p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors cursor-pointer"
-                title={isGlobalWorkHoursHidden ? t("showWorkHoursToggleBtn") : t("hideWorkHoursToggleBtn")}
-              >
-                {isGlobalWorkHoursHidden ? <Eye size={14} className="text-amber-600" /> : <EyeOff size={14} className="text-slate-500" />}
-              </button>
-            </div>
+            <WorkHoursVisibilityToggle onVisibilityChange={(val) => setIsGlobalWorkHoursHidden(val)} />
 
             {/* Download Template */}
             <button
@@ -947,6 +973,23 @@ export default function EmployeesPage() {
           </div>
         )}
       </div>
+
+      {/* Global Visibility Notice Banner */}
+      {isGlobalWorkHoursHidden && (
+        <div className="flex items-center gap-3 p-3.5 sm:p-4 rounded-2xl bg-amber-50/90 border border-amber-300 text-amber-900 text-xs shadow-xs animate-fadeIn">
+          <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0">
+            <EyeOff className="w-4 h-4" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <span className="font-extrabold block text-slate-900">{t("globalVisibilityBanner")}</span>
+            <span className="text-amber-850 text-[11px] leading-tight block mt-0.5">
+              {language === "de"
+                ? "Alle Mitarbeiter sehen aktuell keine Stundenstatistiken, Zeiterfassungen oder Stundenzettel. Sobald die globale Sperre oben deaktiviert wird, gelten wieder die individuellen Einstellungen."
+                : "All employees currently cannot view work hours or timesheets. Once global hiding is toggled off above, individual employee settings will apply."}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Search & Actions Bar */}
       <div className="space-y-4">
@@ -1196,15 +1239,36 @@ export default function EmployeesPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 font-semibold text-slate-800">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span>{getLastName(emp.name)}</span>
-                        {emp.hideWorkHours && (
+                        {isGlobalWorkHoursHidden ? (
                           <span
-                            className="inline-flex items-center text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-1 py-0.5 rounded"
-                            title="Arbeitszeit & Stundenzettel für diesen Mitarbeiter verborgen"
+                            className="inline-flex items-center gap-1 text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-300 px-1.5 py-0.5 rounded-full"
+                            title={t("globalVisibilityBanner")}
                           >
-                            🔒 Verborgen
+                            <EyeOff size={10} className="text-amber-600" />
+                            <span>{t("globallyHidden")}</span>
                           </span>
+                        ) : emp.hideWorkHours ? (
+                          <button
+                            type="button"
+                            onClick={() => handleQuickToggleIndividualVisibility(emp)}
+                            className="inline-flex items-center gap-1 text-[9px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-1.5 py-0.5 rounded-full transition-colors cursor-pointer"
+                            title={t("quickToggleVisibility")}
+                          >
+                            <EyeOff size={10} className="text-amber-700" />
+                            <span>{t("individuallyHidden")}</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleQuickToggleIndividualVisibility(emp)}
+                            className="opacity-0 group-hover:opacity-100 hover:opacity-100 inline-flex items-center gap-1 text-[9px] font-medium text-slate-400 hover:text-amber-700 px-1 py-0.5 rounded transition-all cursor-pointer"
+                            title="Klicken zum Ausblenden der Stunden für diesen Mitarbeiter"
+                          >
+                            <EyeOff size={10} />
+                            <span className="hidden sm:inline">Stunden verbergen</span>
+                          </button>
                         )}
                       </div>
                     </td>
@@ -1973,21 +2037,29 @@ export default function EmployeesPage() {
               )}
 
               {/* Hide Work Hours & Timesheets toggle */}
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3">
-                <div>
-                  <span className="text-xs font-bold text-slate-800 block">
-                    {t("hideWorkHoursPerEmployee")}
-                  </span>
-                  <span className="text-[11px] text-slate-500 block">
-                    {t("hideWorkHoursPerEmployeeDesc")}
-                  </span>
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">
+                      {t("hideWorkHoursPerEmployee")}
+                    </span>
+                    <span className="text-[11px] text-slate-500 block">
+                      {t("hideWorkHoursPerEmployeeDesc")}
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={formHideWorkHours}
+                    onChange={(e) => setFormHideWorkHours(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
                 </div>
-                <input
-                  type="checkbox"
-                  checked={formHideWorkHours}
-                  onChange={(e) => setFormHideWorkHours(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                />
+                {isGlobalWorkHoursHidden && (
+                  <div className="p-2 rounded-lg bg-amber-100/70 border border-amber-200 text-amber-900 text-[10px] flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-700" />
+                    <span>{t("globalHideActiveNotice")}</span>
+                  </div>
+                )}
               </div>
 
               <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 -mx-6 -mb-6">

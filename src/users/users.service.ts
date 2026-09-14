@@ -6,12 +6,14 @@ import { EmailService } from '../email/email.service';
 import { Role, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as ExcelJS from 'exceljs';
+import { SettingsService } from '../settings/settings.service';
 
 @Injectable()
 export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
+    private readonly settingsService: SettingsService,
   ) {}
 
   async create(createUserDto: CreateUserDto, actorId?: string, actorRole?: Role) {
@@ -181,6 +183,7 @@ export class UsersService {
         telegramId: true,
         employmentStart: true,
         employmentEnd: true,
+        hideWorkHours: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -542,11 +545,7 @@ export class UsersService {
     const now = new Date();
     
     // Check if work hours / timesheets are hidden globally or for this specific employee
-    const globalSetting = await this.prisma.systemSetting.findUnique({
-      where: { key: 'HIDE_EMPLOYEE_WORK_HOURS' },
-    });
-    const isGlobalHidden = globalSetting ? globalSetting.value === 'true' : false;
-    const isWorkHoursHidden = isGlobalHidden || (user.hideWorkHours === true);
+    const isWorkHoursHidden = await this.settingsService.isWorkHoursHiddenForEmployee(employeeId);
 
     // 1. Current clock-in status
     const activeShift = await this.prisma.attendance.findFirst({

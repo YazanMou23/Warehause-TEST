@@ -42,6 +42,7 @@ import {
 import { API_URL } from '../../../config/api';
 import CustomAlertModal, { CustomAlertOptions } from '../../components/CustomAlertModal';
 import { useDialog } from '../../components/DialogProvider';
+import WorkHoursVisibilityToggle from '../../components/WorkHoursVisibilityToggle';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -2867,53 +2868,6 @@ export default function TimesheetsPage() {
   const [rotation, setRotation] = useState<number>(0);
   const [isReanalyzing, setIsReanalyzing] = useState<boolean>(false);
 
-  // Global Work Hours & Timesheets Visibility State (for Admin & Manager)
-  const [isGlobalWorkHoursHidden, setIsGlobalWorkHoursHidden] = useState(false);
-  const [toggleWorkHoursLoading, setToggleWorkHoursLoading] = useState(false);
-
-  const fetchWorkHoursVisibility = async () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-    if (!token) return;
-    try {
-      const res = await fetch(`${API_URL}/settings/work-hours-visibility`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setIsGlobalWorkHoursHidden(Boolean(data.isGlobalHidden));
-      }
-    } catch (e) {
-      console.warn('Could not load work hours visibility in timesheets', e);
-    }
-  };
-
-  const handleToggleWorkHoursVisibility = async (newVal: boolean) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-    if (!token) return;
-    setToggleWorkHoursLoading(true);
-    try {
-      const res = await fetch(`${API_URL}/settings/work-hours-visibility`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ hideWorkHours: newVal }),
-      });
-      if (res.ok) {
-        setIsGlobalWorkHoursHidden(newVal);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setToggleWorkHoursLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchWorkHoursVisibility();
-  }, []);
-
   // ── Page-level upload job (PDF/image → N independent page jobs) ─────────────
   const [pdfJob, setPdfJob] = useState<PdfJob | null>(null);
   const [currentPage, setCurrentPage] = useState(0);          // page index being processed/reviewed
@@ -3260,41 +3214,7 @@ export default function TimesheetsPage() {
             </div>
 
             {/* Admin/Manager Work Hours & Timesheet Visibility Control */}
-            <div className="flex items-center gap-3 bg-slate-50 px-4 py-2.5 rounded-2xl border border-slate-200 shadow-xs">
-              <div className="flex items-center gap-2">
-                <span className={`w-2.5 h-2.5 rounded-full ${isGlobalWorkHoursHidden ? "bg-amber-500 animate-pulse" : "bg-emerald-500"}`} />
-                <div>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
-                    Mitarbeiter-Sichtbarkeit
-                  </span>
-                  <span className={`text-xs font-extrabold ${isGlobalWorkHoursHidden ? "text-amber-700" : "text-emerald-700"}`}>
-                    {isGlobalWorkHoursHidden ? "Für Mitarbeiter verborgen" : "Für Mitarbeiter sichtbar"}
-                  </span>
-                </div>
-              </div>
-              <button
-                onClick={() => handleToggleWorkHoursVisibility(!isGlobalWorkHoursHidden)}
-                disabled={toggleWorkHoursLoading}
-                className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 ${
-                  isGlobalWorkHoursHidden
-                    ? "bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300"
-                    : "bg-white hover:bg-slate-100 text-slate-700 border-slate-300"
-                }`}
-                title={isGlobalWorkHoursHidden ? "Arbeitszeit für Mitarbeiter anzeigen" : "Arbeitszeit für Mitarbeiter verbergen"}
-              >
-                {isGlobalWorkHoursHidden ? (
-                  <>
-                    <Eye size={14} className="text-amber-700" />
-                    <span>Sichtbar schalten</span>
-                  </>
-                ) : (
-                  <>
-                    <EyeOff size={14} className="text-slate-500" />
-                    <span>Für Mitarbeiter verbergen</span>
-                  </>
-                )}
-              </button>
-            </div>
+            <WorkHoursVisibilityToggle />
           </div>
         </div>
 

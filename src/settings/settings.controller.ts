@@ -13,12 +13,15 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Role } from '@prisma/client';
 
-class UpdateWorkHoursVisibilityDto {
+import { IsBoolean } from 'class-validator';
+
+export class UpdateWorkHoursVisibilityDto {
+  @IsBoolean()
   hideWorkHours: boolean;
 }
 
 @Controller('settings')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class SettingsController {
   constructor(private readonly settingsService: SettingsService) {}
 
@@ -37,7 +40,6 @@ export class SettingsController {
    * Strictly restricted to ADMIN and MANAGER.
    */
   @Patch('work-hours-visibility')
-  @UseGuards(RolesGuard)
   @Roles(Role.MANAGER, Role.ADMIN)
   async setWorkHoursVisibility(
     @Body() body: UpdateWorkHoursVisibilityDto,

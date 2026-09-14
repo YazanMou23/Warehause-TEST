@@ -241,6 +241,12 @@ export const translations = {
     shiftsOverviewTitle: "My Shifts & Schedule",
     myAssignedShiftsDesc: "View your assigned shifts, work locations, halls, and meeting points.",
     timesheetsRestrictedNotice: "Work hours and timesheet logging are managed directly by administration.",
+    globalVisibilityBanner: "Global Lock Active: Work hours and timesheets are currently hidden from ALL employees.",
+    individuallyHidden: "Individually Hidden",
+    globallyHidden: "Globally Hidden",
+    hoursVisible: "Hours Visible",
+    quickToggleVisibility: "Toggle Work Hours Visibility",
+    globalHideActiveNotice: "Note: Global hiding is currently active. All employees currently have no access to work hours, regardless of this individual setting.",
   },
   de: {
     // General / Sidebar
@@ -484,5 +490,11 @@ export const translations = {
     shiftsOverviewTitle: "Meine Schichten & Einsätze",
     myAssignedShiftsDesc: "Hier finden Sie alle Informationen zu Ihren Einsatzorten, Hallen und Treffpunkten.",
     timesheetsRestrictedNotice: "Arbeitszeiten und Stundenzettel werden zentral von der Einsatzleitung verwaltet.",
+    globalVisibilityBanner: "Globale Sperre aktiv: Arbeitszeiten & Stundenzettel sind aktuell für ALLE Mitarbeiter ausgeblendet.",
+    individuallyHidden: "Individuell verborgen",
+    globallyHidden: "Global verborgen",
+    hoursVisible: "Stunden sichtbar",
+    quickToggleVisibility: "Arbeitszeit-Sichtbarkeit umschalten",
+    globalHideActiveNotice: "Hinweis: Die globale Ausblendung ist aktiv. Alle Mitarbeiter haben derzeit keinen Zugriff auf Stunden, unabhängig von dieser individuellen Einstellung.",
   }
 };

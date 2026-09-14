@@ -49,6 +49,7 @@ import ActiveEmployeeCalendar from "../components/ActiveEmployeeCalendar";
 import CustomAlertModal, { CustomAlertOptions } from "../components/CustomAlertModal";
 import QRScannerCameraModal from "../components/QRScannerCameraModal";
 import EmployeeLogHoursModal from "../components/EmployeeLogHoursModal";
+import WorkHoursVisibilityToggle from "../components/WorkHoursVisibilityToggle";
 
 interface Metrics {
   employeesCount: number;
@@ -108,6 +109,7 @@ export default function DashboardPage() {
 
   // Employee Dashboard States
   const [employeeSummary, setEmployeeSummary] = useState<any>(null);
+  const isWorkHoursHidden = Boolean(employeeSummary?.isWorkHoursHidden);
   const [employeeInfo, setEmployeeInfo] = useState<any>(null);
   const [clockInWarehouseId, setClockInWarehouseId] = useState("");
   const [clockInHallId, setClockInHallId] = useState("");
@@ -542,6 +544,9 @@ export default function DashboardPage() {
           }));
         }
 
+        // Refresh full summary data to keep hours & timesheets perfectly synced
+        refreshEmployeeData();
+
         showAlert({
           title: data.action === 'CLOCK_OUT' ? '✅ Ausgestempelt' : '✅ Eingestempelt',
           message: data.message || 'QR-Code Zeiterfassung erfolgreich!',
@@ -645,6 +650,22 @@ export default function DashboardPage() {
     const timer = setInterval(updateElapsed, 1000);
     return () => clearInterval(timer);
   }, [employeeSummary?.activeShift?.clockIn]);
+
+  // Ensure mobile tab does not stay on hidden "logs" tab (avoids blank screen)
+  useEffect(() => {
+    if (isWorkHoursHidden && employeeActiveTab === "logs") {
+      setEmployeeActiveTab("overview");
+    }
+  }, [isWorkHoursHidden, employeeActiveTab]);
+
+  // Periodic refresh for employee dashboard to detect admin visibility toggles live
+  useEffect(() => {
+    if (userRole !== "EMPLOYEE") return;
+    const interval = setInterval(() => {
+      refreshEmployeeData();
+    }, 25000);
+    return () => clearInterval(interval);
+  }, [userRole]);
 
   useEffect(() => {
     const today = new Date().toLocaleDateString('en-CA');
@@ -756,7 +777,6 @@ export default function DashboardPage() {
   }
 
   const canManage = userRole === "ADMIN" || userRole === "MANAGER";
-  const isWorkHoursHidden = Boolean(employeeSummary?.isWorkHoursHidden);
 
   return (
     <div className="space-y-stack-lg animate-fadeIn">
@@ -1503,41 +1523,9 @@ export default function DashboardPage() {
             </div>
 
             {/* Global Work Hours & Timesheets Visibility Control for Admin & Manager */}
-            <div className="flex items-center gap-3 bg-white px-4 py-2.5 rounded-xl border border-slate-200/80 shadow-xs">
-              <div className="flex items-center gap-2">
-                <span className={`w-2.5 h-2.5 rounded-full ${isGlobalWorkHoursHidden ? "bg-amber-500 animate-pulse" : "bg-emerald-500"}`} />
-                <div className="text-left">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
-                    {t("workHoursVisibilityTitle")}
-                  </span>
-                  <span className={`text-xs font-extrabold ${isGlobalWorkHoursHidden ? "text-amber-700" : "text-emerald-700"}`}>
-                    {isGlobalWorkHoursHidden ? t("workHoursHiddenBadge") : t("workHoursVisibleBadge")}
-                  </span>
-                </div>
-              </div>
-              <button
-                onClick={() => handleToggleGlobalWorkHoursVisibility(!isGlobalWorkHoursHidden)}
-                disabled={toggleWorkHoursLoading}
-                className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 ${
-                  isGlobalWorkHoursHidden
-                    ? "bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 shadow-xs"
-                    : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200 shadow-xs"
-                }`}
-                title={isGlobalWorkHoursHidden ? t("showWorkHoursToggleBtn") : t("hideWorkHoursToggleBtn")}
-              >
-                {isGlobalWorkHoursHidden ? (
-                  <>
-                    <Eye className="w-3.5 h-3.5 text-amber-600" />
-                    <span>{t("showWorkHoursToggleBtn")}</span>
-                  </>
-                ) : (
-                  <>
-                    <EyeOff className="w-3.5 h-3.5 text-slate-500" />
-                    <span>{t("hideWorkHoursToggleBtn")}</span>
-                  </>
-                )}
-              </button>
-            </div>
+            <WorkHoursVisibilityToggle
+              onVisibilityChange={(hidden) => setIsGlobalWorkHoursHidden(hidden)}
+            />
           </div>
 
           {/* Key Metrics Grid */}

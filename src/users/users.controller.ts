@@ -195,6 +195,7 @@ export class UsersController {
       delete updateUserDto.isActive;
       delete updateUserDto.employmentStart;
       delete updateUserDto.employmentEnd;
+      delete updateUserDto.hideWorkHours;
     }
     return this.usersService.update(id, updateUserDto, currentUser.id, currentUser.role);
   }

@@ -1,13 +1,17 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { SettingsService } from '../settings/settings.service';
 import { ClockInDto } from './dto/clock-in.dto';
 import { ClockOutDto } from './dto/clock-out.dto';
 import { QrScanDto } from './dto/qr-scan.dto';
 
 @Injectable()
 export class AttendanceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly settingsService: SettingsService,
+  ) {}
 
   private getTodayMidnight(): Date {
     const d = new Date();
@@ -196,17 +200,7 @@ export class AttendanceService {
   }
 
   async isWorkHoursHiddenForEmployee(employeeId: string): Promise<boolean> {
-    const globalSetting = await this.prisma.systemSetting.findUnique({
-      where: { key: 'HIDE_EMPLOYEE_WORK_HOURS' },
-    });
-    if (globalSetting?.value === 'true') {
-      return true;
-    }
-    const user = await this.prisma.user.findUnique({
-      where: { id: employeeId },
-      select: { hideWorkHours: true },
-    });
-    return user?.hideWorkHours ?? false;
+    return this.settingsService.isWorkHoursHiddenForEmployee(employeeId);
   }
 
   async getMonthlyReport(employeeId: string, year: number, month: number, actorRole?: Role) {
