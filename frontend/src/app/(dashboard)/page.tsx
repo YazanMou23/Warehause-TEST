@@ -658,13 +658,86 @@ export default function DashboardPage() {
     }
   }, [isWorkHoursHidden, employeeActiveTab]);
 
-  // Periodic refresh for employee dashboard to detect admin visibility toggles live
+  // Real-time SSE listener for work hours visibility events (immediate live reaction for employee)
   useEffect(() => {
     if (userRole !== "EMPLOYEE") return;
+
+    const token = localStorage.getItem("accessToken");
+    if (!token) return;
+
+    let myUserId = "";
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      myUserId = payload.sub;
+    } catch (e) {}
+
+    if (!myUserId) return;
+
+    const url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/settings/work-hours-visibility/events?token=${encodeURIComponent(token)}`;
+    const es = new EventSource(url);
+
+    es.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (!payload || payload.type === "ping") return;
+
+        let shouldRefresh = false;
+        let directlyHidden: boolean | null = null;
+
+        if (payload.type === "work_hours_visibility.employee_changed") {
+          if (payload.employeeId === myUserId) {
+            directlyHidden = Boolean(payload.hideWorkHours);
+            shouldRefresh = true;
+          }
+        } else if (payload.type === "work_hours_visibility.bulk_changed") {
+          if (!payload.employeeIds || payload.employeeIds.length === 0 || payload.employeeIds.includes(myUserId)) {
+            directlyHidden = Boolean(payload.hideWorkHours);
+            shouldRefresh = true;
+          }
+        } else if (payload.type === "work_hours_visibility.global_changed") {
+          shouldRefresh = true;
+          if (payload.isGlobalHidden) {
+            directlyHidden = true;
+          }
+        }
+
+        if (directlyHidden === true) {
+          // Immediately hide hours & timesheet data in real time
+          setEmployeeSummary((prev: any) =>
+            prev
+              ? {
+                  ...prev,
+                  isWorkHoursHidden: true,
+                  hoursSummary: null,
+                  formattedAttendanceHistory: [],
+                }
+              : prev
+          );
+        } else if (shouldRefresh) {
+          // Immediately re-fetch full hours, statistics & work logs in real time
+          refreshEmployeeData();
+        }
+      } catch (err) {
+        // ignore parse error
+      }
+    };
+
+    // Re-verify on window focus
+    const handleFocus = () => {
+      refreshEmployeeData();
+    };
+    window.addEventListener("focus", handleFocus);
+
+    // Light fallback poll every 30 seconds
     const interval = setInterval(() => {
       refreshEmployeeData();
-    }, 25000);
-    return () => clearInterval(interval);
+    }, 30000);
+
+    return () => {
+      es.close();
+      window.removeEventListener("focus", handleFocus);
+      clearInterval(interval);
+    };
   }, [userRole]);
 
   useEffect(() => {

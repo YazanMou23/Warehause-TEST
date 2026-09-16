@@ -339,6 +339,10 @@ export class UsersService {
       });
     }
 
+    if (updateUserDto.hideWorkHours !== undefined && updateUserDto.hideWorkHours !== user.hideWorkHours) {
+      this.settingsService.notifyEmployeeVisibilityChanged(id, updateUserDto.hideWorkHours);
+    }
+
     return updated;
   }
 

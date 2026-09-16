@@ -470,6 +470,11 @@ export default function EmployeesPage() {
         setEmployees((prev) =>
           prev.map((e) => (e.id === emp.id ? { ...e, hideWorkHours: newVal } : e))
         );
+        window.dispatchEvent(
+          new CustomEvent("work-hours-visibility-changed", {
+            detail: { employeeId: emp.id, hideWorkHours: newVal },
+          })
+        );
         showAlert({
           title: t("success"),
           message: newVal
