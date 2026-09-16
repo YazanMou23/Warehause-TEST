@@ -361,6 +361,121 @@ function getKw(weekStart: string): string {
   return `KW ${week} / ${d.getFullYear()}`;
 }
 
+// ─── Smart Employee Fuzzy Matcher for Review ─────────────────────────────────
+
+function findBestEmployeeMatch(
+  name: string,
+  list: DbEmployee[],
+): { emp: DbEmployee; score: number } | null {
+  if (!name || !name.trim() || !list || list.length === 0) return null;
+  const norm = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/^(herr|frau|dr\.?)\s+/i, '')
+      .replace(/ä/g, 'ae')
+      .replace(/ö/g, 'oe')
+      .replace(/ü/g, 'ue')
+      .replace(/ß/g, 'ss')
+      .replace(/[.,\-_\\/:()]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const targetNorm = norm(name);
+  if (!targetNorm || targetNorm.includes('unbekannt')) return null;
+  const targetTokens = targetNorm.split(' ').filter(Boolean);
+
+  let best: { emp: DbEmployee; score: number } | null = null;
+
+  for (const emp of list) {
+    const empNorm = norm(emp.name);
+    const empTokens = empNorm.split(' ').filter(Boolean);
+
+    // Exact full name match
+    if (targetNorm === empNorm) {
+      return { emp, score: 100 };
+    }
+
+    // Token set equality in any order (e.g. "Müller Max" vs "Max Müller")
+    if (
+      targetTokens.length === empTokens.length &&
+      targetTokens.every((t) => empTokens.includes(t))
+    ) {
+      return { emp, score: 98 };
+    }
+
+    // Subset tokens: all target tokens match some DB token (e.g. "Mohammad Awad" in "Mohammad Awad Alqaan")
+    if (
+      targetTokens.length >= 2 &&
+      targetTokens.every((t) =>
+        empTokens.some((et) => et === t || et.includes(t) || t.includes(et))
+      )
+    ) {
+      const score = 92;
+      if (!best || score > best.score) best = { emp, score };
+      continue;
+    }
+
+    // Reverse subset: all DB tokens in target tokens (e.g. DB is "Hussein Barakat", target is "Hussein Barakat Ali")
+    if (
+      empTokens.length >= 2 &&
+      empTokens.every((et) =>
+        targetTokens.some((t) => t === et || t.includes(et) || et.includes(t))
+      )
+    ) {
+      const score = 91;
+      if (!best || score > best.score) best = { emp, score };
+      continue;
+    }
+
+    // Single token match (if user typed or OCR got only 1 token >= 3 chars, e.g. "Alqaan" or "Akif")
+    if (targetTokens.length === 1 && targetTokens[0].length >= 3) {
+      const tok = targetTokens[0];
+      const match = empTokens.some((et) => et === tok || et.startsWith(tok));
+      if (match) {
+        const score = 82;
+        if (!best || score > best.score) best = { emp, score };
+        continue;
+      }
+    }
+
+    // Username match fallback
+    if (emp.username) {
+      const userClean = norm(emp.username);
+      if (userClean === targetNorm || targetNorm.includes(userClean)) {
+        const score = 85;
+        if (!best || score > best.score) best = { emp, score };
+        continue;
+      }
+    }
+
+    // Partial token overlap
+    let matchedCount = 0;
+    for (const tt of targetTokens) {
+      if (
+        empTokens.some(
+          (et) =>
+            et === tt ||
+            (tt.length >= 3 &&
+              et.length >= 3 &&
+              (et.startsWith(tt) || tt.startsWith(et)))
+        )
+      ) {
+        matchedCount++;
+      }
+    }
+    if (matchedCount > 0) {
+      const score = Math.round(
+        (matchedCount / Math.max(targetTokens.length, empTokens.length)) * 80
+      );
+      if (score >= 60 && (!best || score > best.score)) {
+        best = { emp, score };
+      }
+    }
+  }
+
+  return best;
+}
+
 // ─── Sub-Components ───────────────────────────────────────────────────────────
 
 function ConfidenceBadge({ confidence }: { confidence: 'exact' | 'fuzzy' | 'none' }) {
@@ -876,6 +991,25 @@ function ReviewView({
   const allWeekdays = useMemo(() => ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'], []);
   const [employeeName, setEmployeeName] = useState(scanResult.employeeName);
   const [weekStartDate, setWeekStartDate] = useState(scanResult.weekStartDate);
+  const [employeeId, setEmployeeId] = useState<string>(scanResult.employeeId ?? '');
+  const [createNew, setCreateNew] = useState(false);
+  const [newEmployee, setNewEmployee] = useState({
+    username: '',
+    phone: '',
+    password: 'changeme123',
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showEmployeeSelector, setShowEmployeeSelector] = useState(
+    !scanResult.employeeId && !scanResult.employeeMatch?.found
+  );
+  const [matchConfidence, setMatchConfidence] = useState<'exact' | 'fuzzy' | 'none'>(
+    scanResult.employeeMatch?.confidence || (scanResult.employeeId ? 'exact' : 'none')
+  );
+
+  const [dbEmployees, setDbEmployees] = useState<DbEmployee[]>([]);
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const employeeDropdownRef = useRef<HTMLDivElement>(null);
 
   // Initialize all 7 calendar week days (Montag - Sonntag)
   const [entries, setEntries] = useState<TimesheetEntry[]>(() => {
@@ -923,7 +1057,28 @@ function ReviewView({
     if (!scanResult) return;
     if (scanResult.employeeName) setEmployeeName(scanResult.employeeName);
     if (scanResult.weekStartDate) setWeekStartDate(scanResult.weekStartDate);
-    if (scanResult.employeeId) setEmployeeId(scanResult.employeeId);
+    if (scanResult.employeeId) {
+      setEmployeeId(scanResult.employeeId);
+      setShowEmployeeSelector(false);
+      setMatchConfidence(scanResult.employeeMatch?.confidence || 'exact');
+    } else {
+      if (dbEmployees.length > 0 && scanResult.employeeName) {
+        const match = findBestEmployeeMatch(scanResult.employeeName, dbEmployees);
+        if (match && match.score >= 80) {
+          setEmployeeId(match.emp.id);
+          setShowEmployeeSelector(false);
+          setMatchConfidence(match.score >= 95 ? 'exact' : 'fuzzy');
+        } else {
+          setEmployeeId('');
+          setShowEmployeeSelector(true);
+          setMatchConfidence('none');
+        }
+      } else {
+        setEmployeeId('');
+        setShowEmployeeSelector(!scanResult.employeeMatch?.found);
+        setMatchConfidence(scanResult.employeeMatch?.confidence || 'none');
+      }
+    }
 
     const baseDate = new Date(scanResult.weekStartDate || new Date());
     setEntries((prev) => {
@@ -969,7 +1124,7 @@ function ReviewView({
         };
       });
     });
-  }, [scanResult, allWeekdays]);
+  }, [scanResult, allWeekdays, dbEmployees]);
 
   // When week start date is changed by the user, update the dates of all 7 days
   const handleWeekStartDateChange = (newDateStr: string) => {
@@ -1007,23 +1162,6 @@ function ReviewView({
     });
   };
 
-  const [employeeId, setEmployeeId] = useState<string>(scanResult.employeeId ?? '');
-  const [createNew, setCreateNew] = useState(false);
-  const [newEmployee, setNewEmployee] = useState({
-    username: '',
-    phone: '',
-    password: 'changeme123',
-  });
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [showEmployeeSelector, setShowEmployeeSelector] = useState(
-    !scanResult.employeeMatch.found
-  );
-
-  const [dbEmployees, setDbEmployees] = useState<DbEmployee[]>([]);
-  const [employeeSearch, setEmployeeSearch] = useState('');
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const employeeDropdownRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     if (!isDropdownOpen) return;
     const handler = (e: MouseEvent) => {
@@ -1038,7 +1176,7 @@ function ReviewView({
   useEffect(() => {
     const fetchEmployees = async () => {
       try {
-        const res = await fetch(`${API_URL}/employees?limit=100`, { headers: getAuthHeaders() });
+        const res = await fetch(`${API_URL}/employees?limit=300`, { headers: getAuthHeaders() });
         if (res.ok) {
           const json = await res.json();
           const list = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
@@ -1051,6 +1189,49 @@ function ReviewView({
     };
     fetchEmployees();
   }, []);
+
+  // Auto-match against dbEmployees when loaded or when employeeId is not yet assigned
+  useEffect(() => {
+    if (dbEmployees.length === 0) return;
+    if (employeeId) {
+      const exists = dbEmployees.some((e) => e.id === employeeId);
+      if (exists) {
+        setShowEmployeeSelector(false);
+        return;
+      }
+    }
+    if (employeeName && !createNew) {
+      const match = findBestEmployeeMatch(employeeName, dbEmployees);
+      if (match && match.score >= 80) {
+        setEmployeeId(match.emp.id);
+        setShowEmployeeSelector(false);
+        setMatchConfidence(match.score >= 95 ? 'exact' : 'fuzzy');
+      }
+    }
+  }, [dbEmployees]);
+
+  const handleEmployeeNameChange = (newName: string) => {
+    setEmployeeName(newName);
+    if (!createNew && dbEmployees.length > 0) {
+      const match = findBestEmployeeMatch(newName, dbEmployees);
+      if (match && match.score >= 80) {
+        setEmployeeId(match.emp.id);
+        setShowEmployeeSelector(false);
+        setMatchConfidence(match.score >= 95 ? 'exact' : 'fuzzy');
+      } else {
+        if (selectedEmployeeObj && !newName.toLowerCase().includes(selectedEmployeeObj.name.toLowerCase().slice(0, 3))) {
+          setEmployeeId('');
+          setMatchConfidence('none');
+          setShowEmployeeSelector(true);
+        }
+      }
+    }
+  };
+
+  const suggestedMatch = useMemo(() => {
+    if (!employeeName || !dbEmployees.length) return null;
+    return findBestEmployeeMatch(employeeName, dbEmployees);
+  }, [employeeName, dbEmployees]);
 
   const [availableHalls, setAvailableHalls] = useState<{ id: string; name: string; warehouseId?: string }[]>([]);
   const [openHallDropdown, setOpenHallDropdown] = useState<number | null>(null);
@@ -1220,27 +1401,35 @@ function ReviewView({
 
         <div className="flex flex-wrap items-start gap-3 mb-4">
           <div className="flex-1 min-w-0 px-3.5 py-2.5 bg-slate-50 rounded-xl border-2 border-slate-300 focus-within:border-blue-600 focus-within:bg-white transition-colors shadow-xs">
-            <p className="text-xs text-slate-600 font-semibold mb-0.5">OCR-erkannter Name (bearbeitbar)</p>
+            <p className="text-xs text-slate-600 font-semibold mb-0.5">Erkannter Name auf Stundenzettel (bearbeitbar)</p>
             <input
               type="text"
               value={employeeName}
-              onChange={(e) => setEmployeeName(e.target.value)}
+              onChange={(e) => handleEmployeeNameChange(e.target.value)}
+              placeholder="Name des Mitarbeiters..."
               className="w-full bg-transparent text-slate-900 font-bold text-base focus:outline-none border-b-2 border-transparent focus:border-blue-600 py-0.5"
             />
           </div>
-          <ConfidenceBadge confidence={scanResult.employeeMatch.confidence} />
+          <ConfidenceBadge confidence={matchConfidence} />
         </div>
 
-        {/* Auto-detected match banner — always shows a Change button */}
-        {scanResult.employeeMatch.found && !showEmployeeSelector ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 p-3.5 bg-emerald-50 border-2 border-emerald-300 rounded-xl">
+        {/* Auto-detected / matched employee banner */}
+        {employeeId && selectedEmployeeObj && !showEmployeeSelector && !createNew ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 p-3.5 bg-emerald-50 border-2 border-emerald-300 rounded-xl shadow-xs">
             <div className="flex items-center gap-2.5 min-w-0">
               <CheckCircle size={18} className="text-emerald-700 shrink-0" />
-              <span className="text-emerald-900 text-sm font-medium truncate">
-                Erkannt: <strong className="font-bold text-emerald-950">{selectedEmployeeObj?.name || scanResult.employeeMatch.matchedName}</strong>
-              </span>
+              <div className="min-w-0">
+                <p className="text-[11px] text-emerald-800 font-semibold uppercase tracking-wider">Zugeordneter Datenbank-Mitarbeiter</p>
+                <span className="text-emerald-950 text-sm font-bold truncate flex items-center gap-2">
+                  {selectedEmployeeObj.name}
+                  {selectedEmployeeObj.username && (
+                    <span className="text-xs text-emerald-700 font-normal">(@{selectedEmployeeObj.username})</span>
+                  )}
+                </span>
+              </div>
             </div>
             <button
+              type="button"
               onClick={() => { setShowEmployeeSelector(true); setCreateNew(false); }}
               className="text-xs text-emerald-800 hover:text-emerald-950 font-bold underline transition-colors cursor-pointer shrink-0"
             >
@@ -1249,9 +1438,34 @@ function ReviewView({
           </div>
         ) : (
           <div className="space-y-3">
+            {/* Database suggestion chip if a close match exists and not currently selected */}
+            {suggestedMatch && suggestedMatch.emp.id !== employeeId && !createNew && (
+              <div className="flex items-center justify-between p-2.5 bg-blue-50 border-2 border-blue-200 rounded-xl text-xs text-blue-900 shadow-xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <User size={14} className="text-blue-600 shrink-0" />
+                  <span className="truncate">
+                    Datenbank-Vorschlag: <strong className="font-bold">{suggestedMatch.emp.name}</strong> (@{suggestedMatch.emp.username})
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmployeeId(suggestedMatch.emp.id);
+                    setEmployeeName(suggestedMatch.emp.name);
+                    setMatchConfidence('exact');
+                    setShowEmployeeSelector(false);
+                  }}
+                  className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shrink-0 cursor-pointer shadow-xs transition-colors"
+                >
+                  Übernehmen
+                </button>
+              </div>
+            )}
+
             {/* Mode tabs: existing vs. new */}
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={() => setCreateNew(false)}
                 className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-bold border-2 transition-all cursor-pointer ${
                   !createNew
@@ -1263,6 +1477,7 @@ function ReviewView({
                 Bestehender Mitarbeiter
               </button>
               <button
+                type="button"
                 onClick={() => setCreateNew(true)}
                 className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-bold border-2 transition-all cursor-pointer ${
                   createNew
@@ -1322,6 +1537,8 @@ function ReviewView({
                               e.stopPropagation();
                               setEmployeeId(emp.id);
                               setEmployeeName(emp.name);
+                              setMatchConfidence('exact');
+                              setShowEmployeeSelector(false);
                               setIsDropdownOpen(false);
                             }}
                             className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs cursor-pointer transition-colors ${

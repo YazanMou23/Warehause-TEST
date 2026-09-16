@@ -26,7 +26,7 @@ export class TimesheetMatcherService {
    *   4. Initial matching ("M. Müller" → "Max Müller")
    */
   async findBestMatch(ocrName: string): Promise<MatchResult> {
-    if (!ocrName?.trim()) {
+    if (!ocrName?.trim() || ocrName.toLowerCase().includes('unbekannt')) {
       return { found: false, confidence: 'none', score: 0 };
     }
 
@@ -51,18 +51,36 @@ export class TimesheetMatcherService {
       // Strategy 1: full-name Levenshtein
       const s1 = this.levScore(normalized, empNorm);
 
-      // Strategy 2: token-set (any word ordering)
+      // Strategy 2: token-set (any word ordering, e.g. "Müller Max" ↔ "Max Müller")
       const s2 = this.tokenSetScore(ocrTokens, empTokens);
 
-      // Strategy 3: first-name-only (when OCR captured only one word)
-      const s3 = ocrTokens.length === 1 && empTokens.length > 0
-        ? this.levScore(ocrTokens[0], empTokens[0])
-        : 0;
+      // Strategy 3: single-token match against any DB token (e.g. only last name written)
+      let s3 = 0;
+      if (ocrTokens.length === 1 && empTokens.length > 0) {
+        for (const empTok of empTokens) {
+          const score = this.levScore(ocrTokens[0], empTok);
+          if (score > s3) s3 = score;
+        }
+        // If one token matches an employee token with >= 85%, give a solid match score
+        if (s3 >= 85) s3 = Math.max(s3, 80);
+      }
 
       // Strategy 4: initial matching ("M." or "M" → first letter of first name)
       const s4 = this.initialScore(ocrTokens, empTokens);
 
-      const score = Math.max(s1, s2, s3, s4);
+      // Strategy 5: subset matching in either direction:
+      // (a) All OCR tokens match some DB token (e.g. "Abdi Hirad" in "Abdi Hirad Mubarek")
+      // (b) All DB tokens match some OCR token (e.g. "Hussein Barakat" in "Hussein Barakat Ali")
+      let s5 = 0;
+      if (ocrTokens.length >= 2 && empTokens.length >= 2) {
+        const allOcrInEmp = ocrTokens.every(ot => empTokens.some(et => this.levScore(ot, et) >= 80));
+        const allEmpInOcr = empTokens.every(et => ocrTokens.some(ot => this.levScore(et, ot) >= 80));
+        if (allOcrInEmp || allEmpInOcr) {
+          s5 = 90;
+        }
+      }
+
+      const score = Math.max(s1, s2, s3, s4, s5);
 
       if (!best || score > best.score) {
         best = { id: emp.id, name: emp.name, score };
@@ -73,7 +91,7 @@ export class TimesheetMatcherService {
       return { found: false, confidence: 'none', score: best?.score ?? 0 };
     }
 
-    if (best.score >= 92) {
+    if (best.score >= 85) {
       return {
         found: true,
         confidence: 'exact',
@@ -83,7 +101,7 @@ export class TimesheetMatcherService {
       };
     }
 
-    if (best.score >= 58) {
+    if (best.score >= 50) {
       return {
         found: true,
         confidence: 'fuzzy',
@@ -108,9 +126,11 @@ export class TimesheetMatcherService {
     return name
       .toLowerCase()
       .trim()
+      .replace(/^(herr|frau|dr\.?)\s+/i, '')
       .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
       .replace(/\.\s*/g, ' ')     // "M. Müller" → "M Müller"
       .replace(/,\s*/g, ' ')      // "Müller, Max" → "Müller Max"
+      .replace(/[\-_/\\:]/g, ' ')
       .replace(/\s{2,}/g, ' ')
       .trim();
   }

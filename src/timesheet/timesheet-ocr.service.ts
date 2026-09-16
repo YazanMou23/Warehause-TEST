@@ -24,7 +24,7 @@ export interface OcrTimesheetResult {
 const DE_WEEKDAYS = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
 
 // ─── Name label prefixes that OCR sometimes extracts verbatim ────────────────
-const NAME_PREFIX_RE = /^(name|mitarbeiter|arbeitnehmer|an|ma|mitarb|employee|emp)\s*[:=\-]\s*/i;
+const NAME_PREFIX_RE = /^(name(\s*[\/,\-]\s*vorname)?|vorname(\s*[\/,\-]\s*nachname)?|nachname|mitarbeiter(\s*name)?|arbeitnehmer(\s*name)?|an|ma|mitarb|employee(\s*name)?|emp)\s*[:=\-]\s*/i;
 
 @Injectable()
 export class TimesheetOcrService {
@@ -34,7 +34,10 @@ export class TimesheetOcrService {
 
   // ─── Public entry point ───────────────────────────────────────────────────
 
-  async extractFromFile(file: Express.Multer.File): Promise<OcrTimesheetResult> {
+  async extractFromFile(
+    file: Express.Multer.File,
+    candidateNames: string[] = [],
+  ): Promise<OcrTimesheetResult> {
     if (!file) throw new BadRequestException('No file provided');
 
     const isImage = file.mimetype.startsWith('image/');
@@ -59,9 +62,9 @@ export class TimesheetOcrService {
         // before upload, so raw PDFs should never reach here in normal operation.
         // If they do (direct API call, frontend canvas failure, etc.) we extract
         // text or render screenshot and pass it to GPT-4o.
-        return await this.extractFromPdfBuffer(file, apiKey);
+        return await this.extractFromPdfBuffer(file, apiKey, candidateNames);
       }
-      return await this.callVisionApi(file, apiKey);
+      return await this.callVisionApi(file, apiKey, candidateNames);
     } catch (error: any) {
       this.logger.error(`OCR-Extraktion fehlgeschlagen: ${error.message}`);
       let userFriendlyWarning = 'OCR-Verarbeitung konnte das Dokument nicht analysieren. Demo-Daten werden angezeigt.';
@@ -94,6 +97,7 @@ export class TimesheetOcrService {
   private async extractFromPdfBuffer(
     file: Express.Multer.File,
     apiKey: string,
+    candidateNames: string[] = [],
   ): Promise<OcrTimesheetResult> {
     this.logger.warn(
       `Raw PDF received at backend (${file.originalname}, ${file.size} bytes). ` +
@@ -120,7 +124,7 @@ export class TimesheetOcrService {
         await parser.destroy().catch(() => {});
       }
       this.logger.log(`PDF text extracted (${pdfText.length} chars) — sending to GPT-4o as text.`);
-      return await this.callTextApi(pdfText, apiKey);
+      return await this.callTextApi(pdfText, apiKey, candidateNames);
     }
 
     // If text is short, try rendering page 1 screenshot as an image fallback
@@ -139,7 +143,7 @@ export class TimesheetOcrService {
             mimetype: 'image/png',
           };
           this.logger.log('Rendered PDF page 1 to image buffer on backend — calling Vision API.');
-          return await this.callVisionApi(fakeImageFile, apiKey);
+          return await this.callVisionApi(fakeImageFile, apiKey, candidateNames);
         }
       }
     } catch (renderErr: any) {
@@ -163,20 +167,33 @@ export class TimesheetOcrService {
   private async callTextApi(
     text: string,
     apiKey: string,
+    candidateNames: string[] = [],
   ): Promise<OcrTimesheetResult> {
     const systemPrompt = `Du bist ein hochpräzises Extraktionssystem für handgeschriebene und gedruckte deutsche Wochenarbeitszeitblätter (Stundenzettel).
 Deine Aufgabe ist es, Arbeitszeiten, Datum, Mitarbeitername und Hallen/Einsatzorte strukturiert als JSON zu extrahieren.
-WENN keine Tabelle, kein Text oder ein leeres Bild übergeben wird, antworte immer mit dem Standard-JSON (kein Fehler, keine Weigerung):
+WENN keine Tabelle, kein Text oder ein leeres Dokument übergeben wird, antworte immer mit dem Standard-JSON:
 {
   "employeeName": "",
   "weekStartDate": "",
   "entries": []
 }`;
 
-    const userPrompt = `Analysiere diesen Stundenzettel-Text und extrahiere alle Einträge:
+    const candidatesBlock = candidateNames && candidateNames.length > 0
+      ? `\n═══════════ BEKANNTE MITARBEITER IM UNTERNEHMEN (PRIORITÄT) ═══════════\nHier ist die Liste aller aktiven Mitarbeiter:\n${candidateNames.join(', ')}\n\n- Gleiche den auf dem Stundenzettel erkannten Mitarbeiternamen mit dieser Liste ab.\n- Auch wenn der Name handschriftlich ist, Vor- und Nachname vertauscht sind (z.B. "Hussein Barakat" statt "Barakat Hussein") oder kleinere Schreibweisen abweichen: Wenn er einem Mitarbeiter aus der obigen Liste entspricht, gib EXAKT diesen Namen aus der Liste zurück!\n- Wenn auf dem Dokument eindeutig ein anderer Mitarbeiter steht, der nicht in der Liste ist, gib diesen reinen Vor- und Nachnamen an.\n`
+      : '';
+
+    const userPrompt = `Analysiere diesen Stundenzettel-Text und extrahiere alle Daten:
 
 ${text}
 
+═══════════ MITARBEITERNAME IDENTIFIZIEREN (SEHR WICHTIG) ═══════════
+- Suche gezielt nach dem Feld für den ARBEITNEHMER bzw. MITARBEITER (z.B. "Name:", "Mitarbeiter:", "Arbeitnehmer:", "Name, Vorname:", "Mitarbeitername:").
+- VORSICHT / FEHLER VERMEIDEN:
+  * Firmennamen, Agenturnamen, Personaldienstleister (z.B. im Briefkopf oder Logo) sind KEINE Mitarbeiter!
+  * Kunden, Entleiher oder Einsatzorte (z.B. Logistikfirmen wie Rhenus, Brook, Meidsmann, etc.) sind KEINE Mitarbeiter!
+  * Unterschriften von Schichtleitern/Kunden/Vorarbeitern sind KEINE Mitarbeiter!
+  * Verwende NIEMALS Firmen-, Kunden- oder Einsatzortnamen als employeeName!
+${candidatesBlock}
 ═══════════ DATUMSFORMATE — ALLE AKZEPTIEREN ═══════════
 Eingabe: TT.MM.JJJJ · TT.MM.JJ · TT/MM/JJJJ · TT/MM/JJ · TT.MM
 Ausgabe IMMER: YYYY-MM-DD (z.B. 16.07.2026 → 2026-07-16)
@@ -190,8 +207,8 @@ Ausgabe IMMER: HH:MM (24h-Format, zweistellig, z.B. 08:00, 16:30)
 - Wenn nicht lesbar: aus Startzeit - Endzeit - Pause berechnen
 
 ═══════════ NAME BEREINIGEN ═══════════
-- Prefixe entfernen: "Name:", "Mitarbeiter:", "AN:", "MA:"
-- Nur reinen Vor- und Nachnamen extrahieren
+- Prefixe wie "Name:", "Mitarbeiter:", "AN:", "MA:" entfernen.
+- Nur den reinen Vor- und Nachnamen zurückgeben (oder "" falls kein Mitarbeitername vorhanden ist).
 
 ═══════════ AUSGABEFORMAT (NUR JSON) ═══════════
 {
@@ -279,6 +296,7 @@ Ausgabe IMMER: HH:MM (24h-Format, zweistellig, z.B. 08:00, 16:30)
   private async callVisionApi(
     file: Express.Multer.File,
     apiKey: string,
+    candidateNames: string[] = [],
   ): Promise<OcrTimesheetResult> {
     const base64Data = file.buffer.toString('base64');
     const mimeType = file.mimetype && file.mimetype.startsWith('image/') ? file.mimetype : 'image/jpeg';
@@ -292,8 +310,21 @@ WENN keine Tabelle, kein Text oder ein leeres Bild übergeben wird, antworte imm
   "entries": []
 }`;
 
-    const userPrompt = `Analysiere diesen Stundenzettel und extrahiere alle Einträge:
+    const candidatesBlock = candidateNames && candidateNames.length > 0
+      ? `\n═══════════ BEKANNTE MITARBEITER IM UNTERNEHMEN (PRIORITÄT) ═══════════\nHier ist die Liste aller aktiven Mitarbeiter:\n${candidateNames.join(', ')}\n\n- Gleiche den auf dem Stundenzettel erkannten Mitarbeiternamen mit dieser Liste ab.\n- Auch wenn der Name handschriftlich ist, Vor- und Nachname vertauscht sind (z.B. "Hussein Barakat" statt "Barakat Hussein") oder kleine Schreibvarianten vorliegen: Wenn er einem Mitarbeiter aus der obigen Liste entspricht, gib EXAKT diesen Namen aus der Liste zurück!\n- Wenn auf dem Dokument eindeutig ein anderer Mitarbeiter steht, der nicht in der Liste ist, gib diesen reinen Vor- und Nachnamen an.\n`
+      : '';
 
+    const userPrompt = `Analysiere diesen Stundenzettel und extrahiere alle Daten:
+
+═══════════ MITARBEITERNAME IDENTIFIZIEREN (SEHR WICHTIG) ═══════════
+- Suche gezielt nach dem Feld für den ARBEITNEHMER bzw. MITARBEITER (z.B. "Name:", "Mitarbeiter:", "Arbeitnehmer:", "Name, Vorname:", "Mitarbeitername:").
+- Der Mitarbeitername ist fast immer handschriftlich in einem Kasten oder einer Zeile im oberen Bereich eingetragen.
+- VORSICHT / FEHLER VERMEIDEN:
+  * Firmennamen, Agenturnamen, Personaldienstleister (z.B. im Briefkopf oder Logo) sind KEINE Mitarbeiter!
+  * Kunden, Entleiher oder Einsatzorte (z.B. Logistikunternehmen wie Rhenus, Brook, Meidsmann, etc.) sind KEINE Mitarbeiter!
+  * Unterschriften von Schichtleitern/Kunden/Vorarbeitern sind KEINE Mitarbeiter!
+  * Verwende NIEMALS Firmen-, Kunden- oder Einsatzortnamen als employeeName!
+${candidatesBlock}
 ═══════════ DATUMSFORMATE — ALLE AKZEPTIEREN ═══════════
 Eingabe: TT.MM.JJJJ · TT.MM.JJ · TT/MM/JJJJ · TT/MM/JJ · TT.MM
 Ausgabe IMMER: YYYY-MM-DD (z.B. 16.07.2026 → 2026-07-16)
@@ -307,8 +338,8 @@ Ausgabe IMMER: HH:MM (24h-Format, zweistellig, z.B. 08:00, 16:30)
 - Wenn nicht lesbar: aus Startzeit - Endzeit - Pause berechnen
 
 ═══════════ NAME BEREINIGEN ═══════════
-- Prefixe entfernen: "Name:", "Mitarbeiter:", "AN:", "MA:"
-- Nur reinen Vor- und Nachnamen extrahieren
+- Prefixe wie "Name:", "Mitarbeiter:", "AN:", "MA:" entfernen.
+- Nur den reinen Vor- und Nachnamen zurückgeben (oder "" falls kein Mitarbeitername vorhanden ist).
 
 ═══════════ AUSGABEFORMAT (NUR JSON) ═══════════
 {

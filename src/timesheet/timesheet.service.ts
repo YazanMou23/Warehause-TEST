@@ -45,26 +45,36 @@ export class TimesheetService {
         },
       });
       if (existing) {
-        return {
-          ...existing,
-          employeeMatch: {
-            found: !!existing.employeeId,
-            confidence: (existing.ocrConfidence as 'exact' | 'fuzzy' | 'none') ?? 'none',
-            matchedName: existing.employee?.name ?? null,
-            isNewEmployee: !existing.employeeId,
-          },
-          ocrWarning: existing.status === TimesheetStatus.CONFIRMED
-            ? 'Dieser Stundenzettel wurde bereits bestätigt.'
-            : (existing.ocrRawResponse as any)?.warning,
-          sandbox: (existing.ocrRawResponse as any)?.sandbox ?? false,
-        };
+        if (existing.status === TimesheetStatus.CONFIRMED) {
+          return {
+            ...existing,
+            employeeMatch: {
+              found: !!existing.employeeId,
+              confidence: (existing.ocrConfidence as 'exact' | 'fuzzy' | 'none') ?? 'none',
+              matchedName: existing.employee?.name ?? null,
+              isNewEmployee: !existing.employeeId,
+            },
+            ocrWarning: 'Dieser Stundenzettel wurde bereits bestätigt.',
+            sandbox: (existing.ocrRawResponse as any)?.sandbox ?? false,
+          };
+        }
+        // If still pending review (e.g. user retrying or re-analyzing), remove old draft so fresh scan replaces it
+        await this.prisma.timesheet.delete({ where: { id: existing.id } }).catch(() => {});
       }
     }
 
-    // 1. OCR extraction
-    const ocrResult = await this.ocrService.extractFromFile(file);
+    // 0. Fetch candidate employee names for OCR guidance (prevents extracting company/agency names)
+    const activeEmployees = await this.prisma.user.findMany({
+      where: { isActive: true, deletedAt: null },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+    const candidateNames = activeEmployees.map((e) => e.name).filter(Boolean);
 
-    // 2. Fuzzy employee matching
+    // 1. OCR extraction (providing active employees as candidates)
+    const ocrResult = await this.ocrService.extractFromFile(file, candidateNames);
+
+    // 2. Fuzzy employee matching against the database
     const matchResult = await this.matcherService.findBestMatch(ocrResult.employeeName);
 
     // 3. Derive week start (Monday) from first entry date if available
@@ -107,11 +117,15 @@ export class TimesheetService {
 
     // 5. Store timesheet in PENDING_REVIEW state (scoped to upload job/page
     //    when provided, so the page can never be inserted twice)
+    const resolvedEmployeeName = (matchResult.found && matchResult.matchedName)
+      ? matchResult.matchedName
+      : (ocrResult.employeeName || 'Unbekannter Mitarbeiter');
+
     let timesheet: any;
     try {
       timesheet = await this.prisma.timesheet.create({
         data: {
-          employeeName: ocrResult.employeeName,
+          employeeName: resolvedEmployeeName,
           employeeId: matchResult.found ? matchResult.employeeId ?? null : null,
           weekStartDate,
           status: TimesheetStatus.PENDING_REVIEW,
