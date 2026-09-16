@@ -1729,10 +1729,11 @@ function SavedView({
       <div className="flex flex-col sm:flex-row gap-3 pt-2">
         {hasQueue && !isLastInQueue && onContinueNext ? (
           <button
-            onClick={onContinueNext}
+            type="button"
+            onClick={() => onContinueNext()}
             className="flex items-center justify-center gap-2 px-7 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all text-sm shadow-md cursor-pointer"
           >
-            <span>Weiter zu Foto {queueIndex + 2} von {totalCount}</span>
+            <span>Weiter zu Seite/Foto {queueIndex + 2} von {totalCount}</span>
             <ChevronRight size={16} />
           </button>
         ) : (
@@ -2877,9 +2878,16 @@ export default function TimesheetsPage() {
   const hasQueue = (pdfJob?.pages.length ?? 0) > 1;
   const isLastInQueue = currentPage >= (pdfJob?.pages.length ?? 1) - 1;
 
-  // Clean up object URLs on unmount
+  // Timer ref for auto-advancing to next page
+  const advanceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Clean up object URLs and auto-advance timers on unmount
   useEffect(() => {
     return () => {
+      if (advanceTimerRef.current) {
+        clearTimeout(advanceTimerRef.current);
+        advanceTimerRef.current = null;
+      }
       if (currentPreviewUrl && currentPreviewUrl.startsWith('blob:')) {
         URL.revokeObjectURL(currentPreviewUrl);
       }
@@ -2904,6 +2912,7 @@ export default function TimesheetsPage() {
     if (validFiles.length === 0) return null;
 
     const expanded: { file: File; pageNumber: number }[] = [];
+    let pageCounter = 1;
     for (const f of validFiles) {
       const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
       if (isPdf) {
@@ -2911,10 +2920,12 @@ export default function TimesheetsPage() {
         // If this throws, let the error propagate — startJob() will catch it and
         // display a specific German error message to the user.
         const pages = await convertPdfToPageImageFiles(f);
-        pages.forEach((pageFile, i) => expanded.push({ file: pageFile, pageNumber: i + 1 }));
+        for (const pageFile of pages) {
+          expanded.push({ file: pageFile, pageNumber: pageCounter++ });
+        }
       } else {
         // Images are sent directly — no conversion needed.
-        expanded.push({ file: f, pageNumber: 1 });
+        expanded.push({ file: f, pageNumber: pageCounter++ });
       }
     }
     if (expanded.length === 0) return null;
@@ -3087,8 +3098,13 @@ export default function TimesheetsPage() {
   // Move to the next unprocessed page, or finish the job when all are done.
   // jobOverride lets callers (handleConfirm) pass the live job reference so
   // we never read a stale pdfJob closure here either.
-  const advanceToNext = (jobOverride?: PdfJob) => {
-    const job = jobOverride ?? pdfJob;
+  const advanceToNext = (jobOverride?: any) => {
+    if (advanceTimerRef.current) {
+      clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = null;
+    }
+    // Guard against React SyntheticEvent or non-PdfJob objects
+    const job: PdfJob | null = (jobOverride && Array.isArray(jobOverride.pages)) ? jobOverride : pdfJob;
     if (!job) return;
     setRotation(0);
     const nextIdx = currentPage + 1;
@@ -3156,17 +3172,27 @@ export default function TimesheetsPage() {
         // Auto-advance to the next page (brief saved flash then scan next).
         // Capture pdfJob now (before the 1600 ms timeout) so the closure
         // inside advanceToNext always has the live reference.
+        if (advanceTimerRef.current) {
+          clearTimeout(advanceTimerRef.current);
+        }
         const liveJob = pdfJob ?? undefined;
         setViewMode('saved');
-        setTimeout(() => {
+        advanceTimerRef.current = setTimeout(() => {
+          advanceTimerRef.current = null;
           setSavedId(null);
           setSavedName('');
           advanceToNext(liveJob);
         }, 1600);
       } else {
+        if (advanceTimerRef.current) {
+          clearTimeout(advanceTimerRef.current);
+        }
         setViewMode('saved');
         // Last page confirmed → show the completion summary after the flash.
-        setTimeout(() => finishOrSummarize(), 1600);
+        advanceTimerRef.current = setTimeout(() => {
+          advanceTimerRef.current = null;
+          finishOrSummarize();
+        }, 1600);
       }
     } catch (e: any) {
       setError(e.message ?? 'Unbekannter Fehler');
@@ -3176,6 +3202,10 @@ export default function TimesheetsPage() {
   };
 
   const resetScanner = () => {
+    if (advanceTimerRef.current) {
+      clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = null;
+    }
     if (currentPreviewUrl && currentPreviewUrl.startsWith('blob:')) {
       URL.revokeObjectURL(currentPreviewUrl);
     }
@@ -3349,7 +3379,7 @@ export default function TimesheetsPage() {
                     isLastInQueue={isLastInQueue}
                     queueIndex={currentPage}
                     totalCount={pdfJob.totalPages}
-                    onContinueNext={advanceToNext}
+                    onContinueNext={() => advanceToNext()}
                   />
                 )}
 

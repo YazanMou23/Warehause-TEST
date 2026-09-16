@@ -38,7 +38,6 @@ export class TimesheetService {
         where: {
           uploadJobId,
           sourcePage,
-          status: TimesheetStatus.PENDING_REVIEW,
         },
         include: {
           entries: { orderBy: { date: 'asc' } },
@@ -54,7 +53,9 @@ export class TimesheetService {
             matchedName: existing.employee?.name ?? null,
             isNewEmployee: !existing.employeeId,
           },
-          ocrWarning: (existing.ocrRawResponse as any)?.warning,
+          ocrWarning: existing.status === TimesheetStatus.CONFIRMED
+            ? 'Dieser Stundenzettel wurde bereits bestätigt.'
+            : (existing.ocrRawResponse as any)?.warning,
           sandbox: (existing.ocrRawResponse as any)?.sandbox ?? false,
         };
       }
@@ -106,26 +107,55 @@ export class TimesheetService {
 
     // 5. Store timesheet in PENDING_REVIEW state (scoped to upload job/page
     //    when provided, so the page can never be inserted twice)
-    const timesheet = await this.prisma.timesheet.create({
-      data: {
-        employeeName: ocrResult.employeeName,
-        employeeId: matchResult.found ? matchResult.employeeId ?? null : null,
-        weekStartDate,
-        status: TimesheetStatus.PENDING_REVIEW,
-        createdById: creatorId,
-        ocrConfidence: matchResult.confidence,
-        ocrRawResponse: ocrResult as any,
-        uploadJobId: uploadJobId ?? null,
-        sourcePage: sourcePage ?? null,
-        entries: {
-          create: entriesData,
+    let timesheet: any;
+    try {
+      timesheet = await this.prisma.timesheet.create({
+        data: {
+          employeeName: ocrResult.employeeName,
+          employeeId: matchResult.found ? matchResult.employeeId ?? null : null,
+          weekStartDate,
+          status: TimesheetStatus.PENDING_REVIEW,
+          createdById: creatorId,
+          ocrConfidence: matchResult.confidence,
+          ocrRawResponse: ocrResult as any,
+          uploadJobId: uploadJobId ?? null,
+          sourcePage: sourcePage ?? null,
+          entries: {
+            create: entriesData,
+          },
         },
-      },
-      include: {
-        entries: { orderBy: { date: 'asc' } },
-        employee: { select: { id: true, name: true } },
-      },
-    });
+        include: {
+          entries: { orderBy: { date: 'asc' } },
+          employee: { select: { id: true, name: true } },
+        },
+      });
+    } catch (err: any) {
+      if (err.code === 'P2002' && uploadJobId && sourcePage != null) {
+        const fallback = await this.prisma.timesheet.findFirst({
+          where: { uploadJobId, sourcePage },
+          include: {
+            entries: { orderBy: { date: 'asc' } },
+            employee: { select: { id: true, name: true } },
+          },
+        });
+        if (fallback) {
+          return {
+            ...fallback,
+            employeeMatch: {
+              found: !!fallback.employeeId,
+              confidence: (fallback.ocrConfidence as 'exact' | 'fuzzy' | 'none') ?? 'none',
+              matchedName: fallback.employee?.name ?? null,
+              isNewEmployee: !fallback.employeeId,
+            },
+            ocrWarning: fallback.status === TimesheetStatus.CONFIRMED
+              ? 'Dieser Stundenzettel wurde bereits bestätigt.'
+              : (fallback.ocrRawResponse as any)?.warning,
+            sandbox: (fallback.ocrRawResponse as any)?.sandbox ?? false,
+          };
+        }
+      }
+      throw err;
+    }
 
     // 6. Log action
     await this.prisma.actionLog.create({
