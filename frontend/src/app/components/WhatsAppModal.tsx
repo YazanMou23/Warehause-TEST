@@ -25,7 +25,8 @@ export default function WhatsAppModal({
   onSuccess,
   onError,
 }: WhatsAppModalProps) {
-  const [mode, setMode] = useState<"interactive" | "text">("interactive");
+  const [mode, setMode] = useState<"template" | "interactive" | "text">("template");
+  const [shiftDetails, setShiftDetails] = useState("Kommende Schichteinteilung");
   const [header, setHeader] = useState("LogiFlow Schichtplan");
   const [body, setBody] = useState(
     `Hallo ${recipientName}, bitte bestätige deine Schichteinteilung für die kommende Arbeitswoche.`
@@ -66,14 +67,8 @@ export default function WhatsAppModal({
 
   const applyPreset = (preset: "shift" | "reminder" | "announcement") => {
     if (preset === "shift") {
-      setMode("interactive");
-      setHeader("LogiFlow Schichtzuweisung");
-      setBody(`Hallo ${recipientName}, du bist für die nächste Schicht eingeteilt. Bitte bestätige kurz deine Teilnahme.`);
-      setFooter("LogiFlow Warehouse");
-      setButtons([
-        { id: "btn_shift_yes", title: "✅ Ich bin dabei" },
-        { id: "btn_shift_no", title: "❌ Kann nicht" },
-      ]);
+      setMode("template");
+      setShiftDetails("Montag, Frühschicht 08:00 - 16:30 Uhr");
     } else if (preset === "reminder") {
       setMode("interactive");
       setHeader("Zeiterfassung Erinnerung");
@@ -107,10 +102,19 @@ export default function WhatsAppModal({
     }
 
     try {
-      let endpoint = `${API_URL}/messaging/whatsapp/interactive`;
+      let endpoint = `${API_URL}/messaging/whatsapp/template`;
       let payload: any;
 
-      if (mode === "interactive") {
+      if (mode === "template") {
+        endpoint = `${API_URL}/messaging/whatsapp/template`;
+        payload = {
+          phone: recipientPhone,
+          templateName: "schichtplan_benachrichtigung",
+          parameters: [recipientName, shiftDetails.trim() || "Kommende Schichteinteilung"],
+          languageCode: "de",
+        };
+      } else if (mode === "interactive") {
+        endpoint = `${API_URL}/messaging/whatsapp/interactive`;
         payload = {
           phone: recipientPhone,
           header: header.trim() || undefined,
@@ -166,7 +170,12 @@ export default function WhatsAppModal({
   };
 
   const handleOpenWaLink = () => {
-    const rawText = mode === "interactive" ? body : textMessage;
+    const rawText =
+      mode === "template"
+        ? `Hallo ${recipientName}, du wurdest für eine neue Schicht eingeteilt: ${shiftDetails}. Bitte prüfe die Einteilung in deinem Mitarbeiterportal.`
+        : mode === "interactive"
+        ? body
+        : textMessage;
     const cleanPhone = recipientPhone.replace(/\D/g, "");
     const formattedPhone = cleanPhone.startsWith("0")
       ? "49" + cleanPhone.substring(1)
@@ -235,6 +244,17 @@ export default function WhatsAppModal({
           <div className="flex rounded-xl bg-slate-100 dark:bg-slate-800 p-1">
             <button
               type="button"
+              onClick={() => setMode("template")}
+              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                mode === "template"
+                  ? "bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm"
+                  : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+              }`}
+            >
+              ⭐ Meta Vorlage (an alle)
+            </button>
+            <button
+              type="button"
               onClick={() => setMode("interactive")}
               className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
                 mode === "interactive"
@@ -242,7 +262,7 @@ export default function WhatsAppModal({
                   : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
               }`}
             >
-              🔘 Interaktive Buttons (Meta Cloud)
+              🔘 Buttons (24h)
             </button>
             <button
               type="button"
@@ -253,11 +273,51 @@ export default function WhatsAppModal({
                   : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
               }`}
             >
-              📝 Standard Freitext
+              📝 Freitext (24h)
             </button>
           </div>
 
-          {mode === "interactive" ? (
+          {mode === "template" ? (
+            <div className="space-y-3 bg-emerald-50/50 dark:bg-emerald-950/20 p-4 rounded-xl border border-emerald-200 dark:border-emerald-800/50">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                  Offizielle Meta-Vorlage
+                </span>
+                <span className="text-[10px] bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 px-2 py-0.5 rounded-full font-medium">
+                  Genehmigt
+                </span>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-300 block mb-1">
+                  Empfänger Name (Variable &#123;&#123;1&#125;&#125;)
+                </label>
+                <input
+                  type="text"
+                  value={recipientName}
+                  disabled
+                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 cursor-not-allowed outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-300 block mb-1">
+                  Schicht-Details (Variable &#123;&#123;2&#125;&#125;) <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={shiftDetails}
+                  onChange={(e) => setShiftDetails(e.target.value)}
+                  placeholder="z. B. Montag, Frühschicht 08:00 - 16:30 Uhr"
+                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none text-slate-800 dark:text-slate-100 font-medium"
+                />
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-emerald-100/60 dark:bg-emerald-900/40 text-[11px] text-emerald-800 dark:text-emerald-200 leading-relaxed">
+                💡 <strong>Vorlage „schichtplan_benachrichtigung“:</strong> Diese Nachricht wird von Meta an jede Telefonnummer zugestellt – auch an Mitarbeiter, die noch nie geschrieben haben!
+              </div>
+            </div>
+          ) : mode === "interactive" ? (
             <div className="space-y-3 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
               {/* Header */}
               <div>

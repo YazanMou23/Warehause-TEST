@@ -21,6 +21,8 @@ import {
   BroadcastDto,
   SendWhatsAppToAllDto,
   SendWhatsAppInteractiveDto,
+  SendWhatsAppTemplateDto,
+  SendWhatsAppTemplateBulkDto,
 } from './dto/send-whatsapp.dto';
 
 @Controller('messaging')
@@ -101,6 +103,36 @@ export class MessagingController {
       body.buttons,
       body.header,
       body.footer,
+    );
+  }
+
+  /**
+   * POST /messaging/whatsapp/template
+   * Send an approved WhatsApp Message Template (Meta Cloud API)
+   * Works outside the 24-hour customer service window for any recipient.
+   */
+  @Post('whatsapp/template')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  async sendWhatsAppTemplate(@Body() body: SendWhatsAppTemplateDto) {
+    return this.messagingService.sendWhatsAppTemplate(
+      body.phone,
+      body.templateName,
+      body.parameters,
+      body.languageCode,
+    );
+  }
+
+  /**
+   * POST /messaging/whatsapp/template/bulk
+   * Send an approved WhatsApp Message Template to multiple recipients
+   */
+  @Post('whatsapp/template/bulk')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  async sendWhatsAppTemplateBulk(@Body() body: SendWhatsAppTemplateBulkDto) {
+    return this.messagingService.sendWhatsAppTemplateBulk(
+      body.recipients,
+      body.templateName,
+      body.languageCode,
     );
   }
 

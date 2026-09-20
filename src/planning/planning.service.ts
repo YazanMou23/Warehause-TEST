@@ -708,17 +708,31 @@ export class PlanningService {
         }
         const waMessage = `Hallo ${empName},\n${isUpdate ? 'Ihr Schichtplan wurde aktualisiert:' : 'Sie wurden für eine neue Schicht eingeteilt:'}\n\n📅 Datum: ${formattedDate} (KW ${kw})\n🕒 Offizielle Arbeitszeit: ${shiftTime}${segSummary}${plan.notes ? `\n\n📝 Notizen: ${plan.notes}` : ''}\n\nBitte bestätigen Sie Ihre Schicht oder loggen Sie sich in das Portal ein.`;
 
+        const shiftDetails = `${formattedDate} (${shiftTime})${plan.hallName ? ` in ${plan.hallName}` : ''}`;
+
         this.messagingService
-          .sendWhatsAppInteractive(
+          .sendWhatsAppTemplate(
             targetPhone,
-            waMessage,
-            [
-              { id: `accept_${plan.id}_${employee.id}`, title: '✅ Bestätigen' },
-              { id: `decline_${plan.id}_${employee.id}`, title: '❌ Ablehnen' },
-            ],
-            headerTitle,
-            'LogiFlow Schichtplan',
+            'schichtplan_benachrichtigung',
+            [empName, shiftDetails],
+            'de',
           )
+          .then(async (res) => {
+            // Fallback: If template rejected, try interactive button message
+            if (!res.success) {
+              return this.messagingService.sendWhatsAppInteractive(
+                targetPhone,
+                waMessage,
+                [
+                  { id: `accept_${plan.id}_${employee.id}`, title: '✅ Bestätigen' },
+                  { id: `decline_${plan.id}_${employee.id}`, title: '❌ Ablehnen' },
+                ],
+                headerTitle,
+                'LogiFlow Schichtplan',
+              );
+            }
+            return res;
+          })
           .then((res) => {
             this.prisma.actionLog
               .create({

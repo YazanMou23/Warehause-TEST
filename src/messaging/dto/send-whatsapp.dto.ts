@@ -72,3 +72,34 @@ export class SendWhatsAppInteractiveDto {
   footer?: string;
 }
 
+export class SendWhatsAppTemplateDto {
+  @IsString()
+  @IsNotEmpty({ message: 'phone must not be empty' })
+  phone: string;
+
+  @IsString()
+  templateName?: string;
+
+  @IsArray()
+  parameters?: string[];
+
+  @IsString()
+  languageCode?: string;
+}
+
+export class SendWhatsAppTemplateBulkDto {
+  @IsArray()
+  @ArrayNotEmpty({ message: 'recipients array must contain at least one recipient' })
+  recipients: Array<{
+    phone: string;
+    name?: string;
+    parameters?: string[];
+  }>;
+
+  @IsString()
+  templateName?: string;
+
+  @IsString()
+  languageCode?: string;
+}
+

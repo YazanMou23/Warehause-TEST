@@ -346,12 +346,153 @@ export class MessagingService {
         this.logger.warn(
           `Failed sending interactive WhatsApp message to +${cleanedPhone}: ${errorMsg}`,
         );
+
+        // Fallback: If 24-hour window is closed (Meta Error 131047 / re-engagement), try approved template
+        if (
+          resData.error?.code === 131047 ||
+          errorMsg.includes('24 hours') ||
+          errorMsg.includes('re-engagement')
+        ) {
+          this.logger.log(
+            `24h window closed for +${cleanedPhone}. Attempting approved template fallback...`,
+          );
+          return this.sendWhatsAppTemplate(phone, undefined, [
+            headerText || 'Mitarbeiter',
+            bodyText.substring(0, 120),
+          ]);
+        }
+
         return { success: false, error: errorMsg, waLink };
       }
     } catch (err: any) {
       this.logger.error(`Error sending interactive WhatsApp message: ${err.message}`);
       return { success: false, error: err.message, waLink };
     }
+  }
+
+  /**
+   * Send an approved WhatsApp Message Template (Meta Cloud API).
+   * Works outside the 24-hour customer service window for any recipient.
+   */
+  async sendWhatsAppTemplate(
+    phone: string,
+    templateName?: string,
+    parameters: string[] = [],
+    languageCode = 'de',
+  ): Promise<{ success: boolean; data?: any; error?: string; waLink?: string }> {
+    const cleanedPhone = this.formatPhoneNumber(phone);
+    const template =
+      templateName || process.env.WHATSAPP_TEMPLATE_NAME || 'schichtplan_benachrichtigung';
+    const waLink = this.generateWhatsAppLink(phone, parameters.join(' '));
+
+    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+    const apiVersion = process.env.WHATSAPP_API_VERSION || 'v22.0';
+
+    if (!phoneNumberId || !accessToken) {
+      return {
+        success: false,
+        error: 'No WhatsApp API credentials configured in environment variables.',
+        waLink,
+      };
+    }
+
+    const payload: any = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: cleanedPhone,
+      type: 'template',
+      template: {
+        name: template,
+        language: {
+          code: languageCode,
+        },
+      },
+    };
+
+    if (parameters && parameters.length > 0) {
+      payload.template.components = [
+        {
+          type: 'body',
+          parameters: parameters.map((param) => ({
+            type: 'text',
+            text: String(param),
+          })),
+        },
+      ];
+    }
+
+    const url = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const resData = await response.json();
+
+      if (response.ok) {
+        this.logger.log(
+          `WhatsApp template message (${template}) successfully sent to +${cleanedPhone}`,
+        );
+        return { success: true, data: resData, waLink };
+      } else {
+        const errorMsg = resData.error?.message || 'Meta API rejected template message';
+        this.logger.warn(
+          `Failed sending WhatsApp template (${template}) to +${cleanedPhone}: ${errorMsg}`,
+        );
+        return { success: false, error: errorMsg, waLink, data: resData };
+      }
+    } catch (err: any) {
+      this.logger.error(`Error sending WhatsApp template (${template}): ${err.message}`);
+      return { success: false, error: err.message, waLink };
+    }
+  }
+
+  /**
+   * Send WhatsApp template to multiple recipients in parallel batches.
+   */
+  async sendWhatsAppTemplateBulk(
+    recipients: Array<{ phone: string; name?: string; parameters?: string[] }>,
+    templateName?: string,
+    languageCode = 'de',
+    concurrency = 5,
+  ): Promise<{
+    success: boolean;
+    results: Array<{ phone: string; success: boolean; waLink?: string; error?: string; data?: any }>;
+  }> {
+    const results: Array<{
+      phone: string;
+      success: boolean;
+      waLink?: string;
+      error?: string;
+      data?: any;
+    }> = [];
+
+    for (let i = 0; i < recipients.length; i += concurrency) {
+      const batch = recipients.slice(i, i + concurrency);
+      const batchResults = await Promise.all(
+        batch.map((rec) =>
+          this.sendWhatsAppTemplate(
+            rec.phone,
+            templateName,
+            rec.parameters || [rec.name || 'Mitarbeiter', 'Neue Schichteinteilung'],
+            languageCode,
+          ).then((res) => ({ phone: rec.phone, ...res })),
+        ),
+      );
+      results.push(...batchResults);
+    }
+
+    return {
+      success: results.every((r) => r.success),
+      results,
+    };
   }
 
   /**
