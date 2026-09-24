@@ -22,6 +22,7 @@ import {
   ChevronRight,
   FileCheck,
   MessageSquare,
+  BookOpen,
 } from "lucide-react";
 import { useTranslation } from "../i18n/LanguageContext";
 import { getAuthToken, clearAuthToken } from "../utils/auth";
@@ -288,6 +289,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </p>
             </div>
           </Link>
+          <a
+            href="/Kunden_Handbuch_Warehouse_Management.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-blue-400 bg-blue-950/40 hover:bg-blue-900/50 hover:text-blue-300 rounded-lg transition-colors cursor-pointer border border-blue-800/40"
+            title="Kunden-Präsentation & Handbuch öffnen"
+          >
+            <BookOpen className="w-4 h-4 shrink-0 text-blue-400" />
+            <span>Kunden-Handbuch</span>
+          </a>
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-[#4b5563] hover:bg-red-950/20 hover:text-red-400 rounded-lg transition-colors cursor-pointer"

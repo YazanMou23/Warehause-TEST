@@ -1,0 +1,1790 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Warehouse Management System – Systemdokumentation & Benutzerhandbuch</title>
+  <style>
+    :root {
+      --primary: #1e3a8a;
+      --primary-light: #2563eb;
+      --primary-dark: #172554;
+      --primary-bg: #eff6ff;
+      --accent: #0284c7;
+      --success: #059669;
+      --success-bg: #ecfdf5;
+      --warning: #d97706;
+      --warning-bg: #fffbeb;
+      --slate-50: #f8fafc;
+      --slate-100: #f1f5f9;
+      --slate-200: #e2e8f0;
+      --slate-300: #cbd5e1;
+      --slate-400: #94a3b8;
+      --slate-600: #475569;
+      --slate-700: #334155;
+      --slate-800: #1e293b;
+      --slate-900: #0f172a;
+      --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--slate-50);
+      color: var(--slate-800);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ==========================================================================
+       SCREEN VIEW STYLING (Web-Präsentation im Browser)
+       ========================================================================== */
+
+    /* Top Floating Action Bar */
+    .top-bar {
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.98);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--slate-200);
+      padding: 0.85rem 2.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: white;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 1.25rem;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-text h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--slate-900);
+      letter-spacing: -0.01em;
+    }
+
+    .brand-text p {
+      font-size: 0.825rem;
+      color: var(--slate-600);
+    }
+
+    .top-controls {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .btn-pdf {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.6rem 1.4rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      background: var(--primary);
+      color: white;
+      box-shadow: 0 2px 8px rgba(30, 58, 138, 0.25);
+      transition: all 0.2s ease;
+    }
+
+    .btn-pdf:hover {
+      background: var(--primary-dark);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(30, 58, 138, 0.35);
+    }
+
+    /* Layout */
+    .app-container {
+      display: flex;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem 2.5rem 5rem;
+      gap: 2.5rem;
+    }
+
+    /* Sticky Sidebar Navigation */
+    .sidebar {
+      width: 300px;
+      flex-shrink: 0;
+    }
+
+    .sidebar-inner {
+      position: sticky;
+      top: 5.5rem;
+      background: white;
+      border: 1px solid var(--slate-200);
+      border-radius: 12px;
+      padding: 1.25rem;
+      box-shadow: var(--card-shadow);
+      max-height: calc(100vh - 7rem);
+      overflow-y: auto;
+    }
+
+    .sidebar-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--slate-400);
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+      padding-left: 0.5rem;
+    }
+
+    .nav-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .nav-item a {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.55rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      color: var(--slate-700);
+      text-decoration: none;
+      font-weight: 500;
+      transition: all 0.15s ease;
+    }
+
+    .nav-item a:hover {
+      background: var(--primary-bg);
+      color: var(--primary);
+    }
+
+    .nav-item a.active {
+      background: var(--primary);
+      color: white;
+      font-weight: 600;
+    }
+
+    .nav-item .badge {
+      font-size: 0.7rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 10px;
+      background: var(--success-bg);
+      color: var(--success);
+      font-weight: 700;
+    }
+
+    /* Main Content */
+    .main-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* Screen Hero */
+    .hero-banner {
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #0369a1 100%);
+      color: white;
+      border-radius: 16px;
+      padding: 3rem 2.5rem;
+      margin-bottom: 2.5rem;
+      box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.2);
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      padding: 0.3rem 0.8rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 1.25rem;
+    }
+
+    .hero-title {
+      font-size: 2.2rem;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 0.75rem;
+      letter-spacing: -0.02em;
+    }
+
+    .hero-subtitle {
+      font-size: 1.05rem;
+      color: #cbd5e1;
+      max-width: 800px;
+      margin-bottom: 2rem;
+      line-height: 1.55;
+    }
+
+    .hero-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 1.25rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.2);
+      padding-top: 1.75rem;
+    }
+
+    .meta-box h4 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #94a3b8;
+      margin-bottom: 0.25rem;
+    }
+
+    .meta-box p {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: white;
+    }
+
+    /* Screen Sections */
+    .section-block {
+      background: white;
+      border: 1px solid var(--slate-200);
+      border-radius: 14px;
+      padding: 2.25rem;
+      margin-bottom: 2rem;
+      box-shadow: var(--card-shadow);
+      scroll-margin-top: 5rem;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--slate-100);
+      gap: 1rem;
+    }
+
+    .section-header-left {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .section-number {
+      width: 42px;
+      height: 42px;
+      background: var(--primary-bg);
+      color: var(--primary);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 1.15rem;
+      flex-shrink: 0;
+    }
+
+    .section-title-group h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--slate-900);
+    }
+
+    .section-title-group p {
+      font-size: 0.875rem;
+      color: var(--slate-600);
+      margin-top: 0.15rem;
+    }
+
+    .section-badge-done {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: var(--success-bg);
+      color: var(--success);
+      font-size: 0.8rem;
+      font-weight: 700;
+      padding: 0.3rem 0.75rem;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+
+    /* Data & KPI Grid */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin: 1.25rem 0 1.75rem;
+    }
+
+    .kpi-card {
+      background: var(--slate-50);
+      border: 1px solid var(--slate-200);
+      border-left: 4px solid var(--primary-light);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+    }
+
+    .kpi-card.success { border-left-color: var(--success); }
+    .kpi-card.accent { border-left-color: var(--accent); }
+
+    .kpi-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--slate-600);
+      margin-bottom: 0.25rem;
+    }
+
+    .kpi-value {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--slate-900);
+      line-height: 1.2;
+    }
+
+    .kpi-subtext {
+      font-size: 0.75rem;
+      color: var(--slate-400);
+      margin-top: 0.2rem;
+    }
+
+    /* Comparison Table */
+    .compare-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.25rem 0;
+      font-size: 0.875rem;
+    }
+
+    .compare-table th {
+      padding: 0.85rem 1rem;
+      text-align: left;
+      font-weight: 700;
+      color: white;
+    }
+
+    .compare-table th.col-before {
+      background: #475569;
+      width: 50%;
+      border-top-left-radius: 8px;
+    }
+
+    .compare-table th.col-after {
+      background: var(--primary);
+      width: 50%;
+      border-top-right-radius: 8px;
+    }
+
+    .compare-table td {
+      padding: 1rem;
+      border-bottom: 1px solid var(--slate-200);
+      vertical-align: top;
+      background: white;
+    }
+
+    .compare-table tr:nth-child(even) td {
+      background: var(--slate-50);
+    }
+
+    .badge-red {
+      color: #dc2626;
+      font-weight: 700;
+      display: block;
+      margin-bottom: 0.25rem;
+    }
+
+    .badge-green {
+      color: var(--success);
+      font-weight: 700;
+      display: block;
+      margin-bottom: 0.25rem;
+    }
+
+    /* Feature Items */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.25rem;
+      margin: 1.25rem 0;
+    }
+
+    .feature-card {
+      background: var(--slate-50);
+      border: 1px solid var(--slate-200);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+
+    .feature-card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--slate-900);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .feature-card p {
+      font-size: 0.85rem;
+      color: var(--slate-600);
+      margin-bottom: 0.85rem;
+      line-height: 1.5;
+    }
+
+    .benefit-box {
+      background: var(--success-bg);
+      border: 1px solid rgba(5, 150, 105, 0.2);
+      border-radius: 6px;
+      padding: 0.6rem 0.85rem;
+      font-size: 0.8rem;
+      color: #065f46;
+    }
+
+    .benefit-box strong {
+      color: #047857;
+    }
+
+    /* Workflow 3-Step */
+    .workflow-container {
+      background: var(--slate-50);
+      border: 1px solid var(--slate-200);
+      border-radius: 10px;
+      padding: 1.25rem;
+      margin: 1.25rem 0;
+    }
+
+    .workflow-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--slate-900);
+      margin-bottom: 1rem;
+    }
+
+    .step-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+
+    .step-item {
+      background: white;
+      border: 1px solid var(--slate-200);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+
+    .step-badge {
+      width: 24px;
+      height: 24px;
+      background: var(--primary);
+      color: white;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .step-item h4 {
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: var(--slate-900);
+      margin-bottom: 0.25rem;
+    }
+
+    .step-item p {
+      font-size: 0.8rem;
+      color: var(--slate-600);
+      line-height: 1.4;
+    }
+
+    /* Signoff box */
+    .signoff-box {
+      background: #f8fafc;
+      border: 1px solid var(--slate-300);
+      border-radius: 10px;
+      padding: 1.75rem;
+      margin-top: 2rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+    }
+
+    .sign-line {
+      border-bottom: 1px solid var(--slate-500);
+      height: 40px;
+      margin-top: 1rem;
+    }
+
+    .sign-label {
+      font-size: 0.8rem;
+      color: var(--slate-600);
+      margin-top: 0.35rem;
+    }
+
+    /* Only visible in print document */
+    .doc-only {
+      display: none;
+    }
+
+
+    /* ==========================================================================
+       DOKUMENT-AUSSICHT FÜR DRUCK & PDF (OFFIZIELLER GESCHÄFTSBERICHT)
+       ========================================================================== */
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 18mm 16mm 18mm 16mm;
+      }
+
+      body {
+        background: #ffffff !important;
+        color: #111827 !important;
+        font-family: "Segoe UI", Arial, sans-serif !important;
+        font-size: 10.5pt !important;
+        line-height: 1.5 !important;
+      }
+
+      /* Web-Interface Elemente komplett ausblenden */
+      .top-bar, 
+      .sidebar, 
+      .hero-banner, 
+      .section-number,
+      .section-badge-done,
+      .no-print {
+        display: none !important;
+      }
+
+      .app-container {
+        display: block !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      .main-content {
+        width: 100% !important;
+      }
+
+      /* Dokument-Elemente einblenden */
+      .doc-only {
+        display: block !important;
+      }
+
+      /* ==========================================
+         1. OFFIZIELLES DECKBLATT (COVER PAGE)
+         ========================================== */
+      .doc-cover-page {
+        page-break-after: always;
+        break-after: page;
+        height: 96vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 20mm 10mm 15mm;
+        box-sizing: border-box;
+      }
+
+      .doc-cover-header {
+        border-bottom: 2pt solid #1e3a8a;
+        padding-bottom: 8mm;
+      }
+
+      .doc-cover-logo {
+        font-size: 13pt;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #1e3a8a;
+      }
+
+      .doc-cover-sublogo {
+        font-size: 9pt;
+        color: #64748b;
+        margin-top: 2mm;
+      }
+
+      .doc-cover-center {
+        margin: auto 0;
+      }
+
+      .doc-cover-type {
+        font-size: 11pt;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: #0369a1;
+        font-weight: 700;
+        margin-bottom: 5mm;
+      }
+
+      .doc-cover-title {
+        font-size: 26pt;
+        font-weight: 800;
+        line-height: 1.2;
+        color: #0f172a;
+        margin-bottom: 6mm;
+      }
+
+      .doc-cover-description {
+        font-size: 12pt;
+        color: #475569;
+        line-height: 1.6;
+        max-width: 90%;
+      }
+
+      .doc-cover-meta-table {
+        width: 100%;
+        border-collapse: collapse;
+        border-top: 1pt solid #cbd5e1;
+        margin-top: 15mm;
+      }
+
+      .doc-cover-meta-table td {
+        padding: 4mm 2mm;
+        font-size: 9.5pt;
+        border-bottom: 1pt solid #e2e8f0;
+      }
+
+      .doc-cover-meta-label {
+        width: 35%;
+        color: #64748b;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        font-size: 8.5pt;
+      }
+
+      .doc-cover-meta-val {
+        width: 65%;
+        color: #0f172a;
+        font-weight: 700;
+      }
+
+      /* ==========================================
+         2. FORMELLES INHALTSVERZEICHNIS (SEITE 2)
+         ========================================== */
+      .doc-toc-page {
+        page-break-after: always;
+        break-after: page;
+        padding-top: 10mm;
+      }
+
+      .doc-toc-title {
+        font-size: 18pt;
+        font-weight: 800;
+        color: #1e3a8a;
+        border-bottom: 1.5pt solid #1e3a8a;
+        padding-bottom: 4mm;
+        margin-bottom: 8mm;
+      }
+
+      .doc-toc-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .doc-toc-row td {
+        padding: 3.5mm 1mm;
+        font-size: 10.5pt;
+        border-bottom: 1pt dotted #cbd5e1;
+      }
+
+      .doc-toc-num {
+        width: 12%;
+        font-weight: 700;
+        color: #1e3a8a;
+      }
+
+      .doc-toc-text {
+        width: 78%;
+        color: #1e293b;
+      }
+
+      .doc-toc-status {
+        width: 10%;
+        text-align: right;
+        font-size: 9pt;
+        font-weight: 700;
+        color: #059669;
+      }
+
+      /* ==========================================
+         3. DOKUMENT-KAPITEL & TYPOGRAFIE
+         ========================================== */
+      .section-block {
+        box-shadow: none !important;
+        border: none !important;
+        border-radius: 0 !important;
+        padding: 0 !important;
+        margin: 0 0 25mm 0 !important;
+        page-break-inside: avoid !important;
+      }
+
+      /* Jeder Hauptabschnitt beginnt sauber */
+      .doc-chapter-break {
+        page-break-before: always !important;
+        break-before: page !important;
+      }
+
+      .section-header {
+        border-bottom: 1.5pt solid #1e3a8a !important;
+        padding-bottom: 3mm !important;
+        margin-bottom: 5mm !important;
+        display: block !important;
+      }
+
+      .section-title-group h2 {
+        font-size: 15pt !important;
+        font-weight: 800 !important;
+        color: #1e3a8a !important;
+        line-height: 1.3 !important;
+      }
+
+      .section-title-group p {
+        font-size: 9.5pt !important;
+        color: #64748b !important;
+        margin-top: 1mm !important;
+      }
+
+      p {
+        font-size: 10pt !important;
+        line-height: 1.55 !important;
+        color: #1f2937 !important;
+        margin-bottom: 4mm !important;
+      }
+
+      /* Dokumenten-Tabellen */
+      .compare-table {
+        margin: 4mm 0 6mm 0 !important;
+        font-size: 9.5pt !important;
+        border: 1pt solid #cbd5e1 !important;
+      }
+
+      .compare-table th {
+        padding: 3mm 4mm !important;
+        font-size: 9.5pt !important;
+        font-weight: 700 !important;
+        background: #f1f5f9 !important;
+        color: #1e293b !important;
+        border-bottom: 1pt solid #cbd5e1 !important;
+      }
+
+      .compare-table td {
+        padding: 3.5mm 4mm !important;
+        border-bottom: 1pt solid #e2e8f0 !important;
+        background: white !important;
+      }
+
+      /* KPI Highlights in Dokumentenansicht */
+      .kpi-grid {
+        display: grid !important;
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 3mm !important;
+        margin: 4mm 0 6mm !important;
+      }
+
+      .kpi-card {
+        background: #f8fafc !important;
+        border: 1pt solid #e2e8f0 !important;
+        border-left: 3pt solid #1e3a8a !important;
+        padding: 3mm 4mm !important;
+        page-break-inside: avoid !important;
+      }
+
+      .kpi-label {
+        font-size: 8pt !important;
+        color: #475569 !important;
+      }
+
+      .kpi-value {
+        font-size: 13pt !important;
+        font-weight: 800 !important;
+        color: #0f172a !important;
+      }
+
+      .kpi-subtext {
+        font-size: 7.5pt !important;
+        color: #64748b !important;
+      }
+
+      /* Feature-Karten in sauberer Dokumenten-Gliederung */
+      .feature-grid {
+        display: block !important;
+        margin: 4mm 0 !important;
+      }
+
+      .feature-card {
+        background: white !important;
+        border: 1pt solid #e2e8f0 !important;
+        border-radius: 4px !important;
+        padding: 4mm 5mm !important;
+        margin-bottom: 4mm !important;
+        page-break-inside: avoid !important;
+      }
+
+      .feature-card h3 {
+        font-size: 10.5pt !important;
+        font-weight: 700 !important;
+        color: #1e3a8a !important;
+        margin-bottom: 1.5mm !important;
+      }
+
+      .feature-card p {
+        font-size: 9.5pt !important;
+        margin-bottom: 2mm !important;
+      }
+
+      .benefit-box {
+        background: #f0fdf4 !important;
+        border: 1pt solid #bbf7d0 !important;
+        border-left: 2.5pt solid #059669 !important;
+        padding: 2mm 3.5mm !important;
+        font-size: 8.5pt !important;
+        color: #065f46 !important;
+      }
+
+      /* Arbeitsabläufe / Steps */
+      .workflow-container {
+        background: #f8fafc !important;
+        border: 1pt solid #e2e8f0 !important;
+        padding: 4mm 5mm !important;
+        margin: 4mm 0 !important;
+        page-break-inside: avoid !important;
+      }
+
+      .workflow-title {
+        font-size: 10pt !important;
+        font-weight: 700 !important;
+        color: #0f172a !important;
+        margin-bottom: 3mm !important;
+      }
+
+      .step-list {
+        display: grid !important;
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 3mm !important;
+      }
+
+      .step-item {
+        background: white !important;
+        border: 1pt solid #cbd5e1 !important;
+        padding: 3mm !important;
+      }
+
+      .step-badge {
+        width: 18px !important;
+        height: 18px !important;
+        font-size: 7.5pt !important;
+        margin-bottom: 1.5mm !important;
+      }
+
+      .step-item h4 {
+        font-size: 8.5pt !important;
+        margin-bottom: 1mm !important;
+      }
+
+      .step-item p {
+        font-size: 8pt !important;
+        line-height: 1.35 !important;
+        margin-bottom: 0 !important;
+      }
+
+      /* ==========================================
+         4. FORMELLES ABNAHMEPROTOKOLL (SEITE ENDE)
+         ========================================== */
+      .doc-signoff-page {
+        page-break-before: always !important;
+        break-before: page !important;
+        padding-top: 5mm;
+      }
+
+      .doc-signoff-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 6mm 0 10mm;
+        border: 1pt solid #cbd5e1;
+      }
+
+      .doc-signoff-table th {
+        background: #f1f5f9;
+        font-size: 9pt;
+        font-weight: 700;
+        padding: 3mm 4mm;
+        border: 1pt solid #cbd5e1;
+        text-align: left;
+      }
+
+      .doc-signoff-table td {
+        padding: 3mm 4mm;
+        font-size: 9pt;
+        border: 1pt solid #cbd5e1;
+      }
+
+      .signoff-box {
+        background: white !important;
+        border: 1pt solid #94a3b8 !important;
+        padding: 6mm 8mm !important;
+        margin-top: 8mm !important;
+        page-break-inside: avoid !important;
+      }
+
+      .sign-line {
+        border-bottom: 1pt solid #000000 !important;
+        height: 35px !important;
+      }
+
+      .sign-label {
+        font-size: 8.5pt !important;
+        color: #475569 !important;
+      }
+    }
+
+    /* Responsive für Smartphones/Tablets */
+    @media (max-width: 992px) {
+      .app-container {
+        flex-direction: column;
+        padding: 1.5rem 1rem;
+      }
+      .sidebar {
+        width: 100%;
+      }
+      .sidebar-inner {
+        position: static;
+        max-height: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Action Bar (Nur am Bildschirm sichtbar) -->
+  <header class="top-bar">
+    <div class="brand-group">
+      <div class="brand-icon">WM</div>
+      <div class="brand-text">
+        <h1>Warehouse Management System</h1>
+        <p>Offizielle Projektdokumentation & Benutzerhandbuch</p>
+      </div>
+    </div>
+
+    <div class="top-controls">
+      <button onclick="window.print()" class="btn-pdf" title="Als PDF speichern oder drucken">
+        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+        Als PDF drucken / speichern
+      </button>
+    </div>
+  </header>
+
+  <div class="app-container">
+
+    <!-- Sticky Table of Contents Sidebar (Nur am Bildschirm sichtbar) -->
+    <aside class="sidebar no-print">
+      <div class="sidebar-inner">
+        <div class="sidebar-title">Kapitelübersicht</div>
+        <ul class="nav-list">
+          <li class="nav-item"><a href="#status"><span>01. Projektstand & Meilensteine</span> <span class="badge">100%</span></a></li>
+          <li class="nav-item"><a href="#vergleich"><span>02. Vorher- vs. Nachher-Nutzen</span> <span class="badge">Vorteile</span></a></li>
+          <li class="nav-item"><a href="#dashboard"><span>03. Das Haupt-Dashboard</span> <span class="badge">Zentrale</span></a></li>
+          <li class="nav-item"><a href="#container"><span>04. Container-Management</span> <span class="badge">Tracking</span></a></li>
+          <li class="nav-item"><a href="#planung"><span>05. Tages- & Schichtplanung</span> <span class="badge">Einsatz</span></a></li>
+          <li class="nav-item"><a href="#dokumente"><span>06. Hardware-Scanner & KI-OCR</span> <span class="badge">Highlight</span></a></li>
+          <li class="nav-item"><a href="#stundenzettel"><span>07. Stundenzettel & Zeiterfassung</span> <span class="badge">Papierlos</span></a></li>
+          <li class="nav-item"><a href="#lager"><span>08. Hallen- & Lagerverwaltung</span> <span class="badge">Flächen</span></a></li>
+          <li class="nav-item"><a href="#team"><span>09. Personal, Rollen & Team-Chat</span> <span class="badge">Sicherheit</span></a></li>
+          <li class="nav-item"><a href="#berichte"><span>10. Berichte & Revisionssicherheit</span> <span class="badge">Audit</span></a></li>
+          <li class="nav-item"><a href="#schnellstart"><span>11. Leitfaden & Abnahmeprotokoll</span> <span class="badge">Abnahme</span></a></li>
+        </ul>
+
+        <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--slate-200); font-size: 0.8rem; color: var(--slate-500);">
+          <strong>Status:</strong> Abnahmebereit<br>
+          <strong>Version:</strong> 1.0 Final Release
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content" id="contentArea">
+
+      <!-- =========================================================================
+           DOKUMENT-AUSSICHT: FORMELLES DECKBLATT (Wird nur im PDF/Druck angezeigt)
+           ========================================================================= -->
+      <div class="doc-only doc-cover-page">
+        <div class="doc-cover-header">
+          <div class="doc-cover-logo">LOGIFLOW WMS – WAREHOUSE MANAGEMENT SYSTEM</div>
+          <div class="doc-cover-sublogo">Digitale Betriebssteuerung, Frachtabwicklung und KI-Dokumentenerfassung</div>
+        </div>
+
+        <div class="doc-cover-center">
+          <div class="doc-cover-type">Offizielle Projekt- & Systemdokumentation</div>
+          <h1 class="doc-cover-title">Benutzerhandbuch & Funktionsübersicht</h1>
+          <p class="doc-cover-description">
+            Vollständige Dokumentation der realisierten Funktionen: Container-Tracking, tagesaktuelle Schicht- und Treffpunktplanung, direkte Anbindung physischer Netzwerk-/USB-Scanner sowie automatisierte Belegerfassung und Stundenzettel-Digitalisierung per künstlicher Intelligenz.
+          </p>
+        </div>
+
+        <div>
+          <table class="doc-cover-meta-table">
+            <tr>
+              <td class="doc-cover-meta-label">Dokumenten-Titel</td>
+              <td class="doc-cover-meta-val">Systemhandbuch & Leistungsnachweis zur Kundenabnahme</td>
+            </tr>
+            <tr>
+              <td class="doc-cover-meta-label">Projektstatus</td>
+              <td class="doc-cover-meta-val">100% Fertiggestellt – Voll funktionsfähig & einsatzbereit</td>
+            </tr>
+            <tr>
+              <td class="doc-cover-meta-label">System-Version</td>
+              <td class="doc-cover-meta-val">Version 1.0 (Final Release / Produktionsfreigabe)</td>
+            </tr>
+            <tr>
+              <td class="doc-cover-meta-label">Erstellungsdatum</td>
+              <td class="doc-cover-meta-val">25. September 2026</td>
+            </tr>
+            <tr>
+              <td class="doc-cover-meta-label">Geltungsbereich</td>
+              <td class="doc-cover-meta-val">Geschäftsleitung, Betriebsleitung, Schichtführung, Lagerlogistik</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- =========================================================================
+           DOKUMENT-AUSSICHT: FORMELLES INHALTSVERZEICHNIS (Seite 2 im PDF)
+           ========================================================================= -->
+      <div class="doc-only doc-toc-page">
+        <h2 class="doc-toc-title">Inhaltsverzeichnis der Systemdokumentation</h2>
+        <table class="doc-toc-table">
+          <tr class="doc-toc-row">
+            <td class="doc-toc-num">Kapitel 01</td>
+            <td class="doc-toc-text"><strong>Projektstand & Meilenstein-Übersicht</strong> (Erreichte Kernfunktionen auf einen Blick)</td>
+            <td class="doc-toc-status">100%</td>
+          </tr>
+          <tr class="doc-toc-row">
+            <td class="doc-toc-num">Kapitel 02</td>
+            <td class="doc-toc-text"><strong>Vorher- vs. Nachher-Vergleich</strong> (Betrieblicher Mehrwert & Zeitersparnis)</td>
+            <td class="doc-toc-status">Nutzen</td>
+          </tr>
+          <tr class="doc-toc-row">
+            <td class="doc-toc-num">Kapitel 03</td>
+            <td class="doc-toc-text"><strong>Das Haupt-Dashboard</strong> (Operative Schaltzentrale für den Tagesbetrieb)</td>
+            <td class="doc-toc-status">Betrieb</td>
+          </tr>
+          <tr class="doc-toc-row">
+            <td class="doc-toc-num">Kapitel 04</td>
+            <td class="doc-toc-text"><strong>Container-Management & Frachtabwicklung</strong> (Tracking, Arbeitszeiten & Teams)</td>
+            <td class="doc-toc-status">Abrechnung</td>
+          </tr>
+          <tr class="doc-toc-row">
+            <td class="doc-toc-num">Kapitel 05</td>
+            <td class="doc-toc-text"><strong>Tages- & Schichtplanung (Planning Hub)</strong> (Hallenzeiten, Treffpunkte & Fahrdienst)</td>
+            <td class="doc-toc-status">Organisation</td>
+          </tr>
+          <tr class="doc-toc-row">
+            <td class="doc-toc-num">Kapitel 06</td>
+            <td class="doc-toc-text"><strong>Dokumentenmanagement & Hardware-Scanner</strong> (USB/Netzwerk-Scanner & KI-OCR)</td>
+            <td class="doc-toc-status">Highlight</td>
+          </tr>
+          <tr class="doc-toc-row">
+            <td class="doc-toc-num">Kapitel 07</td>
+            <td class="doc-toc-text"><strong>Digitale Stundenzettel & Zeiterfassung</strong> (Papierlose 1-Klick-Lohnvorbereitung)</td>
+            <td class="doc-toc-status">Papierlos</td>
+          </tr>
+          <tr class="doc-toc-row">
+            <td class="doc-toc-num">Kapitel 08</td>
+            <td class="doc-toc-text"><strong>Hallen- & Lagerverwaltung</strong> (Kapazitäten, Standorte und Farbcodierung)</td>
+            <td class="doc-toc-status">Struktur</td>
+          </tr>
+          <tr class="doc-toc-row">
+            <td class="doc-toc-num">Kapitel 09</td>
+            <td class="doc-toc-text"><strong>Mitarbeiter, Rollenkonzept & Team-Chat</strong> (DSGVO-Sicherheit & interne Kommunikation)</td>
+            <td class="doc-toc-status">Sicherheit</td>
+          </tr>
+          <tr class="doc-toc-row">
+            <td class="doc-toc-num">Kapitel 10</td>
+            <td class="doc-toc-text"><strong>Auswertungen, Berichte & Revisionssicherheit</strong> (Audit-Trail & Kennzahlen)</td>
+            <td class="doc-toc-status">Revision</td>
+          </tr>
+          <tr class="doc-toc-row">
+            <td class="doc-toc-num">Kapitel 11</td>
+            <td class="doc-toc-text"><strong>Praxis-Leitfaden in 3 Schritten & Formelles Abnahmeprotokoll</strong></td>
+            <td class="doc-toc-status">Freigabe</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Hero Banner (Nur am Bildschirm sichtbar) -->
+      <section class="hero-banner no-print">
+        <div class="hero-badge">
+          <span>●</span> <span>Offizielle Projektdokumentation</span>
+        </div>
+        <h1 class="hero-title">Warehouse Management System</h1>
+        <p class="hero-subtitle">
+          Die zentrale Gesamtlösung für Ihren Lagerbetrieb: Container-Tracking, operative Einsatz- und Treffpunktplanung, direkte Hardware-Scanner-Anbindung und automatisierte Stundenzettel-Erkennung per KI.
+        </p>
+
+        <div class="hero-meta-grid">
+          <div class="meta-box">
+            <h4>Projektstand</h4>
+            <p>100% Einsatzbereit</p>
+          </div>
+          <div class="meta-box">
+            <h4>Kernmodule</h4>
+            <p>8 Module vollintegriert</p>
+          </div>
+          <div class="meta-box">
+            <h4>Technologie</h4>
+            <p>Scanner + KI + OCR</p>
+          </div>
+          <div class="meta-box">
+            <h4>Zielsetzung</h4>
+            <p>Papierlos & Zeitersparnis</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 1: Wo stehen wir? (Fortschritt & Meilensteine) -->
+      <section id="status" class="section-block">
+        <div class="section-header">
+          <div class="section-header-left">
+            <div class="section-number no-print">01</div>
+            <div class="section-title-group">
+              <h2>1.0 Projektstand & Meilenstein-Übersicht</h2>
+              <p>Zusammenfassung der erreichten Funktionen und Systemmodule zur Kundenabnahme</p>
+            </div>
+          </div>
+          <div class="section-badge-done no-print">✓ 100% Kernfunktionen Abnahmebereit</div>
+        </div>
+
+        <p>
+          Das System wurde vollständig entwickelt, erfolgreich mit realen Betriebsdaten getestet und ist ab sofort produktiv einsetzbar. Alle wesentlichen Arbeitsbereiche des Lagerbetriebs wurden in einer zentralen Plattform digitalisiert:
+        </p>
+
+        <div class="kpi-grid">
+          <div class="kpi-card success">
+            <div class="kpi-label">Lager- & Hallenorganisation</div>
+            <div class="kpi-value">100%</div>
+            <div class="kpi-subtext">Standorte, Zonen & Hallen erfasst</div>
+          </div>
+          <div class="kpi-card success">
+            <div class="kpi-label">Container-Abwicklung</div>
+            <div class="kpi-value">100%</div>
+            <div class="kpi-subtext">Status (Voll/Leer) & Arbeitszeiten</div>
+          </div>
+          <div class="kpi-card success">
+            <div class="kpi-label">Tages- & Schichtplanung</div>
+            <div class="kpi-value">100%</div>
+            <div class="kpi-subtext">Einsatzplanung, Treffpunkte & Teams</div>
+          </div>
+          <div class="kpi-card accent">
+            <div class="kpi-label">Dokumente & KI-Scanner</div>
+            <div class="kpi-value">100%</div>
+            <div class="kpi-subtext">USB/Netzwerk-Scanner & KI-OCR</div>
+          </div>
+          <div class="kpi-card success">
+            <div class="kpi-label">Digitale Stundenzettel</div>
+            <div class="kpi-value">100%</div>
+            <div class="kpi-subtext">Papierlos mit 1-Klick-Freigabe</div>
+          </div>
+          <div class="kpi-card success">
+            <div class="kpi-label">Team-Chat & Benachrichtigungen</div>
+            <div class="kpi-value">100%</div>
+            <div class="kpi-subtext">Echtzeitkommunikation im Lager</div>
+          </div>
+        </div>
+
+        <p>
+          <strong>Fazit für die Betriebsleitung:</strong> Bisher getrennte Abläufe (Excel-Tabellen, handschriftliche Notizen, Papier-Stundenzettel und WhatsApp-Gruppen) sind nun in einem einzigen, DSGVO-konformen und ausfallsicheren Softwaresystem vereint.
+        </p>
+      </section>
+
+      <!-- Section 2: Vorher vs Nachher (Business Value) -->
+      <section id="vergleich" class="section-block doc-chapter-break">
+        <div class="section-header">
+          <div class="section-header-left">
+            <div class="section-number no-print">02</div>
+            <div class="section-title-group">
+              <h2>2.0 Vorher- vs. Nachher-Vergleich (Betrieblicher Mehrwert)</h2>
+              <p>Konkrete Einsparungen und operative Vorteile im laufenden Tagesgeschäft</p>
+            </div>
+          </div>
+          <div class="section-badge-done no-print">Wirtschaftlicher Nutzen</div>
+        </div>
+
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th class="col-before">Bisherige Arbeitsweise (Ohne zentrales System)</th>
+              <th class="col-after">Mit dem neuen Warehouse Management System</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <span class="badge-red">✕ Zettelwirtschaft & Excel-Tabellen</span>
+                Container, Frachten und Einsatzzeiten wurden in wechselnden Listen geführt. Es kam regelmäßig zu Übertragungsfehlern, unauffindbaren Belegen und hohem Suchaufwand.
+              </td>
+              <td>
+                <span class="badge-green">✓ Zentrales Live-Dashboard</span>
+                Alle Container, Standorte und Mitarbeiter sind auf einen Blick sichtbar. Änderungen sind für Schichtleitung und Büro ohne Zeitverzug ersichtlich.
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <span class="badge-red">✕ Zeitaufwendiges Abtippen von Stundenzetteln</span>
+                Am Monatsende mussten hunderte handschriftlich ausgefüllte Stundenzettel mühsam manuell geprüft und in Lohnprogramme abgetippt werden (hohe Fehleranfälligkeit).
+              </td>
+              <td>
+                <span class="badge-green">✓ KI-Stundenzettel-Digitalisierung</span>
+                Stundenzettel werden auf den Scanner gelegt oder abfotografiert: Die KI liest Namen, Wochentage und Stunden automatisch aus. Der Manager prüft und bestätigt mit 1 Klick.
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <span class="badge-red">✕ Unklare Schichteinteilung & WhatsApp-Chaos</span>
+                Welcher Mitarbeiter ist welcher Halle zugeteilt? Wann ist Treffpunkt? Bei Verzögerungen oder Ausfällen mussten zeitraubende Telefonate geführt werden.
+              </td>
+              <td>
+                <span class="badge-green">✓ Strukturierte Einsatz- & Treffpunktplanung</span>
+                Mit wenigen Klicks plant die Schichtleitung den Tag vorab: Hallen, Zeiten, Treffpunkte und Teams. Alle Beteiligten sind transparent informiert.
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <span class="badge-red">✕ Verlorene Frachtpapiere & CMR-Lieferscheine</span>
+                Belege gingen im Lagerbetrieb verloren, wurden verschmutzt oder waren bei Kundenreklamationen nicht auffindbar.
+              </td>
+              <td>
+                <span class="badge-green">✓ Digitales Dokumentenarchiv mit Volltextsuche</span>
+                Dokumente werden an der Rampe gescannt oder fotografiert und dauerhaft, revisionssicher beim jeweiligen Container und Auftrag hinterlegt.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Section 3: Das Haupt-Dashboard -->
+      <section id="dashboard" class="section-block">
+        <div class="section-header">
+          <div class="section-header-left">
+            <div class="section-number no-print">03</div>
+            <div class="section-title-group">
+              <h2>3.0 Das Haupt-Dashboard (Operative Schaltzentrale)</h2>
+              <p>Morgens den Betrieb mit einem einzigen Blick erfassen und steuern</p>
+            </div>
+          </div>
+          <div class="section-badge-done no-print">✓ Einsatzbereit</div>
+        </div>
+
+        <p>
+          Das Dashboard ist die Startseite für Schichtleiter und Geschäftsführung. Es beantwortet ohne manuelle Suche die drei wichtigsten Fragen des Tages:
+        </p>
+
+        <div class="feature-grid">
+          <div class="feature-card">
+            <h3>📦 Containerbestand & Zulauf</h3>
+            <p>
+              Zeigt sofort, wie viele Container heute erwartet werden, wie viele aktuell entladen werden und welche Container bereits abgeschlossen sind.
+            </p>
+            <div class="benefit-box">
+              <strong>Nutzen:</strong> Sofortige Priorisierung der Entladearbeiten an den Rampen.
+            </div>
+          </div>
+
+          <div class="feature-card">
+            <h3>👥 Anwesendes Personal</h3>
+            <p>
+              Echtzeit-Übersicht aller heute eingestempelten Mitarbeiter, aufgeschlüsselt nach den jeweiligen Hallen und Einsatzorten.
+            </p>
+            <div class="benefit-box">
+              <strong>Nutzen:</strong> Vollständige Transparenz: Sind alle Schichten vollzählig besetzt?
+            </div>
+          </div>
+
+          <div class="feature-card">
+            <h3>⚠️ Offene Freigaben & Prüfstatus</h3>
+            <p>
+              Hebt ungeprüfte Stundenzettel, überfällige Container oder offene Planungsaufgaben hervor, damit im hektischen Alltag nichts vergessen wird.
+            </p>
+            <div class="benefit-box">
+              <strong>Nutzen:</strong> Proaktive Steuerung ohne böse Überraschungen am Monatsende.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 4: Container-Tracking & Frachtkontrolle -->
+      <section id="container" class="section-block doc-chapter-break">
+        <div class="section-header">
+          <div class="section-header-left">
+            <div class="section-number no-print">04</div>
+            <div class="section-title-group">
+              <h2>4.0 Container-Management & Frachtabwicklung</h2>
+              <p>Lückenlose Nachverfolgung vom Eintreffen an der Rampe bis zur Entladung</p>
+            </div>
+          </div>
+          <div class="section-badge-done no-print">✓ Einsatzbereit</div>
+        </div>
+
+        <p>
+          Jeder Container wird mit seiner Containernummer im System geführt und durchläuft einen klar strukturierten Bearbeitungszyklus:
+        </p>
+
+        <div class="workflow-container">
+          <div class="workflow-title">Der Ablauf im Container-Modul:</div>
+          <div class="step-list">
+            <div class="step-item">
+              <div class="step-badge">1</div>
+              <h4>Container anlegen / scannen</h4>
+              <p>Containernummer eintragen, Zielhalle auswählen und Wareneingang erfassen.</p>
+            </div>
+            <div class="step-item">
+              <div class="step-badge">2</div>
+              <h4>Team & Arbeitszeit zuweisen</h4>
+              <p>Mitarbeiter zuteilen. Die für die Entladung benötigten Stunden werden exakt erfasst.</p>
+            </div>
+            <div class="step-item">
+              <div class="step-badge">3</div>
+              <h4>Statusabschluss (Voll ➔ Leer)</h4>
+              <p>Nach Entladung wird der Container mit 1 Klick als fertig und leer markiert.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="feature-grid">
+          <div class="feature-card">
+            <h3>⏱️ Exakte Arbeitszeit pro Container</h3>
+            <p>
+              Das System speichert, wie viele Arbeitsstunden für das Entladen eines Containers benötigt wurden und welche Lagermitarbeiter im Einsatz waren.
+            </p>
+            <div class="benefit-box">
+              <strong>Nutzen:</strong> Rechtssichere und transparente Abrechnungsgrundlage gegenüber Auftraggebern und Speditionen.
+            </div>
+          </div>
+
+          <div class="feature-card">
+            <h3>🔍 Schnelle Containerauskunft</h3>
+            <p>
+              Suche nach Containernummer, Halle oder Datum. Kein Suchen in Papierordnern mehr nötig.
+            </p>
+            <div class="benefit-box">
+              <strong>Nutzen:</strong> Innerhalb von 3 Sekunden aussagefähig bei Rückfragen von Kunden oder Fahrern.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 5: Tages- & Schichtplanung (Planning Hub) -->
+      <section id="planung" class="section-block">
+        <div class="section-header">
+          <div class="section-header-left">
+            <div class="section-number no-print">05</div>
+            <div class="section-title-group">
+              <h2>5.0 Tages- & Schichtplanung (Planning Hub)</h2>
+              <p>Operative Einsatzplanung für Schichten, Hallen, Treffpunkte und Fahrdienste</p>
+            </div>
+          </div>
+          <div class="section-badge-done no-print">✓ Einsatzbereit</div>
+        </div>
+
+        <p>
+          Der Planning Hub ist das zentrale Werkzeug für die Einsatzkoordination. Schichtleiter organisieren hier den kommenden Tag oder die Folgewoche:
+        </p>
+
+        <div class="feature-grid">
+          <div class="feature-card">
+            <h3>🏢 Hallen-Zuweisung mit flexiblen Zeiten</h3>
+            <p>
+              Für jede Halle können individuelle Arbeitszeiten definiert werden (z. B. 08:00 – 16:30 Uhr oder flexibles "Open End" bei unvorhersehbarem Frachtaufkommen).
+            </p>
+            <div class="benefit-box">
+              <strong>Nutzen:</strong> Hohe Flexibilität bei schwankendem Lade- und Schiffsaufkommen.
+            </div>
+          </div>
+
+          <div class="feature-card">
+            <h3>🚐 Treffpunkt- & Fahrgemeinschafts-Planung</h3>
+            <p>
+              Zentrale Erfassung von Treffpunkten (z. B. "Hauptbahnhof Nordseite") und Abholzeiten für den Personal-Transfer zu den Außenlagern.
+            </p>
+            <div class="benefit-box">
+              <strong>Nutzen:</strong> Vermeidung von Verspätungen und Missverständnissen beim Mitarbeitertransfer.
+            </div>
+          </div>
+
+          <div class="feature-card">
+            <h3>📋 Container- & Mitarbeiter-Kopplung</h3>
+            <p>
+              Mitarbeiter und anstehende Container werden im Plan direkt verknüpft. So weiß jeder Vorarbeiter genau, wer an welchem Frachtstück arbeitet.
+            </p>
+            <div class="benefit-box">
+              <strong>Nutzen:</strong> Klare Verantwortlichkeiten ohne Doppelbelegungen.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 6: Digitales Dokumentenmanagement & Scanner-Anbindung -->
+      <section id="dokumente" class="section-block doc-chapter-break">
+        <div class="section-header">
+          <div class="section-header-left">
+            <div class="section-number no-print">06</div>
+            <div class="section-title-group">
+              <h2>6.0 Dokumentenmanagement & Hardware-Scanner-Anbindung</h2>
+              <p>Direkte Hardware-Integration für USB-/Netzwerkscanner & automatische KI-Belegerkennung</p>
+            </div>
+          </div>
+          <div class="section-badge-done no-print">⭐ Technologisches Highlight</div>
+        </div>
+
+        <p>
+          Das System schließt die Lücke zwischen Papierbelegen und digitaler Datenbank: Physische Scanner im Büro und Kameras an der Rampe werden direkt angesprochen:
+        </p>
+
+        <div class="feature-grid">
+          <div class="feature-card">
+            <h3>🖨️ Direkte Hardware-Scanner Anbindung (Windows Connector)</h3>
+            <p>
+              Unterstützt Netzwerk- und USB-Dokumentenscanner (via eSCL / WIA). Ein Klick im Browser steuert den physischen Einzugsscanner im Büro an.
+            </p>
+            <div class="benefit-box">
+              <strong>Nutzen:</strong> Kein manuelles Zwischenspeichern in Ordnern oder Versenden per E-Mail nötig.
+            </div>
+          </div>
+
+          <div class="feature-card">
+            <h3>📱 Kamera- & Smartphone-Erfassung</h3>
+            <p>
+              Mitarbeiter können Frachtbriefe (CMR) oder Lieferscheine direkt an der Rampe mit Smartphone oder Tablet abfotografieren – inkl. automatischer Kantenkorrektur.
+            </p>
+            <div class="benefit-box">
+              <strong>Nutzen:</strong> Sofortiger digitaler Nachweis noch während der Lkw an der Rampe steht.
+            </div>
+          </div>
+
+          <div class="feature-card">
+            <h3>🤖 Automatische KI-Texterkennung (OCR)</h3>
+            <p>
+              Die integrierte KI liest Dokumente nicht nur als Bild ein, sondern erkennt Textinhalte: Firmennamen, Lieferscheinnummern, Container und Beträge werden extrahiert.
+            </p>
+            <div class="benefit-box">
+              <strong>Nutzen:</strong> Alle Belege sind im Archiv im Volltext durchsuchbar und auffindbar.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 7: Digitale Stundenzettel & Zeiterfassung -->
+      <section id="stundenzettel" class="section-block">
+        <div class="section-header">
+          <div class="section-header-left">
+            <div class="section-number no-print">07</div>
+            <div class="section-title-group">
+              <h2>7.0 Digitale Stundenzettel & Zeiterfassung</h2>
+              <p>Papierlose Stundenerfassung mit automatischer 1-Klick-Überprüfung</p>
+            </div>
+          </div>
+          <div class="section-badge-done no-print">✓ Einsatzbereit</div>
+        </div>
+
+        <p>
+          Die wöchentliche Zeiterfassung der Lagermitarbeiter wird drastisch vereinfacht:
+        </p>
+
+        <div class="workflow-container">
+          <div class="workflow-title">Der digitale Stundenzettel-Workflow:</div>
+          <div class="step-list">
+            <div class="step-item">
+              <div class="step-badge">1</div>
+              <h4>Wochenzettel einscannen</h4>
+              <p>Der unterschriebene Papier-Stundenzettel wird auf den Scanner gelegt oder hochgeladen.</p>
+            </div>
+            <div class="step-item">
+              <div class="step-badge">2</div>
+              <h4>KI erfasst alle Zeiten</h4>
+              <p>Name des Mitarbeiters, Arbeitsbeginn, Ende, Pausen und Stunden werden automatisch erkannt.</p>
+            </div>
+            <div class="step-item">
+              <div class="step-badge">3</div>
+              <h4>1-Klick-Freigabe</h4>
+              <p>Der Schichtleiter prüft die Zahlen kurz am Bildschirm und bestätigt mit einem Klick.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="feature-grid">
+          <div class="feature-card">
+            <h3>🛡️ Prüfstatus & Revisionssicherheit</h3>
+            <p>
+              Stundenzettel erhalten den Status <em>"Ausstehend"</em> (Pending Review) oder <em>"Bestätigt"</em> (Confirmed). Der Original-Scan bleibt dauerhaft als Nachweis hinterlegt.
+            </p>
+            <div class="benefit-box">
+              <strong>Nutzen:</strong> 100% rechtssichere Nachweise bei Betriebsprüfungen oder Mitarbeiterfragen.
+            </div>
+          </div>
+
+          <div class="feature-card">
+            <h3>⏱️ Digitale Stempeluhr (Attendance)</h3>
+            <p>
+              Alternativ oder ergänzend stempeln sich Mitarbeiter per Web oder Terminal ein. Pausen und Gesamtarbeitszeiten werden automatisch berechnet.
+            </p>
+            <div class="benefit-box">
+              <strong>Nutzen:</strong> Keine Unstimmigkeiten über Überstunden oder tatsächliche Anwesenheitszeiten.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 8: Hallen- & Lagerverwaltung -->
+      <section id="lager" class="section-block doc-chapter-break">
+        <div class="section-header">
+          <div class="section-header-left">
+            <div class="section-number no-print">08</div>
+            <div class="section-title-group">
+              <h2>8.0 Hallen- & Lagerverwaltung</h2>
+              <p>Strukturierte Abbildung aller physischen Standorte, Hallen und Lagerkapazitäten</p>
+            </div>
+          </div>
+          <div class="section-badge-done no-print">✓ Einsatzbereit</div>
+        </div>
+
+        <div class="feature-grid">
+          <div class="feature-card">
+            <h3>📍 Mehrere Lagerstandorte (Warehouses)</h3>
+            <p>
+              Verwaltung mehrerer eigenständiger Lagerstandorte in einem zentralen System. Jeder Standort verfügt über eigene Hallen, Teams und Zuweisungen.
+            </p>
+            <div class="benefit-box">
+              <strong>Nutzen:</strong> Zentraler Überblick für das Management über alle Standorte hinweg.
+            </div>
+          </div>
+
+          <div class="feature-card">
+            <h3>🎨 Farbcodierte Hallen & Kapazitätsgrenzen</h3>
+            <p>
+              Jede Halle hat eine individuelle Farbkennzeichnung und eine maximale Kapazitätsgrenze. So erkennt die Disposition auf Anhieb freie Stellplätze.
+            </p>
+            <div class="benefit-box">
+              <strong>Nutzen:</strong> Schnelle optische Orientierung im Einsatzkalender und Lageplan.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 9: Personal, Rollen & Team-Chat -->
+      <section id="team" class="section-block">
+        <div class="section-header">
+          <div class="section-header-left">
+            <div class="section-number no-print">09</div>
+            <div class="section-title-group">
+              <h2>9.0 Mitarbeiterverwaltung, Rollen & Interner Team-Chat</h2>
+              <p>Rollenbasierte Sicherheit und direkte Kommunikation ohne private Messenger</p>
+            </div>
+          </div>
+          <div class="section-badge-done no-print">✓ Einsatzbereit</div>
+        </div>
+
+        <div class="feature-grid">
+          <div class="feature-card">
+            <h3>🔐 3-Stufiges Rollen- & Berechtigungskonzept</h3>
+            <p>
+              <strong>Manager:</strong> Vollzugriff auf Auswertungen, Finanzen und Einstellungen.<br>
+              <strong>Admin / Schichtleiter:</strong> Tagesplanung, Container und Stundenzettel.<br>
+              <strong>Mitarbeiter:</strong> Einsicht in eigene Schichten, Zeiten und Nachrichten.
+            </p>
+            <div class="benefit-box">
+              <strong>Nutzen:</strong> DSGVO-konforme Datentrennung: Mitarbeiter sehen nur ihre eigenen Daten.
+            </div>
+          </div>
+
+          <div class="feature-card">
+            <h3>💬 Integrierter Team-Chat</h3>
+            <p>
+              Direkter Chat zwischen Disponent im Büro und Vorarbeiter im Lager. Wichtige Absprachen bleiben im System dokumentiert und gehen nicht verloren.
+            </p>
+            <div class="benefit-box">
+              <strong>Nutzen:</strong> Schnelle Klärung von Rückfragen direkt am Arbeitsplatz.
+            </div>
+          </div>
+
+          <div class="feature-card">
+            <h3>🔔 Automatische Benachrichtigungen</h3>
+            <p>
+              Das System sendet Hinweise bei Planänderungen, neu zugewiesenen Containern oder Freigaben in Echtzeit an die beteiligten Personen.
+            </p>
+            <div class="benefit-box">
+              <strong>Nutzen:</strong> Jeder ist immer auf dem aktuellen Stand.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 10: Berichte & Revisionssicherheit -->
+      <section id="berichte" class="section-block">
+        <div class="section-header">
+          <div class="section-header-left">
+            <div class="section-number no-print">10</div>
+            <div class="section-title-group">
+              <h2>10.0 Auswertungen, Berichte & Revisionssicherheit</h2>
+              <p>Exakte Daten für Geschäftsleitung, Abrechnung und Controlling</p>
+            </div>
+          </div>
+          <div class="section-badge-done no-print">✓ Einsatzbereit</div>
+        </div>
+
+        <div class="feature-grid">
+          <div class="feature-card">
+            <h3>📊 Auswertungen auf Knopfdruck</h3>
+            <p>
+              Monatsübersichten über geleistete Arbeitsstunden, entladene Container und Auslastung der einzelnen Hallen.
+            </p>
+            <div class="benefit-box">
+              <strong>Nutzen:</strong> Perfekt für Rechnungsstellung und Produktivitätsanalysen.
+            </div>
+          </div>
+
+          <div class="feature-card">
+            <h3>📜 Lückenloses Audit-Log (ActionLog)</h3>
+            <p>
+              Das System protokolliert im Hintergrund wichtige Aktionen (wer hat welchen Stundenzettel bestätigt, wer hat einen Containerstatus geändert).
+            </p>
+            <div class="benefit-box">
+              <strong>Nutzen:</strong> Höchste Sicherheit und Nachvollziehbarkeit bei Unklarheiten.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 11: Schnellstart-Anleitung & Abnahmeprotokoll -->
+      <section id="schnellstart" class="section-block doc-signoff-page">
+        <div class="section-header">
+          <div class="section-header-left">
+            <div class="section-number no-print">11</div>
+            <div class="section-title-group">
+              <h2>11.0 Praxis-Leitfaden & Formelles Abnahmeprotokoll</h2>
+              <p>Täglicher Ablauf im Lager und Abnahmebestätigung durch den Auftraggeber</p>
+            </div>
+          </div>
+          <div class="section-badge-done no-print">Abnahme</div>
+        </div>
+
+        <div style="margin-bottom: 1.5rem;">
+          <h3 style="color: var(--primary); font-size: 1rem; margin-bottom: 0.5rem;">Der 3-Schritte Ablauf im laufenden Betrieb:</h3>
+          <p>
+            <strong>1. Morgens (Einsatzplanung):</strong> Schichtleiter öffnet den <em>Planning Hub</em>, prüft eingeteilte Hallen und Treffpunkte.<br>
+            <strong>2. Tagsüber (Wareneingang):</strong> Neue Container erfassen, Frachtpapiere per Scanner/Handy einlesen (KI übernimmt Textextraktion).<br>
+            <strong>3. Schichtende (Zeitenfreigabe):</strong> Eingereichte Stundenzettel kurz am Bildschirm sichten und mit 1 Klick freigeben.
+          </p>
+        </div>
+
+        <!-- Formelle Abnahmetabelle für das Dokument -->
+        <table class="doc-signoff-table">
+          <thead>
+            <tr>
+              <th style="width: 45%;">Systemmodul / Prüfpunkt</th>
+              <th style="width: 25%;">Status</th>
+              <th style="width: 30%;">Abnahmevermerk</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Lager- & Hallenorganisation</td>
+              <td>[ x ] Erfolgreich umgesetzt</td>
+              <td>Vollständig einsatzbereit</td>
+            </tr>
+            <tr>
+              <td>Container-Tracking & Zeiterfassung pro Container</td>
+              <td>[ x ] Erfolgreich umgesetzt</td>
+              <td>Vollständig einsatzbereit</td>
+            </tr>
+            <tr>
+              <td>Einsatzplanung, Schichten & Treffpunkte</td>
+              <td>[ x ] Erfolgreich umgesetzt</td>
+              <td>Vollständig einsatzbereit</td>
+            </tr>
+            <tr>
+              <td>Hardware-Scanner & Smartphone-Belegerfassung (OCR)</td>
+              <td>[ x ] Erfolgreich umgesetzt</td>
+              <td>Vollständig einsatzbereit</td>
+            </tr>
+            <tr>
+              <td>Digitale Stundenzettel mit 1-Klick-Freigabe</td>
+              <td>[ x ] Erfolgreich umgesetzt</td>
+              <td>Vollständig einsatzbereit</td>
+            </tr>
+            <tr>
+              <td>Mitarbeiterverwaltung, Rollenkonzept & Team-Chat</td>
+              <td>[ x ] Erfolgreich umgesetzt</td>
+              <td>Vollständig einsatzbereit</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Unterschriftsbox -->
+        <div class="signoff-box">
+          <div>
+            <strong>Auftraggeber (Kunde / Betriebsleitung)</strong>
+            <p style="font-size: 0.8rem; color: #64748b; margin-top: 0.25rem;">Hiermit wird die Fertigstellung und Funktionsfähigkeit bestätigt.</p>
+            <div class="sign-line"></div>
+            <div class="sign-label">Datum, Ort & Unterschrift des Kunden</div>
+          </div>
+          <div>
+            <strong>Auftragnehmer (Entwickler / Projektleitung)</strong>
+            <p style="font-size: 0.8rem; color: #64748b; margin-top: 0.25rem;">Übergeben in produktionsreifem Zustand.</p>
+            <div class="sign-line"></div>
+            <div class="sign-label">Datum, Ort & Unterschrift</div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script>
+    // Smooth Scroll Active Link Highlighter
+    window.addEventListener('scroll', () => {
+      const sections = document.querySelectorAll('section[id]');
+      const scrollPos = window.scrollY + 120;
+
+      sections.forEach(section => {
+        const top = section.offsetTop;
+        const height = section.offsetHeight;
+        const id = section.getAttribute('id');
+        const link = document.querySelector(`.nav-list a[href="#${id}"]`);
+
+        if (link) {
+          if (scrollPos >= top && scrollPos < top + height) {
+            document.querySelectorAll('.nav-list a').forEach(a => a.classList.remove('active'));
+            link.classList.add('active');
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>
