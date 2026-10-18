@@ -300,6 +300,11 @@ function PlanningPageContent() {
       const qWh = searchParams.get("warehouseId");
       const qHall = searchParams.get("hallId");
       const qDt = searchParams.get("date");
+      const qTab = searchParams.get("tab");
+
+      if (qTab === "confirmations") {
+        setActivePlanningTab("confirmations");
+      }
 
       if (qDt) {
         setDate(qDt);
@@ -2508,7 +2513,11 @@ function PlanningPageContent() {
                       {/* Shift Confirmations List button */}
                       <button
                         type="button"
-                        onClick={() => setActivePlanningTab("confirmations")}
+                        onClick={() => {
+                          const targetDate = plan.date ? new Date(plan.date).toLocaleDateString("en-CA") : date;
+                          setDate(targetDate);
+                          setActivePlanningTab("confirmations");
+                        }}
                         className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200/80 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
                         title="Rückmeldungsliste für diesen Tag öffnen (🟢 Da / 🔴 Krank)"
                       >

@@ -2199,6 +2199,16 @@ export default function DashboardPage() {
                                 </button>
 
                                 <Link
+                                  href={`/planning?tab=confirmations&date=${planDateStr}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200/80 rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                                  title="Rückmeldungen für diesen Tag ansehen"
+                                >
+                                  <UserCheck className="w-3.5 h-3.5 text-indigo-700" />
+                                  <span>{language === "de" ? "Rückmeldungen" : "Confirmations"}</span>
+                                </Link>
+
+                                <Link
                                   href={`/planning?planId=${p.id}&date=${planDateStr}`}
                                   onClick={(e) => e.stopPropagation()}
                                   className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
