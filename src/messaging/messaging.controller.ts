@@ -61,8 +61,8 @@ export class MessagingController {
   @Post('webhook')
   @Public()
   @HttpCode(HttpStatus.OK)
-  handleWebhook(@Body() body: any) {
-    this.messagingService.handleWebhookPayload(body);
+  async handleWebhook(@Body() body: any) {
+    await this.messagingService.handleWebhookPayload(body);
     return 'EVENT_RECEIVED';
   }
 

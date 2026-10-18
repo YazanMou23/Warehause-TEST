@@ -53,85 +53,85 @@ enum BatchStatus {
 }
 
 model User {
-  id           String        @id @default(uuid())
-  username     String        @unique
-  name         String
-  phone        String
-  email        String?       @unique
-  address      String?
-  treffpunkt   String?
-  treffpunktTime String?
-  profilePhoto String?
-  passwordHash String
-  role         Role          @default(EMPLOYEE)
-  warehouseId  String?
-  warehouse    Warehouse?    @relation(fields: [warehouseId], references: [id])
-  hallId       String?
-  hall         Hall?         @relation(fields: [hallId], references: [id])
-  isActive     Boolean       @default(true)
-  telegramId   String?       @unique
-  employmentStart DateTime?    @default(now())
+  id              String     @id @default(uuid())
+  username        String     @unique
+  name            String
+  phone           String
+  email           String?    @unique
+  address         String?
+  treffpunkt      String?
+  treffpunktTime  String?
+  profilePhoto    String?
+  passwordHash    String
+  role            Role       @default(EMPLOYEE)
+  warehouseId     String?
+  warehouse       Warehouse? @relation(fields: [warehouseId], references: [id])
+  hallId          String?
+  hall            Hall?      @relation(fields: [hallId], references: [id])
+  isActive        Boolean    @default(true)
+  telegramId      String?    @unique
+  employmentStart DateTime?  @default(now())
   employmentEnd   DateTime?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  deletedAt    DateTime?
-  
-  attendance   Attendance[]
-  timesheets   Timesheet[]
-  plans        PlanEmployee[]
-  actionLogs   ActionLog[]
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  deletedAt       DateTime?
+
+  attendance          Attendance[]
+  timesheets          Timesheet[]
+  plans               PlanEmployee[]
+  actionLogs          ActionLog[]
   passwordResetTokens PasswordResetToken[]
-  sentMessages        ChatMessage[] @relation("SentMessages")
-  receivedMessages    ChatMessage[] @relation("ReceivedMessages")
-  isChatBlocked       Boolean       @default(false)
-  hideWorkHours       Boolean       @default(false)
+  sentMessages        ChatMessage[]        @relation("SentMessages")
+  receivedMessages    ChatMessage[]        @relation("ReceivedMessages")
+  isChatBlocked       Boolean              @default(false)
+  hideWorkHours       Boolean              @default(false)
 
   // Custom relations
-  notifications       Notification[]
-  createdContainers   Container[]   @relation("ContainerCreatedBy")
-  updatedContainers   Container[]   @relation("ContainerUpdatedBy")
-  workedContainers    ContainerEmployee[]
-  documentBatches     DocumentBatch[]
-  universalDocuments  UniversalDocument[]
-  scannerDevices      ScannerDevice[]
-  scanJobs            ScanJob[]
-  planSegments        EmployeePlanSegment[] @relation("EmployeePlanSegments")
-  absences            EmployeeAbsence[]     @relation("EmployeeAbsences")
-  createdAbsences     EmployeeAbsence[]     @relation("AbsenceCreatedBy")
+  notifications      Notification[]
+  createdContainers  Container[]           @relation("ContainerCreatedBy")
+  updatedContainers  Container[]           @relation("ContainerUpdatedBy")
+  workedContainers   ContainerEmployee[]
+  documentBatches    DocumentBatch[]
+  universalDocuments UniversalDocument[]
+  scannerDevices     ScannerDevice[]
+  scanJobs           ScanJob[]
+  planSegments       EmployeePlanSegment[] @relation("EmployeePlanSegments")
+  absences           EmployeeAbsence[]     @relation("EmployeeAbsences")
+  createdAbsences    EmployeeAbsence[]     @relation("AbsenceCreatedBy")
 
   @@index([warehouseId])
   @@index([hallId])
 }
 
 model Warehouse {
-  id         String       @id @default(uuid())
-  name       String       @unique
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
-  deletedAt  DateTime?
+  id        String    @id @default(uuid())
+  name      String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
-  halls      Hall[]
-  users      User[]
-  containers Container[]
+  halls         Hall[]
+  users         User[]
+  containers    Container[]
   planLocations PlanLocation[]
-  attendance Attendance[]
+  attendance    Attendance[]
 }
 
 model Hall {
-  id          String       @id @default(uuid())
+  id          String    @id @default(uuid())
   name        String
   warehouseId String
-  warehouse   Warehouse    @relation(fields: [warehouseId], references: [id])
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
   capacity    Int?
-  color       String?      @default("#1d4ed8")
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  color       String?   @default("#1d4ed8")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
-  users       User[]
-  containers  Container[]
+  users         User[]
+  containers    Container[]
   planLocations PlanLocation[]
-  attendance  Attendance[]
+  attendance    Attendance[]
 
   @@index([warehouseId])
 }
@@ -150,15 +150,15 @@ model Container {
   deletedAt       DateTime?
 
   // Worked container fields
-  workedHours     Float           @default(0)
-  notes           String?
-  createdById     String?
-  createdBy       User?           @relation("ContainerCreatedBy", fields: [createdById], references: [id])
-  updatedById     String?
-  updatedBy       User?           @relation("ContainerUpdatedBy", fields: [updatedById], references: [id])
-  
-  employees       ContainerEmployee[]
-  plans           PlanContainer[]
+  workedHours Float   @default(0)
+  notes       String?
+  createdById String?
+  createdBy   User?   @relation("ContainerCreatedBy", fields: [createdById], references: [id])
+  updatedById String?
+  updatedBy   User?   @relation("ContainerUpdatedBy", fields: [updatedById], references: [id])
+
+  employees ContainerEmployee[]
+  plans     PlanContainer[]
 
   @@index([warehouseId])
   @@index([hallId])
@@ -166,19 +166,19 @@ model Container {
 }
 
 model Plan {
-  id          String          @id @default(uuid())
-  title       String?
-  description String?
-  date        DateTime
-  startTime   DateTime        @default(now())
-  endTime     DateTime        @default(now())
-  shift       String?
-  treffpunkt  String?
+  id             String    @id @default(uuid())
+  title          String?
+  description    String?
+  date           DateTime
+  startTime      DateTime  @default(now())
+  endTime        DateTime  @default(now())
+  shift          String?
+  treffpunkt     String?
   treffpunktTime String?
-  notes       String?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  deletedAt   DateTime?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
 
   locations          PlanLocation[]
   assignedEmployees  PlanEmployee[]
@@ -198,8 +198,8 @@ model PlanLocation {
   warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
   hallId      String
   hall        Hall      @relation(fields: [hallId], references: [id], onDelete: Restrict)
-  startTime   String?   // Hall-specific Arbeitsbeginn (e.g. "08:00")
-  endTime     String?   // Hall-specific Arbeitsende (e.g. "12:00", null if open end)
+  startTime   String? // Hall-specific Arbeitsbeginn (e.g. "08:00")
+  endTime     String? // Hall-specific Arbeitsende (e.g. "12:00", null if open end)
   isOpenEnd   Boolean   @default(false) // Open end flag for this Hall
   notes       String?
 
@@ -209,16 +209,21 @@ model PlanLocation {
 }
 
 model PlanEmployee {
-  planId     String
-  plan       Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
-  employeeId String
-  employee   User     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  startTime  DateTime @default(now())
-  endTime    DateTime @default(now())
+  planId             String
+  plan               Plan      @relation(fields: [planId], references: [id], onDelete: Cascade)
+  employeeId         String
+  employee           User      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  startTime          DateTime  @default(now())
+  endTime            DateTime  @default(now())
+  confirmationStatus String    @default("PENDING") // PENDING | CONFIRMED | SICK | CUSTOM_RESPONSE
+  responseNote       String?
+  respondedAt        DateTime?
+  responseChannel    String?
 
   @@id([planId, employeeId])
   @@index([employeeId, startTime, endTime])
   @@index([planId])
+  @@index([confirmationStatus])
 }
 
 model PlanContainer {
@@ -233,23 +238,23 @@ model PlanContainer {
 }
 
 model Attendance {
-  id          String     @id @default(uuid())
+  id          String    @id @default(uuid())
   employeeId  String
-  employee    User       @relation(fields: [employeeId], references: [id])
+  employee    User      @relation(fields: [employeeId], references: [id])
   warehouseId String
-  warehouse   Warehouse  @relation(fields: [warehouseId], references: [id])
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
   hallId      String
-  hall        Hall       @relation(fields: [hallId], references: [id])
+  hall        Hall      @relation(fields: [hallId], references: [id])
   clockIn     DateTime
   clockOut    DateTime?
   totalHours  Float?
-  date        DateTime   // Stored as date-only representation (YYYY-MM-DD)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  date        DateTime // Stored as date-only representation (YYYY-MM-DD)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   // Unified fields
-  breakMinutes Int       @default(0)
-  source       String    @default("MANUAL") // "MANUAL" or "SCAN"
+  breakMinutes Int        @default(0)
+  source       String     @default("MANUAL") // "MANUAL" or "SCAN"
   timesheetId  String?
   timesheet    Timesheet? @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
 
@@ -288,38 +293,38 @@ model Timesheet {
   id             String          @id @default(uuid())
   employeeId     String?
   employee       User?           @relation(fields: [employeeId], references: [id])
-  employeeName   String          // Raw OCR-erkannter Name (Audit-Trail)
-  weekStartDate  DateTime        // Montag der betreffenden Woche (UTC midnight)
+  employeeName   String // Raw OCR-erkannter Name (Audit-Trail)
+  weekStartDate  DateTime // Montag der betreffenden Woche (UTC midnight)
   status         TimesheetStatus @default(PENDING_REVIEW)
-  createdById    String?         // Manager/Admin der den Scan erstellt hat
-  ocrConfidence  String?         // 'exact' | 'fuzzy' | 'none'
-  ocrRawResponse Json?           // Komplette GPT-Rohantwort für Debugging
-  uploadJobId    String?         // Idempotency: upload job this scan page belongs to
-  sourcePage     Int?            // Source page number within the upload job (1-based)
+  createdById    String? // Manager/Admin der den Scan erstellt hat
+  ocrConfidence  String? // 'exact' | 'fuzzy' | 'none'
+  ocrRawResponse Json? // Komplette GPT-Rohantwort für Debugging
+  uploadJobId    String? // Idempotency: upload job this scan page belongs to
+  sourcePage     Int? // Source page number within the upload job (1-based)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
-  entries        TimesheetEntry[]
-  attendance     Attendance[]
+  entries    TimesheetEntry[]
+  attendance Attendance[]
 
+  @@unique([uploadJobId, sourcePage])
   @@index([employeeId])
   @@index([weekStartDate])
   @@index([status])
   @@index([createdAt])
-  @@unique([uploadJobId, sourcePage])
 }
 
 model TimesheetEntry {
   id           String    @id @default(uuid())
   timesheetId  String
   timesheet    Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
-  weekday      String    // "Montag", "Dienstag", etc.
+  weekday      String // "Montag", "Dienstag", etc.
   date         DateTime
-  startTime    String    // "08:00" — HH:MM 24h Format
-  endTime      String?   // "16:30" (optional, null if open shift)
+  startTime    String // "08:00" — HH:MM 24h Format
+  endTime      String? // "16:30" (optional, null if open shift)
   breakMinutes Int       @default(0)
-  totalHours   Float     // Gesamt ohne Pause
-  location     String?   // Lagername / Arbeitsort
+  totalHours   Float // Gesamt ohne Pause
+  location     String? // Lagername / Arbeitsort
   isActive     Boolean   @default(true)
 
   @@index([timesheetId])
@@ -346,7 +351,7 @@ model Notification {
   user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String
   message   String
-  type      String   // "PLAN_CREATED" | "PLAN_UPDATED" | "EMPLOYEE_ASSIGNED" | "CONTAINER_UPDATED" | "HOURS_CHANGED" | "ROLE_CHANGED" | "SYSTEM_ALERT"
+  type      String // "PLAN_CREATED" | "PLAN_UPDATED" | "EMPLOYEE_ASSIGNED" | "CONTAINER_UPDATED" | "HOURS_CHANGED" | "ROLE_CHANGED" | "SYSTEM_ALERT"
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
 
@@ -366,23 +371,23 @@ model ContainerEmployee {
 // ─── Universal Document Ingestion & Processing System ────────────────────────
 
 model DocumentBatch {
-  id              String              @id @default(uuid())
-  batchNumber     Int                 @default(autoincrement())
-  title           String?
-  status          BatchStatus         @default(DRAFT)
-  totalDocuments  Int                 @default(0)
-  completedCount  Int                 @default(0)
-  failedCount     Int                 @default(0)
-  skippedCount    Int                 @default(0)
-  createdById     String
-  createdBy       User                @relation(fields: [createdById], references: [id])
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
-  startedAt       DateTime?
-  completedAt     DateTime?
+  id             String      @id @default(uuid())
+  batchNumber    Int         @default(autoincrement())
+  title          String?
+  status         BatchStatus @default(DRAFT)
+  totalDocuments Int         @default(0)
+  completedCount Int         @default(0)
+  failedCount    Int         @default(0)
+  skippedCount   Int         @default(0)
+  createdById    String
+  createdBy      User        @relation(fields: [createdById], references: [id])
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  startedAt      DateTime?
+  completedAt    DateTime?
 
-  documents       UniversalDocument[]
-  auditLogs       DocumentAuditLog[]
+  documents UniversalDocument[]
+  auditLogs DocumentAuditLog[]
 
   @@index([createdById])
   @@index([status])
@@ -390,46 +395,46 @@ model DocumentBatch {
 }
 
 model UniversalDocument {
-  id                 String                  @id @default(uuid())
-  batchId            String
-  batch              DocumentBatch           @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  userId             String
-  user               User                    @relation(fields: [userId], references: [id])
-  source             DocumentSource          @default(UPLOAD)
-  status             DocumentStatus          @default(CREATED)
-  queuePosition      Int                     @default(0)
-  originalFileName   String
-  mimeType           String
-  fileSize           Int                     @default(0)
-  filePath           String                  // Original storage path
-  processedFilePath  String?                 // Enhanced / perspective corrected / merged storage path
-  pageCount          Int                     @default(1)
-  
+  id                String         @id @default(uuid())
+  batchId           String
+  batch             DocumentBatch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User           @relation(fields: [userId], references: [id])
+  source            DocumentSource @default(UPLOAD)
+  status            DocumentStatus @default(CREATED)
+  queuePosition     Int            @default(0)
+  originalFileName  String
+  mimeType          String
+  fileSize          Int            @default(0)
+  filePath          String // Original storage path
+  processedFilePath String? // Enhanced / perspective corrected / merged storage path
+  pageCount         Int            @default(1)
+
   // Processing lock and worker tracking
-  processingAttempts Int                     @default(0)
-  maxAttempts        Int                     @default(3)
+  processingAttempts Int       @default(0)
+  maxAttempts        Int       @default(3)
   lockWorkerId       String?
   lockedAt           DateTime?
   lockExpiresAt      DateTime?
-  idempotencyKey     String                  @unique @default(uuid())
-  
-  // Extracted Results
-  ocrLanguage        String?                 @default("de")
-  ocrRawText         String?                 @db.Text
-  analysisResult     Json?                   // Full validated structured CRM data (Company, Contact, Invoice, Amounts, Items, Summary)
-  matchedEntityType  String?                 // "EMPLOYEE" | "CONTAINER" | "TIMESHEET" | "COMPANY" | "INVOICE"
-  matchedEntityId    String?
-  
-  errorCode          String?
-  errorMessage       String?
-  
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
-  startedAt          DateTime?
-  completedAt        DateTime?
+  idempotencyKey     String    @unique @default(uuid())
 
-  pages              UniversalDocumentPage[]
-  auditLogs          DocumentAuditLog[]
+  // Extracted Results
+  ocrLanguage       String? @default("de")
+  ocrRawText        String? @db.Text
+  analysisResult    Json? // Full validated structured CRM data (Company, Contact, Invoice, Amounts, Items, Summary)
+  matchedEntityType String? // "EMPLOYEE" | "CONTAINER" | "TIMESHEET" | "COMPANY" | "INVOICE"
+  matchedEntityId   String?
+
+  errorCode    String?
+  errorMessage String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  pages     UniversalDocumentPage[]
+  auditLogs DocumentAuditLog[]
 
   @@index([batchId, queuePosition])
   @@index([status])
@@ -437,16 +442,16 @@ model UniversalDocument {
 }
 
 model UniversalDocumentPage {
-  id             String            @id @default(uuid())
-  documentId     String
-  document       UniversalDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  pageNumber     Int
-  originalPath   String
-  processedPath  String?
-  width          Int?
-  height         Int?
-  ocrText        String?           @db.Text
-  createdAt      DateTime          @default(now())
+  id            String            @id @default(uuid())
+  documentId    String
+  document      UniversalDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  pageNumber    Int
+  originalPath  String
+  processedPath String?
+  width         Int?
+  height        Int?
+  ocrText       String?           @db.Text
+  createdAt     DateTime          @default(now())
 
   @@unique([documentId, pageNumber])
   @@index([documentId])
@@ -459,7 +464,7 @@ model DocumentAuditLog {
   documentId String?
   document   UniversalDocument? @relation(fields: [documentId], references: [id], onDelete: Cascade)
   userId     String?
-  event      String             // "BATCH_CREATED" | "DOCUMENT_QUEUED" | "OCR_STARTED" | "OCR_COMPLETED" | "AI_ANALYZED" | "PERSISTED" | "COMPLETED" | "FAILED" | "RETRIED" | "SKIPPED"
+  event      String // "BATCH_CREATED" | "DOCUMENT_QUEUED" | "OCR_STARTED" | "OCR_COMPLETED" | "AI_ANALYZED" | "PERSISTED" | "COMPLETED" | "FAILED" | "RETRIED" | "SKIPPED"
   details    Json?
   timestamp  DateTime           @default(now())
 
@@ -468,15 +473,14 @@ model DocumentAuditLog {
   @@index([timestamp])
 }
 
-
 // ─── Scanner Device Registry ─────────────────────────────────────────────────
 
 /// Persists discovered/connected network and USB scanners per user.
 /// IP is stored as lastKnownIp — not used as the primary identifier.
 model ScannerDevice {
-  id               String   @id @default(uuid())
-  userId           String
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   /// Stable identifier derived from serial number or device model+IP combo
   deviceIdentifier String
@@ -485,29 +489,29 @@ model ScannerDevice {
   deviceName       String
 
   /// Last known network location — updated on each discovery
-  lastKnownIp      String?
-  port             Int?     @default(80)
+  lastKnownIp String?
+  port        Int?    @default(80)
 
   /// "ESCL" | "WIA" | "SIMULATOR" | "IPP"
-  protocol         String   @default("ESCL")
+  protocol String @default("ESCL")
 
   /// Full capability set from eSCL ScannerCapabilities XML
-  capabilities     Json?
+  capabilities Json?
 
-  isScanner        Boolean  @default(true)
-  isPrinter        Boolean  @default(false)
-  hasAdf           Boolean  @default(false)
-  hasFlatbed       Boolean  @default(true)
+  isScanner  Boolean @default(true)
+  isPrinter  Boolean @default(false)
+  hasAdf     Boolean @default(false)
+  hasFlatbed Boolean @default(true)
 
   /// "UNKNOWN" | "READY" | "BUSY" | "OFFLINE" | "ERROR"
-  status           String   @default("UNKNOWN")
-  isConnected      Boolean  @default(false)
-  lastSeen         DateTime @default(now())
+  status      String   @default("UNKNOWN")
+  isConnected Boolean  @default(false)
+  lastSeen    DateTime @default(now())
 
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  scanJobs         ScanJob[]
+  scanJobs ScanJob[]
 
   @@unique([userId, deviceIdentifier])
   @@index([userId])
@@ -517,35 +521,35 @@ model ScannerDevice {
 
 /// Tracks a single scan job lifecycle (one or many ADF pages).
 model ScanJob {
-  id             String         @id @default(uuid())
-  userId         String
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  deviceId       String?
-  device         ScannerDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  id       String         @id @default(uuid())
+  userId   String
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId String?
+  device   ScannerDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
 
   /// Linked document batch created from this scan
-  batchId        String?
+  batchId String?
 
   /// QUEUED | CONNECTING | SCANNING | UPLOADING | PROCESSING | COMPLETED | FAILED | CANCELLED
-  status         String   @default("QUEUED")
+  status String @default("QUEUED")
 
   /// Scan settings used
-  inputSource    String   @default("Platen")
-  colorMode      String   @default("Grayscale")
-  dpi            Int      @default(300)
-  format         String   @default("jpeg")
-  batchScan      Boolean  @default(false)
+  inputSource String  @default("Platen")
+  colorMode   String  @default("Grayscale")
+  dpi         Int     @default(300)
+  format      String  @default("jpeg")
+  batchScan   Boolean @default(false)
 
   /// Progress tracking
-  totalPages     Int      @default(0)
-  processedPages Int      @default(0)
+  totalPages     Int @default(0)
+  processedPages Int @default(0)
 
-  errorMessage   String?
+  errorMessage String?
 
-  createdAt      DateTime  @default(now())
-  startedAt      DateTime?
-  completedAt    DateTime?
-  updatedAt      DateTime  @updatedAt
+  createdAt   DateTime  @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+  updatedAt   DateTime  @updatedAt
 
   @@index([userId])
   @@index([deviceId])
@@ -564,20 +568,20 @@ enum AbsenceStatus {
 // ─── Employee Plan Segments (Individual Treffpunkt & Time Segments) ──────────
 
 model EmployeePlanSegment {
-  id             String    @id @default(uuid())
+  id             String   @id @default(uuid())
   employeeId     String
-  employee       User      @relation("EmployeePlanSegments", fields: [employeeId], references: [id], onDelete: Cascade)
-  date           DateTime  // Normalized UTC midnight date (YYYY-MM-DD)
+  employee       User     @relation("EmployeePlanSegments", fields: [employeeId], references: [id], onDelete: Cascade)
+  date           DateTime // Normalized UTC midnight date (YYYY-MM-DD)
   planId         String?
-  plan           Plan?     @relation(fields: [planId], references: [id], onDelete: Cascade)
-  treffpunkt     String    // e.g. "Büro", "Baustelle A", "Adresse B"
-  treffpunktTime String?   // "07:45" (Treffzeit - strictly excluded from working hours)
-  startTime      String    // "08:00" (Arbeitsbeginn)
-  endTime        String?   // "10:00" (Arbeitsende)
+  plan           Plan?    @relation(fields: [planId], references: [id], onDelete: Cascade)
+  treffpunkt     String // e.g. "Büro", "Baustelle A", "Adresse B"
+  treffpunktTime String? // "07:45" (Treffzeit - strictly excluded from working hours)
+  startTime      String // "08:00" (Arbeitsbeginn)
+  endTime        String? // "10:00" (Arbeitsende)
   notes          String?
-  order          Int       @default(0)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  order          Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([employeeId, date])
   @@index([planId])
@@ -590,9 +594,9 @@ model EmployeeAbsence {
   id          String        @id @default(uuid())
   employeeId  String
   employee    User          @relation("EmployeeAbsences", fields: [employeeId], references: [id], onDelete: Cascade)
-  date        DateTime      // Normalized UTC midnight date (YYYY-MM-DD)
+  date        DateTime // Normalized UTC midnight date (YYYY-MM-DD)
   status      AbsenceStatus @default(NICHT_GEARBEITET)
-  reason      String?       // "Arzttermin", "Privater Termin", "Behördentermin", "Urlaub", "Sonstiger Grund", etc.
+  reason      String? // "Arzttermin", "Privater Termin", "Behördentermin", "Urlaub", "Sonstiger Grund", etc.
   notes       String?
   createdById String?
   createdBy   User?         @relation("AbsenceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
@@ -615,4 +619,3 @@ model SystemSetting {
 
   @@index([key])
 }
-

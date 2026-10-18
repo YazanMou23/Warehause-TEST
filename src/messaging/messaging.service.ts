@@ -212,7 +212,7 @@ export class MessagingService {
   /**
    * Process Meta WhatsApp Cloud API webhook events
    */
-  handleWebhookPayload(body: any): void {
+  async handleWebhookPayload(body: any): Promise<void> {
     if (!body || body.object !== 'whatsapp_business_account') return;
 
     for (const entry of body.entry || []) {
@@ -234,20 +234,198 @@ export class MessagingService {
           }
         }
 
-        // Log incoming messages from employees/users
+        // Process incoming messages from employees/users
         if (value.messages && Array.isArray(value.messages)) {
           for (const msg of value.messages) {
-            if (msg.type === 'interactive' && msg.interactive?.button_reply) {
-              const reply = msg.interactive.button_reply;
-              this.logger.log(
-                `[WhatsApp Webhook] 🔘 User clicked button: "${reply.title}" (ID: ${reply.id}) from +${msg.from}`,
-              );
-            } else {
-              this.logger.log(
-                `[WhatsApp Webhook] Received message from ${msg.from}: ${msg.text?.body || msg.type}`,
-              );
+            try {
+              await this.processIncomingWebhookMessage(msg);
+            } catch (err: any) {
+              this.logger.error(`Error processing incoming WhatsApp message from ${msg.from}: ${err.message}`);
             }
           }
+        }
+      }
+    }
+  }
+
+  /**
+   * Process individual incoming message (Interactive button reply or custom text).
+   * Synchronizes PlanEmployee confirmation status and EmployeeAbsence records.
+   */
+  private async processIncomingWebhookMessage(msg: any): Promise<void> {
+    const rawFrom = String(msg.from || '');
+    const cleanFrom = this.formatPhoneNumber(rawFrom);
+
+    if (msg.type === 'interactive' && msg.interactive?.button_reply) {
+      const reply = msg.interactive.button_reply;
+      const buttonId: string = reply.id || '';
+      const buttonTitle: string = reply.title || '';
+
+      this.logger.log(
+        `[WhatsApp Webhook] 🔘 User clicked button: "${buttonTitle}" (ID: ${buttonId}) from +${cleanFrom}`,
+      );
+
+      // Expected ID formats:
+      // CONFIRM_{planId}_{employeeId} or accept_{planId}_{employeeId}
+      // SICK_{planId}_{employeeId} or decline_{planId}_{employeeId}
+      // CUSTOM_{planId}_{employeeId}
+      const parts = buttonId.split('_');
+      if (parts.length >= 3) {
+        const actionPrefix = parts[0].toUpperCase();
+        const planId = parts[1];
+        const employeeId = parts.slice(2).join('_'); // support uuid with dashes
+
+        if (actionPrefix === 'CONFIRM' || actionPrefix === 'ACCEPT') {
+          // 1. Employee confirmed: "Ich bin da"
+          await this.prisma.planEmployee.updateMany({
+            where: { planId, employeeId },
+            data: {
+              confirmationStatus: 'CONFIRMED',
+              responseNote: 'Zugesagt („Ich bin da“)',
+              respondedAt: new Date(),
+              responseChannel: 'WHATSAPP_BUTTON',
+            },
+          });
+
+          await this.prisma.actionLog.create({
+            data: {
+              userId: employeeId,
+              action: 'WHATSAPP_CONFIRMED',
+              details: `Mitarbeiter hat Schicht zugesagt („Ich bin da“) via WhatsApp-Button`,
+            },
+          }).catch(() => {});
+
+          await this.sendWhatsAppDirect(
+            cleanFrom,
+            `✅ Vielen Dank! Ihre Zusage („Ich bin da“) wurde erfolgreich gespeichert. Wir freuen uns auf Ihren Einsatz!`,
+          ).catch(() => {});
+
+        } else if (actionPrefix === 'SICK' || actionPrefix === 'DECLINE') {
+          // 2. Employee reported sick: "Ich bin krank"
+          await this.prisma.planEmployee.updateMany({
+            where: { planId, employeeId },
+            data: {
+              confirmationStatus: 'SICK',
+              responseNote: 'Krankmeldung via WhatsApp („Ich bin krank“)',
+              respondedAt: new Date(),
+              responseChannel: 'WHATSAPP_BUTTON',
+            },
+          });
+
+          // Sync with EmployeeAbsence
+          const plan = await this.prisma.plan.findUnique({ where: { id: planId } });
+          if (plan) {
+            const normDate = new Date(plan.date);
+            normDate.setUTCHours(0, 0, 0, 0);
+            await this.prisma.employeeAbsence.upsert({
+              where: {
+                employeeId_date: {
+                  employeeId,
+                  date: normDate,
+                },
+              },
+              create: {
+                employeeId,
+                date: normDate,
+                status: 'KRANK',
+                reason: 'Krankmeldung via WhatsApp-Button („Ich bin krank“)',
+              },
+              update: {
+                status: 'KRANK',
+                reason: 'Krankmeldung via WhatsApp-Button („Ich bin krank“)',
+              },
+            }).catch(() => {});
+          }
+
+          await this.prisma.actionLog.create({
+            data: {
+              userId: employeeId,
+              action: 'WHATSAPP_SICK_REPORT',
+              details: `Mitarbeiter hat sich krank gemeldet („Ich bin krank“) via WhatsApp-Button`,
+            },
+          }).catch(() => {});
+
+          await this.sendWhatsAppDirect(
+            cleanFrom,
+            `🤒 Ihre Krankmeldung wurde erfasst und an die Schichtleitung übermittelt. Gute Besserung!`,
+          ).catch(() => {});
+
+        } else if (actionPrefix === 'CUSTOM') {
+          // 3. Employee chose "Custom Nachricht"
+          await this.prisma.planEmployee.updateMany({
+            where: { planId, employeeId },
+            data: {
+              confirmationStatus: 'CUSTOM_RESPONSE',
+              responseNote: 'Wartet auf individuelle Textnachricht',
+              respondedAt: new Date(),
+              responseChannel: 'WHATSAPP_BUTTON',
+            },
+          });
+
+          await this.sendWhatsAppDirect(
+            cleanFrom,
+            `💬 Bitte schreiben Sie uns direkt hier im Chat eine kurze Nachricht (z. B. Grund der Verhinderung oder wann Sie kommen können).`,
+          ).catch(() => {});
+        }
+      }
+    } else if (msg.type === 'text' && msg.text?.body) {
+      const incomingText = msg.text.body.trim();
+      this.logger.log(`[WhatsApp Webhook] Received text from +${cleanFrom}: "${incomingText}"`);
+
+      // Match user by normalized phone ending (handles leading zeros vs +49)
+      const phoneDigits = cleanFrom.slice(-9);
+      const user = await this.prisma.user.findFirst({
+        where: {
+          phone: { contains: phoneDigits },
+          isActive: true,
+          deletedAt: null,
+        },
+      });
+
+      if (user) {
+        // Find their nearest active/upcoming shift assignment
+        const recentAssignment = await this.prisma.planEmployee.findFirst({
+          where: {
+            employeeId: user.id,
+            plan: { deletedAt: null },
+          },
+          orderBy: { plan: { date: 'desc' } },
+          include: { plan: true },
+        });
+
+        if (recentAssignment) {
+          const currentStatus = recentAssignment.confirmationStatus === 'PENDING'
+            ? 'CUSTOM_RESPONSE'
+            : recentAssignment.confirmationStatus;
+
+          await this.prisma.planEmployee.update({
+            where: {
+              planId_employeeId: {
+                planId: recentAssignment.planId,
+                employeeId: user.id,
+              },
+            },
+            data: {
+              confirmationStatus: currentStatus,
+              responseNote: incomingText,
+              respondedAt: new Date(),
+              responseChannel: 'WHATSAPP_TEXT',
+            },
+          });
+
+          await this.prisma.actionLog.create({
+            data: {
+              userId: user.id,
+              action: 'WHATSAPP_NOTE_RECEIVED',
+              details: `Mitarbeiter "${user.name}" hat Notiz übermittelt: "${incomingText}"`,
+            },
+          }).catch(() => {});
+
+          const formattedPlanDate = new Date(recentAssignment.plan.date).toLocaleDateString('de-DE');
+          await this.sendWhatsAppDirect(
+            cleanFrom,
+            `👍 Vielen Dank, ${user.name}! Ihre Nachricht („${incomingText}“) wurde für Ihren Schichteinsatz am ${formattedPlanDate} vermerkt.`,
+          ).catch(() => {});
         }
       }
     }
