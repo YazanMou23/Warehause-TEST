@@ -91,6 +91,60 @@ export class PlanningController {
     return this.planningService.findByDateAndWarehouse(date, warehouseId);
   }
 
+  /**
+   * GET /planning/confirmations
+   * Fetch all employee shift assignment confirmations (green/red/yellow status + reasons)
+   */
+  @Get('confirmations')
+  getConfirmations(
+    @Query('date') date?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('warehouseId') warehouseId?: string,
+    @Query('hallId') hallId?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.planningService.getConfirmations({
+      date,
+      startDate,
+      endDate,
+      warehouseId,
+      hallId,
+      status,
+      search,
+    });
+  }
+
+  /**
+   * PATCH /planning/confirmations/:planId/employee/:employeeId
+   * Manual override of shift confirmation status and reason
+   */
+  @Patch('confirmations/:planId/employee/:employeeId')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  updateConfirmation(
+    @Param('planId') planId: string,
+    @Param('employeeId') employeeId: string,
+    @Body() body: { status: 'CONFIRMED' | 'SICK' | 'CUSTOM_RESPONSE' | 'PENDING'; reason?: string },
+    @CurrentUser('id') actorId: string,
+  ) {
+    return this.planningService.updateConfirmation(planId, employeeId, body, actorId);
+  }
+
+  /**
+   * POST /planning/confirmations/:planId/employee/:employeeId/send-whatsapp
+   * Resend WhatsApp notification with 3 options directly to the employee
+   */
+  @Post('confirmations/:planId/employee/:employeeId/send-whatsapp')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  sendConfirmationWhatsApp(
+    @Param('planId') planId: string,
+    @Param('employeeId') employeeId: string,
+    @CurrentUser('id') actorId: string,
+  ) {
+    return this.planningService.sendSingleConfirmationWhatsApp(planId, employeeId, actorId);
+  }
+
   @Delete('bulk')
   @Roles(Role.MANAGER, Role.ADMIN)
   bulkRemove(@Body('ids') ids: string[], @CurrentUser('id') actorId: string) {

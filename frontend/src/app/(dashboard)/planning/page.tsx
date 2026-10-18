@@ -28,9 +28,11 @@ import {
   Mail,
   Send,
   Sparkles,
+  UserCheck,
 } from "lucide-react";
 import CustomAlertModal, { CustomAlertOptions } from "../../components/CustomAlertModal";
 import WhatsAppModal from "../../components/WhatsAppModal";
+import ShiftConfirmationList from "../../components/planning/ShiftConfirmationList";
 
 interface Warehouse {
   id: string;
@@ -84,6 +86,7 @@ export interface EmployeeAbsenceItem {
 }
 
 function PlanningPageContent() {
+  const [activePlanningTab, setActivePlanningTab] = useState<"plan" | "confirmations">("plan");
   const [date, setDate] = useState("");
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [halls, setHalls] = useState<Hall[]>([]);
@@ -1058,18 +1061,51 @@ function PlanningPageContent() {
 
   return (
     <div className="space-y-6 animate-fadeIn text-[#0f172a]">
-      {/* Title */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      {/* Header & View Mode Switcher */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-200/80 pb-5">
         <div>
           <h3 className="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
             <Layers className="w-7 h-7 text-blue-600" />
-            Schichtplanung & Treffpunkte (Logistics Shift Planning)
+            Schichtplanung & Treffpunkte
           </h3>
           <p className="text-slate-500 text-xs mt-1">
-            Individuelle Treffpunkte, segmentierte Arbeitszeiten pro Mitarbeiter und lückenlose Abwesenheitserfassung.
+            Schichten einteilen, WhatsApp-Nachrichten versenden &amp; Echtzeit-Rückmeldungen (🟢 Da / 🔴 Krank) überwachen.
           </p>
         </div>
+
+        {/* Tab Switcher */}
+        <div className="inline-flex p-1 bg-slate-100/90 rounded-xl border border-slate-200 shadow-inner shrink-0 self-start md:self-auto">
+          <button
+            type="button"
+            onClick={() => setActivePlanningTab("plan")}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              activePlanningTab === "plan"
+                ? "bg-white text-blue-700 shadow-sm border border-slate-200/60"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+            }`}
+          >
+            <Layers className="w-4 h-4" />
+            <span>1. Schichtplan-Editor</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActivePlanningTab("confirmations")}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              activePlanningTab === "confirmations"
+                ? "bg-white text-emerald-700 shadow-sm border border-slate-200/60"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+            }`}
+          >
+            <UserCheck className="w-4 h-4 text-emerald-600" />
+            <span>2. Rückmeldungsliste (🟢/🔴 Wer kommt)</span>
+          </button>
+        </div>
       </div>
+
+      {activePlanningTab === "confirmations" ? (
+        <ShiftConfirmationList initialDate={date} />
+      ) : (
+        <>
 
 
 
@@ -2108,6 +2144,16 @@ function PlanningPageContent() {
 
                         <button
                           type="button"
+                          onClick={() => setActivePlanningTab("confirmations")}
+                          className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                          title="Rückmeldungen für diesen Tag anzeigen (🟢/🔴 Wer kommt)"
+                        >
+                          <UserCheck className="w-3.5 h-3.5 text-indigo-700" />
+                          <span>Rückmeldungen</span>
+                        </button>
+
+                        <button
+                          type="button"
                           disabled={isResendingEmailForPlanId === plan.id}
                           onClick={() => handleResendPlanNotification(plan.id)}
                           className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
@@ -2389,6 +2435,8 @@ function PlanningPageContent() {
           </div>
         )}
       </div>
+      </>
+      )}
 
       {/* ── Modal for Setting Employee Absence / Status ── */}
       {absenceModalOpen && selectedEmployeeForAbsence && (

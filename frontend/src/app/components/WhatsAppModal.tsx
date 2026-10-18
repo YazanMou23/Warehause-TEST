@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { API_URL } from "@/config/api";
+import { API_URL } from "../../config/api";
 
 interface WhatsAppModalProps {
   isOpen: boolean;
@@ -65,10 +65,23 @@ export default function WhatsAppModal({
     setButtons(updated);
   };
 
-  const applyPreset = (preset: "shift" | "reminder" | "announcement") => {
-    if (preset === "shift") {
-      setMode("template");
-      setShiftDetails("Montag, Frühschicht 08:00 - 16:30 Uhr");
+  const applyPreset = (preset: "shift" | "shift3" | "reminder" | "announcement") => {
+    if (preset === "shift3" || preset === "shift") {
+      setMode("interactive");
+      setHeader("Schichteinteilung");
+      setBody(
+        `Hallo ${recipientName}\n` +
+        `Ihr Einsatzort : Duisburg\n` +
+        `Halle : Halle 1\n` +
+        `Treffpunkt & Treffzeit: Haupttor um 07:45 Uhr\n\n` +
+        `Bitte wählen Sie eine der 3 Optionen:`
+      );
+      setFooter("LogiFlow Warehouse");
+      setButtons([
+        { id: "CONFIRM_manual", title: "✅ Ich bin da" },
+        { id: "SICK_manual", title: "🤒 Ich bin krank" },
+        { id: "CUSTOM_manual", title: "💬 Custom Nachricht" },
+      ]);
     } else if (preset === "reminder") {
       setMode("interactive");
       setHeader("Zeiterfassung Erinnerung");
@@ -218,10 +231,10 @@ export default function WhatsAppModal({
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => applyPreset("shift")}
-                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-100 transition"
+                onClick={() => applyPreset("shift3")}
+                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow-2xs transition"
               >
-                📅 Schichteinteilung
+                📅 Schicht (3 Optionen: Da / Krank / Custom)
               </button>
               <button
                 type="button"

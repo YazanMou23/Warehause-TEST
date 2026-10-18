@@ -560,13 +560,13 @@ export class PlanningService {
     const kw = this.getCalendarWeek(planDate);
     const headerTitle = isUpdate ? 'Schichtplan aktualisiert' : 'Neue Schichtzuweisung';
 
-    const userRecords = await this.prisma.user
+    const userRecords: any[] = await this.prisma.user
       .findMany({
         where: { id: { in: uniqueEmployees.map((e) => e.id) } },
         select: { id: true, name: true, email: true, phone: true, treffpunkt: true, treffpunktTime: true, address: true },
       })
       .catch(() => []);
-    const userMap = new Map(userRecords.map((u) => [u.id, u]));
+    const userMap = new Map<string, any>(userRecords.map((u: any) => [u.id, u] as const));
 
     // Fetch employee segments for this plan or date
     const normalizedDate = this.normalizeDate(planDate.toISOString());
@@ -702,37 +702,33 @@ export class PlanningService {
       }
 
       if (targetPhone) {
-        let segSummary = '';
-        if (empSegments.length > 0) {
-          segSummary = '\n\nIhre Abschnitte & Treffzeiten:\n' + empSegments.map((s: any, i: number) => `${i + 1}. Treff: ${s.treffpunktTime || '-'} (${s.treffpunkt}) | Zeit: ${s.startTime}-${s.endTime || 'offen'}`).join('\n');
-        }
-        const waMessage = `Hallo ${empName},\n${isUpdate ? 'Ihr Schichtplan wurde aktualisiert:' : 'Sie wurden für eine neue Schicht eingeteilt:'}\n\n📅 Datum: ${formattedDate} (KW ${kw})\n🕒 Offizielle Arbeitszeit: ${shiftTime}${segSummary}${plan.notes ? `\n\n📝 Notizen: ${plan.notes}` : ''}\n\nBitte bestätigen Sie Ihre Schicht oder loggen Sie sich in das Portal ein.`;
+        const whName = plan.warehouseName || locationsList[0]?.warehouseName || 'Duisburg';
+        const hName = plan.hallName || locationsList[0]?.hallName || 'Halle';
+        const empTp = empSegments.length > 0 && empSegments[0].treffpunkt
+          ? `${empSegments[0].treffpunkt}${empSegments[0].treffpunktTime ? ` um ${empSegments[0].treffpunktTime} Uhr` : ''}`
+          : `${tpOrt}${tpZeit && tpZeit !== 'Keine Treffzeit angegeben' ? ` um ${tpZeit} Uhr` : ''}`;
 
-        const shiftDetails = `${formattedDate} (${shiftTime})${plan.hallName ? ` in ${plan.hallName}` : ''}`;
+        const waMessage = `Hallo ${empName}\n` +
+          `Ihr Einsatzort : ${whName}\n` +
+          `Halle : ${hName}\n` +
+          `Treffpunkt & Treffzeit: ${empTp}\n\n` +
+          `📅 Datum: ${formattedDate} | 🕒 Schicht: ${shiftTime}\n\n` +
+          `Bitte wählen Sie eine der folgenden Optionen:`;
+
+        const buttons = [
+          { id: `CONFIRM_${plan.id}_${employee.id}`, title: '✅ Ich bin da' },
+          { id: `SICK_${plan.id}_${employee.id}`, title: '🤒 Ich bin krank' },
+          { id: `CUSTOM_${plan.id}_${employee.id}`, title: '💬 Custom Nachricht' },
+        ];
 
         this.messagingService
-          .sendWhatsAppTemplate(
+          .sendWhatsAppInteractive(
             targetPhone,
-            'schichtplan_benachrichtigung',
-            [empName, shiftDetails],
-            'de',
+            waMessage,
+            buttons,
+            headerTitle,
+            'LogiFlow Schichtplan',
           )
-          .then(async (res) => {
-            // Fallback: If template rejected, try interactive button message
-            if (!res.success) {
-              return this.messagingService.sendWhatsAppInteractive(
-                targetPhone,
-                waMessage,
-                [
-                  { id: `accept_${plan.id}_${employee.id}`, title: '✅ Bestätigen' },
-                  { id: `decline_${plan.id}_${employee.id}`, title: '❌ Ablehnen' },
-                ],
-                headerTitle,
-                'LogiFlow Schichtplan',
-              );
-            }
-            return res;
-          })
           .then((res) => {
             this.prisma.actionLog
               .create({
@@ -740,8 +736,8 @@ export class PlanningService {
                   userId: actorId || null,
                   action: res.success ? 'WHATSAPP_NOTIFICATION' : 'WHATSAPP_NOTIFICATION_FAILED',
                   details: res.success
-                    ? `Plan notification WhatsApp sent to ${empName} (${targetPhone})`
-                    : `Failed WhatsApp notification to ${empName} (${targetPhone}): ${res.error || 'Unknown error'}`,
+                    ? `Schicht-WhatsApp (3 Optionen) an ${empName} (${targetPhone}) gesendet`
+                    : `Fehler beim WhatsApp-Versand an ${empName} (${targetPhone}): ${res.error || 'Unbekannt'}`,
                 },
               })
               .catch(() => {});
@@ -1475,6 +1471,308 @@ export class PlanningService {
     }).catch(() => {});
 
     return { message: 'Abwesenheit erfolgreich entfernt' };
+  }
+
+  /**
+   * Fetch all assigned employees for a date or date-range with confirmation status and feedback reasons
+   */
+  async getConfirmations(query: {
+    date?: string;
+    startDate?: string;
+    endDate?: string;
+    warehouseId?: string;
+    hallId?: string;
+    status?: string;
+    search?: string;
+  }) {
+    const wherePlan: any = {
+      deletedAt: null,
+    };
+
+    if (query.date) {
+      const normalizedDate = this.normalizeDate(query.date);
+      wherePlan.date = normalizedDate;
+    } else if (query.startDate && query.endDate) {
+      const start = this.normalizeDate(query.startDate);
+      const end = this.normalizeDate(query.endDate);
+      end.setUTCHours(23, 59, 59, 999);
+      wherePlan.date = { gte: start, lte: end };
+    }
+
+    const wherePlanEmployee: any = {
+      plan: wherePlan,
+    };
+
+    if (query.status && query.status !== 'ALL') {
+      wherePlanEmployee.confirmationStatus = query.status;
+    }
+
+    const assignments = await this.prisma.planEmployee.findMany({
+      where: wherePlanEmployee,
+      include: {
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            role: true,
+            profilePhoto: true,
+            treffpunkt: true,
+            treffpunktTime: true,
+          },
+        },
+        plan: {
+          include: {
+            locations: {
+              include: {
+                warehouse: { select: { id: true, name: true } },
+                hall: { select: { id: true, name: true, color: true } },
+              },
+            },
+            employeeSegments: true,
+          },
+        },
+      },
+      orderBy: [{ plan: { date: 'asc' } }, { startTime: 'asc' }],
+    });
+
+    // Check employee absences for matching dates
+    const dates = Array.from(new Set(assignments.map((a) => a.plan.date.toISOString().split('T')[0])));
+    const absences = dates.length > 0
+      ? await this.prisma.employeeAbsence.findMany({
+          where: {
+            date: { in: dates.map((d) => new Date(d)) },
+          },
+        })
+      : [];
+    const absenceMap = new Map(absences.map((ab) => [`${ab.employeeId}_${ab.date.toISOString().split('T')[0]}`, ab]));
+
+    const formatted = assignments.map((pe) => {
+      const loc = pe.plan.locations?.[0];
+      const dateKey = pe.plan.date.toISOString().split('T')[0];
+      const absenceKey = `${pe.employeeId}_${dateKey}`;
+      const absence = absenceMap.get(absenceKey);
+
+      const segment = pe.plan.employeeSegments?.find((s) => s.employeeId === pe.employeeId);
+      const treffpunkt = segment?.treffpunkt || pe.plan.treffpunkt || pe.employee.treffpunkt || 'Standard-Treffpunkt';
+      const treffpunktTime = segment?.treffpunktTime || pe.plan.treffpunktTime || pe.employee.treffpunktTime || '-';
+
+      let effectiveStatus = pe.confirmationStatus || 'PENDING';
+      let effectiveReason = pe.responseNote || null;
+
+      if (absence) {
+        if (absence.status === 'KRANK') {
+          effectiveStatus = 'SICK';
+          effectiveReason = pe.responseNote || absence.reason || 'Krank gemeldet';
+        } else if (absence.status === 'NICHT_GEARBEITET' || absence.status === 'ABWESEND_GRUND') {
+          if (effectiveStatus === 'PENDING') {
+            effectiveStatus = 'SICK';
+            effectiveReason = pe.responseNote || absence.reason || 'Abwesend';
+          }
+        }
+      }
+
+      const shiftStartStr = pe.startTime
+        ? new Date(pe.startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+        : '08:00';
+      const shiftEndStr = pe.endTime
+        ? new Date(pe.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+        : '16:00';
+
+      return {
+        planId: pe.planId,
+        employeeId: pe.employeeId,
+        employeeName: pe.employee.name,
+        employeePhone: pe.employee.phone,
+        employeePhoto: pe.employee.profilePhoto,
+        date: pe.plan.date,
+        formattedDate: new Date(pe.plan.date).toLocaleDateString('de-DE'),
+        shiftTime: `${shiftStartStr} - ${shiftEndStr}`,
+        warehouseId: loc?.warehouseId || null,
+        warehouseName: loc?.warehouse?.name || 'Duisburg',
+        hallId: loc?.hallId || null,
+        hallName: loc?.hall?.name || 'Halle',
+        hallColor: loc?.hall?.color || '#2563eb',
+        treffpunkt,
+        treffpunktTime,
+        status: effectiveStatus,
+        reason: effectiveReason,
+        respondedAt: pe.respondedAt,
+        responseChannel: pe.responseChannel,
+      };
+    });
+
+    let filtered = formatted;
+    if (query.warehouseId && query.warehouseId !== 'ALL') {
+      filtered = filtered.filter((f) => f.warehouseId === query.warehouseId);
+    }
+    if (query.hallId && query.hallId !== 'ALL') {
+      filtered = filtered.filter((f) => f.hallId === query.hallId);
+    }
+    if (query.search) {
+      const s = query.search.toLowerCase();
+      filtered = filtered.filter(
+        (f) =>
+          f.employeeName.toLowerCase().includes(s) ||
+          f.warehouseName.toLowerCase().includes(s) ||
+          f.hallName.toLowerCase().includes(s) ||
+          (f.reason && f.reason.toLowerCase().includes(s)),
+      );
+    }
+
+    return {
+      total: filtered.length,
+      confirmedCount: filtered.filter((f) => f.status === 'CONFIRMED').length,
+      sickCount: filtered.filter((f) => f.status === 'SICK').length,
+      pendingCount: filtered.filter((f) => f.status === 'PENDING').length,
+      customCount: filtered.filter((f) => f.status === 'CUSTOM_RESPONSE').length,
+      data: filtered,
+    };
+  }
+
+  /**
+   * Manually update the confirmation status and reason of an employee on a plan
+   */
+  async updateConfirmation(
+    planId: string,
+    employeeId: string,
+    dto: { status: 'CONFIRMED' | 'SICK' | 'CUSTOM_RESPONSE' | 'PENDING'; reason?: string },
+    actorId?: string,
+  ) {
+    const assignment = await this.prisma.planEmployee.findUnique({
+      where: { planId_employeeId: { planId, employeeId } },
+      include: { employee: true, plan: true },
+    });
+
+    if (!assignment) {
+      throw new NotFoundException(`Zuweisung für Plan ${planId} und Mitarbeiter ${employeeId} nicht gefunden`);
+    }
+
+    const updated = await this.prisma.planEmployee.update({
+      where: { planId_employeeId: { planId, employeeId } },
+      data: {
+        confirmationStatus: dto.status,
+        responseNote: dto.reason !== undefined ? dto.reason : assignment.responseNote,
+        respondedAt: new Date(),
+        responseChannel: 'MANUAL',
+      },
+    });
+
+    // If SICK, sync with EmployeeAbsence
+    if (dto.status === 'SICK') {
+      const normDate = new Date(assignment.plan.date);
+      normDate.setUTCHours(0, 0, 0, 0);
+      await this.prisma.employeeAbsence.upsert({
+        where: {
+          employeeId_date: {
+            employeeId,
+            date: normDate,
+          },
+        },
+        create: {
+          employeeId,
+          date: normDate,
+          status: 'KRANK',
+          reason: dto.reason || 'Krankmeldung (manuell erfasst)',
+          createdById: actorId || null,
+        },
+        update: {
+          status: 'KRANK',
+          reason: dto.reason || 'Krankmeldung (manuell erfasst)',
+          createdById: actorId || null,
+        },
+      });
+    }
+
+    await this.prisma.actionLog.create({
+      data: {
+        userId: actorId || null,
+        action: 'UPDATE_CONFIRMATION_STATUS',
+        details: `Schichtstatus für ${assignment.employee.name} auf "${dto.status}" geändert (${dto.reason || 'Kein Grund'})`,
+      },
+    }).catch(() => {});
+
+    return updated;
+  }
+
+  /**
+   * Resend WhatsApp notification with the 3 options directly to a specific assigned employee
+   */
+  async sendSingleConfirmationWhatsApp(planId: string, employeeId: string, actorId?: string) {
+    const assignment = await this.prisma.planEmployee.findUnique({
+      where: { planId_employeeId: { planId, employeeId } },
+      include: {
+        employee: true,
+        plan: {
+          include: {
+            locations: {
+              include: {
+                warehouse: true,
+                hall: true,
+              },
+            },
+            employeeSegments: {
+              where: { employeeId },
+            },
+          },
+        },
+      },
+    });
+
+    if (!assignment || !assignment.employee) {
+      throw new NotFoundException('Zuweisung nicht gefunden');
+    }
+
+    const emp = assignment.employee;
+    if (!emp.phone) {
+      throw new BadRequestException(`Mitarbeiter ${emp.name} hat keine Telefonnummer hinterlegt.`);
+    }
+
+    const loc = assignment.plan.locations?.[0];
+    const segment = assignment.plan.employeeSegments?.[0];
+
+    const whName = loc?.warehouse?.name || 'Duisburg';
+    const hName = loc?.hall?.name || 'Halle';
+    const tpOrt = segment?.treffpunkt || assignment.plan.treffpunkt || emp.treffpunkt || 'Haupttor';
+    const tpZeit = segment?.treffpunktTime || assignment.plan.treffpunktTime || emp.treffpunktTime || '07:45';
+
+    const formattedDate = new Date(assignment.plan.date).toLocaleDateString('de-DE');
+    const shiftTime = assignment.plan.shift || (assignment.startTime && assignment.endTime
+      ? `${new Date(assignment.startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} - ${new Date(assignment.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`
+      : '08:00 - 16:00');
+
+    const bodyText = `Hallo ${emp.name}\n` +
+      `Ihr Einsatzort : ${whName}\n` +
+      `Halle : ${hName}\n` +
+      `Treffpunkt & Treffzeit: ${tpOrt} um ${tpZeit} Uhr\n\n` +
+      `📅 Datum: ${formattedDate} | 🕒 Schicht: ${shiftTime}\n\n` +
+      `Bitte wählen Sie eine der folgenden Optionen:`;
+
+    const buttons = [
+      { id: `CONFIRM_${planId}_${employeeId}`, title: '✅ Ich bin da' },
+      { id: `SICK_${planId}_${employeeId}`, title: '🤒 Ich bin krank' },
+      { id: `CUSTOM_${planId}_${employeeId}`, title: '💬 Custom Nachricht' },
+    ];
+
+    const res = await this.messagingService.sendWhatsAppInteractive(
+      emp.phone,
+      bodyText,
+      buttons,
+      'LogiFlow Schichtplan',
+      'LogiFlow Warehouse',
+    );
+
+    await this.prisma.actionLog.create({
+      data: {
+        userId: actorId || null,
+        action: res.success ? 'WHATSAPP_CONFIRMATION_REQUEST' : 'WHATSAPP_CONFIRMATION_FAILED',
+        details: res.success
+          ? `Schicht-WhatsApp (3 Optionen) an ${emp.name} (${emp.phone}) gesendet`
+          : `Fehler beim WhatsApp-Versand an ${emp.name}: ${res.error || 'Unbekannt'}`,
+      },
+    }).catch(() => {});
+
+    return res;
   }
 }
 
