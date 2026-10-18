@@ -43,6 +43,7 @@ import {
   Coffee,
   Sparkles,
   Layers,
+  Edit2,
 } from "lucide-react";
 import { useTranslation } from "../i18n/LanguageContext";
 import ActiveEmployeeCalendar from "../components/ActiveEmployeeCalendar";
@@ -2054,114 +2055,159 @@ export default function DashboardPage() {
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
                   </div>
                 ) : (
-                  <div className="divide-y divide-slate-100">
+                  <div className="p-4 space-y-3">
                     {plans.length === 0 ? (
                       <div className="py-12 text-center text-slate-400">
                         <AlertTriangle className="w-8 h-8 mx-auto mb-2 opacity-40 text-amber-500" />
                         <p className="text-xs font-medium">{t("noPlansConfigured")}</p>
                       </div>
                     ) : (
-                      plans.map((p) => (
-                        <div
-                          key={p.id}
-                          onClick={() => {
-                            if (canManage && selectedPlanIds.length > 0) {
-                              if (selectedPlanIds.includes(p.id)) {
-                                setSelectedPlanIds(prev => prev.filter(id => id !== p.id));
-                              } else {
-                                setSelectedPlanIds(prev => [...prev, p.id]);
+                      plans.map((p) => {
+                        const isSelected = selectedPlanIds.includes(p.id);
+                        const planDateStr = p.date ? p.date.split("T")[0] : "";
+                        const formattedDate = new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA");
+                        const locationsList = (p.locations && Array.isArray(p.locations) && p.locations.length > 0)
+                          ? p.locations
+                          : [{ warehouseName: p.warehouseName || "Lager", hallName: p.hallName || "Halle" }];
+
+                        return (
+                          <div
+                            key={p.id}
+                            onClick={() => {
+                              if (canManage && selectedPlanIds.length > 0) {
+                                if (isSelected) {
+                                  setSelectedPlanIds(prev => prev.filter(id => id !== p.id));
+                                } else {
+                                  setSelectedPlanIds(prev => [...prev, p.id]);
+                                }
                               }
-                            }
-                          }}
-                          className={`px-6 py-4 flex flex-col sm:flex-row justify-between sm:items-center hover:bg-slate-50/30 transition-colors gap-3 ${
-                            selectedPlanIds.includes(p.id) ? "bg-blue-50/30" : ""
-                          }`}
-                        >
-                          <div className="flex items-center">
-                            {canManage && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (selectedPlanIds.includes(p.id)) {
-                                    setSelectedPlanIds(prev => prev.filter(id => id !== p.id));
-                                  } else {
-                                    setSelectedPlanIds(prev => [...prev, p.id]);
-                                  }
-                                }}
-                                className="mr-3 text-slate-300 hover:text-blue-600 shrink-0 transition-colors cursor-pointer"
-                              >
-                                {selectedPlanIds.includes(p.id) ? (
-                                  <CheckSquare className="w-4 h-4 text-blue-600" />
-                                ) : (
-                                  <Square className="w-4 h-4" />
+                            }}
+                            className={`p-4 rounded-xl border transition-all duration-200 flex flex-col gap-3 bg-white shadow-2xs hover:shadow-sm ${
+                              isSelected
+                                ? "bg-blue-50/50 border-blue-400 ring-2 ring-blue-300"
+                                : "border-slate-200/90 hover:border-slate-300"
+                            }`}
+                          >
+                            {/* Card Top Row: Checkbox, Locations, Date & Action Buttons */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                              <div className="flex items-center gap-2.5 flex-wrap">
+                                {canManage && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (isSelected) {
+                                        setSelectedPlanIds(prev => prev.filter(id => id !== p.id));
+                                      } else {
+                                        setSelectedPlanIds(prev => [...prev, p.id]);
+                                      }
+                                    }}
+                                    className="text-slate-300 hover:text-blue-600 shrink-0 transition-colors cursor-pointer"
+                                    title="Diesen Plan auswählen"
+                                  >
+                                    {isSelected ? (
+                                      <CheckSquare className="w-4 h-4 text-blue-600" />
+                                    ) : (
+                                      <Square className="w-4 h-4" />
+                                    )}
+                                  </button>
                                 )}
-                              </button>
-                            )}
-                            <div className="flex flex-col gap-1.5">
-                              {p.locations && Array.isArray(p.locations) && p.locations.length > 0 ? (
-                                <div className="flex flex-wrap gap-1.5">
-                                  {p.locations.map((loc: any, idx: number) => (
-                                    <span key={idx} className="inline-flex items-center gap-1 bg-slate-100/80 text-slate-800 text-xs font-bold px-2 py-0.5 rounded-md border border-slate-200">
-                                      <Warehouse className="w-3 h-3 text-blue-600 shrink-0" />
-                                      <span>{loc.warehouseName || loc.warehouse?.name || p.warehouseName || "Lager"}</span>
-                                      <span className="text-slate-300">|</span>
-                                      <span className="text-slate-600 font-semibold">{loc.hallName || loc.hall?.name || p.hallName || "Halle"}</span>
-                                    </span>
-                                  ))}
+
+                                {/* Location Badges */}
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  {locationsList.map((loc: any, idx: number) => {
+                                    const wName = loc.warehouseName || loc.warehouse?.name || p.warehouseName || "Lager";
+                                    const hName = loc.hallName || loc.hall?.name || p.hallName || "Halle";
+                                    const hColor = loc.hall?.color || "#2563eb";
+                                    return (
+                                      <span
+                                        key={idx}
+                                        className="inline-flex items-center gap-1.5 bg-slate-50 text-slate-800 text-xs font-bold px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs"
+                                        style={{ borderLeft: `3px solid ${hColor}` }}
+                                      >
+                                        <Warehouse className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                        <span>{wName}</span>
+                                        <span className="text-slate-300 font-normal">/</span>
+                                        <span className="text-slate-900 font-extrabold">{hName}</span>
+                                      </span>
+                                    );
+                                  })}
                                 </div>
-                              ) : (
-                                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                                  <Warehouse className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                                  {p.warehouseName || "Lager"} — {p.hallName || "Halle"}
-                                </span>
-                              )}
-                              <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 font-semibold">
-                                <span suppressHydrationWarning className="font-mono text-blue-700 bg-blue-50 border border-blue-200/60 px-1.5 py-0.5 rounded font-bold">
-                                  {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
-                                </span>
-                                {p.shift && (
-                                  <span className="inline-flex items-center gap-1 font-mono bg-amber-50 text-amber-900 border border-amber-200/60 px-2 py-0.5 rounded">
-                                    <Clock className="w-3 h-3 text-amber-600 shrink-0" />
-                                    {p.shift}
-                                  </span>
-                                )}
-                                {p.treffpunkt && (
-                                  <span className="inline-flex items-center gap-1 font-sans bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
-                                    <MapPin className="w-3 h-3 text-rose-500 shrink-0" />
-                                    {p.treffpunkt} {p.treffpunktTime ? `(${p.treffpunktTime})` : ""}
-                                  </span>
-                                )}
-                                <span className="flex items-center gap-1 bg-slate-50 border border-slate-150 px-2 py-0.5 rounded text-slate-600">
-                                  <Users className="w-3 h-3 text-slate-400 shrink-0" />
-                                  {p.assignedEmployees?.length || 0} {language === "de" ? "Mitarbeiter" : "Staff"}
-                                </span>
-                                <span className="flex items-center gap-1 bg-slate-50 border border-slate-150 px-2 py-0.5 rounded text-slate-600">
-                                  <Package className="w-3 h-3 text-slate-400 shrink-0" />
-                                  {p.assignedContainers?.length || 0} {language === "de" ? "Container" : "Containers"}
+
+                                {/* Date Badge */}
+                                <span
+                                  suppressHydrationWarning
+                                  className="inline-flex items-center gap-1 text-xs font-mono font-bold text-blue-800 bg-blue-50/90 border border-blue-200/80 px-2.5 py-1 rounded-lg shadow-2xs"
+                                >
+                                  <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                                  <span>{formattedDate}</span>
                                 </span>
                               </div>
+
+                              {/* Action Buttons Right-Aligned */}
+                              <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedPlanForView(p);
+                                  }}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-lg text-xs font-bold border border-slate-200 transition-all cursor-pointer shadow-2xs"
+                                  title={t("viewDetails")}
+                                >
+                                  <Eye className="w-3.5 h-3.5 text-slate-500" />
+                                  <span>{t("viewDetails")}</span>
+                                </button>
+
+                                <Link
+                                  href={`/planning?planId=${p.id}&date=${planDateStr}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
+                                  title="Diesen Schichtplan im Planungs-Editor bearbeiten"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                  <span>{language === "de" ? "Bearbeiten" : "Edit"}</span>
+                                </Link>
+                              </div>
+                            </div>
+
+                            {/* Card Details Row: Shift, Meeting Point, Staff, Containers */}
+                            <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-slate-600">
+                              {p.shift && (
+                                <span className="inline-flex items-center gap-1.5 font-mono bg-amber-50 text-amber-900 border border-amber-200/70 px-2.5 py-1 rounded-lg font-bold shadow-2xs">
+                                  <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                  <span>{p.shift}</span>
+                                </span>
+                              )}
+
+                              {p.treffpunkt && (
+                                <span className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs font-medium">
+                                  <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                                  <span>Treffpunkt: <strong>{p.treffpunkt}</strong>{p.treffpunktTime ? ` (${p.treffpunktTime} Uhr)` : ""}</span>
+                                </span>
+                              )}
+
+                              <span className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg font-semibold text-slate-700 shadow-2xs">
+                                <Users className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                <span>{p.assignedEmployees?.length || 0} {language === "de" ? "Mitarbeiter" : "Staff"}</span>
+                              </span>
+
+                              {p.assignedContainers && p.assignedContainers.length > 0 && (
+                                <span className="inline-flex items-center gap-1.5 bg-purple-50 border border-purple-200/70 text-purple-900 px-2.5 py-1 rounded-lg font-bold shadow-2xs font-mono">
+                                  <Package className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                                  <span>{p.assignedContainers.length} {language === "de" ? "Container" : "Containers"}</span>
+                                </span>
+                              )}
+
+                              {p.notes && (
+                                <span className="text-[11px] text-slate-500 italic max-w-md truncate">
+                                  „{p.notes}“
+                                </span>
+                              )}
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0 pl-7 sm:pl-0">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedPlanForView(p);
-                              }}
-                              className="btn-primary py-1.5 px-3.5 text-[10px] uppercase font-bold tracking-wider cursor-pointer"
-                            >
-                              {t("viewDetails")}
-                            </button>
-                            <Link
-                              href={`/planning?date=${p.date.split("T")[0]}&warehouseId=${p.warehouseId}&hallId=${p.hallId}&planId=${p.id}`}
-                              onClick={(e) => e.stopPropagation()}
-                              className="btn-secondary py-1.5 px-3.5 text-[10px] uppercase font-bold tracking-wider cursor-pointer"
-                            >
-                              {t("managePlan")}
-                            </Link>
-                          </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 )}

@@ -393,90 +393,133 @@ function PlanningPageContent() {
     fetchExistingPlansAndAbsences();
   }, [date]);
 
+  // ── WhatsApp Notification States ──
+  const [isSendingWhatsAppForPlanId, setIsSendingWhatsAppForPlanId] = useState<string | null>(null);
+  const [whatsAppReportModalOpen, setWhatsAppReportModalOpen] = useState(false);
+  const [whatsAppReportData, setWhatsAppReportData] = useState<{
+    sentCount: number;
+    failedCount: number;
+    results: Array<{
+      employeeId: string;
+      name: string;
+      phone: string;
+      success: boolean;
+      error?: string;
+      waLink?: string;
+    }>;
+  } | null>(null);
+
   // Auto-load plan into edit mode when planId is provided in URL
   useEffect(() => {
-    if (autoEditDone.current) return;
-    if (!hasInitializedFromQuery) return;
-    if (allCreatedPlans.length === 0) return;
-
     const qPlanId = searchParams.get("planId");
-    if (!qPlanId) return;
+    if (!qPlanId || autoEditDone.current) return;
 
-    const plan = allCreatedPlans.find((p: any) => p.id === qPlanId);
-    if (!plan) return;
+    const loadPlanForEditing = async () => {
+      const token = localStorage.getItem("accessToken") || localStorage.getItem("token");
+      if (!token) return;
 
-    autoEditDone.current = true;
-    isEditingRef.current = true;
-    setPlanId(plan.id);
-    const empIds = plan.assignedEmployees?.map((e: any) => e.id) || [];
-    setAssignedEmployeeIds(empIds);
-    applyShiftString(plan.shift || "Frühschicht");
-    setTreffpunktTime(plan.treffpunktTime || "05:30");
-    setTreffpunkt(plan.treffpunkt || "");
-    setNotes(plan.notes || "");
-    setAssignedContainerNumbers(plan.assignedContainers?.map((c: any) => c.containerNumber) || []);
+      try {
+        let plan = allCreatedPlans.find((p: any) => p.id === qPlanId);
 
-    // Load segments
-    const segMap: Record<string, EmployeePlanSegmentItem[]> = {};
-    if (plan.employeeSegments && Array.isArray(plan.employeeSegments) && plan.employeeSegments.length > 0) {
-      plan.employeeSegments.forEach((seg: any) => {
-        if (!segMap[seg.employeeId]) segMap[seg.employeeId] = [];
-        segMap[seg.employeeId].push({
-          id: seg.id,
-          employeeId: seg.employeeId,
-          treffpunkt: seg.treffpunkt,
-          treffpunktTime: seg.treffpunktTime || "",
-          startTime: seg.startTime,
-          endTime: seg.endTime || "",
-          notes: seg.notes || "",
-          order: seg.order || 0,
+        // If not yet in memory, fetch directly from backend API
+        if (!plan) {
+          const res = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/${qPlanId}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          if (res.ok) {
+            plan = await res.json();
+          }
+        }
+
+        if (!plan) return;
+
+        autoEditDone.current = true;
+        isEditingRef.current = true;
+        setActivePlanningTab("plan");
+        setPlanId(plan.id);
+
+        if (plan.date) {
+          const pDateStr = new Date(plan.date).toISOString().split("T")[0];
+          setDate(pDateStr);
+        }
+
+        const empIds = plan.assignedEmployees?.map((e: any) => e.id) || [];
+        setAssignedEmployeeIds(empIds);
+        applyShiftString(plan.shift || "Frühschicht");
+        setTreffpunktTime(plan.treffpunktTime || "05:30");
+        setTreffpunkt(plan.treffpunkt || "");
+        setNotes(plan.notes || "");
+        setAssignedContainerNumbers(plan.assignedContainers?.map((c: any) => c.containerNumber || c.id) || []);
+
+        // Load segments
+        const segMap: Record<string, EmployeePlanSegmentItem[]> = {};
+        if (plan.employeeSegments && Array.isArray(plan.employeeSegments) && plan.employeeSegments.length > 0) {
+          plan.employeeSegments.forEach((seg: any) => {
+            if (!segMap[seg.employeeId]) segMap[seg.employeeId] = [];
+            segMap[seg.employeeId].push({
+              id: seg.id,
+              employeeId: seg.employeeId,
+              treffpunkt: seg.treffpunkt,
+              treffpunktTime: seg.treffpunktTime || "",
+              startTime: seg.startTime,
+              endTime: seg.endTime || "",
+              notes: seg.notes || "",
+              order: seg.order || 0,
+            });
+          });
+        }
+        // Initialize default segment for assigned employees without segments
+        empIds.forEach((id: string) => {
+          if (!segMap[id] || segMap[id].length === 0) {
+            segMap[id] = [
+              {
+                employeeId: id,
+                treffpunkt: plan.treffpunkt || "",
+                treffpunktTime: plan.treffpunktTime || "05:30",
+                startTime: plan.startTime ? new Date(plan.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:00",
+                endTime: plan.endTime ? new Date(plan.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "14:00",
+                notes: "",
+                order: 0,
+              },
+            ];
+          }
         });
-      });
-    }
-    // For any assigned employees without explicit segments, initialize default segment
-    empIds.forEach((id: string) => {
-      if (!segMap[id] || segMap[id].length === 0) {
-        segMap[id] = [
-          {
-            employeeId: id,
-            treffpunkt: plan.treffpunkt || "",
-            treffpunktTime: plan.treffpunktTime || "05:30",
+        setEmployeeSegments(segMap);
+
+        if (plan.locations && Array.isArray(plan.locations) && plan.locations.length > 0) {
+          setSelectedLocations(plan.locations.map((l: any) => ({
+            warehouseId: l.warehouseId || l.warehouse?.id || "",
+            hallId: l.hallId || l.hall?.id || "",
+            startTime: l.startTime || (plan.startTime ? new Date(plan.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:00"),
+            endTime: l.endTime || (plan.endTime ? new Date(plan.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "14:00"),
+            isOpenEnd: Boolean(l.isOpenEnd),
+            notes: l.notes || "",
+          })));
+        } else if (plan.warehouseId && plan.hallId) {
+          setSelectedLocations([{
+            warehouseId: plan.warehouseId,
+            hallId: plan.hallId,
             startTime: plan.startTime ? new Date(plan.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:00",
             endTime: plan.endTime ? new Date(plan.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "14:00",
+            isOpenEnd: false,
             notes: "",
-            order: 0,
-          },
-        ];
+          }]);
+        }
+
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } catch (err) {
+        console.error("Auto-edit load error:", err);
       }
-    });
-    setEmployeeSegments(segMap);
+    };
 
-    if (plan.locations && Array.isArray(plan.locations) && plan.locations.length > 0) {
-      setSelectedLocations(plan.locations.map((l: any) => ({
-        warehouseId: l.warehouseId || l.warehouse?.id || "",
-        hallId: l.hallId || l.hall?.id || "",
-        startTime: l.startTime || (plan.startTime ? new Date(plan.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:00"),
-        endTime: l.endTime || (plan.endTime ? new Date(plan.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "14:00"),
-        isOpenEnd: Boolean(l.isOpenEnd),
-        notes: l.notes || "",
-      })));
-    } else if (plan.warehouseId && plan.hallId) {
-      setSelectedLocations([{
-        warehouseId: plan.warehouseId,
-        hallId: plan.hallId,
-        startTime: startTime || "06:00",
-        endTime: endTimeOpen ? "" : (endTime || "14:00"),
-        isOpenEnd: Boolean(endTimeOpen),
-      }]);
-    }
-
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [allCreatedPlans, hasInitializedFromQuery, searchParams]);
+    loadPlanForEditing();
+  }, [searchParams, allCreatedPlans]);
 
   const [isResendingEmailForPlanId, setIsResendingEmailForPlanId] = useState<string | null>(null);
 
   const handleResendPlanNotification = async (targetPlanId: string) => {
-    const token = localStorage.getItem("accessToken");
+    const token = localStorage.getItem("accessToken") || localStorage.getItem("token");
     if (!token) return;
 
     setIsResendingEmailForPlanId(targetPlanId);
@@ -493,8 +536,8 @@ function PlanningPageContent() {
         throw new Error(data.message || "Fehler beim Versenden der Benachrichtigungen");
       }
       showAlert({
-        title: "WhatsApp & E-Mail erfolgreich versendet",
-        message: "Der Schichtplan wurde per WhatsApp (mit interaktiven Bestätigungs-Buttons) und E-Mail an alle eingeteilten Mitarbeiter verschickt.",
+        title: "E-Mails erfolgreich versendet",
+        message: "Der Schichtplan wurde per E-Mail an alle eingeteilten Mitarbeiter verschickt.",
         type: "success",
       });
     } catch (err: any) {
@@ -505,6 +548,46 @@ function PlanningPageContent() {
       });
     } finally {
       setIsResendingEmailForPlanId(null);
+    }
+  };
+
+  const handleSendPlanWhatsApp = async (targetPlanId: string) => {
+    const token = localStorage.getItem("accessToken") || localStorage.getItem("token");
+    if (!token) return;
+
+    setIsSendingWhatsAppForPlanId(targetPlanId);
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/planning/${targetPlanId}/notify-whatsapp`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Fehler beim WhatsApp-Versand");
+      }
+
+      if (data.failedCount === 0 && data.sentCount > 0) {
+        showAlert({
+          title: "WhatsApp an alle gesendet",
+          message: `Schichtplan mit den 3 Rückmelde-Optionen (✅ Da / 🤒 Krank / 💬 Nachricht) wurde erfolgreich an alle ${data.sentCount} Mitarbeiter per WhatsApp zugestellt.`,
+          type: "success",
+        });
+      } else {
+        // Open report modal with results and 1-click wa.me direct links
+        setWhatsAppReportData(data);
+        setWhatsAppReportModalOpen(true);
+      }
+    } catch (err: any) {
+      showAlert({
+        title: "WhatsApp Hinweis",
+        message: err.message || "WhatsApp-Nachrichten konnten nicht über die API zugestellt werden.",
+        type: "error",
+      });
+    } finally {
+      setIsSendingWhatsAppForPlanId(null);
     }
   };
 
@@ -2085,7 +2168,7 @@ function PlanningPageContent() {
             Noch keine Schichtpläne für dieses Datum und den gewählten Filter erstellt.
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             {displayedPlans.map((plan: any) => {
               const isSelected = plan.id === planId;
               const planLocations = plan.locations && Array.isArray(plan.locations) && plan.locations.length > 0 
@@ -2095,81 +2178,38 @@ function PlanningPageContent() {
               return (
                 <div
                   key={plan.id}
-                  className={`p-5 rounded-xl border transition-all flex flex-col justify-between ${
+                  className={`p-5 rounded-2xl border transition-all flex flex-col justify-between overflow-hidden ${
                     plan.id === lastSavedPlanId
-                      ? "bg-green-50/50 border-green-300 shadow-md ring-2 ring-green-400"
+                      ? "bg-green-50/40 border-green-300 shadow-md ring-2 ring-green-400"
                       : isSelected
                       ? "bg-blue-50/40 border-blue-300 shadow-sm ring-2 ring-blue-300"
-                      : "bg-white border-slate-200 hover:border-slate-300 shadow-2xs hover:shadow-sm"
+                      : "bg-white border-slate-200/90 hover:border-slate-300 shadow-2xs hover:shadow-sm"
                   }`}
                 >
-                  <div className="space-y-3">
-                    {/* Header: Locations Tags + Actions */}
-                    <div className="flex justify-between items-start gap-2">
-                      <div className="flex flex-wrap gap-1.5 flex-1">
+                  <div className="space-y-4">
+                    {/* Header: Locations Tags + Prominent Edit & Delete Buttons */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
+                      <div className="flex flex-wrap items-center gap-1.5 flex-1">
                         {planLocations.map((loc: any, i: number) => {
                           const wName = warehouses.find((w) => w.id === (loc.warehouseId || loc.warehouse?.id))?.name || "Lager";
                           const locHall = halls.find((h) => h.id === (loc.hallId || loc.hall?.id));
                           const hName = locHall?.name || loc.hallName || "Halle";
-                          const hColor = locHall?.color || loc.hall?.color || "#1d4ed8";
+                          const hColor = locHall?.color || loc.hall?.color || "#2563eb";
                           return (
                             <span
                               key={i}
-                              className="text-[11px] font-bold text-blue-900 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200 flex items-center gap-1.5 shadow-2xs"
+                              className="text-xs font-bold text-slate-800 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 flex items-center gap-1.5 shadow-2xs"
                               style={{ borderLeft: `3px solid ${hColor}` }}
                             >
                               <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: hColor }} />
-                              <WarehouseIcon className="w-3 h-3 text-blue-600 shrink-0" />
-                              <span>{wName} — <strong className="text-blue-950">{hName}</strong></span>
+                              <WarehouseIcon className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                              <span>{wName} — <strong className="text-slate-950">{hName}</strong></span>
                             </span>
                           );
                         })}
                       </div>
 
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          disabled={isResendingEmailForPlanId === plan.id}
-                          onClick={() => handleResendPlanNotification(plan.id)}
-                          title="Dienstplan-E-Mails an alle Mitarbeiter erneut senden"
-                          className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
-                        >
-                          {isResendingEmailForPlanId === plan.id ? (
-                            <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-blue-700" />
-                          ) : (
-                            <Mail className="w-3.5 h-3.5 text-blue-700" />
-                          )}
-                          <span>E-Mail senden</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setActivePlanningTab("confirmations")}
-                          className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                          title="Rückmeldungen für diesen Tag anzeigen (🟢/🔴 Wer kommt)"
-                        >
-                          <UserCheck className="w-3.5 h-3.5 text-indigo-700" />
-                          <span>Rückmeldungen</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          disabled={isResendingEmailForPlanId === plan.id}
-                          onClick={() => handleResendPlanNotification(plan.id)}
-                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
-                          title="Schichtplan per WhatsApp an alle eingeteilten Mitarbeiter senden"
-                        >
-                          {isResendingEmailForPlanId === plan.id ? (
-                            <>
-                              <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                              <span>Sendet...</span>
-                            </>
-                          ) : (
-                            <>
-                              <span>💬 WhatsApp an alle</span>
-                            </>
-                          )}
-                        </button>
+                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
                         <button
                           type="button"
                           onClick={() => {
@@ -2181,7 +2221,7 @@ function PlanningPageContent() {
                             setTreffpunktTime(plan.treffpunktTime || "05:30");
                             setTreffpunkt(plan.treffpunkt || "");
                             setNotes(plan.notes || "");
-                            setAssignedContainerNumbers(plan.assignedContainers?.map((c: any) => c.containerNumber) || []);
+                            setAssignedContainerNumbers(plan.assignedContainers?.map((c: any) => c.containerNumber || c.id) || []);
                             
                             // Load employee segments
                             const segMap: Record<string, EmployeePlanSegmentItem[]> = {};
@@ -2238,10 +2278,13 @@ function PlanningPageContent() {
                             }
                             window.scrollTo({ top: 0, behavior: "smooth" });
                           }}
-                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm cursor-pointer"
+                          className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                          title="Diesen Schichtplan im Editor oben bearbeiten"
                         >
-                          <Edit2 className="w-3.5 h-3.5" /> Bearbeiten
+                          <Edit2 className="w-3.5 h-3.5" />
+                          <span>Bearbeiten</span>
                         </button>
+
                         <button
                           type="button"
                           onClick={(e) => handleDeletePlan(plan.id, e)}
@@ -2254,21 +2297,21 @@ function PlanningPageContent() {
                     </div>
 
                     {/* Shift & Master Time Info */}
-                    <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
-                      <span className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5 bg-blue-50 text-blue-900 px-3 py-1 rounded-lg border border-blue-200 shadow-2xs">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5 bg-blue-50 text-blue-900 px-3 py-1.5 rounded-lg border border-blue-200 shadow-2xs">
                         <Clock className="w-3.5 h-3.5 text-blue-600" />
                         Offizielle Arbeitszeit: {plan.shift || "Schicht"}
                       </span>
 
                       {plan.treffpunktTime && (
-                        <span className="px-2.5 py-1 bg-amber-50 text-amber-900 font-mono text-xs font-bold rounded-lg border border-amber-200 shadow-2xs">
+                        <span className="px-3 py-1.5 bg-amber-50 text-amber-900 font-mono text-xs font-bold rounded-lg border border-amber-200 shadow-2xs">
                           ⏰ Standard-Treff: {plan.treffpunktTime}
                         </span>
                       )}
                       {plan.treffpunkt && (
-                        <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg border border-slate-200 flex items-center gap-1 shadow-2xs">
-                          <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                          {plan.treffpunkt}
+                        <span className="px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg border border-slate-200 flex items-center gap-1.5 shadow-2xs">
+                          <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                          <span>{plan.treffpunkt}</span>
                         </span>
                       )}
                     </div>
@@ -2428,6 +2471,63 @@ function PlanningPageContent() {
                         </p>
                       </div>
                     )}
+                  </div>
+
+                  {/* Dedicated Card Footer Action Toolbar */}
+                  <div className="pt-3.5 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-3 mt-4 bg-slate-50/70 -mx-5 -mb-5 p-4 rounded-b-2xl">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+                      <Users className="w-4 h-4 text-blue-600" />
+                      <span>{plan.assignedEmployees?.length || 0} Mitarbeiter eingeteilt</span>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* WhatsApp to all button */}
+                      <button
+                        type="button"
+                        disabled={isSendingWhatsAppForPlanId === plan.id}
+                        onClick={() => handleSendPlanWhatsApp(plan.id)}
+                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+                        title="Schichtplan mit 3 Optionen per WhatsApp an alle Mitarbeiter senden"
+                      >
+                        {isSendingWhatsAppForPlanId === plan.id ? (
+                          <>
+                            <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                            <span>Sendet...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>💬 WhatsApp an alle</span>
+                          </>
+                        )}
+                      </button>
+
+                      {/* Shift Confirmations List button */}
+                      <button
+                        type="button"
+                        onClick={() => setActivePlanningTab("confirmations")}
+                        className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200/80 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                        title="Rückmeldungsliste für diesen Tag öffnen (🟢 Da / 🔴 Krank)"
+                      >
+                        <UserCheck className="w-3.5 h-3.5 text-indigo-700" />
+                        <span>Rückmeldungen</span>
+                      </button>
+
+                      {/* Resend Email button */}
+                      <button
+                        type="button"
+                        disabled={isResendingEmailForPlanId === plan.id}
+                        onClick={() => handleResendPlanNotification(plan.id)}
+                        title="Dienstplan-E-Mails an alle Mitarbeiter erneut senden"
+                        className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
+                      >
+                        {isResendingEmailForPlanId === plan.id ? (
+                          <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-slate-700" />
+                        ) : (
+                          <Mail className="w-3.5 h-3.5 text-slate-600" />
+                        )}
+                        <span>E-Mail</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -2610,6 +2710,79 @@ function PlanningPageContent() {
           recipientName={whatsAppTargetEmp.name}
           recipientPhone={whatsAppTargetEmp.phone}
         />
+      )}
+
+      {/* WhatsApp Delivery Report Modal with Direct 1-Click WhatsApp Links */}
+      {whatsAppReportModalOpen && whatsAppReportData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-scaleUp">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h4 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                  <span>💬 WhatsApp-Versandbericht</span>
+                  <span className="text-xs bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-bold">
+                    {whatsAppReportData.sentCount} zugestellt
+                  </span>
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Für Mitarbeiter, die nicht automatisch über die API erreicht werden konnten, können Sie den Schichtplan direkt mit 1 Klick per WhatsApp Web senden.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWhatsAppReportModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="max-h-72 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-xl">
+              {whatsAppReportData.results.map((r, idx) => (
+                <div key={idx} className="p-3 flex items-center justify-between gap-3 bg-white hover:bg-slate-50/60">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-extrabold text-slate-900">{r.name}</span>
+                    <span className="text-[11px] font-mono text-slate-500">{r.phone || "Keine Nummer"}</span>
+                    {r.error && (
+                      <span className="text-[10px] text-amber-700 font-medium">{r.error}</span>
+                    )}
+                  </div>
+
+                  <div className="shrink-0 flex items-center gap-2">
+                    {r.success ? (
+                      <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md">
+                        ✓ Zugestellt
+                      </span>
+                    ) : r.waLink ? (
+                      <a
+                        href={r.waLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5"
+                      >
+                        <span>WhatsApp Web</span>
+                      </a>
+                    ) : (
+                      <span className="text-xs font-semibold text-rose-600 bg-rose-50 px-2 py-1 rounded">
+                        Keine Nummer
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setWhatsAppReportModalOpen(false)}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm"
+              >
+                Schließen
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

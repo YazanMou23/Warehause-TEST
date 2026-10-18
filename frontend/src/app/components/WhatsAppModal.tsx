@@ -106,7 +106,9 @@ export default function WhatsAppModal({
     setLoading(true);
     setFeedback(null);
 
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    const token = typeof window !== "undefined"
+      ? (localStorage.getItem("accessToken") || localStorage.getItem("token"))
+      : null;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };

@@ -260,6 +260,12 @@ export class PlanningController {
     return this.planningService.resendPlanNotification(id, actorId);
   }
 
+  @Post(':id/notify-whatsapp')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  notifyWhatsAppToAll(@Param('id') id: string, @CurrentUser('id') actorId: string) {
+    return this.planningService.sendPlanWhatsAppToAll(id, actorId);
+  }
+
   @Patch(':id')
   @Roles(Role.MANAGER, Role.ADMIN)
   update(
