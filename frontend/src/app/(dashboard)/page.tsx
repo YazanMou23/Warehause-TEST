@@ -2088,9 +2088,9 @@ export default function DashboardPage() {
                                 : "border-slate-200/90 hover:border-slate-300"
                             }`}
                           >
-                            {/* Card Top Row: Checkbox, Locations, Date & Action Buttons */}
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                              <div className="flex items-center gap-2.5 flex-wrap">
+                            {/* Card Top Row: Checkbox, Locations, Shift & Date Badges */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-100">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 {canManage && (
                                   <button
                                     type="button"
@@ -2102,7 +2102,7 @@ export default function DashboardPage() {
                                         setSelectedPlanIds(prev => [...prev, p.id]);
                                       }
                                     }}
-                                    className="text-slate-300 hover:text-blue-600 shrink-0 transition-colors cursor-pointer"
+                                    className="text-slate-300 hover:text-blue-600 shrink-0 transition-colors cursor-pointer mr-1"
                                     title="Diesen Plan auswählen"
                                   >
                                     {isSelected ? (
@@ -2133,6 +2133,15 @@ export default function DashboardPage() {
                                     );
                                   })}
                                 </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                {p.shift && (
+                                  <span className="inline-flex items-center gap-1 font-mono text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200/80 px-2.5 py-1 rounded-lg shadow-2xs">
+                                    <Clock className="w-3.5 h-3.5 text-amber-600" />
+                                    <span>{p.shift}</span>
+                                  </span>
+                                )}
 
                                 {/* Date Badge */}
                                 <span
@@ -2143,9 +2152,39 @@ export default function DashboardPage() {
                                   <span>{formattedDate}</span>
                                 </span>
                               </div>
+                            </div>
 
-                              {/* Action Buttons Right-Aligned */}
-                              <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                            {/* Card Body: Meeting Point, Containers, Notes */}
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                              {p.treffpunkt && (
+                                <span className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs font-medium">
+                                  <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                                  <span>Treffpunkt: <strong>{p.treffpunkt}</strong>{p.treffpunktTime ? ` (${p.treffpunktTime} Uhr)` : ""}</span>
+                                </span>
+                              )}
+
+                              {p.assignedContainers && p.assignedContainers.length > 0 && (
+                                <span className="inline-flex items-center gap-1.5 bg-purple-50 border border-purple-200/70 text-purple-900 px-2.5 py-1 rounded-lg font-bold shadow-2xs font-mono">
+                                  <Package className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                                  <span>{p.assignedContainers.length} {language === "de" ? "Container" : "Containers"}</span>
+                                </span>
+                              )}
+
+                              {p.notes && (
+                                <span className="text-[11px] text-slate-500 italic max-w-md truncate">
+                                  „{p.notes}“
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Card Dedicated Footer Action Toolbar */}
+                            <div className="flex items-center justify-between gap-3 pt-2.5 mt-1 border-t border-slate-100">
+                              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg shadow-2xs">
+                                <Users className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                <span>{p.assignedEmployees?.length || 0} {language === "de" ? "Mitarbeiter eingeteilt" : "Staff assigned"}</span>
+                              </span>
+
+                              <div className="flex items-center gap-2 shrink-0">
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -2169,41 +2208,6 @@ export default function DashboardPage() {
                                   <span>{language === "de" ? "Bearbeiten" : "Edit"}</span>
                                 </Link>
                               </div>
-                            </div>
-
-                            {/* Card Details Row: Shift, Meeting Point, Staff, Containers */}
-                            <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-slate-600">
-                              {p.shift && (
-                                <span className="inline-flex items-center gap-1.5 font-mono bg-amber-50 text-amber-900 border border-amber-200/70 px-2.5 py-1 rounded-lg font-bold shadow-2xs">
-                                  <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                  <span>{p.shift}</span>
-                                </span>
-                              )}
-
-                              {p.treffpunkt && (
-                                <span className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs font-medium">
-                                  <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                                  <span>Treffpunkt: <strong>{p.treffpunkt}</strong>{p.treffpunktTime ? ` (${p.treffpunktTime} Uhr)` : ""}</span>
-                                </span>
-                              )}
-
-                              <span className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg font-semibold text-slate-700 shadow-2xs">
-                                <Users className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                                <span>{p.assignedEmployees?.length || 0} {language === "de" ? "Mitarbeiter" : "Staff"}</span>
-                              </span>
-
-                              {p.assignedContainers && p.assignedContainers.length > 0 && (
-                                <span className="inline-flex items-center gap-1.5 bg-purple-50 border border-purple-200/70 text-purple-900 px-2.5 py-1 rounded-lg font-bold shadow-2xs font-mono">
-                                  <Package className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                                  <span>{p.assignedContainers.length} {language === "de" ? "Container" : "Containers"}</span>
-                                </span>
-                              )}
-
-                              {p.notes && (
-                                <span className="text-[11px] text-slate-500 italic max-w-md truncate">
-                                  „{p.notes}“
-                                </span>
-                              )}
                             </div>
                           </div>
                         );

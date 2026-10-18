@@ -190,7 +190,7 @@ function PlanningPageContent() {
   const [isLoading, setIsLoading] = useState(false);
   const createdPlansSectionRef = useRef<HTMLDivElement>(null);
   const isEditingRef = useRef(false);
-  const autoEditDone = useRef(false);
+  const loadedPlanIdRef = useRef<string | null>(null);
 
   // Centered Alert Modal State
   const [alertConfig, setAlertConfig] = useState<CustomAlertOptions>({
@@ -329,12 +329,15 @@ function PlanningPageContent() {
           setHalls(Array.isArray(hallsData?.data) ? hallsData.data : (Array.isArray(hallsData) ? hallsData : []));
           setEmployees(Array.isArray(empData?.data) ? empData.data : (Array.isArray(empData) ? empData : []));
 
-          if (qWh && qHall && hallsData.some((h: any) => h.id === qHall)) {
-            setSelectedLocations([{ warehouseId: qWh, hallId: qHall }]);
-          } else if (whData.length > 0) {
-            const firstWhHalls = hallsData.filter((h: any) => h.warehouseId === whData[0].id);
-            if (firstWhHalls.length > 0) {
-              setSelectedLocations([{ warehouseId: whData[0].id, hallId: firstWhHalls[0].id }]);
+          const qPlan = searchParams.get("planId");
+          if (!qPlan && !planId) {
+            if (qWh && qHall && hallsData.some((h: any) => h.id === qHall)) {
+              setSelectedLocations([{ warehouseId: qWh, hallId: qHall }]);
+            } else if (whData.length > 0) {
+              const firstWhHalls = hallsData.filter((h: any) => h.warehouseId === whData[0].id);
+              if (firstWhHalls.length > 0) {
+                setSelectedLocations([{ warehouseId: whData[0].id, hallId: firstWhHalls[0].id }]);
+              }
             }
           }
         } else {
@@ -412,7 +415,7 @@ function PlanningPageContent() {
   // Auto-load plan into edit mode when planId is provided in URL
   useEffect(() => {
     const qPlanId = searchParams.get("planId");
-    if (!qPlanId || autoEditDone.current) return;
+    if (!qPlanId || loadedPlanIdRef.current === qPlanId) return;
 
     const loadPlanForEditing = async () => {
       const token = localStorage.getItem("accessToken") || localStorage.getItem("token");
@@ -434,7 +437,7 @@ function PlanningPageContent() {
 
         if (!plan) return;
 
-        autoEditDone.current = true;
+        loadedPlanIdRef.current = plan.id;
         isEditingRef.current = true;
         setActivePlanningTab("plan");
         setPlanId(plan.id);
@@ -1141,6 +1144,75 @@ function PlanningPageContent() {
         }
         return p.warehouseId === filterWarehouseId;
       });
+
+  // Open an existing plan in the upper editor with full multi-location and employee segment support
+  const handleStartEditPlan = (plan: any) => {
+    isEditingRef.current = true;
+    loadedPlanIdRef.current = plan.id;
+    setPlanId(plan.id);
+    const empIds = plan.assignedEmployees?.map((e: any) => e.id) || [];
+    setAssignedEmployeeIds(empIds);
+    applyShiftString(plan.shift || "Frühschicht");
+    setTreffpunktTime(plan.treffpunktTime || "05:30");
+    setTreffpunkt(plan.treffpunkt || "");
+    setNotes(plan.notes || "");
+    setAssignedContainerNumbers(plan.assignedContainers?.map((c: any) => c.containerNumber || c.id) || []);
+
+    // Load employee segments
+    const segMap: Record<string, EmployeePlanSegmentItem[]> = {};
+    if (plan.employeeSegments && Array.isArray(plan.employeeSegments) && plan.employeeSegments.length > 0) {
+      plan.employeeSegments.forEach((seg: any) => {
+        if (!segMap[seg.employeeId]) segMap[seg.employeeId] = [];
+        segMap[seg.employeeId].push({
+          id: seg.id,
+          employeeId: seg.employeeId,
+          treffpunkt: seg.treffpunkt,
+          treffpunktTime: seg.treffpunktTime || "",
+          startTime: seg.startTime,
+          endTime: seg.endTime || "",
+          notes: seg.notes || "",
+          order: seg.order || 0,
+        });
+      });
+    }
+    empIds.forEach((id: string) => {
+      if (!segMap[id] || segMap[id].length === 0) {
+        segMap[id] = [
+          {
+            employeeId: id,
+            treffpunkt: plan.treffpunkt || "Büro",
+            treffpunktTime: plan.treffpunktTime || "05:30",
+            startTime: plan.startTime ? new Date(plan.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:00",
+            endTime: plan.endTime ? new Date(plan.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "14:00",
+            notes: "",
+            order: 0,
+          },
+        ];
+      }
+    });
+    setEmployeeSegments(segMap);
+
+    if (plan.locations && Array.isArray(plan.locations) && plan.locations.length > 0) {
+      setSelectedLocations(plan.locations.map((l: any) => ({
+        warehouseId: l.warehouseId || l.warehouse?.id || "",
+        hallId: l.hallId || l.hall?.id || "",
+        startTime: l.startTime || (plan.startTime ? new Date(plan.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:00"),
+        endTime: l.endTime || (plan.endTime ? new Date(plan.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "14:00"),
+        isOpenEnd: Boolean(l.isOpenEnd),
+        notes: l.notes || "",
+      })));
+    } else if (plan.warehouseId && plan.hallId) {
+      setSelectedLocations([{
+        warehouseId: plan.warehouseId,
+        hallId: plan.hallId,
+        startTime: plan.startTime ? new Date(plan.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:00",
+        endTime: plan.endTime ? new Date(plan.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "14:00",
+        isOpenEnd: false,
+        notes: "",
+      }]);
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   return (
     <div className="space-y-6 animate-fadeIn text-[#0f172a]">
@@ -2182,12 +2254,12 @@ function PlanningPageContent() {
                     plan.id === lastSavedPlanId
                       ? "bg-green-50/40 border-green-300 shadow-md ring-2 ring-green-400"
                       : isSelected
-                      ? "bg-blue-50/40 border-blue-300 shadow-sm ring-2 ring-blue-300"
-                      : "bg-white border-slate-200/90 hover:border-slate-300 shadow-2xs hover:shadow-sm"
+                      ? "bg-blue-50/40 border-blue-300 shadow-sm ring-2 ring-blue-400"
+                      : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-md"
                   }`}
                 >
                   <div className="space-y-4">
-                    {/* Header: Locations Tags + Prominent Edit & Delete Buttons */}
+                    {/* Header: Locations Tags + Shift Badge */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
                       <div className="flex flex-wrap items-center gap-1.5 flex-1">
                         {planLocations.map((loc: any, i: number) => {
@@ -2209,90 +2281,11 @@ function PlanningPageContent() {
                         })}
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            isEditingRef.current = true;
-                            setPlanId(plan.id);
-                            const empIds = plan.assignedEmployees?.map((e: any) => e.id) || [];
-                            setAssignedEmployeeIds(empIds);
-                            applyShiftString(plan.shift || "Frühschicht");
-                            setTreffpunktTime(plan.treffpunktTime || "05:30");
-                            setTreffpunkt(plan.treffpunkt || "");
-                            setNotes(plan.notes || "");
-                            setAssignedContainerNumbers(plan.assignedContainers?.map((c: any) => c.containerNumber || c.id) || []);
-                            
-                            // Load employee segments
-                            const segMap: Record<string, EmployeePlanSegmentItem[]> = {};
-                            if (plan.employeeSegments && Array.isArray(plan.employeeSegments) && plan.employeeSegments.length > 0) {
-                              plan.employeeSegments.forEach((seg: any) => {
-                                if (!segMap[seg.employeeId]) segMap[seg.employeeId] = [];
-                                segMap[seg.employeeId].push({
-                                  id: seg.id,
-                                  employeeId: seg.employeeId,
-                                  treffpunkt: seg.treffpunkt,
-                                  treffpunktTime: seg.treffpunktTime || "",
-                                  startTime: seg.startTime,
-                                  endTime: seg.endTime || "",
-                                  notes: seg.notes || "",
-                                  order: seg.order || 0,
-                                });
-                              });
-                            }
-                            empIds.forEach((id: string) => {
-                              if (!segMap[id] || segMap[id].length === 0) {
-                                segMap[id] = [
-                                  {
-                                    employeeId: id,
-                                    treffpunkt: plan.treffpunkt || "Büro",
-                                    treffpunktTime: plan.treffpunktTime || "05:30",
-                                    startTime: plan.startTime ? new Date(plan.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:00",
-                                    endTime: plan.endTime ? new Date(plan.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "14:00",
-                                    notes: "",
-                                    order: 0,
-                                  },
-                                ];
-                              }
-                            });
-                            setEmployeeSegments(segMap);
-
-                            if (plan.locations && Array.isArray(plan.locations) && plan.locations.length > 0) {
-                              setSelectedLocations(plan.locations.map((l: any) => ({
-                                warehouseId: l.warehouseId || l.warehouse?.id || "",
-                                hallId: l.hallId || l.hall?.id || "",
-                                startTime: l.startTime || (plan.startTime ? new Date(plan.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:00"),
-                                endTime: l.endTime || (plan.endTime ? new Date(plan.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "14:00"),
-                                isOpenEnd: Boolean(l.isOpenEnd),
-                                notes: l.notes || "",
-                              })));
-                            } else if (plan.warehouseId && plan.hallId) {
-                              setSelectedLocations([{
-                                warehouseId: plan.warehouseId,
-                                hallId: plan.hallId,
-                                startTime: plan.startTime ? new Date(plan.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:00",
-                                endTime: plan.endTime ? new Date(plan.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "14:00",
-                                isOpenEnd: false,
-                                notes: "",
-                              }]);
-                            }
-                            window.scrollTo({ top: 0, behavior: "smooth" });
-                          }}
-                          className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
-                          title="Diesen Schichtplan im Editor oben bearbeiten"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                          <span>Bearbeiten</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={(e) => handleDeletePlan(plan.id, e)}
-                          title="Schichtplan löschen"
-                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                      <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+                        <span className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5 bg-blue-50 text-blue-900 px-3 py-1.5 rounded-lg border border-blue-200 shadow-2xs font-mono">
+                          <Clock className="w-3.5 h-3.5 text-blue-600" />
+                          <span>{plan.shift || "Schicht"}</span>
+                        </span>
                       </div>
                     </div>
 
@@ -2475,12 +2468,23 @@ function PlanningPageContent() {
 
                   {/* Dedicated Card Footer Action Toolbar */}
                   <div className="pt-3.5 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-3 mt-4 bg-slate-50/70 -mx-5 -mb-5 p-4 rounded-b-2xl">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-2xs">
                       <Users className="w-4 h-4 text-blue-600" />
                       <span>{plan.assignedEmployees?.length || 0} Mitarbeiter eingeteilt</span>
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap">
+                      {/* Prominent Edit Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleStartEditPlan(plan)}
+                        className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                        title="Diesen Schichtplan im Planungs-Editor oben laden"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                        <span>Bearbeiten</span>
+                      </button>
+
                       {/* WhatsApp to all button */}
                       <button
                         type="button"
@@ -2526,6 +2530,16 @@ function PlanningPageContent() {
                           <Mail className="w-3.5 h-3.5 text-slate-600" />
                         )}
                         <span>E-Mail</span>
+                      </button>
+
+                      {/* Delete button */}
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeletePlan(plan.id, e)}
+                        title="Schichtplan löschen"
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer ml-1"
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
