@@ -2720,9 +2720,16 @@ function PlanningPageContent() {
               <div>
                 <h4 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
                   <span>💬 WhatsApp-Versandbericht</span>
-                  <span className="text-xs bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-bold">
-                    {whatsAppReportData.sentCount} zugestellt
-                  </span>
+                  {whatsAppReportData.sentCount > 0 && (
+                    <span className="text-xs bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-bold">
+                      {whatsAppReportData.sentCount} zugestellt
+                    </span>
+                  )}
+                  {whatsAppReportData.failedCount > 0 && (
+                    <span className="text-xs bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full font-bold">
+                      {whatsAppReportData.failedCount} per WhatsApp Web
+                    </span>
+                  )}
                 </h4>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Für Mitarbeiter, die nicht automatisch über die API erreicht werden konnten, können Sie den Schichtplan direkt mit 1 Klick per WhatsApp Web senden.

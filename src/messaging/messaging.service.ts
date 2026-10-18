@@ -227,9 +227,18 @@ export class MessagingService {
               `[WhatsApp Webhook] Status: ${status.status} | Recipient: ${status.recipient_id} | MsgId: ${status.id}`,
             );
             if (status.errors && status.errors.length > 0) {
+              const errInfo = JSON.stringify(status.errors);
               this.logger.error(
-                `[WhatsApp Webhook] Delivery Error: ${JSON.stringify(status.errors)}`,
+                `[WhatsApp Webhook] Delivery Error: ${errInfo}`,
               );
+              this.prisma.actionLog
+                .create({
+                  data: {
+                    action: 'WHATSAPP_DELIVERY_FAILED',
+                    details: `WhatsApp-Zustellung an +${status.recipient_id} fehlgeschlagen (Status: ${status.status}): ${errInfo}`,
+                  },
+                })
+                .catch(() => {});
             }
           }
         }
@@ -579,9 +588,16 @@ export class MessagingService {
             this.logger.log(
               `24h window closed for +${cleanedPhone}. Attempting approved template fallback...`,
             );
+            // Meta Template parameters strictly forbid newlines (\n) or tabs (\t)
+            const cleanSummary = bodyText
+              .replace(/[\r\n\t]+/g, ' | ')
+              .replace(/\s{2,}/g, ' ')
+              .trim()
+              .substring(0, 200);
+
             return this.sendWhatsAppTemplate(phone, undefined, [
               headerText || 'Mitarbeiter',
-              bodyText.substring(0, 120),
+              cleanSummary,
             ]);
           }
 
@@ -605,6 +621,149 @@ export class MessagingService {
     // 3. Fallback when no credentials configured
     return {
       success: false,
+      error: 'Keine WhatsApp-API Zugangsdaten konfiguriert (Meta / UltraMsg). Bitte wa.me Link nutzen.',
+      waLink,
+    };
+  }
+
+  /**
+   * Unified, highly-reliable Shift Plan WhatsApp Notification:
+   *
+   * TIER 1: Meta Template `schichtplan_benachrichtigung` (if Meta credentials present)
+   *   - Approved by Meta, delivered outside the 24-hour window to ANY valid phone number.
+   *   - Clean parameters:
+   *       {{1}} = Employee name
+   *       {{2}} = Einsatzort, Halle, Treffpunkt, Datum, Schicht, Rückmelde-Optionen
+   *
+   * TIER 2: Meta Interactive Buttons (if 24h window active or template not approved)
+   *   - 3 buttons: [✅ Ich bin da], [🤒 Ich bin krank], [💬 Custom Nachricht]
+   *
+   * TIER 3: UltraMsg Direct WhatsApp API (if configured)
+   *   - No 24h window limitation, delivers full formatted multi-line message.
+   *
+   * TIER 4: Manual WhatsApp Web Fallback (`waLink`)
+   *   - Pre-formatted https://wa.me/... URL for 1-click dispatch.
+   */
+  async sendShiftPlanNotification(options: {
+    phone: string;
+    empName: string;
+    warehouseName: string;
+    hallName: string;
+    treffpunktInfo: string;
+    dateFormatted: string;
+    shiftTime: string;
+    planId: string;
+    employeeId: string;
+    headerTitle?: string;
+  }): Promise<{ success: boolean; method?: string; error?: string; waLink?: string; data?: any }> {
+    const {
+      phone,
+      empName,
+      warehouseName,
+      hallName,
+      treffpunktInfo,
+      dateFormatted,
+      shiftTime,
+      planId,
+      employeeId,
+      headerTitle,
+    } = options;
+
+    const cleanedPhone = this.formatPhoneNumber(phone);
+
+    // 1. Structure the full multi-line message as requested by user
+    const fullBodyText =
+      `Hallo ${empName}\n` +
+      `Ihr Einsatzort : ${warehouseName}\n` +
+      `Halle : ${hallName}\n` +
+      `Treffpunkt & Treffzeit: ${treffpunktInfo}\n\n` +
+      `📅 Datum: ${dateFormatted} | 🕒 Schicht: ${shiftTime}\n\n` +
+      `Bitte wählen Sie eine der folgenden Optionen:\n` +
+      `1 - ✅ Ich bin da\n` +
+      `2 - 🤒 Ich bin krank\n` +
+      `3 - 💬 Custom Nachricht`;
+
+    const buttons = [
+      { id: `CONFIRM_${planId}_${employeeId}`, title: '✅ Ich bin da' },
+      { id: `SICK_${planId}_${employeeId}`, title: '🤒 Ich bin krank' },
+      { id: `CUSTOM_${planId}_${employeeId}`, title: '💬 Custom Nachricht' },
+    ];
+
+    const waLink = this.generateWhatsAppLink(phone, fullBodyText);
+
+    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+    const ultraInstance = process.env.ULTRAMSG_INSTANCE_ID;
+    const ultraToken = process.env.ULTRAMSG_TOKEN;
+
+    // 2. If UltraMsg is configured without Meta, send full message directly
+    if (ultraInstance && ultraToken && (!phoneNumberId || !accessToken)) {
+      const ultraRes = await this.sendWhatsAppDirect(phone, fullBodyText);
+      return { ...ultraRes, method: 'ULTRAMSG', waLink };
+    }
+
+    // 3. If Meta Cloud API is configured:
+    if (phoneNumberId && accessToken) {
+      // Clean, single-line shift details for Meta Template (strictly NO newlines)
+      const cleanShiftDetails =
+        `Einsatzort: ${warehouseName}, Halle: ${hallName} | Treffpunkt: ${treffpunktInfo} | Datum: ${dateFormatted} (${shiftTime}) | Optionen: 1=Ich bin da, 2=Krank, 3=Nachricht`
+          .replace(/[\r\n\t]+/g, ' ')
+          .replace(/\s{2,}/g, ' ')
+          .trim()
+          .substring(0, 200);
+
+      // Primary Strategy for outbound outside 24h: Approved Meta Template
+      this.logger.log(`Attempting Meta template 'schichtplan_benachrichtigung' for +${cleanedPhone}...`);
+      const templateRes = await this.sendWhatsAppTemplate(
+        phone,
+        'schichtplan_benachrichtigung',
+        [empName, cleanShiftDetails],
+        'de',
+      );
+
+      if (templateRes.success) {
+        this.logger.log(`✓ Meta template 'schichtplan_benachrichtigung' delivered to +${cleanedPhone}`);
+        return { success: true, method: 'META_TEMPLATE', waLink, data: templateRes.data };
+      }
+
+      this.logger.warn(
+        `Meta template delivery failed for +${cleanedPhone} (${templateRes.error}). Trying interactive buttons...`,
+      );
+
+      // Secondary Strategy: Interactive Buttons (in case 24h window is open or recipient chatted)
+      const interactiveRes = await this.sendWhatsAppInteractive(
+        phone,
+        fullBodyText,
+        buttons,
+        headerTitle || 'LogiFlow Schichtplan',
+        'LogiFlow Warehouse',
+      );
+
+      if (interactiveRes.success) {
+        return { success: true, method: 'META_INTERACTIVE', waLink, data: interactiveRes.data };
+      }
+
+      // Tertiary Strategy: UltraMsg fallback if available
+      if (ultraInstance && ultraToken) {
+        this.logger.log(`Attempting UltraMsg fallback for +${cleanedPhone}...`);
+        const ultraRes = await this.sendWhatsAppDirect(phone, fullBodyText);
+        if (ultraRes.success) {
+          return { ...ultraRes, method: 'ULTRAMSG_FALLBACK', waLink };
+        }
+      }
+
+      return {
+        success: false,
+        method: 'FAILED',
+        error: templateRes.error || interactiveRes.error || 'Meta API rejected message',
+        waLink,
+      };
+    }
+
+    // 4. No credentials configured
+    return {
+      success: false,
+      method: 'NO_CREDENTIALS',
       error: 'Keine WhatsApp-API Zugangsdaten konfiguriert (Meta / UltraMsg). Bitte wa.me Link nutzen.',
       waLink,
     };
@@ -656,7 +815,11 @@ export class MessagingService {
           type: 'body',
           parameters: parameters.map((param) => ({
             type: 'text',
-            text: String(param),
+            text: String(param || '')
+              .replace(/[\r\n\t]+/g, ' ')
+              .replace(/\s{2,}/g, ' ')
+              .trim()
+              .substring(0, 1000),
           })),
         },
       ];
