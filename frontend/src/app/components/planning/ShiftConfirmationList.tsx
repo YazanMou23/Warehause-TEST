@@ -86,6 +86,7 @@ export default function ShiftConfirmationList({
 
   // Webhook Help Info Banner Visibility
   const [showWebhookGuide, setShowWebhookGuide] = useState<boolean>(false);
+  const [autoSync, setAutoSync] = useState<boolean>(true);
 
   // Stats
   const [stats, setStats] = useState({
@@ -126,9 +127,9 @@ export default function ShiftConfirmationList({
 
   // Fetch confirmations
   const fetchConfirmations = useCallback(
-    async (isManualRefresh = false) => {
+    async (isManualRefresh = false, isBackgroundPoll = false) => {
       if (isManualRefresh) setRefreshing(true);
-      else setLoading(true);
+      else if (!isBackgroundPoll) setLoading(true);
 
       const token = localStorage.getItem("accessToken") || localStorage.getItem("token");
       if (!token) {
@@ -140,6 +141,7 @@ export default function ShiftConfirmationList({
       try {
         const queryParams = new URLSearchParams({
           date: selectedDate,
+          _t: Date.now().toString(),
         });
         if (selectedWarehouseId !== "ALL") {
           queryParams.append("warehouseId", selectedWarehouseId);
@@ -152,7 +154,11 @@ export default function ShiftConfirmationList({
         }
 
         const res = await fetch(`${API_URL}/planning/confirmations?${queryParams.toString()}`, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Cache-Control": "no-cache",
+          },
+          cache: "no-store",
         });
 
         if (res.ok) {
@@ -167,7 +173,9 @@ export default function ShiftConfirmationList({
           });
         }
       } catch (err) {
-        console.error("Error loading confirmations:", err);
+        if (!isBackgroundPoll) {
+          console.error("Error loading confirmations:", err);
+        }
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -179,6 +187,15 @@ export default function ShiftConfirmationList({
   useEffect(() => {
     fetchConfirmations();
   }, [fetchConfirmations]);
+
+  // Real-time WhatsApp Live Sync: poll every 4 seconds so responses appear instantly without clicking
+  useEffect(() => {
+    if (!autoSync) return;
+    const interval = setInterval(() => {
+      fetchConfirmations(false, true);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [autoSync, fetchConfirmations]);
 
   // Handle manual status update
   const handleSaveManualStatus = async () => {
@@ -353,9 +370,19 @@ export default function ShiftConfirmationList({
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-black tracking-tight">Schicht-Rückmeldungen & Anwesenheitsliste</h2>
-              <span className="bg-emerald-500/20 text-emerald-300 text-[11px] font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">
-                WhatsApp Live Sync
-              </span>
+              <button
+                type="button"
+                onClick={() => setAutoSync(!autoSync)}
+                className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 transition cursor-pointer ${
+                  autoSync
+                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30"
+                    : "bg-slate-700/60 text-slate-400 border-slate-600 hover:bg-slate-700"
+                }`}
+                title={autoSync ? "Live-Sync aktiv: Prüft alle 4 Sekunden automatisch auf WhatsApp-Antworten. Klicken zum Pausieren." : "Live-Sync pausiert. Klicken zum Aktivieren."}
+              >
+                <span className={`w-2 h-2 rounded-full shrink-0 ${autoSync ? "bg-emerald-400 animate-pulse" : "bg-slate-400"}`} />
+                <span>{autoSync ? "Live-Sync aktiv (4s)" : "Sync pausiert"}</span>
+              </button>
             </div>
             <p className="text-xs text-slate-300">
               Wer kommt (🟢), wer ist krank / abwesend (🔴) und Rückmeldungsgrund in der letzten Spalte.
