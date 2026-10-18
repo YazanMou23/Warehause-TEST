@@ -708,27 +708,19 @@ export class PlanningService {
           ? `${empSegments[0].treffpunkt}${empSegments[0].treffpunktTime ? ` um ${empSegments[0].treffpunktTime} Uhr` : ''}`
           : `${tpOrt}${tpZeit && tpZeit !== 'Keine Treffzeit angegeben' ? ` um ${tpZeit} Uhr` : ''}`;
 
-        const waMessage = `Hallo ${empName}\n` +
-          `Ihr Einsatzort : ${whName}\n` +
-          `Halle : ${hName}\n` +
-          `Treffpunkt & Treffzeit: ${empTp}\n\n` +
-          `📅 Datum: ${formattedDate} | 🕒 Schicht: ${shiftTime}\n\n` +
-          `Bitte wählen Sie eine der folgenden Optionen:`;
-
-        const buttons = [
-          { id: `CONFIRM_${plan.id}_${employee.id}`, title: '✅ Ich bin da' },
-          { id: `SICK_${plan.id}_${employee.id}`, title: '🤒 Ich bin krank' },
-          { id: `CUSTOM_${plan.id}_${employee.id}`, title: '💬 Custom Nachricht' },
-        ];
-
         this.messagingService
-          .sendWhatsAppInteractive(
-            targetPhone,
-            waMessage,
-            buttons,
+          .sendShiftPlanNotification({
+            phone: targetPhone,
+            empName,
+            warehouseName: whName,
+            hallName: hName,
+            treffpunktInfo: empTp,
+            dateFormatted: formattedDate,
+            shiftTime,
+            planId: plan.id,
+            employeeId: employee.id,
             headerTitle,
-            'LogiFlow Schichtplan',
-          )
+          })
           .then((res) => {
             this.prisma.actionLog
               .create({
@@ -736,7 +728,7 @@ export class PlanningService {
                   userId: actorId || null,
                   action: res.success ? 'WHATSAPP_NOTIFICATION' : 'WHATSAPP_NOTIFICATION_FAILED',
                   details: res.success
-                    ? `Schicht-WhatsApp (3 Optionen) an ${empName} (${targetPhone}) gesendet`
+                    ? `Schicht-WhatsApp (${res.method || 'API'}) an ${empName} (${targetPhone}) gesendet`
                     : `Fehler beim WhatsApp-Versand an ${empName} (${targetPhone}): ${res.error || 'Unbekannt'}`,
                 },
               })
@@ -1741,33 +1733,27 @@ export class PlanningService {
       ? `${new Date(assignment.startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} - ${new Date(assignment.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`
       : '08:00 - 16:00');
 
-    const bodyText = `Hallo ${emp.name}\n` +
-      `Ihr Einsatzort : ${whName}\n` +
-      `Halle : ${hName}\n` +
-      `Treffpunkt & Treffzeit: ${tpOrt} um ${tpZeit} Uhr\n\n` +
-      `📅 Datum: ${formattedDate} | 🕒 Schicht: ${shiftTime}\n\n` +
-      `Bitte wählen Sie eine der folgenden Optionen:`;
+    const empTp = `${tpOrt}${tpZeit && tpZeit !== 'Keine Treffzeit angegeben' ? ` um ${tpZeit} Uhr` : ''}`;
 
-    const buttons = [
-      { id: `CONFIRM_${planId}_${employeeId}`, title: '✅ Ich bin da' },
-      { id: `SICK_${planId}_${employeeId}`, title: '🤒 Ich bin krank' },
-      { id: `CUSTOM_${planId}_${employeeId}`, title: '💬 Custom Nachricht' },
-    ];
-
-    const res = await this.messagingService.sendWhatsAppInteractive(
-      emp.phone,
-      bodyText,
-      buttons,
-      'LogiFlow Schichtplan',
-      'LogiFlow Warehouse',
-    );
+    const res = await this.messagingService.sendShiftPlanNotification({
+      phone: emp.phone,
+      empName: emp.name,
+      warehouseName: whName,
+      hallName: hName,
+      treffpunktInfo: empTp,
+      dateFormatted: formattedDate,
+      shiftTime,
+      planId,
+      employeeId,
+      headerTitle: 'LogiFlow Schichtplan',
+    });
 
     await this.prisma.actionLog.create({
       data: {
         userId: actorId || null,
         action: res.success ? 'WHATSAPP_CONFIRMATION_REQUEST' : 'WHATSAPP_CONFIRMATION_FAILED',
         details: res.success
-          ? `Schicht-WhatsApp (3 Optionen) an ${emp.name} (${emp.phone}) gesendet`
+          ? `Schicht-WhatsApp (${res.method || 'API'}) an ${emp.name} (${emp.phone}) gesendet`
           : `Fehler beim WhatsApp-Versand an ${emp.name}: ${res.error || 'Unbekannt'}`,
       },
     }).catch(() => {});
@@ -1842,26 +1828,20 @@ export class PlanningService {
         ? empSegments[0].treffpunktTime
         : (plan.treffpunktTime || emp.treffpunktTime || '07:45');
 
-      const bodyText = `Hallo ${emp.name}\n` +
-        `Ihr Einsatzort : ${whName}\n` +
-        `Halle : ${hName}\n` +
-        `Treffpunkt & Treffzeit: ${tpOrt} um ${tpZeit} Uhr\n\n` +
-        `📅 Datum: ${formattedDate} | 🕒 Schicht: ${shiftTime}\n\n` +
-        `Bitte wählen Sie eine der folgenden Optionen:`;
+      const empTp = `${tpOrt}${tpZeit && tpZeit !== 'Keine Treffzeit angegeben' ? ` um ${tpZeit} Uhr` : ''}`;
 
-      const buttons = [
-        { id: `CONFIRM_${plan.id}_${emp.id}`, title: '✅ Ich bin da' },
-        { id: `SICK_${plan.id}_${emp.id}`, title: '🤒 Ich bin krank' },
-        { id: `CUSTOM_${plan.id}_${emp.id}`, title: '💬 Custom Nachricht' },
-      ];
-
-      const res = await this.messagingService.sendWhatsAppInteractive(
-        emp.phone,
-        bodyText,
-        buttons,
-        'LogiFlow Schichtplan',
-        'LogiFlow Warehouse',
-      );
+      const res = await this.messagingService.sendShiftPlanNotification({
+        phone: emp.phone,
+        empName: emp.name,
+        warehouseName: whName,
+        hallName: hName,
+        treffpunktInfo: empTp,
+        dateFormatted: formattedDate,
+        shiftTime,
+        planId: plan.id,
+        employeeId: emp.id,
+        headerTitle: 'LogiFlow Schichtplan',
+      });
 
       results.push({
         employeeId: emp.id,
@@ -1877,7 +1857,7 @@ export class PlanningService {
           userId: actorId || null,
           action: res.success ? 'WHATSAPP_NOTIFICATION' : 'WHATSAPP_NOTIFICATION_FAILED',
           details: res.success
-            ? `Schicht-WhatsApp (3 Optionen) an ${emp.name} (${emp.phone}) gesendet`
+            ? `Schicht-WhatsApp (${res.method || 'API'}) an ${emp.name} (${emp.phone}) gesendet`
             : `Fehler beim WhatsApp-Versand an ${emp.name} (${emp.phone}): ${res.error || 'Unbekannt'}`,
         },
       }).catch(() => {});
