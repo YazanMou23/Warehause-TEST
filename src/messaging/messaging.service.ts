@@ -215,6 +215,14 @@ export class MessagingService {
   async handleWebhookPayload(body: any): Promise<void> {
     if (!body || body.object !== 'whatsapp_business_account') return;
 
+    // Top-level audit log so managers/admins can verify Meta reached the server
+    await this.prisma.actionLog.create({
+      data: {
+        action: 'WHATSAPP_WEBHOOK_PAYLOAD',
+        details: `Meta Webhook empfangen (Entries: ${body.entry?.length || 0})`,
+      },
+    }).catch(() => {});
+
     for (const entry of body.entry || []) {
       for (const change of entry.changes || []) {
         const value = change.value;
@@ -381,19 +389,57 @@ export class MessagingService {
       const incomingText = msg.text.body.trim();
       this.logger.log(`[WhatsApp Webhook] Received text from +${cleanFrom}: "${incomingText}"`);
 
-      // Match user by normalized phone ending (handles leading zeros vs +49)
-      const phoneDigits = cleanFrom.slice(-9);
+      // Robust phone matching across variations (+49..., 0176..., 49..., or last 8-9 digits)
+      const last9 = cleanFrom.slice(-9); // "663477268"
+      const last8 = cleanFrom.slice(-8); // "63477268"
+      const germanLocal = '0' + cleanFrom.substring(2); // "017663477268"
+      const international = '+' + cleanFrom; // "+4917663477268"
+
       const user = await this.prisma.user.findFirst({
         where: {
-          phone: { contains: phoneDigits },
           isActive: true,
           deletedAt: null,
+          OR: [
+            { phone: cleanFrom },
+            { phone: germanLocal },
+            { phone: international },
+            { phone: { contains: last9 } },
+            { phone: { contains: last8 } },
+          ],
         },
       });
 
-      if (user) {
-        // Find their nearest active/upcoming shift assignment
-        const recentAssignment = await this.prisma.planEmployee.findFirst({
+      if (!user) {
+        this.logger.warn(`[WhatsApp Webhook] No active user found for phone +${cleanFrom}`);
+        await this.prisma.actionLog.create({
+          data: {
+            action: 'WHATSAPP_UNKNOWN_SENDER',
+            details: `WhatsApp-Nachricht von unbekannter Nummer +${cleanFrom} erhalten: "${incomingText}"`,
+          },
+        }).catch(() => {});
+        return;
+      }
+
+      // Prioritize PENDING shift assignment for today or upcoming dates
+      const todayStart = new Date();
+      todayStart.setUTCHours(0, 0, 0, 0);
+
+      let recentAssignment = await this.prisma.planEmployee.findFirst({
+        where: {
+          employeeId: user.id,
+          plan: {
+            date: { gte: todayStart },
+            deletedAt: null,
+          },
+          confirmationStatus: 'PENDING',
+        },
+        orderBy: { plan: { date: 'asc' } },
+        include: { plan: true },
+      });
+
+      if (!recentAssignment) {
+        // Fallback: Most recent plan assignment overall
+        recentAssignment = await this.prisma.planEmployee.findFirst({
           where: {
             employeeId: user.id,
             plan: { deletedAt: null },
@@ -401,76 +447,119 @@ export class MessagingService {
           orderBy: { plan: { date: 'desc' } },
           include: { plan: true },
         });
+      }
 
-        if (recentAssignment) {
-          const lower = incomingText.toLowerCase();
-          let targetStatus: 'CONFIRMED' | 'SICK' | 'CUSTOM_RESPONSE' = 'CUSTOM_RESPONSE';
-          let noteText = incomingText;
+      if (recentAssignment) {
+        const lower = incomingText.toLowerCase();
+        let targetStatus: 'CONFIRMED' | 'SICK' | 'CUSTOM_RESPONSE' = 'CUSTOM_RESPONSE';
+        let noteText = incomingText;
 
-          if (lower === '1' || lower.includes('bin da') || lower.includes('komme') || lower === 'ja') {
-            targetStatus = 'CONFIRMED';
-            noteText = `Zugesagt („${incomingText}“)`;
-          } else if (lower === '2' || lower.includes('krank') || lower.includes('arzt')) {
-            targetStatus = 'SICK';
-            noteText = `Krankmeldung via Text („${incomingText}“)`;
+        if (lower === '1' || lower.includes('bin da') || lower.includes('komme') || lower === 'ja') {
+          targetStatus = 'CONFIRMED';
+          noteText = `Zugesagt („${incomingText}“)`;
+        } else if (lower === '2' || lower.includes('krank') || lower.includes('arzt')) {
+          targetStatus = 'SICK';
+          noteText = `Krankmeldung via Text („${incomingText}“)`;
 
-            // Sync with EmployeeAbsence
-            const normDate = new Date(recentAssignment.plan.date);
-            normDate.setUTCHours(0, 0, 0, 0);
-            await this.prisma.employeeAbsence.upsert({
-              where: {
-                employeeId_date: {
-                  employeeId: user.id,
-                  date: normDate,
-                },
-              },
-              create: {
+          // Sync with EmployeeAbsence
+          const normDate = new Date(recentAssignment.plan.date);
+          normDate.setUTCHours(0, 0, 0, 0);
+          await this.prisma.employeeAbsence.upsert({
+            where: {
+              employeeId_date: {
                 employeeId: user.id,
                 date: normDate,
-                status: 'KRANK',
-                reason: noteText,
-              },
-              update: {
-                status: 'KRANK',
-                reason: noteText,
-              },
-            }).catch(() => {});
-          }
-
-          await this.prisma.planEmployee.update({
-            where: {
-              planId_employeeId: {
-                planId: recentAssignment.planId,
-                employeeId: user.id,
               },
             },
-            data: {
-              confirmationStatus: targetStatus,
-              responseNote: noteText,
-              respondedAt: new Date(),
-              responseChannel: 'WHATSAPP_TEXT',
+            create: {
+              employeeId: user.id,
+              date: normDate,
+              status: 'KRANK',
+              reason: noteText,
             },
-          });
-
-          await this.prisma.actionLog.create({
-            data: {
-              userId: user.id,
-              action: targetStatus === 'CONFIRMED' ? 'WHATSAPP_CONFIRMED' : targetStatus === 'SICK' ? 'WHATSAPP_SICK_REPORT' : 'WHATSAPP_NOTE_RECEIVED',
-              details: `Mitarbeiter "${user.name}" Rückmeldung per Text: "${incomingText}" (${targetStatus})`,
+            update: {
+              status: 'KRANK',
+              reason: noteText,
             },
           }).catch(() => {});
-
-          const formattedPlanDate = new Date(recentAssignment.plan.date).toLocaleDateString('de-DE');
-          const replyAck = targetStatus === 'CONFIRMED'
-            ? `✅ Vielen Dank, ${user.name}! Ihre Zusage („Ich bin da“) wurde für Ihren Schichteinsatz am ${formattedPlanDate} gespeichert.`
-            : targetStatus === 'SICK'
-            ? `🤒 Ihre Krankmeldung wurde erfasst und an die Schichtleitung übermittelt. Gute Besserung!`
-            : `👍 Vielen Dank, ${user.name}! Ihre Nachricht („${incomingText}“) wurde für Ihren Schichteinsatz am ${formattedPlanDate} vermerkt.`;
-
-          await this.sendWhatsAppDirect(cleanFrom, replyAck).catch(() => {});
+        } else if (lower === '3' || lower.startsWith('3') || lower.includes('nachricht')) {
+          targetStatus = 'CUSTOM_RESPONSE';
+          noteText = incomingText.length > 2 ? incomingText : 'Mitarbeiter wünscht Rücksprache (Option 3)';
+        } else {
+          // Any other response (e.g. "5", "komme 10 min später", etc.)
+          targetStatus = 'CUSTOM_RESPONSE';
+          noteText = incomingText;
         }
+
+        await this.prisma.planEmployee.update({
+          where: {
+            planId_employeeId: {
+              planId: recentAssignment.planId,
+              employeeId: user.id,
+            },
+          },
+          data: {
+            confirmationStatus: targetStatus,
+            responseNote: noteText,
+            respondedAt: new Date(),
+            responseChannel: 'WHATSAPP_TEXT',
+          },
+        });
+
+        await this.prisma.actionLog.create({
+          data: {
+            userId: user.id,
+            action: targetStatus === 'CONFIRMED'
+              ? 'WHATSAPP_CONFIRMED'
+              : targetStatus === 'SICK'
+              ? 'WHATSAPP_SICK_REPORT'
+              : 'WHATSAPP_NOTE_RECEIVED',
+            details: `Mitarbeiter "${user.name}" (${user.phone}) Rückmeldung per Text: "${incomingText}" (${targetStatus})`,
+          },
+        }).catch(() => {});
+
+        const formattedPlanDate = new Date(recentAssignment.plan.date).toLocaleDateString('de-DE');
+        const replyAck = targetStatus === 'CONFIRMED'
+          ? `✅ Vielen Dank, ${user.name}! Ihre Zusage („Ich bin da“) wurde für Ihren Schichteinsatz am ${formattedPlanDate} gespeichert.`
+          : targetStatus === 'SICK'
+          ? `🤒 Ihre Krankmeldung wurde erfasst und an die Schichtleitung übermittelt. Gute Besserung!`
+          : `👍 Vielen Dank, ${user.name}! Ihre Nachricht („${incomingText}“) wurde für Ihren Schichteinsatz am ${formattedPlanDate} vermerkt.`;
+
+        await this.sendWhatsAppDirect(cleanFrom, replyAck).catch(() => {});
+      } else {
+        this.logger.warn(`[WhatsApp Webhook] No plan assignment found for user ${user.name} (+${cleanFrom})`);
       }
     }
+  }
+
+  /**
+   * Diagnostic helper: Simulates an incoming WhatsApp message as if received by Meta webhook
+   */
+  async simulateIncomingMessage(phone: string, text: string): Promise<{ success: boolean; message: string }> {
+    const fakeMsg = {
+      from: this.formatPhoneNumber(phone),
+      type: 'text',
+      text: { body: text },
+    };
+    await this.processIncomingWebhookMessage(fakeMsg);
+    return {
+      success: true,
+      message: `Simulierte WhatsApp-Antwort („${text}“) für +${this.formatPhoneNumber(phone)} erfolgreich verarbeitet.`,
+    };
+  }
+
+  /**
+   * Diagnostic helper: Return configuration guide for Meta Developer Console
+   */
+  getWebhookStatus() {
+    const verifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || 'logiflow_whatsapp_verify_2026';
+    const callbackUrl = 'https://warehause-test.onrender.com/messaging/webhook';
+    return {
+      callbackUrl,
+      verifyToken,
+      requiredWebhookField: 'messages',
+      instructions: 'In der Meta Developer Console (developers.facebook.com): App -> WhatsApp -> Konfiguration -> Webhook-Felder -> Verwalten -> "messages" abonnieren.',
+    };
   }
 
   /**

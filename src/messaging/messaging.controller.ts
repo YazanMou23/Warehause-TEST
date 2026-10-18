@@ -67,6 +67,26 @@ export class MessagingController {
   }
 
   /**
+   * POST /messaging/webhook/simulate
+   * Manually simulate an incoming employee WhatsApp message (e.g. 1, 2, or custom note)
+   */
+  @Post('webhook/simulate')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  async simulateWebhook(@Body() body: { phone: string; message: string }) {
+    return this.messagingService.simulateIncomingMessage(body.phone, body.message);
+  }
+
+  /**
+   * GET /messaging/webhook/status
+   * View the required Meta Webhook callback URL, token, and setup instructions
+   */
+  @Get('webhook/status')
+  @Public()
+  getWebhookStatus() {
+    return this.messagingService.getWebhookStatus();
+  }
+
+  /**
    * GET /messaging/check-connection
    * Diagnostic check of Meta WhatsApp Cloud API credentials
    */
