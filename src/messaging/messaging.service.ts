@@ -394,9 +394,39 @@ export class MessagingService {
         });
 
         if (recentAssignment) {
-          const currentStatus = recentAssignment.confirmationStatus === 'PENDING'
-            ? 'CUSTOM_RESPONSE'
-            : recentAssignment.confirmationStatus;
+          const lower = incomingText.toLowerCase();
+          let targetStatus: 'CONFIRMED' | 'SICK' | 'CUSTOM_RESPONSE' = 'CUSTOM_RESPONSE';
+          let noteText = incomingText;
+
+          if (lower === '1' || lower.includes('bin da') || lower.includes('komme') || lower === 'ja') {
+            targetStatus = 'CONFIRMED';
+            noteText = `Zugesagt („${incomingText}“)`;
+          } else if (lower === '2' || lower.includes('krank') || lower.includes('arzt')) {
+            targetStatus = 'SICK';
+            noteText = `Krankmeldung via Text („${incomingText}“)`;
+
+            // Sync with EmployeeAbsence
+            const normDate = new Date(recentAssignment.plan.date);
+            normDate.setUTCHours(0, 0, 0, 0);
+            await this.prisma.employeeAbsence.upsert({
+              where: {
+                employeeId_date: {
+                  employeeId: user.id,
+                  date: normDate,
+                },
+              },
+              create: {
+                employeeId: user.id,
+                date: normDate,
+                status: 'KRANK',
+                reason: noteText,
+              },
+              update: {
+                status: 'KRANK',
+                reason: noteText,
+              },
+            }).catch(() => {});
+          }
 
           await this.prisma.planEmployee.update({
             where: {
@@ -406,8 +436,8 @@ export class MessagingService {
               },
             },
             data: {
-              confirmationStatus: currentStatus,
-              responseNote: incomingText,
+              confirmationStatus: targetStatus,
+              responseNote: noteText,
               respondedAt: new Date(),
               responseChannel: 'WHATSAPP_TEXT',
             },
@@ -416,16 +446,19 @@ export class MessagingService {
           await this.prisma.actionLog.create({
             data: {
               userId: user.id,
-              action: 'WHATSAPP_NOTE_RECEIVED',
-              details: `Mitarbeiter "${user.name}" hat Notiz übermittelt: "${incomingText}"`,
+              action: targetStatus === 'CONFIRMED' ? 'WHATSAPP_CONFIRMED' : targetStatus === 'SICK' ? 'WHATSAPP_SICK_REPORT' : 'WHATSAPP_NOTE_RECEIVED',
+              details: `Mitarbeiter "${user.name}" Rückmeldung per Text: "${incomingText}" (${targetStatus})`,
             },
           }).catch(() => {});
 
           const formattedPlanDate = new Date(recentAssignment.plan.date).toLocaleDateString('de-DE');
-          await this.sendWhatsAppDirect(
-            cleanFrom,
-            `👍 Vielen Dank, ${user.name}! Ihre Nachricht („${incomingText}“) wurde für Ihren Schichteinsatz am ${formattedPlanDate} vermerkt.`,
-          ).catch(() => {});
+          const replyAck = targetStatus === 'CONFIRMED'
+            ? `✅ Vielen Dank, ${user.name}! Ihre Zusage („Ich bin da“) wurde für Ihren Schichteinsatz am ${formattedPlanDate} gespeichert.`
+            : targetStatus === 'SICK'
+            ? `🤒 Ihre Krankmeldung wurde erfasst und an die Schichtleitung übermittelt. Gute Besserung!`
+            : `👍 Vielen Dank, ${user.name}! Ihre Nachricht („${incomingText}“) wurde für Ihren Schichteinsatz am ${formattedPlanDate} vermerkt.`;
+
+          await this.sendWhatsAppDirect(cleanFrom, replyAck).catch(() => {});
         }
       }
     }
@@ -433,7 +466,7 @@ export class MessagingService {
 
   /**
    * Send an interactive WhatsApp message with quick-reply buttons (Meta Cloud API).
-   * Up to 3 buttons allowed by Meta.
+   * Up to 3 buttons allowed by Meta. Falls back to UltraMsg or wa.me link.
    */
   async sendWhatsAppInteractive(
     phone: string,
@@ -443,19 +476,13 @@ export class MessagingService {
     footerText?: string,
   ): Promise<{ success: boolean; data?: any; error?: string; waLink?: string }> {
     const cleanedPhone = this.formatPhoneNumber(phone);
-    const waLink = this.generateWhatsAppLink(phone, bodyText);
 
     const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
     const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
     const apiVersion = process.env.WHATSAPP_API_VERSION || 'v22.0';
 
-    if (!phoneNumberId || !accessToken) {
-      return {
-        success: false,
-        error: 'No WhatsApp API credentials configured in environment variables.',
-        waLink,
-      };
-    }
+    const ultraInstance = process.env.ULTRAMSG_INSTANCE_ID;
+    const ultraToken = process.env.ULTRAMSG_TOKEN;
 
     // Limit to max 3 buttons per WhatsApp Cloud API specification
     const validButtons = (buttons || []).slice(0, 3).map((btn, idx) => ({
@@ -466,86 +493,121 @@ export class MessagingService {
       },
     }));
 
+    // Formatted fallback text with options listed clearly
+    const optionsText = validButtons.length > 0
+      ? '\n\n' + validButtons.map((b, i) => `${i + 1} - ${b.reply.title}`).join('\n')
+      : '';
+    const fullBodyWithOptions = `${bodyText}${optionsText}`;
+    const waLink = this.generateWhatsAppLink(phone, fullBodyWithOptions);
+
     if (validButtons.length === 0) {
       return this.sendWhatsAppDirect(phone, bodyText);
     }
 
-    const interactivePayload: any = {
-      type: 'button',
-      body: {
-        text: bodyText,
-      },
-      action: {
-        buttons: validButtons,
-      },
-    };
-
-    if (headerText) {
-      interactivePayload.header = {
-        type: 'text',
-        text: headerText.substring(0, 60),
-      };
-    }
-
-    if (footerText) {
-      interactivePayload.footer = {
-        text: footerText.substring(0, 60),
-      };
-    }
-
-    const url = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`;
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
+    // 1. Try Meta Cloud API if configured
+    if (phoneNumberId && accessToken) {
+      const interactivePayload: any = {
+        type: 'button',
+        body: {
+          text: bodyText,
         },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          recipient_type: 'individual',
-          to: cleanedPhone,
-          type: 'interactive',
-          interactive: interactivePayload,
-        }),
-      });
+        action: {
+          buttons: validButtons,
+        },
+      };
 
-      const resData = await response.json();
-
-      if (response.ok) {
-        this.logger.log(
-          `Interactive WhatsApp button message sent to +${cleanedPhone} (${validButtons.length} buttons)`,
-        );
-        return { success: true, data: resData, waLink };
-      } else {
-        const errorMsg =
-          resData.error?.message || 'Meta API rejected interactive button message';
-        this.logger.warn(
-          `Failed sending interactive WhatsApp message to +${cleanedPhone}: ${errorMsg}`,
-        );
-
-        // Fallback: If 24-hour window is closed (Meta Error 131047 / re-engagement), try approved template
-        if (
-          resData.error?.code === 131047 ||
-          errorMsg.includes('24 hours') ||
-          errorMsg.includes('re-engagement')
-        ) {
-          this.logger.log(
-            `24h window closed for +${cleanedPhone}. Attempting approved template fallback...`,
-          );
-          return this.sendWhatsAppTemplate(phone, undefined, [
-            headerText || 'Mitarbeiter',
-            bodyText.substring(0, 120),
-          ]);
-        }
-
-        return { success: false, error: errorMsg, waLink };
+      if (headerText) {
+        interactivePayload.header = {
+          type: 'text',
+          text: headerText.substring(0, 60),
+        };
       }
-    } catch (err: any) {
-      this.logger.error(`Error sending interactive WhatsApp message: ${err.message}`);
-      return { success: false, error: err.message, waLink };
+
+      if (footerText) {
+        interactivePayload.footer = {
+          text: footerText.substring(0, 60),
+        };
+      }
+
+      const url = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`;
+
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: cleanedPhone,
+            type: 'interactive',
+            interactive: interactivePayload,
+          }),
+        });
+
+        const resData = await response.json();
+
+        if (response.ok) {
+          this.logger.log(
+            `Interactive WhatsApp button message sent to +${cleanedPhone} (${validButtons.length} buttons)`,
+          );
+          return { success: true, data: resData, waLink };
+        } else {
+          const errorMsg =
+            resData.error?.message || 'Meta API rejected interactive button message';
+          this.logger.warn(
+            `Failed sending interactive WhatsApp message to +${cleanedPhone}: ${errorMsg}`,
+          );
+
+          // Fallback to UltraMsg if configured
+          if (ultraInstance && ultraToken) {
+            this.logger.log(`Attempting UltraMsg fallback for +${cleanedPhone}...`);
+            const ultraRes = await this.sendWhatsAppDirect(phone, fullBodyWithOptions);
+            if (ultraRes.success) {
+              return ultraRes;
+            }
+          }
+
+          // Fallback: If 24-hour window is closed (Meta Error 131047 / re-engagement), try approved template
+          if (
+            resData.error?.code === 131047 ||
+            errorMsg.includes('24 hours') ||
+            errorMsg.includes('re-engagement')
+          ) {
+            this.logger.log(
+              `24h window closed for +${cleanedPhone}. Attempting approved template fallback...`,
+            );
+            return this.sendWhatsAppTemplate(phone, undefined, [
+              headerText || 'Mitarbeiter',
+              bodyText.substring(0, 120),
+            ]);
+          }
+
+          return { success: false, error: errorMsg, waLink };
+        }
+      } catch (err: any) {
+        this.logger.error(`Error sending interactive WhatsApp message: ${err.message}`);
+        if (ultraInstance && ultraToken) {
+          const ultraRes = await this.sendWhatsAppDirect(phone, fullBodyWithOptions);
+          if (ultraRes.success) return ultraRes;
+        }
+        return { success: false, error: err.message, waLink };
+      }
     }
+
+    // 2. If Meta is not configured, try UltraMsg directly
+    if (ultraInstance && ultraToken) {
+      return this.sendWhatsAppDirect(phone, fullBodyWithOptions);
+    }
+
+    // 3. Fallback when no credentials configured
+    return {
+      success: false,
+      error: 'Keine WhatsApp-API Zugangsdaten konfiguriert (Meta / UltraMsg). Bitte wa.me Link nutzen.',
+      waLink,
+    };
   }
 
   /**

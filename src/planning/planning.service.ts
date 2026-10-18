@@ -1774,5 +1774,124 @@ export class PlanningService {
 
     return res;
   }
+
+  /**
+   * Send WhatsApp notification with 3 options (Ich bin da / Ich bin krank / Custom Nachricht)
+   * to all assigned employees of a plan, returning per-employee results and fallback wa.me links.
+   */
+  async sendPlanWhatsAppToAll(planId: string, actorId?: string) {
+    const plan = await this.findOne(planId);
+    if (!plan) {
+      throw new NotFoundException(`Plan with ID ${planId} not found`);
+    }
+
+    const assignedEmployees = plan.assignedEmployees || [];
+    if (assignedEmployees.length === 0) {
+      return {
+        success: true,
+        sentCount: 0,
+        failedCount: 0,
+        message: 'Keine Mitarbeiter diesem Plan zugewiesen.',
+        results: [],
+      };
+    }
+
+    const planDate = new Date(plan.date);
+    const formattedDate = planDate.toLocaleDateString('de-DE');
+    const shiftTime = plan.shift || (plan.startTime && plan.endTime
+      ? `${new Date(plan.startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} - ${new Date(plan.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`
+      : '08:00 - 16:00');
+
+    const loc = plan.locations?.[0];
+    const whName = loc?.warehouse?.name || plan.warehouseName || 'Duisburg';
+    const hName = loc?.hall?.name || plan.hallName || 'Halle';
+
+    const segments = plan.employeeSegments || [];
+    const segmentsByEmp = new Map<string, any[]>();
+    for (const seg of segments) {
+      if (!segmentsByEmp.has(seg.employeeId)) segmentsByEmp.set(seg.employeeId, []);
+      segmentsByEmp.get(seg.employeeId)!.push(seg);
+    }
+
+    const results: Array<{
+      employeeId: string;
+      name: string;
+      phone: string;
+      success: boolean;
+      error?: string;
+      waLink?: string;
+    }> = [];
+
+    for (const emp of assignedEmployees) {
+      if (!emp.phone) {
+        results.push({
+          employeeId: emp.id,
+          name: emp.name,
+          phone: '',
+          success: false,
+          error: 'Keine Telefonnummer hinterlegt',
+        });
+        continue;
+      }
+
+      const empSegments = segmentsByEmp.get(emp.id) || [];
+      const tpOrt = (empSegments.length > 0 && empSegments[0].treffpunkt)
+        ? empSegments[0].treffpunkt
+        : (plan.treffpunkt || emp.treffpunkt || 'Haupttor');
+      const tpZeit = (empSegments.length > 0 && empSegments[0].treffpunktTime)
+        ? empSegments[0].treffpunktTime
+        : (plan.treffpunktTime || emp.treffpunktTime || '07:45');
+
+      const bodyText = `Hallo ${emp.name}\n` +
+        `Ihr Einsatzort : ${whName}\n` +
+        `Halle : ${hName}\n` +
+        `Treffpunkt & Treffzeit: ${tpOrt} um ${tpZeit} Uhr\n\n` +
+        `📅 Datum: ${formattedDate} | 🕒 Schicht: ${shiftTime}\n\n` +
+        `Bitte wählen Sie eine der folgenden Optionen:`;
+
+      const buttons = [
+        { id: `CONFIRM_${plan.id}_${emp.id}`, title: '✅ Ich bin da' },
+        { id: `SICK_${plan.id}_${emp.id}`, title: '🤒 Ich bin krank' },
+        { id: `CUSTOM_${plan.id}_${emp.id}`, title: '💬 Custom Nachricht' },
+      ];
+
+      const res = await this.messagingService.sendWhatsAppInteractive(
+        emp.phone,
+        bodyText,
+        buttons,
+        'LogiFlow Schichtplan',
+        'LogiFlow Warehouse',
+      );
+
+      results.push({
+        employeeId: emp.id,
+        name: emp.name,
+        phone: emp.phone,
+        success: res.success,
+        error: res.error,
+        waLink: res.waLink,
+      });
+
+      await this.prisma.actionLog.create({
+        data: {
+          userId: actorId || null,
+          action: res.success ? 'WHATSAPP_NOTIFICATION' : 'WHATSAPP_NOTIFICATION_FAILED',
+          details: res.success
+            ? `Schicht-WhatsApp (3 Optionen) an ${emp.name} (${emp.phone}) gesendet`
+            : `Fehler beim WhatsApp-Versand an ${emp.name} (${emp.phone}): ${res.error || 'Unbekannt'}`,
+        },
+      }).catch(() => {});
+    }
+
+    const sentCount = results.filter((r) => r.success).length;
+    const failedCount = results.length - sentCount;
+
+    return {
+      success: failedCount === 0,
+      sentCount,
+      failedCount,
+      results,
+    };
+  }
 }
 
