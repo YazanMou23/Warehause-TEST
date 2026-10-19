@@ -360,31 +360,41 @@ export default function ShiftConfirmationList({
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden flex flex-col">
+    <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden flex flex-col">
       {/* Header Bar */}
-      <div className="p-5 bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white flex flex-wrap items-center justify-between gap-4 border-b border-slate-700">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-2xl shadow-inner">
+      <div className="p-5 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-2xl shadow-2xs">
             📋
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-black tracking-tight">Schicht-Rückmeldungen & Anwesenheitsliste</h2>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">
+                Schicht-Rückmeldungen &amp; Anwesenheitsliste
+              </h2>
               <button
                 type="button"
                 onClick={() => setAutoSync(!autoSync)}
                 className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 transition cursor-pointer ${
                   autoSync
-                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30"
-                    : "bg-slate-700/60 text-slate-400 border-slate-600 hover:bg-slate-700"
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                    : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
                 }`}
-                title={autoSync ? "Live-Sync aktiv: Prüft alle 4 Sekunden automatisch auf WhatsApp-Antworten. Klicken zum Pausieren." : "Live-Sync pausiert. Klicken zum Aktivieren."}
+                title={
+                  autoSync
+                    ? "Live-Sync aktiv: Prüft alle 4 Sekunden automatisch auf WhatsApp-Antworten. Klicken zum Pausieren."
+                    : "Live-Sync pausiert. Klicken zum Aktivieren."
+                }
               >
-                <span className={`w-2 h-2 rounded-full shrink-0 ${autoSync ? "bg-emerald-400 animate-pulse" : "bg-slate-400"}`} />
+                <span
+                  className={`w-2 h-2 rounded-full shrink-0 ${
+                    autoSync ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
+                  }`}
+                />
                 <span>{autoSync ? "Live-Sync aktiv (4s)" : "Sync pausiert"}</span>
               </button>
             </div>
-            <p className="text-xs text-slate-300">
+            <p className="text-xs text-slate-500 mt-0.5">
               Wer kommt (🟢), wer ist krank / abwesend (🔴) und Rückmeldungsgrund in der letzten Spalte.
             </p>
           </div>
@@ -394,27 +404,29 @@ export default function ShiftConfirmationList({
           <button
             type="button"
             onClick={() => setShowWebhookGuide(!showWebhookGuide)}
-            className="px-3 py-2 bg-indigo-900/60 hover:bg-indigo-800 text-indigo-200 border border-indigo-700/60 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+            className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
             title="Meta Webhook Konfigurations-Anleitung"
           >
-            <HelpCircle className="w-3.5 h-3.5 text-indigo-300" />
+            <HelpCircle className="w-3.5 h-3.5 text-indigo-600" />
             <span>Webhook Info</span>
           </button>
           <button
             type="button"
             onClick={() => fetchConfirmations(true)}
             disabled={refreshing}
-            className="px-3 py-2 bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-600 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-50"
+            className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs disabled:opacity-50"
             title="Aktualisieren"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin text-emerald-400" : ""}`} />
+            <RefreshCw
+              className={`w-3.5 h-3.5 text-slate-600 ${refreshing ? "animate-spin text-emerald-600" : ""}`}
+            />
             <span>Aktualisieren</span>
           </button>
           {onClose && (
             <button
               type="button"
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition"
+              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition"
               title="Schließen"
             >
               <X className="w-5 h-5" />
@@ -425,40 +437,40 @@ export default function ShiftConfirmationList({
 
       {/* Expandable Meta Webhook Setup Guide */}
       {showWebhookGuide && (
-        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-5 border-b border-indigo-800/50 shadow-inner animate-fade-in text-xs space-y-3">
+        <div className="bg-gradient-to-r from-indigo-50/70 via-blue-50/50 to-slate-50 text-slate-800 p-5 border-b border-indigo-100 shadow-inner animate-fade-in text-xs space-y-3">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
-              <div className="flex items-center gap-2 font-bold text-sm text-indigo-300">
-                <Shield className="w-4 h-4 text-emerald-400" />
+              <div className="flex items-center gap-2 font-bold text-sm text-indigo-900">
+                <Shield className="w-4 h-4 text-emerald-600" />
                 <span>Meta WhatsApp Cloud API — Webhook Live-Sync Konfiguration</span>
               </div>
-              <p className="text-slate-300 leading-relaxed max-w-3xl">
+              <p className="text-slate-600 leading-relaxed max-w-3xl">
                 Damit Antworten von Mitarbeitern (z. B. 1, 2, 3 oder individuelle Texte wie „5“) in Echtzeit hier in der Anwesenheitsliste ankommen, muss der Webhook in Meta für Entwickler abonniert sein:
               </p>
             </div>
             <button
               type="button"
               onClick={() => setShowWebhookGuide(false)}
-              className="text-slate-400 hover:text-white p-1"
+              className="text-slate-400 hover:text-slate-700 p-1"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
-            <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 font-mono text-[11px] space-y-1.5">
-              <div className="text-slate-400 font-bold uppercase text-[10px]">Callback URL (in Meta eintragen):</div>
-              <div className="text-emerald-300 select-all font-semibold">https://warehause-test.onrender.com/messaging/webhook</div>
-              <div className="text-slate-400 font-bold uppercase text-[10px] mt-2">Verifizierungs-Token (Verify Token):</div>
-              <div className="text-amber-300 select-all font-semibold">logiflow_whatsapp_verify_2026</div>
+            <div className="bg-white p-3.5 rounded-xl border border-indigo-200/80 font-mono text-[11px] space-y-1.5 shadow-2xs">
+              <div className="text-slate-500 font-bold uppercase text-[10px]">Callback URL (in Meta eintragen):</div>
+              <div className="text-emerald-700 select-all font-semibold">https://warehause-test.onrender.com/messaging/webhook</div>
+              <div className="text-slate-500 font-bold uppercase text-[10px] mt-2">Verifizierungs-Token (Verify Token):</div>
+              <div className="text-amber-800 select-all font-semibold">logiflow_whatsapp_verify_2026</div>
             </div>
 
-            <div className="bg-amber-950/30 p-3 rounded-xl border border-amber-600/40 text-amber-200 text-xs space-y-1.5">
-              <div className="font-extrabold text-amber-300 flex items-center gap-1.5">
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+            <div className="bg-amber-50/80 p-3.5 rounded-xl border border-amber-200 text-amber-900 text-xs space-y-1.5 shadow-2xs">
+              <div className="font-extrabold text-amber-900 flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                 <span>Wichtigster Schritt: Webhook-Feld „messages“ abonnieren</span>
               </div>
-              <p className="leading-relaxed text-[11px] text-amber-100/90">
+              <p className="leading-relaxed text-[11px] text-amber-800">
                 In der Meta Console unter <strong>WhatsApp &gt; Konfiguration &gt; Webhook-Felder</strong> auf <strong>„Verwalten“</strong> klicken und die Checkbox bei <strong>„messages“</strong> aktivieren! Ohne dieses Feld leitet Meta keine eingehenden Antworten weiter.
               </p>
             </div>
@@ -467,86 +479,86 @@ export default function ShiftConfirmationList({
       )}
 
       {/* KPI Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 p-4 bg-slate-50 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800">
-        <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 p-4 bg-slate-50/60 border-b border-slate-200">
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500">Gesamt Eingeteilt</span>
             <span className="text-base">👥</span>
           </div>
-          <div className="mt-1 text-2xl font-black text-slate-900 dark:text-white">{stats.total}</div>
+          <div className="mt-1 text-2xl font-black text-slate-900">{stats.total}</div>
         </div>
 
-        <div className="bg-emerald-50/70 dark:bg-emerald-950/20 p-3 rounded-xl border border-emerald-200 dark:border-emerald-800/40 shadow-2xs">
+        <div className="bg-emerald-50/70 p-3.5 rounded-xl border border-emerald-200 text-emerald-900 shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
+            <span className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               Ich bin da (🟢)
             </span>
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           </div>
-          <div className="mt-1 text-2xl font-black text-emerald-700 dark:text-emerald-300">{stats.confirmedCount}</div>
+          <div className="mt-1 text-2xl font-black text-emerald-700">{stats.confirmedCount}</div>
         </div>
 
-        <div className="bg-red-50/70 dark:bg-red-950/20 p-3 rounded-xl border border-red-200 dark:border-red-800/40 shadow-2xs">
+        <div className="bg-red-50/70 p-3.5 rounded-xl border border-red-200 text-red-900 shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-red-800 dark:text-red-300 flex items-center gap-1">
+            <span className="text-xs font-bold text-red-800 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-red-500" />
               Ich bin krank (🔴)
             </span>
             <XCircle className="w-4 h-4 text-red-600" />
           </div>
-          <div className="mt-1 text-2xl font-black text-red-700 dark:text-red-300">{stats.sickCount}</div>
+          <div className="mt-1 text-2xl font-black text-red-700">{stats.sickCount}</div>
         </div>
 
-        <div className="bg-amber-50/70 dark:bg-amber-950/20 p-3 rounded-xl border border-amber-200 dark:border-amber-800/40 shadow-2xs">
+        <div className="bg-amber-50/70 p-3.5 rounded-xl border border-amber-200 text-amber-900 shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1">
+            <span className="text-xs font-bold text-amber-800 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-amber-500" />
               Ausstehend (🟡)
             </span>
             <Clock className="w-4 h-4 text-amber-600" />
           </div>
-          <div className="mt-1 text-2xl font-black text-amber-700 dark:text-amber-300">{stats.pendingCount}</div>
+          <div className="mt-1 text-2xl font-black text-amber-700">{stats.pendingCount}</div>
         </div>
 
-        <div className="bg-blue-50/70 dark:bg-blue-950/20 p-3 rounded-xl border border-blue-200 dark:border-blue-800/40 shadow-2xs">
+        <div className="bg-blue-50/70 p-3.5 rounded-xl border border-blue-200 text-blue-900 shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-blue-800 dark:text-blue-300 flex items-center gap-1">
+            <span className="text-xs font-bold text-blue-800 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-blue-500" />
               Custom Nachricht
             </span>
             <MessageSquare className="w-4 h-4 text-blue-600" />
           </div>
-          <div className="mt-1 text-2xl font-black text-blue-700 dark:text-blue-300">{stats.customCount}</div>
+          <div className="mt-1 text-2xl font-black text-blue-700">{stats.customCount}</div>
         </div>
       </div>
 
       {/* Control & Filter Strip */}
-      <div className="p-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+      <div className="p-4 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
         {/* Date Selector & Shortcuts */}
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+          <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
             <Calendar className="w-4 h-4 text-slate-500 shrink-0" />
             <input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-transparent border-none text-xs font-bold text-slate-800 dark:text-white focus:outline-hidden"
+              className="bg-transparent border-none text-xs font-bold text-slate-800 focus:outline-hidden"
             />
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={() => setDateRelative(0)}
-              className="px-2.5 py-1 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 transition shadow-2xs cursor-pointer"
             >
               Heute
             </button>
             <button
               type="button"
               onClick={() => setDateRelative(1)}
-              className="px-2.5 py-1 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 transition shadow-2xs cursor-pointer"
             >
               Morgen
             </button>
@@ -554,12 +566,12 @@ export default function ShiftConfirmationList({
         </div>
 
         {/* Status & Warehouse Filter & Search */}
-        <div className="flex items-center gap-2 flex-wrap flex-1 justify-end">
+        <div className="flex items-center gap-2.5 flex-wrap flex-1 justify-end">
           {/* Warehouse Dropdown */}
           <select
             value={selectedWarehouseId}
             onChange={(e) => setSelectedWarehouseId(e.target.value)}
-            className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-white"
+            className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:outline-hidden focus:border-blue-500 transition shadow-2xs"
           >
             <option value="ALL">🏢 Alle Lager</option>
             {warehouses.map((w) => (
@@ -570,7 +582,7 @@ export default function ShiftConfirmationList({
           </select>
 
           {/* Status Tabs */}
-          <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+          <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200">
             {[
               { id: "ALL", label: "Alle" },
               { id: "CONFIRMED", label: "🟢 Da" },
@@ -581,10 +593,10 @@ export default function ShiftConfirmationList({
                 key={tab.id}
                 type="button"
                 onClick={() => setStatusFilter(tab.id)}
-                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition ${
+                className={`px-3 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
                   statusFilter === tab.id
-                    ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs"
-                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                    ? "bg-white text-slate-900 shadow-2xs"
+                    : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 {tab.label}
@@ -593,14 +605,14 @@ export default function ShiftConfirmationList({
           </div>
 
           {/* Search Input */}
-          <div className="relative min-w-[180px]">
+          <div className="relative min-w-[200px]">
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               placeholder="Name, Grund..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+              className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-2xs"
             />
           </div>
         </div>
@@ -614,11 +626,11 @@ export default function ShiftConfirmationList({
             <span className="text-xs font-bold text-slate-500">Lade Rückmeldungen für {selectedDate}...</span>
           </div>
         ) : records.length === 0 ? (
-          <div className="py-20 text-center flex flex-col items-center justify-center p-6">
-            <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-3xl mb-3">
+          <div className="py-20 text-center flex flex-col items-center justify-center p-6 bg-white">
+            <div className="w-16 h-16 rounded-2xl bg-slate-100 border border-slate-200/80 flex items-center justify-center text-3xl mb-3 shadow-2xs">
               📭
             </div>
-            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+            <h3 className="text-sm font-bold text-slate-800">
               Keine Schichteinteilungen für diesen Tag gefunden
             </h3>
             <p className="text-xs text-slate-500 mt-1 max-w-sm">
@@ -628,20 +640,20 @@ export default function ShiftConfirmationList({
         ) : (
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 font-extrabold uppercase tracking-wider text-[11px] border-b border-slate-200 dark:border-slate-800">
-                <th className="py-3 px-4 w-12 text-center">Icon</th>
+              <tr className="bg-slate-50/90 text-slate-600 font-extrabold uppercase tracking-wider text-[11px] border-b border-slate-200">
+                <th className="py-3 px-4 w-12 text-center">Status</th>
                 <th className="py-3 px-4">Mitarbeiter</th>
-                <th className="py-3 px-4">Datum & Schicht</th>
-                <th className="py-3 px-4">Einsatzort & Halle</th>
-                <th className="py-3 px-4">Treffpunkt & Zeit</th>
+                <th className="py-3 px-4">Datum &amp; Schicht</th>
+                <th className="py-3 px-4">Einsatzort &amp; Halle</th>
+                <th className="py-3 px-4">Treffpunkt &amp; Zeit</th>
                 <th className="py-3 px-4">Kanal / Zeit</th>
-                <th className="py-3 px-4 font-black text-slate-900 dark:text-white bg-slate-200/50 dark:bg-slate-700/50 border-l border-slate-300 dark:border-slate-700">
+                <th className="py-3 px-4 font-black text-slate-900 bg-slate-100/70 border-l border-slate-200">
                   Grund / Rückmeldung (Letzte Spalte)
                 </th>
                 <th className="py-3 px-4 text-right">Aktionen</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900">
+            <tbody className="divide-y divide-slate-100 bg-white">
               {records.map((rec) => {
                 const isConfirmed = rec.status === "CONFIRMED";
                 const isSick = rec.status === "SICK";
@@ -651,8 +663,8 @@ export default function ShiftConfirmationList({
                 return (
                   <tr
                     key={`${rec.planId}_${rec.employeeId}`}
-                    className={`transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${
-                      isSick ? "bg-red-50/30 dark:bg-red-950/10" : isConfirmed ? "bg-emerald-50/20 dark:bg-emerald-950/10" : ""
+                    className={`transition-colors hover:bg-slate-50/80 ${
+                      isSick ? "bg-red-50/30" : isConfirmed ? "bg-emerald-50/20" : ""
                     }`}
                   >
                     {/* 1. Status Icon Column */}
@@ -682,7 +694,7 @@ export default function ShiftConfirmationList({
                     {/* 2. Employee Column */}
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-700 dark:text-slate-200 text-xs shrink-0 overflow-hidden">
+                        <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-700 text-xs shrink-0 overflow-hidden">
                           {rec.employeePhoto ? (
                             <img src={rec.employeePhoto} alt={rec.employeeName} className="w-full h-full object-cover" />
                           ) : (
@@ -690,7 +702,7 @@ export default function ShiftConfirmationList({
                           )}
                         </div>
                         <div>
-                          <div className="font-extrabold text-slate-900 dark:text-white leading-tight">
+                          <div className="font-extrabold text-slate-900 leading-tight">
                             {rec.employeeName}
                           </div>
                           <div className="text-[11px] font-mono text-slate-500 flex items-center gap-1 mt-0.5">
@@ -703,7 +715,7 @@ export default function ShiftConfirmationList({
 
                     {/* 3. Date & Shift Column */}
                     <td className="py-3 px-4">
-                      <div className="font-bold text-slate-900 dark:text-slate-100">{rec.formattedDate}</div>
+                      <div className="font-bold text-slate-900">{rec.formattedDate}</div>
                       <div className="text-[11px] font-mono text-slate-500 flex items-center gap-1 mt-0.5">
                         <Clock className="w-3 h-3 text-slate-400 shrink-0" />
                         <span>{rec.shiftTime}</span>
@@ -712,13 +724,13 @@ export default function ShiftConfirmationList({
 
                     {/* 4. Warehouse & Hall Column */}
                     <td className="py-3 px-4">
-                      <div className="font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <div className="font-extrabold text-slate-900 flex items-center gap-1.5">
                         <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                         <span>{rec.warehouseName}</span>
                       </div>
                       <div className="mt-1">
                         <span
-                          className="text-[10px] font-bold px-2 py-0.5 rounded-md border text-slate-800 dark:text-slate-200"
+                          className="text-[10px] font-bold px-2 py-0.5 rounded-md border text-slate-800"
                           style={{
                             borderColor: rec.hallColor || "#cbd5e1",
                             backgroundColor: (rec.hallColor || "#64748b") + "15",
@@ -731,11 +743,11 @@ export default function ShiftConfirmationList({
 
                     {/* 5. Treffpunkt & Treffzeit Column */}
                     <td className="py-3 px-4">
-                      <div className="text-slate-800 dark:text-slate-200 font-semibold flex items-center gap-1">
+                      <div className="text-slate-800 font-semibold flex items-center gap-1">
                         <MapPin className="w-3 h-3 text-amber-600 shrink-0" />
                         <span>{rec.treffpunkt}</span>
                       </div>
-                      <div className="text-[11px] font-mono font-bold text-amber-900 dark:text-amber-400 mt-0.5">
+                      <div className="text-[11px] font-mono font-bold text-amber-800 mt-0.5">
                         {rec.treffpunktTime && rec.treffpunktTime !== "-" ? `Treff: ${rec.treffpunktTime} Uhr` : "Keine Treffzeit"}
                       </div>
                     </td>
@@ -744,7 +756,7 @@ export default function ShiftConfirmationList({
                     <td className="py-3 px-4">
                       {rec.respondedAt ? (
                         <div>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
                             {rec.responseChannel === "WHATSAPP_BUTTON"
                               ? "💬 WhatsApp Button"
                               : rec.responseChannel === "WHATSAPP_TEXT"
@@ -765,34 +777,34 @@ export default function ShiftConfirmationList({
                     </td>
 
                     {/* 7. REASON / FEEDBACK (LETZTE SPALTE) */}
-                    <td className="py-3 px-4 bg-slate-50/60 dark:bg-slate-800/40 border-l border-slate-200 dark:border-slate-700">
+                    <td className="py-3 px-4 bg-slate-50/50 border-l border-slate-200">
                       {isSick ? (
-                        <div className="p-2 bg-red-100/90 dark:bg-red-950/40 border border-red-300 dark:border-red-800 text-red-900 dark:text-red-200 rounded-lg text-xs font-bold flex items-start gap-1.5 shadow-2xs">
+                        <div className="p-2.5 bg-red-50 border border-red-200 text-red-900 rounded-xl text-xs font-bold flex items-start gap-2 shadow-2xs">
                           <XCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
                           <div>
-                            <div className="font-extrabold text-red-950 dark:text-red-100">
+                            <div className="font-extrabold text-red-950">
                               {rec.reason || "Krank gemeldet"}
                             </div>
-                            <div className="text-[10px] text-red-700 dark:text-red-300 font-normal">
+                            <div className="text-[10px] text-red-700 font-normal mt-0.5">
                               Einsatz entfällt • Im Abwesenheitsregister erfasst
                             </div>
                           </div>
                         </div>
                       ) : isConfirmed ? (
-                        <div className="p-2 bg-emerald-100/80 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs">
+                        <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-xs font-bold flex items-center gap-2 shadow-2xs">
                           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                           <span>{rec.reason || "Schicht zugesagt („Ich bin da“)"}</span>
                         </div>
                       ) : isCustom ? (
-                        <div className="p-2 bg-blue-100/80 dark:bg-blue-950/40 border border-blue-300 dark:border-blue-800 text-blue-950 dark:text-blue-200 rounded-lg text-xs flex items-start gap-1.5 shadow-2xs">
+                        <div className="p-2.5 bg-blue-50 border border-blue-200 text-blue-900 rounded-xl text-xs flex items-start gap-2 shadow-2xs">
                           <MessageSquare className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                           <div>
-                            <div className="font-extrabold text-blue-900 dark:text-blue-200">Mitarbeiter-Nachricht:</div>
-                            <div className="italic mt-0.5 text-blue-950 dark:text-white">„{rec.reason}“</div>
+                            <div className="font-extrabold text-blue-900">Mitarbeiter-Nachricht:</div>
+                            <div className="italic mt-0.5 text-blue-950 font-medium">„{rec.reason}“</div>
                           </div>
                         </div>
                       ) : (
-                        <div className="p-2 bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 rounded-lg text-xs italic flex items-center gap-1.5">
+                        <div className="p-2.5 bg-slate-50 border border-slate-200 text-slate-500 rounded-xl text-xs italic flex items-center gap-2">
                           <Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                           <span>Wartet auf Rückmeldung des Mitarbeiters</span>
                         </div>
@@ -810,7 +822,7 @@ export default function ShiftConfirmationList({
                             setEditStatus(rec.status);
                             setEditReason(rec.reason || "");
                           }}
-                          className="p-1.5 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition"
+                          className="p-1.5 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition cursor-pointer"
                           title="Status manuell anpassen"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
@@ -821,7 +833,7 @@ export default function ShiftConfirmationList({
                           type="button"
                           disabled={sendingWaId === `${rec.planId}_${rec.employeeId}`}
                           onClick={() => handleResendWhatsApp(rec)}
-                          className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs disabled:opacity-50"
+                          className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-2xs disabled:opacity-50 cursor-pointer"
                           title="WhatsApp Benachrichtigung mit 3 Optionen senden"
                         >
                           {sendingWaId === `${rec.planId}_${rec.employeeId}` ? (
@@ -836,7 +848,7 @@ export default function ShiftConfirmationList({
                         <button
                           type="button"
                           onClick={() => openDirectWhatsApp(rec)}
-                          className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                          className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 border border-slate-200 rounded-xl transition cursor-pointer"
                           title="In WhatsApp Web öffnen"
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
@@ -847,7 +859,7 @@ export default function ShiftConfirmationList({
                           <button
                             type="button"
                             disabled={simulatingPhone === rec.employeePhone}
-                            className="px-2 py-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-600 rounded-lg text-[11px] font-bold border border-slate-200 transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                            className="px-2 py-1.5 bg-white hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 rounded-xl text-[11px] font-bold border border-slate-200 transition flex items-center gap-1 cursor-pointer shadow-2xs disabled:opacity-50"
                             title="WhatsApp-Antwort für diesen Mitarbeiter testen/simulieren"
                           >
                             {simulatingPhone === rec.employeePhone ? (
@@ -856,7 +868,7 @@ export default function ShiftConfirmationList({
                               <span>⚡ Test-Antwort</span>
                             )}
                           </button>
-                          <div className="absolute right-0 top-full mt-1 hidden group-hover:flex flex-col bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-1 z-30 min-w-[150px]">
+                          <div className="absolute right-0 top-full mt-1 hidden group-hover:flex flex-col bg-white border border-slate-200 rounded-xl shadow-xl p-1 z-30 min-w-[160px]">
                             <button
                               type="button"
                               onClick={() => handleSimulateWebhook(rec.employeePhone, "1")}
@@ -892,32 +904,32 @@ export default function ShiftConfirmationList({
 
       {/* Manual Status Edit Modal */}
       {editingRecord && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-md p-6 overflow-hidden">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-6 overflow-hidden">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200">
               <div className="flex items-center gap-2">
                 <Edit3 className="w-5 h-5 text-emerald-600" />
-                <h3 className="font-bold text-base text-slate-900 dark:text-white">Status manuell anpassen</h3>
+                <h3 className="font-bold text-base text-slate-900">Status manuell anpassen</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setEditingRecord(null)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="mt-4 space-y-4">
-              <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
-                <div className="font-extrabold text-slate-900 dark:text-white">{editingRecord.employeeName}</div>
-                <div className="text-slate-500">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                <div className="font-extrabold text-slate-900">{editingRecord.employeeName}</div>
+                <div className="text-slate-500 mt-0.5">
                   {editingRecord.warehouseName} ({editingRecord.hallName}) • {editingRecord.formattedDate}
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
                   Neuer Schicht-Status:
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -927,10 +939,10 @@ export default function ShiftConfirmationList({
                       setEditStatus("CONFIRMED");
                       setEditReason("Zugesagt („Ich bin da“)");
                     }}
-                    className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition ${
+                    className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
                       editStatus === "CONFIRMED"
                         ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
-                        : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
                     }`}
                   >
                     <span>🟢 Ich bin da</span>
@@ -942,10 +954,10 @@ export default function ShiftConfirmationList({
                       setEditStatus("SICK");
                       setEditReason("Krankmeldung („Ich bin krank“)");
                     }}
-                    className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition ${
+                    className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
                       editStatus === "SICK"
                         ? "bg-red-600 text-white border-red-600 shadow-sm"
-                        : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
                     }`}
                   >
                     <span>🔴 Ich bin krank</span>
@@ -957,10 +969,10 @@ export default function ShiftConfirmationList({
                       setEditStatus("CUSTOM_RESPONSE");
                       setEditReason("Individuelle Rückmeldung");
                     }}
-                    className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition ${
+                    className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
                       editStatus === "CUSTOM_RESPONSE"
                         ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                        : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
                     }`}
                   >
                     <span>💬 Custom Nachricht</span>
@@ -972,10 +984,10 @@ export default function ShiftConfirmationList({
                       setEditStatus("PENDING");
                       setEditReason("");
                     }}
-                    className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition ${
+                    className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
                       editStatus === "PENDING"
                         ? "bg-amber-600 text-white border-amber-600 shadow-sm"
-                        : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
                     }`}
                   >
                     <span>🟡 Offen (Reset)</span>
@@ -984,7 +996,7 @@ export default function ShiftConfirmationList({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
                   Grund / Bemerkung (Erscheint in der letzten Spalte):
                 </label>
                 <textarea
@@ -992,15 +1004,15 @@ export default function ShiftConfirmationList({
                   value={editReason}
                   onChange={(e) => setEditReason(e.target.value)}
                   placeholder="z. B. Krankmeldung telefonisch, Arzttermin, oder Verspätung..."
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setEditingRecord(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
                 >
                   Abbrechen
                 </button>
@@ -1008,7 +1020,7 @@ export default function ShiftConfirmationList({
                   type="button"
                   disabled={savingEdit}
                   onClick={handleSaveManualStatus}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm disabled:opacity-50"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm disabled:opacity-50 cursor-pointer"
                 >
                   {savingEdit ? "Speichert..." : "Status speichern"}
                 </button>
