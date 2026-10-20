@@ -102,8 +102,8 @@ export class MessagingController {
    */
   @Get('sync-waba')
   @Public()
-  async syncWaba() {
-    return this.messagingService.syncWabaWebhookSubscription();
+  async syncWaba(@Query('wabaId') wabaId?: string) {
+    return this.messagingService.syncWabaWebhookSubscription(wabaId);
   }
 
 
