@@ -826,11 +826,18 @@ export class MessagingService {
       );
 
       // Strategy 2: Approved Meta Template (guaranteed delivery outside 24-hour customer window)
+      const templateButtonPayloads = [
+        `CONFIRM_${planId}_${employeeId}`,
+        `SICK_${planId}_${employeeId}`,
+        `CUSTOM_${planId}_${employeeId}`,
+      ];
+
       const templateRes = await this.sendWhatsAppTemplate(
         phone,
         'schichtplan_benachrichtigung',
         [empName, cleanShiftDetails],
         'de',
+        templateButtonPayloads,
       );
 
       if (templateRes.success) {
@@ -867,12 +874,14 @@ export class MessagingService {
   /**
    * Send an approved WhatsApp Message Template (Meta Cloud API).
    * Works outside the 24-hour customer service window for any recipient.
+   * Supports Quick Reply button payloads and automatic resilient fallbacks.
    */
   async sendWhatsAppTemplate(
     phone: string,
     templateName?: string,
     parameters: string[] = [],
     languageCode = 'de',
+    buttonPayloads?: string[],
   ): Promise<{ success: boolean; data?: any; error?: string; waLink?: string }> {
     const cleanedPhone = this.formatPhoneNumber(phone);
     const template =
@@ -891,22 +900,31 @@ export class MessagingService {
       };
     }
 
-    const payload: any = {
-      messaging_product: 'whatsapp',
-      recipient_type: 'individual',
-      to: cleanedPhone,
-      type: 'template',
-      template: {
-        name: template,
-        language: {
-          code: languageCode,
-        },
-      },
-    };
+    const effectiveButtonPayloads =
+      buttonPayloads && buttonPayloads.length > 0
+        ? buttonPayloads
+        : template === 'schichtplan_benachrichtigung'
+          ? ['CONFIRM', 'SICK', 'CUSTOM']
+          : undefined;
 
-    if (parameters && parameters.length > 0) {
-      payload.template.components = [
-        {
+    const buildPayload = (lang: string, includeButtons: boolean) => {
+      const p: any = {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: cleanedPhone,
+        type: 'template',
+        template: {
+          name: template,
+          language: {
+            code: lang,
+          },
+        },
+      };
+
+      const components: any[] = [];
+
+      if (parameters && parameters.length > 0) {
+        components.push({
           type: 'body',
           parameters: parameters.map((param) => ({
             type: 'text',
@@ -916,36 +934,95 @@ export class MessagingService {
               .trim()
               .substring(0, 1000),
           })),
-        },
-      ];
-    }
+        });
+      }
+
+      if (includeButtons && effectiveButtonPayloads && effectiveButtonPayloads.length > 0) {
+        effectiveButtonPayloads.forEach((payloadVal, idx) => {
+          components.push({
+            type: 'button',
+            sub_type: 'quick_reply',
+            index: String(idx),
+            parameters: [
+              {
+                type: 'payload',
+                payload: payloadVal,
+              },
+            ],
+          });
+        });
+      }
+
+      if (components.length > 0) {
+        p.template.components = components;
+      }
+
+      return p;
+    };
 
     const url = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`;
 
-    try {
+    // Internal helper to make the request to Meta API
+    const postToMeta = async (reqPayload: any) => {
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(reqPayload),
       });
-
       const resData = await response.json();
+      return { ok: response.ok, status: response.status, resData };
+    };
 
-      if (response.ok) {
+    try {
+      // Attempt 1: With buttons (if available) and requested language code
+      const hasButtons = Boolean(effectiveButtonPayloads && effectiveButtonPayloads.length > 0);
+      let payload = buildPayload(languageCode, hasButtons);
+      let { ok, resData } = await postToMeta(payload);
+
+      if (ok) {
         this.logger.log(
           `WhatsApp template message (${template}) successfully sent to +${cleanedPhone}`,
         );
         return { success: true, data: resData, waLink };
-      } else {
-        const errorMsg = resData.error?.message || 'Meta API rejected template message';
-        this.logger.warn(
-          `Failed sending WhatsApp template (${template}) to +${cleanedPhone}: ${errorMsg}`,
-        );
-        return { success: false, error: errorMsg, waLink, data: resData };
       }
+
+      const errorCode = resData.error?.code;
+      const errorMsg = resData.error?.message || 'Meta API rejected template message';
+      this.logger.warn(
+        `Failed sending WhatsApp template (${template}) to +${cleanedPhone}: [${errorCode}] ${errorMsg}`,
+      );
+
+      // Attempt 2: If language translation not found (e.g. 132001), try alternate German code ('de_DE' vs 'de')
+      if (errorCode === 132001 || errorMsg.includes('translation') || errorMsg.includes('language')) {
+        const altLang = languageCode === 'de' ? 'de_DE' : 'de';
+        this.logger.log(`Retrying template (${template}) with alternative language code '${altLang}'...`);
+        const altPayload = buildPayload(altLang, hasButtons);
+        const retryResult = await postToMeta(altPayload);
+        if (retryResult.ok) {
+          this.logger.log(
+            `WhatsApp template message (${template}) successfully sent with lang '${altLang}' to +${cleanedPhone}`,
+          );
+          return { success: true, data: retryResult.resData, waLink };
+        }
+      }
+
+      // Attempt 3: If buttons mismatch (e.g. 132000), retry WITHOUT buttons in case template has no buttons in Meta
+      if (hasButtons && (errorCode === 132000 || errorMsg.includes('parameter') || errorMsg.includes('button'))) {
+        this.logger.log(`Retrying template (${template}) without button components...`);
+        const noButtonsPayload = buildPayload(languageCode, false);
+        const retryNoButtons = await postToMeta(noButtonsPayload);
+        if (retryNoButtons.ok) {
+          this.logger.log(
+            `WhatsApp template message (${template}) sent without buttons to +${cleanedPhone}`,
+          );
+          return { success: true, data: retryNoButtons.resData, waLink };
+        }
+      }
+
+      return { success: false, error: errorMsg, waLink, data: resData };
     } catch (err: any) {
       this.logger.error(`Error sending WhatsApp template (${template}): ${err.message}`);
       return { success: false, error: err.message, waLink };
