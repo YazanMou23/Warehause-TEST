@@ -798,40 +798,22 @@ export class MessagingService {
     if (phoneNumberId && accessToken) {
       // Clean, single-line shift details for Meta Template (strictly NO newlines)
       const cleanShiftDetails =
-        `Einsatzort: ${warehouseName}, Halle: ${hallName} | Treffpunkt: ${treffpunktInfo} | Datum: ${dateFormatted} (${shiftTime}) | Optionen: 1=Ich bin da, 2=Krank, 3=Nachricht`
+        `Einsatzort: ${warehouseName} (${hallName}) | Treffpunkt: ${treffpunktInfo} | Datum: ${dateFormatted} (${shiftTime})`
           .replace(/[\r\n\t]+/g, ' ')
           .replace(/\s{2,}/g, ' ')
           .trim()
           .substring(0, 200);
 
-      // Strategy 1: Attempt Interactive Buttons with Quick-Reply options first.
-      // If the 24-hour window is active (e.g. employee chatted or replied), Meta delivers
-      // real clickable buttons ([✅ Ich bin da] [🤒 Ich bin krank] [💬 Custom Nachricht]) directly in WhatsApp.
-      this.logger.log(`Attempting Meta interactive button message for +${cleanedPhone}...`);
-      const interactiveRes = await this.sendWhatsAppInteractive(
-        phone,
-        fullBodyText,
-        buttons,
-        headerTitle || 'LogiFlow Schichtplan',
-        'LogiFlow Warehouse',
-      );
-
-      if (interactiveRes.success) {
-        this.logger.log(`✓ Meta interactive buttons delivered to +${cleanedPhone}`);
-        return { success: true, method: 'META_INTERACTIVE', waLink, data: interactiveRes.data };
-      }
-
-      this.logger.log(
-        `Interactive button delivery not accepted (+${cleanedPhone}: ${interactiveRes.error}). Falling back to approved Meta template...`,
-      );
-
-      // Strategy 2: Approved Meta Template (guaranteed delivery outside 24-hour customer window)
       const templateButtonPayloads = [
         `CONFIRM_${planId}_${employeeId}`,
         `SICK_${planId}_${employeeId}`,
         `CUSTOM_${planId}_${employeeId}`,
       ];
 
+      // Strategy 1 (PRIMARY): Approved Meta Template `schichtplan_benachrichtigung`
+      // Guaranteed delivery outside 24-hour window, displays approved quick-reply buttons,
+      // and records directly in Meta Business Manager Vorlagen-Insights.
+      this.logger.log(`Attempting approved Meta template 'schichtplan_benachrichtigung' for +${cleanedPhone}...`);
       const templateRes = await this.sendWhatsAppTemplate(
         phone,
         'schichtplan_benachrichtigung',
@@ -843,6 +825,25 @@ export class MessagingService {
       if (templateRes.success) {
         this.logger.log(`✓ Meta template 'schichtplan_benachrichtigung' delivered to +${cleanedPhone}`);
         return { success: true, method: 'META_TEMPLATE', waLink, data: templateRes.data };
+      }
+
+      this.logger.warn(
+        `Meta template delivery rejected for +${cleanedPhone}: ${templateRes.error}. Falling back to interactive buttons...`,
+      );
+
+      // Strategy 2: Interactive Buttons (if 24h conversation window happens to be open)
+      this.logger.log(`Attempting Meta interactive button fallback for +${cleanedPhone}...`);
+      const interactiveRes = await this.sendWhatsAppInteractive(
+        phone,
+        fullBodyText,
+        buttons,
+        headerTitle || 'LogiFlow Schichtplan',
+        'LogiFlow Warehouse',
+      );
+
+      if (interactiveRes.success) {
+        this.logger.log(`✓ Meta interactive buttons delivered as fallback to +${cleanedPhone}`);
+        return { success: true, method: 'META_INTERACTIVE', waLink, data: interactiveRes.data };
       }
 
       // Tertiary Strategy: UltraMsg fallback if available
