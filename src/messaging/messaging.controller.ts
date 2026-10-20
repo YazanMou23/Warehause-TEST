@@ -96,6 +96,16 @@ export class MessagingController {
     return this.messagingService.checkConnection();
   }
 
+  /**
+   * GET /messaging/sync-waba
+   * Subscribe Meta App to the WhatsApp Business Account so incoming messages and button clicks are delivered
+   */
+  @Get('sync-waba')
+  @Public()
+  async syncWaba() {
+    return this.messagingService.syncWabaWebhookSubscription();
+  }
+
 
   @Post('whatsapp')
   @Roles(Role.MANAGER, Role.ADMIN)
