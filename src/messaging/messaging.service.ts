@@ -1310,6 +1310,21 @@ export class MessagingService implements OnModuleInit {
       }
 
       if (!wabaId) {
+        // Try querying known verified business 3755132271451406
+        try {
+          const knownBizUrl = `https://graph.facebook.com/${apiVersion}/3755132271451406/whatsapp_business_accounts?access_token=${accessToken}`;
+          const knownBizRes = await fetch(knownBizUrl);
+          const knownBizData = await knownBizRes.json();
+          debugTokenData = { ...debugTokenData, knownBizData };
+          if (Array.isArray(knownBizData.data) && knownBizData.data.length > 0) {
+            wabaId = knownBizData.data[0].id;
+          }
+        } catch (e: any) {
+          this.logger.warn(`Could not query business 3755132271451406: ${e.message}`);
+        }
+      }
+
+      if (!wabaId) {
         // Try querying app's whatsapp_business_accounts
         try {
           const appId = debugTokenData?.data?.app_id || '1723882768723349';
