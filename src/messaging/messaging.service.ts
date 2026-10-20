@@ -1260,8 +1260,11 @@ export class MessagingService implements OnModuleInit {
     }
 
     try {
-      // 1. Resolve WABA ID from parameter, env, or debug_token granular scopes
-      let wabaId = overrideWabaId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+      // 1. Resolve WABA ID from parameter, env, or default verified WABA ID 4587108911610044
+      let wabaId =
+        overrideWabaId ||
+        process.env.WHATSAPP_BUSINESS_ACCOUNT_ID ||
+        '4587108911610044';
       let debugTokenData: any = null;
 
       if (!wabaId) {
