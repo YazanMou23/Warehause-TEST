@@ -1286,9 +1286,47 @@ export class MessagingService implements OnModuleInit {
       }
 
       if (!wabaId) {
+        // Try querying /me/businesses
+        try {
+          const bizUrl = `https://graph.facebook.com/${apiVersion}/me/businesses?access_token=${accessToken}`;
+          const bizRes = await fetch(bizUrl);
+          const bizData = await bizRes.json();
+          debugTokenData = { ...debugTokenData, bizData };
+          if (Array.isArray(bizData.data)) {
+            for (const biz of bizData.data) {
+              const wabaUrl = `https://graph.facebook.com/${apiVersion}/${biz.id}/whatsapp_business_accounts?access_token=${accessToken}`;
+              const wabaRes = await fetch(wabaUrl);
+              const wabaData = await wabaRes.json();
+              debugTokenData = { ...debugTokenData, [`biz_${biz.id}_waba`]: wabaData };
+              if (Array.isArray(wabaData.data) && wabaData.data.length > 0) {
+                wabaId = wabaData.data[0].id;
+                break;
+              }
+            }
+          }
+        } catch (e: any) {
+          this.logger.warn(`Could not fetch /me/businesses: ${e.message}`);
+        }
+      }
+
+      if (!wabaId) {
+        // Try querying app's whatsapp_business_accounts
+        try {
+          const appId = debugTokenData?.data?.app_id || '1723882768723349';
+          const appWabaUrl = `https://graph.facebook.com/${apiVersion}/${appId}/whatsapp_business_accounts?access_token=${accessToken}`;
+          const appWabaRes = await fetch(appWabaUrl);
+          const appWabaData = await appWabaRes.json();
+          debugTokenData = { ...debugTokenData, appWabaData };
+          if (Array.isArray(appWabaData.data) && appWabaData.data.length > 0) {
+            wabaId = appWabaData.data[0].id;
+          }
+        } catch (e: any) {}
+      }
+
+      if (!wabaId) {
         return {
           success: false,
-          error: 'Could not auto-discover WABA ID from token granular scopes',
+          error: 'Could not auto-discover WABA ID from businesses or app',
           debugTokenData,
         };
       }
