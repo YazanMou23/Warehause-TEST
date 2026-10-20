@@ -1245,7 +1245,7 @@ export class MessagingService implements OnModuleInit {
     wabaId?: string;
     subscribeResult?: any;
     subscribedApps?: any;
-    debugPhoneData?: any;
+    debugTokenData?: any;
     error?: string;
   }> {
     const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
@@ -1260,20 +1260,37 @@ export class MessagingService implements OnModuleInit {
     }
 
     try {
-      // 1. Resolve WABA ID from parameter, env, phone query, or fallback
+      // 1. Resolve WABA ID from parameter, env, or debug_token granular scopes
       let wabaId = overrideWabaId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
-      let debugPhoneData: any = null;
+      let debugTokenData: any = null;
 
       if (!wabaId) {
-        const phoneUrl = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}?fields=whatsapp_business_account&access_token=${accessToken}`;
-        const phoneRes = await fetch(phoneUrl);
-        debugPhoneData = await phoneRes.json();
-        wabaId = debugPhoneData.whatsapp_business_account?.id;
+        try {
+          const debugUrl = `https://graph.facebook.com/${apiVersion}/debug_token?input_token=${accessToken}&access_token=${accessToken}`;
+          const debugRes = await fetch(debugUrl);
+          debugTokenData = await debugRes.json();
+          const scopes = debugTokenData.data?.granular_scopes || [];
+          for (const s of scopes) {
+            if (
+              (s.scope === 'whatsapp_business_messaging' || s.scope === 'whatsapp_business_management') &&
+              Array.isArray(s.target_ids) &&
+              s.target_ids.length > 0
+            ) {
+              wabaId = s.target_ids[0];
+              break;
+            }
+          }
+        } catch (e: any) {
+          this.logger.warn(`Could not fetch debug_token: ${e.message}`);
+        }
       }
 
       if (!wabaId) {
-        // Fallback to WABA ID known from template management
-        wabaId = '875458572202123';
+        return {
+          success: false,
+          error: 'Could not auto-discover WABA ID from token granular scopes',
+          debugTokenData,
+        };
       }
 
       // 2. Subscribe app to WABA
@@ -1302,7 +1319,7 @@ export class MessagingService implements OnModuleInit {
         wabaId,
         subscribeResult: postData,
         subscribedApps: getData,
-        debugPhoneData,
+        debugTokenData,
       };
     } catch (err: any) {
       this.logger.error(`[WhatsApp WABA Subscription] Error: ${err.message}`);
