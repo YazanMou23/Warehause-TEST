@@ -1,11 +1,17 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
-export class MessagingService {
+export class MessagingService implements OnModuleInit {
   private readonly logger = new Logger(MessagingService.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  async onModuleInit() {
+    this.syncWabaWebhookSubscription().catch((err) => {
+      this.logger.warn(`Initial WABA webhook subscription sync failed: ${err.message}`);
+    });
+  }
 
   formatPhoneNumber(phone: string): string {
     const trimmed = (phone || '').trim();
@@ -1227,6 +1233,78 @@ export class MessagingService {
         tokenMasked,
         error: err.message,
       };
+    }
+  }
+
+  /**
+   * Ensure WhatsApp Business Account (WABA) has this app subscribed in subscribed_apps.
+   * Required by Meta Cloud API so incoming button clicks and messages are forwarded to the webhook.
+   */
+  async syncWabaWebhookSubscription(): Promise<{
+    success: boolean;
+    wabaId?: string;
+    subscribeResult?: any;
+    subscribedApps?: any;
+    error?: string;
+  }> {
+    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+    const apiVersion = process.env.WHATSAPP_API_VERSION || 'v22.0';
+
+    if (!phoneNumberId || !accessToken) {
+      return {
+        success: false,
+        error: 'Missing WHATSAPP_PHONE_NUMBER_ID or WHATSAPP_ACCESS_TOKEN',
+      };
+    }
+
+    try {
+      // 1. Resolve WABA ID from env or query phone number object
+      let wabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+      if (!wabaId) {
+        const phoneUrl = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}?fields=whatsapp_business_account&access_token=${accessToken}`;
+        const phoneRes = await fetch(phoneUrl);
+        const phoneData = await phoneRes.json();
+        wabaId = phoneData.whatsapp_business_account?.id;
+      }
+
+      if (!wabaId) {
+        return {
+          success: false,
+          error: 'Could not resolve WhatsApp Business Account (WABA) ID from phone number',
+        };
+      }
+
+      // 2. Subscribe app to WABA
+      const subUrl = `https://graph.facebook.com/${apiVersion}/${wabaId}/subscribed_apps`;
+      const postRes = await fetch(subUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const postData = await postRes.json();
+
+      // 3. Verify subscribed apps
+      const getRes = await fetch(subUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const getData = await getRes.json();
+
+      this.logger.log(
+        `[WhatsApp WABA Subscription] WABA ID: ${wabaId} | Post: ${JSON.stringify(postData)} | Get: ${JSON.stringify(getData)}`,
+      );
+
+      return {
+        success: postData.success === true || (Array.isArray(getData.data) && getData.data.length > 0),
+        wabaId,
+        subscribeResult: postData,
+        subscribedApps: getData,
+      };
+    } catch (err: any) {
+      this.logger.error(`[WhatsApp WABA Subscription] Error: ${err.message}`);
+      return { success: false, error: err.message };
     }
   }
 }
