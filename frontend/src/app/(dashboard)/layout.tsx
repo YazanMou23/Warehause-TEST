@@ -43,6 +43,7 @@ const sidebarLinks: SidebarLink[] = [
   { name: "Warehouses", href: "/warehouses", icon: Warehouse, section: "resources" },
   { name: "Halls", href: "/halls", icon: Grid, section: "resources" },
   { name: "Containers", href: "/containers", icon: Package, section: "resources" },
+  { name: "Container-Listen", href: "/container-lists", icon: FileSpreadsheet, section: "resources" },
   { name: "Attendance", href: "/attendance", icon: Clock, section: "ops" },
   { name: "Stundenzettel", href: "/timesheets", icon: FileCheck, section: "ops" },
   { name: "Reports", href: "/reports", icon: FileSpreadsheet, section: "ops" },
