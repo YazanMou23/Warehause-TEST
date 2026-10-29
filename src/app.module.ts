@@ -17,6 +17,7 @@ import { ChatModule } from './chat/chat.module';
 import { NotificationModule } from './notification/notification.module';
 import { DocumentsModule } from './documents/documents.module';
 import { SettingsModule } from './settings/settings.module';
+import { ContainerListsModule } from './container-lists/container-lists.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { SettingsModule } from './settings/settings.module';
     NotificationModule,
     DocumentsModule,
     SettingsModule,
+    ContainerListsModule,
   ],
   controllers: [AppController],
   providers: [],
