@@ -98,6 +98,7 @@ model User {
   planSegments       EmployeePlanSegment[] @relation("EmployeePlanSegments")
   absences           EmployeeAbsence[]     @relation("EmployeeAbsences")
   createdAbsences    EmployeeAbsence[]     @relation("AbsenceCreatedBy")
+  containerLists     ContainerList[]       @relation("ContainerListCreatedBy")
 
   @@index([warehouseId])
   @@index([hallId])
@@ -618,4 +619,59 @@ model SystemSetting {
   createdAt DateTime @default(now())
 
   @@index([key])
+}
+
+// ─── Container Lists (CTR-Liste) ─────────────────────────────────────────────
+
+model ContainerList {
+  id          String             @id @default(uuid())
+  site        String             // "Gant", "Brooks", "Schwalbe", "WE-Britax", "Medisana", "Zwilling", "ProHeq", etc.
+  title       String?            // Optional title or sheet description
+  date        DateTime?          // Date of list / unloading
+  rawFileName String?            // Original uploaded photo/PDF name
+  status      String             @default("DRAFT") // "DRAFT", "SAVED", "EXPORTED"
+  notes       String?            // General notes
+  createdById String?
+  createdBy   User?              @relation("ContainerListCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  rows        ContainerListRow[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([site])
+  @@index([date])
+  @@index([createdById])
+  @@index([createdAt])
+}
+
+model ContainerListRow {
+  id              String        @id @default(uuid())
+  containerListId String
+  containerList   ContainerList @relation(fields: [containerListId], references: [id], onDelete: Cascade)
+  rowOrder        Int           @default(0)
+  date            String?       // Date as written e.g. "2026-10-25" or "25.10"
+  containerNumber String?       // Container number, e.g. "YXEU1802671"
+  fuss            String?       // "20", "40", "45"
+  artikel         String?       // Artikel / Item description
+  kartons         Int?          // Number of cartons/boxes
+  termin          String?       // Appointment time e.g. "08:00"
+  ankunft         String?       // Arrival time e.g. "07:45"
+  start           String?       // Start time e.g. "08:15"
+  ende            String?       // End time e.g. "11:30"
+  personal        Int?          // Number of workers
+  wartezeitVon    String?       // Waiting time start e.g. "09:00"
+  wartezeitBis    String?       // Waiting time end e.g. "09:50"
+  wartezeitStd    String?       // Calculated: (bis - von) * Personal, e.g. "01:40"
+  wickel          String?       // Wickel / wrap count or type
+  preis           Float?        // Rate / Preis
+  ps              String?       // PS / Pauschale
+  extraTeam       String?       // Extra team information
+  bemerkung       String?       // Free text notes e.g. "Verspätung"
+  warnings        Json?         // Structured warnings per row/field
+  uncertainFields Json?         // Array of field names that were uncertain
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([containerListId])
+  @@index([containerNumber])
+  @@index([rowOrder])
 }
