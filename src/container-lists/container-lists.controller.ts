@@ -107,4 +107,44 @@ export class ContainerListsController {
   async remove(@Param('id') id: string) {
     return this.listsService.remove(id);
   }
+
+  /**
+   * GET /container-lists/:id/export/xlsx
+   * Export reviewed list to the site's original Excel template.
+   */
+  @Get(':id/export/xlsx')
+  @UseGuards(JwtAuthGuard)
+  async exportXlsx(@Param('id') id: string, @Req() req: any) {
+    const result = await this.listsService.exportXlsx(id);
+    const res = req?.res || null;
+    if (res && result.filePath) {
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+      res.sendFile(result.filePath, (err: any) => {
+        if (err) console.error('Send file error', err);
+      });
+      return;
+    }
+    return { success: true, filePath: result.filePath };
+  }
+
+  /**
+   * GET /container-lists/:id/export/pdf
+   * Export reviewed list to PDF.
+   */
+  @Get(':id/export/pdf')
+  @UseGuards(JwtAuthGuard)
+  async exportPdf(@Param('id') id: string, @Req() req: any) {
+    const result = await this.listsService.exportPdf(id);
+    const res = req?.res || null;
+    if (res && result.filePath) {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+      res.sendFile(result.filePath, (err: any) => {
+        if (err) console.error('Send file error', err);
+      });
+      return;
+    }
+    return { success: true, filePath: result.filePath };
+  }
 }
