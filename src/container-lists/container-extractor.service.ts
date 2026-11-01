@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { PDFParse } from 'pdf-parse';
 import { ConfigService } from '@nestjs/config';
 import { ContainerListRowDto, FieldWarning } from './dto/container-list.dto';
 
@@ -117,8 +118,55 @@ STRICT RULES:
   "globalWarnings": [...]
 }`;
 
-    const base64Data = file.buffer.toString('base64');
-    const mimeType = file.mimetype.startsWith('image/') ? file.mimetype : 'image/jpeg';
+    // PDFs cannot be sent to the Vision endpoint as images. Follow the same
+    // pattern as timesheet-ocr.service.ts: extract text first; if the PDF is
+    // scanned (too little text), render page 1 to an image and use the vision
+    // path with the rendered PNG.
+    let imageBuffer: Buffer = file.buffer;
+    let imageMime = file.mimetype && file.mimetype.startsWith('image/') ? file.mimetype : null;
+    let pdfText = '';
+
+    if (file.mimetype === 'application/pdf') {
+      let parser: PDFParse | null = null;
+      try {
+        parser = new PDFParse({ data: new Uint8Array(file.buffer) });
+        const textResult = await parser.getText();
+        pdfText = (textResult.text ?? '').trim();
+
+        if (pdfText.length < 80) {
+          // Scanned PDF: render first page to an image for the vision path
+          const screenshot = await parser.getScreenshot({ partial: [1], scale: 2, imageBuffer: true });
+          const firstPage = screenshot.pages?.[0];
+          if (firstPage?.data) {
+            imageBuffer = Buffer.from(firstPage.data as any);
+            imageMime = 'image/png';
+            this.logger.log('Scanned PDF: rendered page 1 to image for vision extraction.');
+          }
+        } else {
+          this.logger.log(`Digital PDF: extracted ${pdfText.length} chars of text for text-based extraction.`);
+        }
+      } finally {
+        if (parser) await parser.destroy().catch(() => {});
+      }
+    }
+
+    if (!imageMime && !pdfText) {
+      throw new Error(`Unsupported or unreadable file type: ${file.mimetype}`);
+    }
+
+    const userContent: any[] = [{ type: 'text', text: prompt }];
+    if (pdfText) {
+      userContent.push({ type: 'text', text: `\n\nDOCUMENT TEXT (extracted from PDF):\n${pdfText}` });
+    } else {
+      const base64Data = imageBuffer.toString('base64');
+      userContent.push({
+        type: 'image_url',
+        image_url: {
+          url: `data:${imageMime};base64,${base64Data}`,
+          detail: 'high',
+        },
+      });
+    }
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -131,16 +179,7 @@ STRICT RULES:
         messages: [
           {
             role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:${mimeType};base64,${base64Data}`,
-                  detail: 'high',
-                },
-              },
-            ],
+            content: userContent,
           },
         ],
         response_format: { type: 'json_object' },

@@ -19,6 +19,7 @@ import {
   Search,
   ArrowRight,
   FileSpreadsheet,
+  Download,
 } from "lucide-react";
 import { API_URL } from "@/config/api";
 import { getAuthToken } from "@/app/utils/auth";
@@ -119,6 +120,33 @@ export default function ContainerListsPage() {
       console.error(err);
     } finally {
       setIsLoadingSaved(false);
+    }
+  };
+
+  // Download a saved list as Excel or PDF (export endpoints are JWT-guarded,
+  // so the download must go through fetch with the auth header, not window.open)
+  const downloadExport = async (id: string, kind: "xlsx" | "pdf", site: string) => {
+    try {
+      const token = getAuthToken();
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch(`${API_URL}/container-lists/${id}/export/${kind}`, { headers });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(txt || `Export fehlgeschlagen (HTTP ${res.status})`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${site}-CTR-Liste.${kind}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setErrorMessage(err.message || "Export fehlgeschlagen");
     }
   };
 
@@ -845,9 +873,13 @@ export default function ContainerListsPage() {
                       </td>
 
                       <td className="py-3 px-4 text-right">
+                        <div className="inline-flex items-center gap-1.5">
                         <button
                           onClick={async () => {
-                            const res = await fetch(`${API_URL}/container-lists/${item.id}`);
+                            const token = getAuthToken();
+                            const headers: Record<string, string> = {};
+                            if (token) headers["Authorization"] = `Bearer ${token}`;
+                            const res = await fetch(`${API_URL}/container-lists/${item.id}`, { headers });
                             if (res.ok) {
                               const full = await res.json();
                               setSelectedSavedList(full);
@@ -858,6 +890,23 @@ export default function ContainerListsPage() {
                           <Eye className="w-3.5 h-3.5" />
                           <span>Ansehen</span>
                         </button>
+                        <button
+                          onClick={() => downloadExport(item.id, "xlsx", item.site)}
+                          title="Als Excel exportieren"
+                          className="px-2.5 py-1.5 rounded-lg bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 font-semibold text-xs inline-flex items-center gap-1"
+                        >
+                          <FileSpreadsheet className="w-3.5 h-3.5" />
+                          <span>XLSX</span>
+                        </button>
+                        <button
+                          onClick={() => downloadExport(item.id, "pdf", item.site)}
+                          title="Als PDF exportieren"
+                          className="px-2.5 py-1.5 rounded-lg bg-red-600/10 hover:bg-red-600/20 text-red-700 dark:text-red-400 font-semibold text-xs inline-flex items-center gap-1"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>PDF</span>
+                        </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -886,12 +935,28 @@ export default function ContainerListsPage() {
                 </p>
               </div>
 
-              <button
-                onClick={() => setSelectedSavedList(null)}
-                className="px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-xs font-semibold hover:bg-gray-200"
-              >
-                Schließen
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => downloadExport(selectedSavedList.id, "xlsx", selectedSavedList.site)}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 text-xs font-semibold inline-flex items-center gap-1"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>Excel</span>
+                </button>
+                <button
+                  onClick={() => downloadExport(selectedSavedList.id, "pdf", selectedSavedList.site)}
+                  className="px-3 py-1.5 rounded-xl bg-red-600/10 hover:bg-red-600/20 text-red-700 dark:text-red-400 text-xs font-semibold inline-flex items-center gap-1"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>PDF</span>
+                </button>
+                <button
+                  onClick={() => setSelectedSavedList(null)}
+                  className="px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-xs font-semibold hover:bg-gray-200"
+                >
+                  Schließen
+                </button>
+              </div>
             </div>
 
             <div className="p-6 overflow-y-auto space-y-4">
