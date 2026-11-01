@@ -27,6 +27,14 @@ export class OtherWorkEntryDto {
 
 export class ContainerListRowDto {
   @IsOptional()
+  @IsString()
+  id?: string;
+
+  @IsOptional()
+  @IsString()
+  containerListId?: string;
+
+  @IsOptional()
   @IsInt()
   rowOrder?: number;
 
