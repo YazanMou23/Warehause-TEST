@@ -339,7 +339,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col lg:pl-[260px] min-h-screen">
+      <div className="flex-1 flex flex-col lg:pl-[260px] min-h-screen min-w-0">
 
         {/* Top Header */}
         <header className="h-14 flex items-center justify-between px-6 border-b border-[#e2e8f0] bg-white print:hidden shrink-0 shadow-sm shadow-slate-100/50">
