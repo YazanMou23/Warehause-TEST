@@ -7,6 +7,24 @@ export interface FieldWarning {
   severity: 'warning' | 'error' | 'info';
 }
 
+export class OtherWorkEntryDto {
+  @IsOptional()
+  @IsNumber()
+  personal?: number;
+
+  @IsOptional()
+  @IsString()
+  von?: string;
+
+  @IsOptional()
+  @IsString()
+  bis?: string;
+
+  @IsOptional()
+  @IsString()
+  bemerkung?: string;
+}
+
 export class ContainerListRowDto {
   @IsOptional()
   @IsInt()
@@ -83,6 +101,12 @@ export class ContainerListRowDto {
   @IsOptional()
   @IsString()
   bemerkung?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => OtherWorkEntryDto)
+  anderweitigeArbeiten?: OtherWorkEntryDto[];
 
   @IsOptional()
   warnings?: FieldWarning[];
