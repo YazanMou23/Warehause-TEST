@@ -9,6 +9,8 @@ export interface ExtractionResult {
   date?: string;
   rows: ContainerListRowDto[];
   globalWarnings: string[];
+  /** true when rows come from the offline mock fallback, not a real extraction */
+  simulated?: boolean;
 }
 
 @Injectable()
@@ -34,6 +36,7 @@ export class ContainerExtractorService {
     let rawRows: Partial<ContainerListRowDto>[] = [];
     let detectedSite = requestedSite || 'Gant';
     let docDate: string | undefined;
+    let simulated = false;
     const globalWarnings: string[] = [];
 
     if (!apiKey) {
@@ -42,6 +45,7 @@ export class ContainerExtractorService {
       rawRows = mockResult.rows;
       detectedSite = mockResult.site;
       docDate = mockResult.date;
+      simulated = true;
       globalWarnings.push(...mockResult.globalWarnings);
     } else {
       try {
@@ -56,6 +60,7 @@ export class ContainerExtractorService {
         const fallback = this.getMockExtraction(file, detectedSite);
         rawRows = fallback.rows;
         docDate = fallback.date;
+        simulated = true;
       }
     }
 
@@ -70,6 +75,7 @@ export class ContainerExtractorService {
       date: docDate || new Date().toISOString().slice(0, 10),
       rows: processedRows,
       globalWarnings,
+      simulated,
     };
   }
 
