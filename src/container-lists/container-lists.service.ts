@@ -48,8 +48,8 @@ export class ContainerListsService {
             ps: r.ps,
             extraTeam: r.extraTeam,
             bemerkung: r.bemerkung,
-            warnings: r.warnings ? JSON.stringify(r.warnings) : undefined,
-            uncertainFields: r.uncertainFields ? JSON.stringify(r.uncertainFields) : undefined,
+            warnings: (r.warnings as any) ?? undefined,
+            uncertainFields: (r.uncertainFields as any) ?? undefined,
           })),
         },
       },
@@ -165,8 +165,8 @@ export class ContainerListsService {
             ps: r.ps,
             extraTeam: r.extraTeam,
             bemerkung: r.bemerkung,
-            warnings: r.warnings ? JSON.stringify(r.warnings) : undefined,
-            uncertainFields: r.uncertainFields ? JSON.stringify(r.uncertainFields) : undefined,
+            warnings: (r.warnings as any) ?? undefined,
+            uncertainFields: (r.uncertainFields as any) ?? undefined,
           })),
         });
       }
@@ -210,9 +210,21 @@ export class ContainerListsService {
       throw new Error('No worksheet found in template');
     }
 
-    // Determine header row: Row 2 (1-based) based on inspection
-    const headerRow = 2;
-    const firstDataRow = 3; // Header at row 2, data starts row 3
+    // Detect the header row dynamically: all current templates have headers in
+    // row 1 and data from row 2, but hardcoding that broke when the assumption
+    // drifted - scan the first rows for the row holding the Datum/Container headers.
+    let headerRow = 1;
+    for (let r = 1; r <= Math.min(6, sheet.rowCount); r++) {
+      const texts: string[] = [];
+      sheet.getRow(r).eachCell({ includeEmpty: false }, (cell) => {
+        if (cell.value) texts.push(String(cell.value).trim().toLowerCase());
+      });
+      if (texts.some((t) => t.includes('datum')) && texts.some((t) => t.includes('container'))) {
+        headerRow = r;
+        break;
+      }
+    }
+    const firstDataRow = headerRow + 1;
 
     // Identify column indexes from header row by normalized header text
     const colIndex = (field: string, aliases: string[]): number => {
@@ -290,9 +302,15 @@ export class ContainerListsService {
       };
 
       if (idx.date >= 0) {
-        const d = timeToCell(r.date || '');
-        sheet.getCell(excelRow, idx.date).value = d;
-        if (d) sheet.getCell(excelRow, idx.date).numFmt = 'mm-dd-yy';
+        // Datum column holds the date as written on the sheet (e.g. "25.10" or "2026-10-25"),
+        // not a time value - the time-parser always returned null here and the column stayed empty.
+        const iso = (r.date || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (iso) {
+          sheet.getCell(excelRow, idx.date).value = new Date(parseInt(iso[1], 10), parseInt(iso[2], 10) - 1, parseInt(iso[3], 10));
+          sheet.getCell(excelRow, idx.date).numFmt = 'dd.mm.yy';
+        } else {
+          sheet.getCell(excelRow, idx.date).value = r.date || null;
+        }
       }
       if (idx.container >= 0) {
         sheet.getCell(excelRow, idx.container).value = r.containerNumber || null;
