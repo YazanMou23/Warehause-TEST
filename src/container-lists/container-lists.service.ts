@@ -1,10 +1,34 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateContainerListDto, UpdateContainerListDto } from './dto/container-list.dto';
+import {
+  CreateContainerListDto,
+  OtherWorkEntryDto,
+  UpdateContainerListDto,
+} from './dto/container-list.dto';
 import * as ExcelJS from 'exceljs';
 import * as fs from 'fs';
 import * as path from 'path';
 import PDFDocument from 'pdfkit';
+import {
+  calculateRowWaitingWorkerHours,
+  calculateRowWorkWorkerHoursWithoutWaiting,
+  formatCombinedWartezeitCell,
+  formatGermanStd,
+  matchCustomerSite,
+  parseClockTime,
+} from './customer-matcher';
+
+const OTHER_WORK_META_FIELD = '__anderweitigeArbeiten';
+
+interface TemplateBlock {
+  dataRows: number[];
+  wartezeitSummaryRow: number;
+  wartezeitLabelCol: number;
+  wartezeitValueCol: number;
+  personalStdSummaryRow?: number;
+  personalStdLabelCol?: number;
+  personalStdValueCol?: number;
+}
 
 @Injectable()
 export class ContainerListsService {
@@ -13,10 +37,59 @@ export class ContainerListsService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
+   * Encodes repeatable anderweitigeArbeiten entries inside row warnings JSON
+   * when present, avoiding any Prisma schema migration while keeping warnings a valid JSON array.
+   */
+  private serializeRowWarnings(
+    warnings: any[] | undefined,
+    anderweitigeArbeiten: OtherWorkEntryDto[] | undefined,
+  ): any {
+    const cleanWarnings = Array.isArray(warnings)
+      ? warnings.filter((w) => w?.field !== OTHER_WORK_META_FIELD)
+      : [];
+
+    if (Array.isArray(anderweitigeArbeiten) && anderweitigeArbeiten.length > 0) {
+      return [
+        ...cleanWarnings,
+        {
+          field: OTHER_WORK_META_FIELD,
+          message: JSON.stringify(anderweitigeArbeiten),
+          severity: 'info',
+        },
+      ];
+    }
+
+    return warnings !== undefined ? cleanWarnings : undefined;
+  }
+
+  /**
+   * Restores anderweitigeArbeiten from serialized row warnings if not already present on the row.
+   */
+  private hydrateListRows<T extends { rows?: any[] }>(list: T): T {
+    if (!list || !Array.isArray(list.rows)) return list;
+    for (const r of list.rows) {
+      if (Array.isArray(r.warnings)) {
+        const metaEntry = r.warnings.find((w: any) => w?.field === OTHER_WORK_META_FIELD);
+        if (metaEntry && !Array.isArray(r.anderweitigeArbeiten)) {
+          try {
+            r.anderweitigeArbeiten = JSON.parse(metaEntry.message || '[]');
+          } catch {
+            r.anderweitigeArbeiten = [];
+          }
+        }
+        r.warnings = r.warnings.filter((w: any) => w?.field !== OTHER_WORK_META_FIELD);
+      }
+    }
+    return list;
+  }
+
+  /**
    * Save a reviewed container list and all its rows to the database.
    */
   async create(dto: CreateContainerListDto, createdById?: string) {
-    this.logger.log(`Saving container list for site ${dto.site} with ${dto.rows?.length || 0} rows...`);
+    this.logger.log(
+      `Saving container list for site ${dto.site} with ${dto.rows?.length || 0} rows...`,
+    );
 
     const list = await this.prisma.containerList.create({
       data: {
@@ -28,29 +101,37 @@ export class ContainerListsService {
         notes: dto.notes,
         createdById: createdById || null,
         rows: {
-          create: (dto.rows || []).map((r, index) => ({
-            rowOrder: r.rowOrder ?? index,
-            date: r.date,
-            containerNumber: r.containerNumber,
-            fuss: r.fuss,
-            artikel: r.artikel,
-            kartons: r.kartons,
-            termin: r.termin,
-            ankunft: r.ankunft,
-            start: r.start,
-            ende: r.ende,
-            personal: r.personal,
-            wartezeitVon: r.wartezeitVon,
-            wartezeitBis: r.wartezeitBis,
-            wartezeitStd: r.wartezeitStd,
-            wickel: r.wickel,
-            preis: r.preis,
-            ps: r.ps,
-            extraTeam: r.extraTeam,
-            bemerkung: r.bemerkung,
-            warnings: (r.warnings as any) ?? undefined,
-            uncertainFields: (r.uncertainFields as any) ?? undefined,
-          })),
+          create: (dto.rows || []).map((r, index) => {
+            const calc = calculateRowWaitingWorkerHours(r);
+            const computedWartezeitStd =
+              (r.wartezeitVon || r.wartezeitBis) && r.personal && r.personal > 0
+                ? formatGermanStd(calc.workerHours).replace(/\s*Std\.$/, '')
+                : r.wartezeitStd;
+
+            return {
+              rowOrder: r.rowOrder ?? index,
+              date: r.date,
+              containerNumber: r.containerNumber,
+              fuss: r.fuss,
+              artikel: r.artikel,
+              kartons: r.kartons,
+              termin: r.termin,
+              ankunft: r.ankunft,
+              start: r.start,
+              ende: r.ende,
+              personal: r.personal,
+              wartezeitVon: r.wartezeitVon,
+              wartezeitBis: r.wartezeitBis,
+              wartezeitStd: computedWartezeitStd,
+              wickel: r.wickel,
+              preis: r.preis,
+              ps: r.ps,
+              extraTeam: r.extraTeam,
+              bemerkung: r.bemerkung,
+              warnings: this.serializeRowWarnings(r.warnings, r.anderweitigeArbeiten),
+              uncertainFields: (r.uncertainFields as any) ?? undefined,
+            };
+          }),
         },
       },
       include: {
@@ -63,7 +144,7 @@ export class ContainerListsService {
       },
     });
 
-    return list;
+    return this.hydrateListRows(list);
   }
 
   /**
@@ -119,7 +200,7 @@ export class ContainerListsService {
       throw new NotFoundException(`ContainerList with ID ${id} not found`);
     }
 
-    return list;
+    return this.hydrateListRows(list);
   }
 
   /**
@@ -128,8 +209,7 @@ export class ContainerListsService {
   async update(id: string, dto: UpdateContainerListDto) {
     await this.findOne(id); // Ensure exists
 
-    return this.prisma.$transaction(async (tx) => {
-      // 1. Update parent
+    const updated = await this.prisma.$transaction(async (tx) => {
       const updateData: any = {};
       if (dto.site !== undefined) updateData.site = dto.site;
       if (dto.title !== undefined) updateData.title = dto.title;
@@ -137,37 +217,44 @@ export class ContainerListsService {
       if (dto.status !== undefined) updateData.status = dto.status;
       if (dto.notes !== undefined) updateData.notes = dto.notes;
 
-      // 2. If rows are provided, replace them
       if (dto.rows && Array.isArray(dto.rows)) {
         await tx.containerListRow.deleteMany({
           where: { containerListId: id },
         });
 
         await tx.containerListRow.createMany({
-          data: dto.rows.map((r, index) => ({
-            containerListId: id,
-            rowOrder: r.rowOrder ?? index,
-            date: r.date,
-            containerNumber: r.containerNumber,
-            fuss: r.fuss,
-            artikel: r.artikel,
-            kartons: r.kartons,
-            termin: r.termin,
-            ankunft: r.ankunft,
-            start: r.start,
-            ende: r.ende,
-            personal: r.personal,
-            wartezeitVon: r.wartezeitVon,
-            wartezeitBis: r.wartezeitBis,
-            wartezeitStd: r.wartezeitStd,
-            wickel: r.wickel,
-            preis: r.preis,
-            ps: r.ps,
-            extraTeam: r.extraTeam,
-            bemerkung: r.bemerkung,
-            warnings: (r.warnings as any) ?? undefined,
-            uncertainFields: (r.uncertainFields as any) ?? undefined,
-          })),
+          data: dto.rows.map((r, index) => {
+            const calc = calculateRowWaitingWorkerHours(r);
+            const computedWartezeitStd =
+              (r.wartezeitVon || r.wartezeitBis) && r.personal && r.personal > 0
+                ? formatGermanStd(calc.workerHours).replace(/\s*Std\.$/, '')
+                : r.wartezeitStd;
+
+            return {
+              containerListId: id,
+              rowOrder: r.rowOrder ?? index,
+              date: r.date,
+              containerNumber: r.containerNumber,
+              fuss: r.fuss,
+              artikel: r.artikel,
+              kartons: r.kartons,
+              termin: r.termin,
+              ankunft: r.ankunft,
+              start: r.start,
+              ende: r.ende,
+              personal: r.personal,
+              wartezeitVon: r.wartezeitVon,
+              wartezeitBis: r.wartezeitBis,
+              wartezeitStd: computedWartezeitStd,
+              wickel: r.wickel,
+              preis: r.preis,
+              ps: r.ps,
+              extraTeam: r.extraTeam,
+              bemerkung: r.bemerkung,
+              warnings: this.serializeRowWarnings(r.warnings, r.anderweitigeArbeiten),
+              uncertainFields: (r.uncertainFields as any) ?? undefined,
+            };
+          }),
         });
       }
 
@@ -180,18 +267,52 @@ export class ContainerListsService {
         },
       });
     });
+
+    return this.hydrateListRows(updated);
   }
 
   /**
-   * Export a saved container list to the site's original Excel template
-   * using exceljs. Clears previous data rows, fills new rows, preserves
-   * template formatting / formulas / number formats.
+   * Converts a 1-based column index to Excel column letter (1 -> A, 2 -> B, etc.).
+   */
+  private colToLetter(col: number): string {
+    let temp = col;
+    let letter = '';
+    while (temp > 0) {
+      const rem = (temp - 1) % 26;
+      letter = String.fromCharCode(65 + rem) + letter;
+      temp = Math.floor((temp - 1) / 26);
+    }
+    return letter;
+  }
+
+  /**
+   * Resolves canonical template filename for a site name.
+   */
+  private resolveTemplateFileName(site: string, templatesDir: string): string {
+    const matched = matchCustomerSite(site);
+    const candidateSite = matched.matchedSite || site;
+    const directPath = path.join(templatesDir, `${candidateSite}.xlsx`);
+    if (fs.existsSync(directPath)) {
+      return `${candidateSite}.xlsx`;
+    }
+    const files = fs.readdirSync(templatesDir).filter((f) => f.endsWith('.xlsx'));
+    const ciMatch = files.find(
+      (f) => f.toLowerCase() === `${candidateSite.toLowerCase()}.xlsx`,
+    );
+    if (ciMatch) return ciMatch;
+    return `${site}.xlsx`;
+  }
+
+  /**
+   * Export a saved container list to the site's original Excel template using exceljs.
+   * Preserves original weekly/daily blocks, summary rows, Dauer formulas (Ende - Start),
+   * Summe formulas, combined Wartezeit von-bis text cell, and Schwalbe-only summary/headers.
    */
   async exportXlsx(id: string) {
     const list = await this.findOne(id);
 
     const templatesDir = path.join(process.cwd(), 'templates', 'container-lists');
-    const templateFileName = `${list.site}.xlsx`;
+    const templateFileName = this.resolveTemplateFileName(list.site, templatesDir);
     const templatePath = path.join(templatesDir, templateFileName);
 
     if (!fs.existsSync(templatePath)) {
@@ -201,190 +322,448 @@ export class ContainerListsService {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(templatePath);
 
-    // Sheet names are like "KW " (with trailing space for Gant) or "KW"
-    const sheet = workbook.getWorksheet(list.site === 'Gant' ? 'KW ' : 'KW') 
-      || workbook.worksheets.find((ws) => ws.name.trim() === list.site) 
-      || workbook.worksheets[0];
+    const sheet =
+      workbook.getWorksheet(list.site === 'Gant' ? 'KW ' : 'KW') ||
+      workbook.worksheets.find((ws) => ws.name.trim() === 'KW') ||
+      workbook.worksheets[0];
 
     if (!sheet) {
       throw new Error('No worksheet found in template');
     }
 
-    // Detect the header row dynamically: all current templates have headers in
-    // row 1 and data from row 2, but hardcoding that broke when the assumption
-    // drifted - scan the first rows for the row holding the Datum/Container headers.
+    // 1. Detect header row dynamically
     let headerRow = 1;
     for (let r = 1; r <= Math.min(6, sheet.rowCount); r++) {
       const texts: string[] = [];
       sheet.getRow(r).eachCell({ includeEmpty: false }, (cell) => {
         if (cell.value) texts.push(String(cell.value).trim().toLowerCase());
       });
-      if (texts.some((t) => t.includes('datum')) && texts.some((t) => t.includes('container'))) {
+      if (
+        texts.some((t) => t.includes('datum')) &&
+        texts.some((t) => t.includes('container'))
+      ) {
         headerRow = r;
         break;
       }
     }
-    const firstDataRow = headerRow + 1;
 
-    // Identify column indexes from header row by normalized header text
-    const colIndex = (field: string, aliases: string[]): number => {
-      const headers: string[] = [];
-      sheet.getRow(headerRow).eachCell({ includeEmpty: true }, (cell, col) => {
-        if (cell.value) {
-          const val = String(cell.value).trim().toLowerCase();
-          headers.push(`${col}:${val}`);
-          const alias = aliases.find((a) => val.includes(a));
-          if (alias) return col; // will be overwritten by last match, so break logic better
-        }
-      });
-      // simple loop approach below
-      const cellMap = new Map<string, number>();
-      sheet.getRow(headerRow).eachCell({ includeEmpty: true }, (cell, col) => {
-        if (cell.value) {
-          cellMap.set(String(cell.value).trim().toLowerCase(), col);
-        }
-      });
-      for (const alias of aliases) {
-        const found = [...cellMap.keys()].find((k) => k.includes(alias.toLowerCase()));
-        if (found) return cellMap.get(found)!;
+    // 2. Map columns strictly from headerRow
+    const headerCells = new Map<number, string>();
+    sheet.getRow(headerRow).eachCell({ includeEmpty: false }, (cell, col) => {
+      if (cell.value !== null && cell.value !== undefined) {
+        const normalizedHeader = String(cell.value)
+          .replace(/\s+/g, ' ')
+          .trim()
+          .toLowerCase();
+        headerCells.set(col, normalizedHeader);
+      }
+    });
+
+    const findCol = (predicate: (h: string) => boolean): number => {
+      for (const [col, h] of headerCells.entries()) {
+        if (predicate(h)) return col;
       }
       return -1;
     };
 
     const idx = {
-      date: colIndex('date', ['datum', 'we-datum']),
-      container: colIndex('container', ['containernr', 'container nr', 'container no', 'container number']),
-      fuss: colIndex('fuss', ['fuß', 'fuss', 'fuß lkw', 'fuss lkw']),
-      artikel: colIndex('artikel', ['artikel', 'anzahl artikel']),
-      kartons: colIndex('kartons', ['kartons', 'anzahl kartons']),
-      termin: colIndex('termin', ['termin']),
-      ankunft: colIndex('ankunft', ['ankunft']),
-      start: colIndex('start', ['beginn der entw', 'start', 'beginn']),
-      ende: colIndex('ende', ['ende der entw', 'ende', 'end']),
-      personal: colIndex('personal', ['personal']),
-      wartezeitVon: colIndex('wartezeitvon', ['wartezeit von', 'wartezeit von-bis', 'wartezeit']),
-      wartezeitBis: colIndex('wartezeitbis', ['wartezeit von', 'wartezeit von-bis', 'wartezeit']),
-      wartezeitStd: colIndex('wartezeitstd', ['dauer', 'wartezeit', 'dauer']),
-      wickel: colIndex('wickel', ['wickel']),
-      preis: colIndex('preis', ['preis']),
-      ps: colIndex('ps', ['ps']),
-      extraTeam: colIndex('extrateam', ['extra team', 'extrateam']),
-      bemerkung: colIndex('bemerkung', ['bemerkung', 'kunde']),
+      pos: 1,
+      date: findCol((h) => h === 'datum' || h === 'we-datum' || h.includes('datum')),
+      container: findCol((h) => h.includes('container')),
+      fuss: findCol((h) => h.startsWith('fuß') || h.startsWith('fuss')),
+      artikel: findCol((h) => h.includes('artikel')),
+      kartons: findCol((h) => h.includes('karton')),
+      termin: findCol((h) => h === 'termin' || h.includes('termin')),
+      ankunft: findCol((h) => h === 'ankunft' || h.includes('ankunft')),
+      start: findCol((h) => h.includes('beginn') || h === 'start'),
+      ende: findCol((h) => h.includes('ende') || h === 'end'),
+      dauer: findCol((h) => h === 'dauer'),
+      personal: findCol((h) => h === 'personal' || h === 'personal anzahl' || h.includes('personal')),
+      wartezeit: findCol((h) => h.startsWith('wartezeit')),
+      wickel: findCol((h) => h === 'wickel' || h.includes('wickel')),
+      kunde: findCol((h) => h === 'kunde'),
+      preis: findCol((h) => h === 'preis'),
+      ps: findCol((h) => h === 'ps.' || h === 'ps'),
+      bemerkung: findCol((h) => h === 'bemerkung'),
+      extraTeam: findCol((h) => h.includes('extra team')),
     };
 
-    // Clear old data rows (from row firstDataRow to max row with content, or until e.g. row 1000)
-    const maxRow = Math.max(sheet.actualRowCount || 0, sheet.rowCount, 150);
-    for (let r = firstDataRow; r <= maxRow; r++) {
-      sheet.getRow(r).values = [];
-      for (let c = 1; c <= sheet.columnCount; c++) {
-        const cell = sheet.getCell(r, c);
-        cell.value = null;
+    // 3. Discover template blocks, summary rows, and grand total row
+    const blocks: TemplateBlock[] = [];
+    let currentDataRows: number[] = [];
+    let grandTotalRow = -1;
+
+    const getCellText = (r: number, c: number): string => {
+      if (c <= 0) return '';
+      const val = sheet.getCell(r, c).value;
+      if (val === null || val === undefined) return '';
+      if (typeof val === 'object') {
+        if ('formula' in val || 'sharedFormula' in val) {
+          return String((val as any).result ?? '');
+        }
+        if ('richText' in val && Array.isArray((val as any).richText)) {
+          return (val as any).richText.map((t: any) => t.text || '').join('');
+        }
+      }
+      return String(val);
+    };
+
+    for (let r = headerRow + 1; r <= sheet.rowCount; r++) {
+      const colCText = getCellText(r, idx.container > 0 ? idx.container : 3).trim();
+      const colCNormalized = colCText.replace(/\s+/g, ' ').toLowerCase();
+
+      // Check if this row is the grand total row ("Summe", "SUMME:", or SUM formula in Preis)
+      const preisCellVal = idx.preis > 0 ? sheet.getCell(r, idx.preis).value : null;
+      const hasSumFormula =
+        preisCellVal &&
+        typeof preisCellVal === 'object' &&
+        'formula' in preisCellVal &&
+        String((preisCellVal as any).formula).toUpperCase().includes('SUM(');
+
+      let hasSummeLabel = false;
+      sheet.getRow(r).eachCell({ includeEmpty: false }, (cell) => {
+        const txt = String(cell.value ?? '').trim().toLowerCase();
+        if (txt.startsWith('summe')) hasSummeLabel = true;
+      });
+
+      if (hasSumFormula || hasSummeLabel) {
+        grandTotalRow = r;
+        break;
+      }
+
+      // Check if this row is a Wartezeit summary row
+      if (
+        colCNormalized === 'wartezeit' ||
+        colCNormalized === 'gesamt wartezeit'
+      ) {
+        // Find which column holds the "0 Std." / "1:40 Std." summary value
+        let wzValCol = -1;
+        sheet.getRow(r).eachCell({ includeEmpty: false }, (cell, col) => {
+          if (col === (idx.container > 0 ? idx.container : 3)) return;
+          const txt = String(cell.value ?? '').trim().toLowerCase();
+          if (txt.includes('std')) {
+            wzValCol = col;
+          }
+        });
+        if (wzValCol < 0) {
+          wzValCol = idx.kartons > 0 ? idx.kartons : 6;
+        }
+
+        const block: TemplateBlock = {
+          dataRows: [...currentDataRows],
+          wartezeitSummaryRow: r,
+          wartezeitLabelCol: idx.container > 0 ? idx.container : 3,
+          wartezeitValueCol: wzValCol,
+        };
+        currentDataRows = [];
+
+        // Check if next row is Schwalbe's "Gesamt Personal Std. ohne Wartezeit"
+        const nextRow = r + 1;
+        if (nextRow <= sheet.rowCount) {
+          const nextCText = getCellText(
+            nextRow,
+            idx.container > 0 ? idx.container : 3,
+          )
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toLowerCase();
+          if (nextCText.includes('gesamt personal std. ohne wartezeit')) {
+            let pStdValCol = idx.personal > 0 ? idx.personal : 13;
+            sheet.getRow(nextRow).eachCell({ includeEmpty: false }, (cell, col) => {
+              if (col === (idx.container > 0 ? idx.container : 3)) return;
+              const txt = String(cell.value ?? '').trim().toLowerCase();
+              if (txt.includes('std')) {
+                pStdValCol = col;
+              }
+            });
+            block.personalStdSummaryRow = nextRow;
+            block.personalStdLabelCol = idx.container > 0 ? idx.container : 3;
+            block.personalStdValueCol = pStdValCol;
+            r = nextRow; // Advance past the second summary row
+          }
+        }
+
+        blocks.push(block);
+        continue;
+      }
+
+      // Regular container data row in current block
+      const posVal = sheet.getCell(r, 1).value;
+      const kundeVal = idx.kunde > 0 ? getCellText(r, idx.kunde).trim() : '';
+      if (posVal !== null && posVal !== undefined && String(posVal).trim() !== '' || kundeVal) {
+        currentDataRows.push(r);
       }
     }
 
-    const nowDate = new Date();
-    const rows = list.rows || [];
+    // 4. Capture template defaults from the first data row before cleaning
+    const sampleRowNum = blocks[0]?.dataRows[0] ?? headerRow + 1;
+    const rawPosSample = sheet.getCell(sampleRowNum, 1).value;
+    const usesNumericPos = typeof rawPosSample === 'number';
+    const defaultKundeVal =
+      idx.kunde > 0
+        ? getCellText(sampleRowNum, idx.kunde).trim() || list.site
+        : list.site;
+    const rawDefaultFuss =
+      idx.fuss > 0 ? sheet.getCell(sampleRowNum, idx.fuss).value : null;
+    const defaultFussVal =
+      rawDefaultFuss !== null && rawDefaultFuss !== undefined && String(rawDefaultFuss).trim() !== ''
+        ? rawDefaultFuss
+        : null;
 
-    // Number format for time: "hh:mm"
-    const timeFmt = 'hh:mm';
+    // 5. Group input rows into blocks (by distinct date when <= blocks.length, else by ISO week / sequential blocks)
+    const inputRows = [...(list.rows || [])];
+    const dateGroups: { key: string; rows: any[] }[] = [];
+    let lastDateKey = '';
 
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i];
-      const excelRow = firstDataRow + i;
+    for (const r of inputRows) {
+      const rawDate = (r.date || '').trim();
+      const effectiveKey = rawDate || lastDateKey || '__block_0__';
+      if (rawDate) lastDateKey = rawDate;
 
-      const timeToCell = (val: string): Date | any => {
-        if (!val) return null;
-        const m = val.trim().match(/^(\d{1,2}):(\d{2})$/);
-        if (!m) return null;
-        const d = new Date(nowDate);
-        d.setHours(parseInt(m[1], 10), parseInt(m[2], 10), 0, 0);
-        return d;
-      };
+      let group = dateGroups.find((g) => g.key === effectiveKey);
+      if (!group) {
+        group = { key: effectiveKey, rows: [] };
+        dateGroups.push(group);
+      }
+      group.rows.push(r);
+    }
 
-      if (idx.date >= 0) {
-        // Datum column holds the date as written on the sheet (e.g. "25.10" or "2026-10-25"),
-        // not a time value - the time-parser always returned null here and the column stayed empty.
-        const iso = (r.date || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
-        if (iso) {
-          sheet.getCell(excelRow, idx.date).value = new Date(parseInt(iso[1], 10), parseInt(iso[2], 10) - 1, parseInt(iso[3], 10));
-          sheet.getCell(excelRow, idx.date).numFmt = 'dd.mm.yy';
-        } else {
+    // Map groups to template blocks
+    const assignedBlockRows: any[][] = blocks.map(() => []);
+    if (dateGroups.length <= blocks.length) {
+      dateGroups.forEach((g, idxGroup) => {
+        assignedBlockRows[idxGroup] = g.rows;
+      });
+    } else {
+      // More date groups than template blocks: group by ISO calendar week or distribute across blocks
+      const weekGroups: { key: string; rows: any[] }[] = [];
+      for (const g of dateGroups) {
+        const weekKey = this.getIsoWeekKey(g.key);
+        let wg = weekGroups.find((w) => w.key === weekKey);
+        if (!wg) {
+          wg = { key: weekKey, rows: [] };
+          weekGroups.push(wg);
+        }
+        wg.rows.push(...g.rows);
+      }
+      weekGroups.forEach((wg, idxWeek) => {
+        const targetBlock = Math.min(idxWeek, blocks.length - 1);
+        assignedBlockRows[targetBlock].push(...wg.rows);
+      });
+    }
+
+    // If any block has more assigned rows than pre-allocated dataRows in the template,
+    // insert additional rows into that block from bottom block to top block so indices stay aligned.
+    for (let b = blocks.length - 1; b >= 0; b--) {
+      const needed = assignedBlockRows[b].length;
+      const available = blocks[b].dataRows.length;
+      if (needed > available && available > 0) {
+        const extra = needed - available;
+        const lastDataRow = blocks[b].dataRows[available - 1];
+        sheet.duplicateRow(lastDataRow, extra, true);
+
+        // Update row indices for current block and all subsequent blocks + grandTotalRow
+        for (let k = 1; k <= extra; k++) {
+          blocks[b].dataRows.push(lastDataRow + k);
+        }
+        blocks[b].wartezeitSummaryRow += extra;
+        if (blocks[b].personalStdSummaryRow !== undefined) {
+          blocks[b].personalStdSummaryRow! += extra;
+        }
+        for (let nextB = b + 1; nextB < blocks.length; nextB++) {
+          blocks[nextB].dataRows = blocks[nextB].dataRows.map((rn) => rn + extra);
+          blocks[nextB].wartezeitSummaryRow += extra;
+          if (blocks[nextB].personalStdSummaryRow !== undefined) {
+            blocks[nextB].personalStdSummaryRow! += extra;
+          }
+        }
+        if (grandTotalRow > 0) {
+          grandTotalRow += extra;
+        }
+      }
+    }
+
+    const startColLetter = idx.start > 0 ? this.colToLetter(idx.start) : '';
+    const endeColLetter = idx.ende > 0 ? this.colToLetter(idx.ende) : '';
+
+    const toTimeCellValue = (val: string | null | undefined): number | string | null => {
+      if (!val || !String(val).trim()) return null;
+      const s = String(val).trim();
+      const parsed = parseClockTime(s, true);
+      if (parsed.minutes !== null && !parsed.isUnclear) {
+        return parsed.minutes / 1440;
+      }
+      return s;
+    };
+
+    const setTimeCell = (rowNum: number, colNum: number, val: string | null | undefined) => {
+      if (colNum <= 0) return;
+      const cell = sheet.getCell(rowNum, colNum);
+      const converted = toTimeCellValue(val);
+      cell.value = converted;
+      if (typeof converted === 'number') {
+        cell.numFmt = 'h:mm';
+      }
+    };
+
+    // 6. Populate each block's container rows and summary rows
+    for (let b = 0; b < blocks.length; b++) {
+      const block = blocks[b];
+      const bRows = assignedBlockRows[b] || [];
+      let blockWartezeitWorkerHours = 0;
+      let blockWorkWorkerHoursOhneWartezeit = 0;
+
+      for (let s = 0; s < block.dataRows.length; s++) {
+        const excelRow = block.dataRows[s];
+        const r = bRows[s];
+
+        // Position number in Col A
+        sheet.getCell(excelRow, 1).value = usesNumericPos ? s + 1 : `${s + 1}.`;
+
+        // Clear mutable data cells first (cleans sample row in Gant.xlsx while preserving styles)
+        const clearCols = [
+          idx.date,
+          idx.container,
+          idx.artikel,
+          idx.kartons,
+          idx.termin,
+          idx.ankunft,
+          idx.start,
+          idx.ende,
+          idx.personal,
+          idx.wartezeit,
+          idx.wickel,
+          idx.preis,
+          idx.ps,
+          idx.bemerkung,
+          idx.extraTeam,
+        ];
+        for (const c of clearCols) {
+          if (c > 0) sheet.getCell(excelRow, c).value = null;
+        }
+        if (idx.fuss > 0) {
+          sheet.getCell(excelRow, idx.fuss).value = defaultFussVal;
+        }
+        if (idx.kunde > 0) {
+          sheet.getCell(excelRow, idx.kunde).value = defaultKundeVal;
+        }
+
+        // Compute Dauer formula (Ende - Start) and preserve it on every container row
+        let dauerResult = 0;
+        if (r) {
+          const pStart = parseClockTime(r.start, true);
+          const pEnde = parseClockTime(r.ende, true);
+          if (
+            pStart.minutes !== null &&
+            pEnde.minutes !== null &&
+            pEnde.minutes >= pStart.minutes
+          ) {
+            dauerResult = (pEnde.minutes - pStart.minutes) / 1440;
+          }
+        }
+        if (idx.dauer > 0 && startColLetter && endeColLetter) {
+          const dauerCell = sheet.getCell(excelRow, idx.dauer);
+          dauerCell.value = {
+            formula: `${endeColLetter}${excelRow}-${startColLetter}${excelRow}`,
+            result: dauerResult,
+          };
+          dauerCell.numFmt = 'h:mm';
+        }
+
+        if (!r) continue;
+
+        // Populate row values
+        if (idx.date > 0) {
           sheet.getCell(excelRow, idx.date).value = r.date || null;
         }
-      }
-      if (idx.container >= 0) {
-        sheet.getCell(excelRow, idx.container).value = r.containerNumber || null;
-        sheet.getCell(excelRow, idx.container).font = { bold: true };
-      }
-      if (idx.fuss >= 0) {
-        sheet.getCell(excelRow, idx.fuss).value = r.fuss || null;
-      }
-      if (idx.artikel >= 0) {
-        sheet.getCell(excelRow, idx.artikel).value = r.artikel || null;
-      }
-      if (idx.kartons >= 0) {
-        sheet.getCell(excelRow, idx.kartons).value = r.kartons ?? null;
-      }
-      if (idx.termin >= 0) {
-        sheet.getCell(excelRow, idx.termin).value = timeToCell(r.termin || '');
-      }
-      if (idx.ankunft >= 0) {
-        sheet.getCell(excelRow, idx.ankunft).value = timeToCell(r.ankunft || '');
-      }
-      if (idx.start >= 0) {
-        sheet.getCell(excelRow, idx.start).value = timeToCell(r.start || '');
-      }
-      if (idx.ende >= 0) {
-        sheet.getCell(excelRow, idx.ende).value = timeToCell(r.ende || '');
-      }
-      if (idx.personal >= 0) {
-        sheet.getCell(excelRow, idx.personal).value = r.personal ?? null;
-        sheet.getCell(excelRow, idx.personal).numFmt = '0';
-      }
-
-      // Wartezeit Von/Bis handled via wartezeitVon/wartezeitBis if indices exist, but template Dauer formula handles calculation.
-      // For Gant, Dauer = H2-G2 formula; we can set values and let formula recalc? Simpler: set values, formula remains.
-      // To be safe, set Von/Bis into their columns if mapped.
-      if (idx.wartezeitVon >= 0) {
-        sheet.getCell(excelRow, idx.wartezeitVon).value = timeToCell(r.wartezeitVon || '');
-      }
-      if (idx.wartezeitBis >= 0) {
-        sheet.getCell(excelRow, idx.wartezeitBis).value = timeToCell(r.wartezeitBis || '');
-      }
-
-      // Set calculated Wartezeit Std (Dauer) if no formula? We keep template formulas for Dauer.
-      // If wartezeitStd provided, set it (overriding formula) - but requirement says preserve formulas.
-      // For now: set value for 'dauer' if mapped and wartezeitStd present (formula may not compute correctly with time diff).
-      if (idx.wartezeitStd >= 0 && r.wartezeitStd) {
-        const calc = r.wartezeitStd; // format like "1:40" or "0"
-        const d = new Date(nowDate);
-        const parts = calc.split(':');
-        if (parts.length === 2) {
-          d.setHours(parseInt(parts[0], 10) || 0, parseInt(parts[1], 10) || 0, 0, 0);
-        } else if (parseInt(calc, 10) > 0) {
-          d.setHours(parseInt(calc, 10), 0, 0, 0);
+        if (idx.container > 0) {
+          sheet.getCell(excelRow, idx.container).value = r.containerNumber || null;
         }
-        sheet.getCell(excelRow, idx.wartezeitStd).value = d;
-        sheet.getCell(excelRow, idx.wartezeitStd).numFmt = timeFmt;
+        if (idx.fuss > 0) {
+          const fussRaw = r.fuss !== undefined && r.fuss !== null && String(r.fuss).trim() !== ''
+            ? r.fuss
+            : defaultFussVal;
+          sheet.getCell(excelRow, idx.fuss).value =
+            fussRaw !== null && !isNaN(Number(fussRaw)) ? Number(fussRaw) : fussRaw;
+        }
+        if (idx.artikel > 0) {
+          const artRaw = r.artikel;
+          sheet.getCell(excelRow, idx.artikel).value =
+            artRaw !== undefined && artRaw !== null && String(artRaw).trim() !== ''
+              ? !isNaN(Number(artRaw))
+                ? Number(artRaw)
+                : String(artRaw)
+              : null;
+        }
+        if (idx.kartons > 0) {
+          sheet.getCell(excelRow, idx.kartons).value = r.kartons ?? null;
+        }
+        setTimeCell(excelRow, idx.termin, r.termin);
+        setTimeCell(excelRow, idx.ankunft, r.ankunft);
+        setTimeCell(excelRow, idx.start, r.start);
+        setTimeCell(excelRow, idx.ende, r.ende);
+
+        if (idx.personal > 0) {
+          sheet.getCell(excelRow, idx.personal).value = r.personal ?? null;
+        }
+
+        // Wartezeit von-bis is ONE combined text cell (e.g. "09:00 bis 09:50")
+        if (idx.wartezeit > 0) {
+          sheet.getCell(excelRow, idx.wartezeit).value = formatCombinedWartezeitCell(
+            r.wartezeitVon,
+            r.wartezeitBis,
+          );
+        }
+
+        if (idx.wickel > 0) {
+          sheet.getCell(excelRow, idx.wickel).value = r.wickel || null;
+        }
+        if (idx.preis > 0) {
+          sheet.getCell(excelRow, idx.preis).value = r.preis ?? null;
+        }
+        if (idx.ps > 0) {
+          sheet.getCell(excelRow, idx.ps).value = r.ps || null;
+        }
+        if (idx.extraTeam > 0) {
+          sheet.getCell(excelRow, idx.extraTeam).value = r.extraTeam || null;
+        }
+        if (idx.bemerkung > 0) {
+          sheet.getCell(excelRow, idx.bemerkung).value = r.bemerkung || null;
+        }
+
+        // Accumulate waiting worker-hours (with deductions for anderweitigeArbeiten)
+        const wzCalc = calculateRowWaitingWorkerHours(r);
+        blockWartezeitWorkerHours += wzCalc.workerHours;
+
+        // Accumulate work worker-hours without waiting time (for Schwalbe)
+        const workCalc = calculateRowWorkWorkerHoursWithoutWaiting(r);
+        blockWorkWorkerHoursOhneWartezeit += workCalc.workerHours;
       }
 
-      if (idx.wickel >= 0) {
-        sheet.getCell(excelRow, idx.wickel).value = r.wickel || null;
+      // Write block Wartezeit summary cell
+      sheet.getCell(block.wartezeitSummaryRow, block.wartezeitValueCol).value =
+        formatGermanStd(blockWartezeitWorkerHours);
+
+      // Write Schwalbe-only "Gesamt Personal Std. ohne Wartezeit" summary cell if present in template
+      if (
+        block.personalStdSummaryRow !== undefined &&
+        block.personalStdValueCol !== undefined
+      ) {
+        sheet.getCell(block.personalStdSummaryRow, block.personalStdValueCol).value =
+          formatGermanStd(blockWorkWorkerHoursOhneWartezeit);
       }
-      if (idx.preis >= 0) {
-        sheet.getCell(excelRow, idx.preis).value = r.preis ?? null;
-        sheet.getCell(excelRow, idx.preis).numFmt = '#,##0.00 "€"';
-      }
-      if (idx.ps >= 0) {
-        sheet.getCell(excelRow, idx.ps).value = r.ps || null;
-      }
-      if (idx.extraTeam >= 0) {
-        sheet.getCell(excelRow, idx.extraTeam).value = r.extraTeam || null;
-        sheet.getCell(excelRow, idx.extraTeam).numFmt = '#,##0.00 "€"';
-      }
-      if (idx.bemerkung >= 0) {
-        sheet.getCell(excelRow, idx.bemerkung).value = r.bemerkung || null;
-      }
+    }
+
+    // 7. Preserve Grand Total SUM formula
+    if (grandTotalRow > 0 && idx.preis > 0) {
+      const preisColLetter = this.colToLetter(idx.preis);
+      const firstRow = headerRow + 1;
+      const lastRow = grandTotalRow - 1;
+      const totalPreis = inputRows.reduce((sum, r) => sum + (Number(r.preis) || 0), 0);
+      sheet.getCell(grandTotalRow, idx.preis).value = {
+        formula: `SUM(${preisColLetter}${firstRow}:${preisColLetter}${lastRow})`,
+        result: totalPreis,
+      };
     }
 
     const outDir = path.join(process.cwd(), 'storage', 'exports');
@@ -394,6 +773,34 @@ export class ContainerListsService {
     fs.writeFileSync(outFile, buffer as any);
 
     return { filePath: outFile, filename: path.basename(outFile) };
+  }
+
+  private getIsoWeekKey(dateStr: string): string {
+    const isoMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    let d: Date | null = null;
+    if (isoMatch) {
+      d = new Date(
+        Date.UTC(
+          parseInt(isoMatch[1], 10),
+          parseInt(isoMatch[2], 10) - 1,
+          parseInt(isoMatch[3], 10),
+        ),
+      );
+    } else {
+      const deMatch = dateStr.match(/^(\d{1,2})\.(\d{1,2})\.?(\d{2,4})?/);
+      if (deMatch) {
+        const yearRaw = deMatch[3] ? parseInt(deMatch[3], 10) : new Date().getUTCFullYear();
+        const year = yearRaw < 100 ? 2000 + yearRaw : yearRaw;
+        d = new Date(Date.UTC(year, parseInt(deMatch[2], 10) - 1, parseInt(deMatch[1], 10)));
+      }
+    }
+    if (!d || isNaN(d.getTime())) return dateStr;
+
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+    return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
   }
 
   /**
@@ -416,7 +823,6 @@ export class ContainerListsService {
     const stream = fs.createWriteStream(outFile);
     doc.pipe(stream);
 
-    // Header
     doc
       .fontSize(14)
       .font('Helvetica-Bold')
@@ -424,23 +830,38 @@ export class ContainerListsService {
     doc
       .fontSize(10)
       .font('Helvetica')
-      .text(`Titel: ${list.title || '—'}  |  Datum: ${list.date ? new Date(list.date).toLocaleDateString('de-DE') : '—'}  |  Erfasst am: ${new Date(list.createdAt).toLocaleDateString('de-DE')}`,
-        { align: 'center' });
+      .text(
+        `Titel: ${list.title || '—'}  |  Datum: ${list.date ? new Date(list.date).toLocaleDateString('de-DE') : '—'}  |  Erfasst am: ${new Date(list.createdAt).toLocaleDateString('de-DE')}`,
+        { align: 'center' },
+      );
     doc.moveDown(1);
 
-    // Column headers (German matching template)
+    const isSchwalbe = matchCustomerSite(list.site).matchedSite === 'Schwalbe';
+    const isGant = matchCustomerSite(list.site).matchedSite === 'Gant';
+
     const headers = [
-      'Pos.', 'Datum', 'Container-Nr.', 'Fuß', 'Artikel', 'Kartons', 'Termin',
-      'Ankunft', 'Start', 'Ende', 'Pers.', 'Wartezeit Std', 'Wickel', 'Bemerkung',
+      'Pos.',
+      'Datum',
+      'Container-Nr.',
+      'Fuß',
+      'Artikel',
+      'Kartons',
+      'Termin',
+      'Ankunft',
+      'Start',
+      'Ende',
+      isSchwalbe ? 'Personal Anzahl' : 'Pers.',
+      isGant ? 'Wartezeit' : 'Wartezeit Von-Bis',
+      'Wickel',
+      'Bemerkung',
     ];
 
-    const colWidths = [26, 52, 90, 28, 50, 34, 40, 40, 40, 40, 28, 55, 40, 110];
+    const colWidths = [24, 50, 86, 26, 46, 34, 38, 38, 38, 38, 36, 70, 38, 100];
     let y = doc.y;
     const startX = 40;
 
-    // Table Header
     let x = startX;
-    doc.font('Helvetica-Bold').fontSize(8).fillColor('#374151');
+    doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#374151');
     headers.forEach((h, i) => {
       doc
         .rect(x - 1, y - 1, colWidths[i] + 2, 14)
@@ -453,10 +874,18 @@ export class ContainerListsService {
     });
     y += 16;
 
-    // Table Rows
-    rows.forEach((r, idx) => {
+    let totalWaitingWorkerHours = 0;
+    let totalWorkWorkerHoursOhneWartezeit = 0;
+
+    rows.forEach((r, idxRow) => {
+      const combinedWz = formatCombinedWartezeitCell(r.wartezeitVon, r.wartezeitBis) || '';
+      const wzCalc = calculateRowWaitingWorkerHours(r);
+      totalWaitingWorkerHours += wzCalc.workerHours;
+      const workCalc = calculateRowWorkWorkerHoursWithoutWaiting(r);
+      totalWorkWorkerHoursOhneWartezeit += workCalc.workerHours;
+
       const rowVals = [
-        String(idx + 1),
+        String(idxRow + 1),
         r.date || '',
         r.containerNumber || '',
         r.fuss || '',
@@ -467,7 +896,7 @@ export class ContainerListsService {
         r.start || '',
         r.ende || '',
         r.personal ? String(r.personal) : '',
-        r.wartezeitStd || '',
+        combinedWz,
         r.wickel || '',
         r.bemerkung || '',
       ];
@@ -486,7 +915,7 @@ export class ContainerListsService {
             .fill(rowColor)
             .stroke('#e5e7eb');
         }
-        const align = ['Kartons', 'Pers.', 'Wartezeit Std', 'Fuß'].includes(headers[i])
+        const align = ['Kartons', 'Pers.', 'Personal Anzahl', 'Fuß'].includes(headers[i])
           ? 'right'
           : 'left';
         doc.fillColor('#111827').text(val, x, y + 1, { width: colWidths[i], align });
@@ -494,12 +923,34 @@ export class ContainerListsService {
       });
       y += 16;
 
-      // New page if needed
-      if (y > 750) {
+      if (y > 720) {
         doc.addPage({ layout: 'landscape', margin: 40 });
         y = 60;
       }
     });
+
+    y += 6;
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(9)
+      .fillColor('#111827')
+      .text(
+        `${isSchwalbe ? 'Gesamt Wartezeit' : 'Wartezeit'}: ${formatGermanStd(totalWaitingWorkerHours)}`,
+        startX,
+        y,
+      );
+    if (isSchwalbe) {
+      y += 14;
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(9)
+        .fillColor('#111827')
+        .text(
+          `Gesamt Personal Std. ohne Wartezeit: ${formatGermanStd(totalWorkWorkerHoursOhneWartezeit)}`,
+          startX,
+          y,
+        );
+    }
 
     doc.end();
 

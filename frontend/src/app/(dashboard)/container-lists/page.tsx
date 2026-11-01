@@ -12,12 +12,8 @@ import {
   RotateCw,
   Eye,
   Info,
-  Calendar,
   Building2,
-  Clock,
-  Users,
   Search,
-  ArrowRight,
   FileSpreadsheet,
   Download,
 } from "lucide-react";
@@ -28,6 +24,22 @@ interface FieldWarning {
   field: string;
   message: string;
   severity: "warning" | "error" | "info";
+}
+
+interface OtherWorkEntry {
+  personal?: number;
+  von?: string;
+  bis?: string;
+  bemerkung?: string;
+}
+
+interface CustomerMatchResult {
+  detectedCustomerRaw: string | null;
+  matchedSite: string | null;
+  matchType: "exact" | "ambiguous" | "unknown" | "none";
+  candidates: string[];
+  requiresConfirmation: boolean;
+  warning?: string;
 }
 
 interface ContainerRow {
@@ -50,6 +62,7 @@ interface ContainerRow {
   ps?: string;
   extraTeam?: string;
   bemerkung?: string;
+  anderweitigeArbeiten?: OtherWorkEntry[];
   warnings?: FieldWarning[];
   uncertainFields?: string[];
 }
@@ -76,14 +89,94 @@ const SUPPORTED_SITES = [
   "Medisana",
   "Zwilling",
   "ProHeq",
-  "Loxx",
+  "LOXX",
 ];
+
+function parseClockMinutes(val?: string | null): number | null {
+  if (!val) return null;
+  const s = val.trim();
+  const m = s.match(/^(\d{1,2})[:.](\d{2})(?::(\d{2}))?$/);
+  if (!m) return null;
+  const h = parseInt(m[1], 10);
+  const mins = parseInt(m[2], 10);
+  if (h < 0 || h >= 24 || mins < 0 || mins >= 60) return null;
+  return h * 60 + mins;
+}
+
+function formatGermanDecimalHours(hours: number): string {
+  if (!hours || isNaN(hours) || Math.abs(hours) < 1e-6) return "0";
+  const rounded = Math.round(hours * 100) / 100;
+  return rounded
+    .toFixed(2)
+    .replace(/\.?0+$/, "")
+    .replace(".", ",");
+}
+
+function computeDauerClock(start?: string, ende?: string): string {
+  const s = parseClockMinutes(start);
+  const e = parseClockMinutes(ende);
+  if (s === null || e === null || e < s) return "—";
+  const diff = e - s;
+  const h = Math.floor(diff / 60);
+  const m = diff % 60;
+  return `${h}:${String(m).padStart(2, "0")}`;
+}
+
+function computeRowWaitingDetails(row: ContainerRow): {
+  baseHours: number;
+  deductionHours: number;
+  netHours: number;
+  formattedDecimal: string;
+} {
+  const personal = Number(row.personal) || 0;
+  const v = parseClockMinutes(row.wartezeitVon);
+  const b = parseClockMinutes(row.wartezeitBis);
+  if (v === null || b === null || b <= v || personal <= 0) {
+    return { baseHours: 0, deductionHours: 0, netHours: 0, formattedDecimal: "" };
+  }
+  const baseHours = ((b - v) / 60) * personal;
+  let deductionHours = 0;
+
+  for (const entry of row.anderweitigeArbeiten || []) {
+    const ew = Math.min(Math.max(0, Number(entry.personal) || 0), personal);
+    const ev = parseClockMinutes(entry.von);
+    const eb = parseClockMinutes(entry.bis);
+    if (ew > 0 && ev !== null && eb !== null && eb > ev) {
+      const overlapStart = Math.max(v, ev);
+      const overlapEnd = Math.min(b, eb);
+      if (overlapEnd > overlapStart) {
+        deductionHours += ((overlapEnd - overlapStart) / 60) * ew;
+      }
+    }
+  }
+
+  const netHours = Math.max(0, baseHours - deductionHours);
+  return {
+    baseHours,
+    deductionHours,
+    netHours,
+    formattedDecimal: formatGermanDecimalHours(netHours),
+  };
+}
+
+function computeRowWorkHoursWithoutWaiting(row: ContainerRow): number {
+  const personal = Number(row.personal) || 0;
+  const s = parseClockMinutes(row.start);
+  const e = parseClockMinutes(row.ende);
+  if (s === null || e === null || e <= s || personal <= 0) return 0;
+  return ((e - s) / 60) * personal;
+}
 
 export default function ContainerListsPage() {
   const [activeTab, setActiveTab] = useState<"upload" | "saved">("upload");
 
-  // Extraction State
-  const [selectedSite, setSelectedSite] = useState<string>("Gant");
+  // Extraction & Customer Detection State
+  // Empty string = Automatische Kundenerkennung aus Dokument (kein stiller Standardwert!)
+  const [selectedSite, setSelectedSite] = useState<string>("");
+  const [isManualSiteOverride, setIsManualSiteOverride] = useState<boolean>(false);
+  const [isSiteConfirmed, setIsSiteConfirmed] = useState<boolean>(false);
+  const [customerDetection, setCustomerDetection] = useState<CustomerMatchResult | null>(null);
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isExtracting, setIsExtracting] = useState<boolean>(false);
   const [draftTitle, setDraftTitle] = useState<string>("");
@@ -94,6 +187,7 @@ export default function ContainerListsPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSimulatedDraft, setIsSimulatedDraft] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [expandedOtherWorkRow, setExpandedOtherWorkRow] = useState<number | null>(null);
 
   // Saved Lists State
   const [savedLists, setSavedLists] = useState<SavedContainerList[]>([]);
@@ -102,7 +196,9 @@ export default function ContainerListsPage() {
   const [filterSite, setFilterSite] = useState<string>("");
   const [selectedSavedList, setSelectedSavedList] = useState<SavedContainerList | null>(null);
 
-  // Load saved lists
+  const isSchwalbe = selectedSite === "Schwalbe";
+  const isGant = selectedSite === "Gant";
+
   const fetchSavedLists = async () => {
     setIsLoadingSaved(true);
     try {
@@ -124,8 +220,6 @@ export default function ContainerListsPage() {
     }
   };
 
-  // Download a saved list as Excel or PDF (export endpoints are JWT-guarded,
-  // so the download must go through fetch with the auth header, not window.open)
   const downloadExport = async (id: string, kind: "xlsx" | "pdf", site: string) => {
     try {
       const token = getAuthToken();
@@ -157,7 +251,6 @@ export default function ContainerListsPage() {
     }
   }, [activeTab, filterSite]);
 
-  // Handle file select
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setSelectedFile(e.target.files[0]);
@@ -166,29 +259,21 @@ export default function ContainerListsPage() {
     }
   };
 
-  // Helper: Live calculation of Wartezeit (bis - von) * personal
-  const calculateWartezeitLive = (von?: string, bis?: string, personal?: number): string => {
-    if (!von || !bis || !personal || personal <= 0) return "";
-    const parse = (t: string) => {
-      const m = t.trim().match(/^(\d{1,2}):(\d{2})$/);
-      if (!m) return null;
-      return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
-    };
-    const v = parse(von);
-    const b = parse(bis);
-    if (v === null || b === null) return "";
-    let diff = b - v;
-    if (diff < 0) diff += 24 * 60;
-    const totalMin = Math.round(diff * personal);
-    const h = Math.floor(totalMin / 60);
-    const m = totalMin % 60;
-    return `${h}:${m.toString().padStart(2, "0")}`;
+  const handleSiteSelectorChange = (value: string) => {
+    if (!value) {
+      setSelectedSite("");
+      setIsManualSiteOverride(false);
+      setIsSiteConfirmed(false);
+    } else {
+      setSelectedSite(value);
+      setIsManualSiteOverride(true);
+      setIsSiteConfirmed(true);
+    }
   };
 
-  // Extract Action
   const handleExtract = async () => {
     if (!selectedFile) {
-      setErrorMessage("Bitte wählen Sie zuerst eine Bild- oder PDF-Datei aus.");
+      setErrorMessage("Bitte wählen Sie zuerst eine Datei (Foto, PDF oder CSV) aus.");
       return;
     }
 
@@ -200,7 +285,7 @@ export default function ContainerListsPage() {
     try {
       const formData = new FormData();
       formData.append("file", selectedFile);
-      formData.append("site", selectedSite);
+      formData.append("site", isManualSiteOverride && selectedSite ? selectedSite : "AUTO");
 
       const token = getAuthToken();
       const headers: Record<string, string> = {};
@@ -218,17 +303,48 @@ export default function ContainerListsPage() {
       }
 
       const draft = await res.json();
-      setSelectedSite(draft.site || selectedSite);
-      setDraftTitle(`Entladeliste ${draft.site || selectedSite} - ${draft.date || ""}`);
+      const detection: CustomerMatchResult | null = draft.customerDetection || null;
+      setCustomerDetection(detection);
+
+      let resolvedSite = selectedSite;
+      if (isManualSiteOverride && selectedSite) {
+        // Never overwrite an explicit manual choice silently
+        resolvedSite = selectedSite;
+        setIsSiteConfirmed(true);
+      } else if (detection?.matchType === "exact" && detection.matchedSite) {
+        resolvedSite = detection.matchedSite;
+        setSelectedSite(detection.matchedSite);
+        setIsSiteConfirmed(true);
+      } else if (detection?.matchType === "ambiguous") {
+        resolvedSite = detection.matchedSite || "";
+        setSelectedSite(resolvedSite);
+        setIsSiteConfirmed(false);
+      } else {
+        // Unknown or none: do not treat any default as detected
+        resolvedSite = "";
+        setSelectedSite("");
+        setIsSiteConfirmed(false);
+      }
+
+      setDraftTitle(
+        `Entladeliste ${resolvedSite || "Kunde wählen"} - ${draft.date || ""}`,
+      );
       setDraftDate(draft.date || new Date().toISOString().slice(0, 10));
-      setDraftRows(draft.rows || []);
+      setDraftRows(
+        (draft.rows || []).map((r: ContainerRow) => ({
+          ...r,
+          anderweitigeArbeiten: r.anderweitigeArbeiten || [],
+        })),
+      );
       setGlobalWarnings(draft.globalWarnings || []);
       const simulated = !!draft.simulated;
       setIsSimulatedDraft(simulated);
       if (simulated) {
         setSuccessMessage(null);
       } else {
-        setSuccessMessage(`Erfolgreich extrahiert: ${draft.rows?.length || 0} Container-Zeilen gefunden.`);
+        setSuccessMessage(
+          `Erfolgreich extrahiert: ${draft.rows?.length || 0} Container-Zeilen gefunden.`,
+        );
       }
     } catch (err: any) {
       setErrorMessage(`Fehler bei der Extraktion: ${err.message}`);
@@ -237,24 +353,35 @@ export default function ContainerListsPage() {
     }
   };
 
-  // Update a single field in draft row
   const updateRowField = (index: number, field: keyof ContainerRow, value: any) => {
     const updated = [...draftRows];
-    const target = { ...updated[index], [field]: value };
+    const target: ContainerRow = { ...updated[index], [field]: value };
 
-    // Auto-recalculate Wartezeit Std when von/bis/personal changes
-    if (field === "wartezeitVon" || field === "wartezeitBis" || field === "personal") {
-      const calc = calculateWartezeitLive(
-        field === "wartezeitVon" ? value : target.wartezeitVon,
-        field === "wartezeitBis" ? value : target.wartezeitBis,
-        field === "personal" ? Number(value) : target.personal,
-      );
-      if (calc) target.wartezeitStd = calc;
+    // Auto-split if user pasted combined "09:00 bis 09:50" or "08:00-09:30" into wartezeitVon
+    if (field === "wartezeitVon" && typeof value === "string") {
+      const m = value
+        .trim()
+        .match(/^(\d{1,2}[:.]\d{2})\s*(?:bis|-|–)\s*(\d{1,2}[:.]\d{2})$/i);
+      if (m) {
+        target.wartezeitVon = m[1].replace(".", ":");
+        target.wartezeitBis = m[2].replace(".", ":");
+      }
     }
 
-    // Clean up warnings if resolved
+    if (
+      field === "wartezeitVon" ||
+      field === "wartezeitBis" ||
+      field === "personal" ||
+      field === "anderweitigeArbeiten"
+    ) {
+      const calc = computeRowWaitingDetails(target);
+      target.wartezeitStd = calc.formattedDecimal;
+    }
+
     if (field === "personal" && Number(value) > 0) {
-      target.uncertainFields = (target.uncertainFields || []).filter((f) => f !== "personal");
+      target.uncertainFields = (target.uncertainFields || []).filter(
+        (f) => f !== "personal",
+      );
       target.warnings = (target.warnings || []).filter((w) => w.field !== "personal");
     }
 
@@ -262,7 +389,39 @@ export default function ContainerListsPage() {
     setDraftRows(updated);
   };
 
-  // Add empty row
+  const addOtherWorkEntry = (rowIndex: number) => {
+    const row = draftRows[rowIndex];
+    const nextEntries: OtherWorkEntry[] = [
+      ...(row.anderweitigeArbeiten || []),
+      {
+        personal: 1,
+        von: row.wartezeitVon || "",
+        bis: row.wartezeitBis || "",
+        bemerkung: "",
+      },
+    ];
+    updateRowField(rowIndex, "anderweitigeArbeiten", nextEntries);
+    setExpandedOtherWorkRow(rowIndex);
+  };
+
+  const updateOtherWorkEntry = (
+    rowIndex: number,
+    entryIndex: number,
+    field: keyof OtherWorkEntry,
+    value: any,
+  ) => {
+    const row = draftRows[rowIndex];
+    const entries = [...(row.anderweitigeArbeiten || [])];
+    entries[entryIndex] = { ...entries[entryIndex], [field]: value };
+    updateRowField(rowIndex, "anderweitigeArbeiten", entries);
+  };
+
+  const removeOtherWorkEntry = (rowIndex: number, entryIndex: number) => {
+    const row = draftRows[rowIndex];
+    const entries = (row.anderweitigeArbeiten || []).filter((_, i) => i !== entryIndex);
+    updateRowField(rowIndex, "anderweitigeArbeiten", entries);
+  };
+
   const addRow = () => {
     setDraftRows([
       ...draftRows,
@@ -286,22 +445,43 @@ export default function ContainerListsPage() {
         ps: "",
         extraTeam: "",
         bemerkung: "",
+        anderweitigeArbeiten: [],
         warnings: [],
         uncertainFields: [],
       },
     ]);
   };
 
-  // Remove row
   const removeRow = (index: number) => {
     const updated = draftRows.filter((_, i) => i !== index);
     setDraftRows(updated);
   };
 
-  // Save to Database
+  // Totals across draft rows
+  const summaryStats = useMemo(() => {
+    let totalWartezeitHours = 0;
+    let totalWorkHoursOhneWartezeit = 0;
+    for (const r of draftRows) {
+      totalWartezeitHours += computeRowWaitingDetails(r).netHours;
+      totalWorkHoursOhneWartezeit += computeRowWorkHoursWithoutWaiting(r);
+    }
+    return {
+      totalWartezeitFormatted: `${formatGermanDecimalHours(totalWartezeitHours)} Std.`,
+      totalWorkHoursOhneWartezeitFormatted: `${formatGermanDecimalHours(
+        totalWorkHoursOhneWartezeit,
+      )} Std.`,
+    };
+  }, [draftRows]);
+
   const handleSaveToDatabase = async () => {
     if (draftRows.length === 0) {
       setErrorMessage("Keine Zeilen zum Speichern vorhanden.");
+      return;
+    }
+    if (!selectedSite || !isSiteConfirmed) {
+      setErrorMessage(
+        "Bitte wählen und bestätigen Sie zuerst den Kunden-Standort (Vorlage), bevor Sie die Liste speichern.",
+      );
       return;
     }
 
@@ -333,9 +513,10 @@ export default function ContainerListsPage() {
         throw new Error(err || "Fehler beim Speichern");
       }
 
-      setSuccessMessage("Containerliste erfolgreich in der Datenbank gespeichert! ✅");
+      setSuccessMessage("Containerliste erfolgreich in der Datenbank gespeichert!");
       setSelectedFile(null);
       setDraftRows([]);
+      setCustomerDetection(null);
       setActiveTab("saved");
     } catch (err: any) {
       setErrorMessage(`Speichern fehlgeschlagen: ${err.message}`);
@@ -344,14 +525,14 @@ export default function ContainerListsPage() {
     }
   };
 
-  // Filtered saved lists
   const filteredLists = useMemo(() => {
     return savedLists.filter((item) => {
       const matchSearch =
         searchQuery === "" ||
         item.site.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (item.title && item.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (item.rawFileName && item.rawFileName.toLowerCase().includes(searchQuery.toLowerCase()));
+        (item.rawFileName &&
+          item.rawFileName.toLowerCase().includes(searchQuery.toLowerCase()));
       return matchSearch;
     });
   }, [savedLists, searchQuery]);
@@ -370,7 +551,7 @@ export default function ContainerListsPage() {
             </h1>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            KI-gestützte Erfassung, Prüfung und Verwaltung von Entladelisten der Kundenstandorte.
+            KI-gestützte Erfassung, Prüfung und originalgetreuer Vorlagen-Export der Kundenstandorte.
           </p>
         </div>
 
@@ -429,23 +610,41 @@ export default function ContainerListsPage() {
       {activeTab === "upload" && (
         <div className="space-y-6">
           {/* Step 1: Upload & Configuration Box */}
-          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm">
-            <h2 className="text-base font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm space-y-4">
+            <h2 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <UploadCloud className="w-5 h-5 text-blue-600" />
-              <span>1. Original-Containerliste hochladen (Foto oder PDF)</span>
+              <span>1. Original-Containerliste hochladen (Foto, PDF oder CSV)</span>
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Site selector */}
+              {/* Site selector with Auto-Detection & Manual Override */}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
-                  Kunden-Standort (Vorlage)
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    Kunde / Standort (Vorlage)
+                  </label>
+                  {isManualSiteOverride && (
+                    <button
+                      type="button"
+                      onClick={() => handleSiteSelectorChange("")}
+                      className="text-[11px] text-blue-600 hover:underline font-medium"
+                    >
+                      Auf Auto-Erkennung zurücksetzen
+                    </button>
+                  )}
+                </div>
                 <select
                   value={selectedSite}
-                  onChange={(e) => setSelectedSite(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white font-medium focus:ring-2 focus:ring-blue-500 outline-none"
+                  onChange={(e) => handleSiteSelectorChange(e.target.value)}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border font-medium focus:ring-2 focus:ring-blue-500 outline-none ${
+                    selectedSite && isSiteConfirmed
+                      ? "border-emerald-500/60 bg-emerald-500/5 text-gray-900 dark:text-white"
+                      : "border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white"
+                  }`}
                 >
+                  <option value="">
+                    — Automatisch aus Dokument erkennen —
+                  </option>
                   {SUPPORTED_SITES.map((site) => (
                     <option key={site} value={site}>
                       {site}
@@ -453,7 +652,9 @@ export default function ContainerListsPage() {
                   ))}
                 </select>
                 <p className="text-xs text-gray-400 mt-1.5">
-                  Bestimmt das spätere Excel- und PDF-Exportlayout.
+                  {isManualSiteOverride
+                    ? `Manuelle Auswahl aktiv (${selectedSite}). Wird durch Upload nicht stillschweigend überschrieben.`
+                    : "Kunde wird beim Hochladen automatisch aus dem Dokument gelesen."}
                 </p>
               </div>
 
@@ -465,7 +666,7 @@ export default function ContainerListsPage() {
                 <div className="flex flex-col sm:flex-row items-center gap-3">
                   <input
                     type="file"
-                    accept="image/*,application/pdf"
+                    accept="image/*,application/pdf,text/csv,.csv"
                     onChange={handleFileChange}
                     className="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/40 dark:file:text-blue-300 cursor-pointer"
                   />
@@ -490,9 +691,118 @@ export default function ContainerListsPage() {
               </div>
             </div>
 
+            {/* Customer Detection Status Banner */}
+            {customerDetection && (
+              <div
+                className={`p-4 rounded-xl border text-xs space-y-2 ${
+                  customerDetection.matchType === "exact" && isSiteConfirmed
+                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300"
+                    : customerDetection.matchType === "ambiguous"
+                      ? "bg-amber-500/10 border-amber-500/40 text-amber-800 dark:text-amber-300"
+                      : "bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300"
+                }`}
+              >
+                {customerDetection.matchType === "exact" && (
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-semibold flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                      <span>
+                        Kunde exakt erkannt:{" "}
+                        <strong>{customerDetection.matchedSite}</strong>{" "}
+                        (Dokumenttext: „{customerDetection.detectedCustomerRaw}“)
+                      </span>
+                    </span>
+                    {isManualSiteOverride &&
+                      selectedSite &&
+                      customerDetection.matchedSite &&
+                      selectedSite !== customerDetection.matchedSite && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedSite(customerDetection.matchedSite!);
+                            setIsManualSiteOverride(false);
+                            setIsSiteConfirmed(true);
+                          }}
+                          className="px-3 py-1 rounded-lg bg-amber-600 text-white font-semibold hover:bg-amber-700"
+                        >
+                          Zu erkanntem Kunden „{customerDetection.matchedSite}“ wechseln
+                        </button>
+                      )}
+                  </div>
+                )}
+
+                {customerDetection.matchType === "ambiguous" && (
+                  <div className="space-y-2">
+                    <p className="font-semibold flex items-center gap-1.5">
+                      <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                      <span>
+                        Teil- oder mehrdeutige Kundenangabe erkannt („
+                        {customerDetection.detectedCustomerRaw}“). Bitte Kunden
+                        ausdrücklich bestätigen:
+                      </span>
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {customerDetection.candidates.map((cand) => (
+                        <button
+                          key={cand}
+                          type="button"
+                          onClick={() => {
+                            setSelectedSite(cand);
+                            setIsManualSiteOverride(true);
+                            setIsSiteConfirmed(true);
+                          }}
+                          className={`px-3 py-1.5 rounded-lg font-semibold border transition-all ${
+                            selectedSite === cand && isSiteConfirmed
+                              ? "bg-emerald-600 text-white border-emerald-600"
+                              : "bg-white dark:bg-gray-900 border-amber-400 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20"
+                          }`}
+                        >
+                          Kunde „{cand}“ bestätigen
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {(customerDetection.matchType === "unknown" ||
+                  customerDetection.matchType === "none") && (
+                  <div className="space-y-2">
+                    <p className="font-semibold flex items-center gap-1.5">
+                      <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                      <span>
+                        {customerDetection.matchType === "unknown"
+                          ? `Unbekannter Kunde im Dokument: „${customerDetection.detectedCustomerRaw}“. Es wurde kein Standardwert gesetzt. Bitte wählen und bestätigen Sie den Kunden manuell:`
+                          : "Kein Kunde im Dokument erkannt. Bitte wählen und bestätigen Sie den Kunden manuell:"}
+                      </span>
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {SUPPORTED_SITES.map((site) => (
+                        <button
+                          key={site}
+                          type="button"
+                          onClick={() => {
+                            setSelectedSite(site);
+                            setIsManualSiteOverride(true);
+                            setIsSiteConfirmed(true);
+                          }}
+                          className={`px-3 py-1.5 rounded-lg font-semibold border transition-all ${
+                            selectedSite === site && isSiteConfirmed
+                              ? "bg-emerald-600 text-white border-emerald-600"
+                              : "bg-white dark:bg-gray-900 border-rose-300 text-gray-800 dark:text-gray-200 hover:bg-rose-500/10"
+                          }`}
+                        >
+                          {site}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Global Extraction Warnings */}
             {globalWarnings.length > 0 && (
-              <div className="mt-4 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs space-y-1">
+              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs space-y-1">
                 {globalWarnings.map((w, idx) => (
                   <p key={idx} className="flex items-center gap-1.5 font-medium">
                     <Info className="w-4 h-4 flex-shrink-0" />
@@ -509,10 +819,21 @@ export default function ContainerListsPage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 dark:border-gray-800 pb-4">
                 <div>
                   <h2 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                    <span>2. Entwurf prüfen & korrigieren ({draftRows.length} Container)</span>
+                    <span>
+                      2. Entwurf prüfen &amp; korrigieren ({draftRows.length} Container)
+                    </span>
+                    {selectedSite && isSiteConfirmed ? (
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
+                        Vorlage: {selectedSite}
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs font-semibold">
+                        Kunde noch nicht bestätigt!
+                      </span>
+                    )}
                   </h2>
                   <p className="text-xs text-gray-400 mt-0.5">
-                    Überprüfen Sie unsichere Handschriften und fehlende Mitarbeiter. Wartezeiten werden automatisch berechnet.
+                    Dauer (Ende − Start) bleibt als Formel erhalten. Wartezeit Von–Bis wird als eine kombinierte Textzelle exportiert.
                   </p>
                 </div>
 
@@ -526,10 +847,14 @@ export default function ContainerListsPage() {
                   </button>
                   <button
                     onClick={handleSaveToDatabase}
-                    disabled={isSaving}
+                    disabled={isSaving || !selectedSite || !isSiteConfirmed}
                     className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-xs flex items-center gap-1.5 shadow-sm shadow-emerald-500/20"
                   >
-                    {isSaving ? <RotateCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    {isSaving ? (
+                      <RotateCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4" />
+                    )}
                     <span>In Datenbank speichern</span>
                   </button>
                 </div>
@@ -541,235 +866,458 @@ export default function ContainerListsPage() {
                   <thead>
                     <tr className="border-b border-gray-200 dark:border-gray-800 text-gray-400 font-semibold uppercase tracking-wider">
                       <th className="py-2.5 px-2 w-10">#</th>
-                      <th className="py-2.5 px-2 min-w-[108px]">Datum</th>
-                      <th className="py-2.5 px-2 min-w-[140px]">Container-Nr.</th>
-                      <th className="py-2.5 px-2 min-w-[70px]">Fuß</th>
-                      <th className="py-2.5 px-2 min-w-[130px]">Artikel</th>
-                      <th className="py-2.5 px-2 min-w-[80px]">Kartons</th>
-                      <th className="py-2.5 px-2 min-w-[75px]">Termin</th>
-                      <th className="py-2.5 px-2 min-w-[75px]">Ankunft</th>
-                      <th className="py-2.5 px-2 min-w-[75px]">Start</th>
-                      <th className="py-2.5 px-2 min-w-[75px]">Ende</th>
-                      <th className="py-2.5 px-2 min-w-[85px] bg-amber-500/5 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                        Personal *
+                      <th className="py-2.5 px-2 min-w-[105px]">Datum</th>
+                      <th className="py-2.5 px-2 min-w-[135px]">Container-Nr.</th>
+                      <th className="py-2.5 px-2 min-w-[65px]">Fuß</th>
+                      <th className="py-2.5 px-2 min-w-[115px]">Artikel</th>
+                      <th className="py-2.5 px-2 min-w-[75px]">Kartons</th>
+                      <th className="py-2.5 px-2 min-w-[70px]">Termin</th>
+                      <th className="py-2.5 px-2 min-w-[70px]">Ankunft</th>
+                      <th className="py-2.5 px-2 min-w-[70px]">Start</th>
+                      <th className="py-2.5 px-2 min-w-[70px]">Ende</th>
+                      <th className="py-2.5 px-2 min-w-[68px]">Dauer</th>
+                      <th className="py-2.5 px-2 min-w-[95px] bg-amber-500/5 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                        {isSchwalbe ? "Personal Anzahl *" : "Personal *"}
                       </th>
-                      <th className="py-2.5 px-2 min-w-[75px]">Wartez. Von</th>
-                      <th className="py-2.5 px-2 min-w-[75px]">Wartez. Bis</th>
-                      <th className="py-2.5 px-2 min-w-[80px] text-blue-600 dark:text-blue-400 font-bold">
-                        Wartez. Std
+                      <th className="py-2.5 px-2 min-w-[145px]">
+                        {isGant ? "Wartezeit (Von–Bis)" : "Wartezeit Von–Bis"}
                       </th>
-                      <th className="py-2.5 px-2 min-w-[80px]">Wickel</th>
-                      <th className="py-2.5 px-2 min-w-[120px]">Bemerkung</th>
+                      <th className="py-2.5 px-2 min-w-[110px]">
+                        Anderw. Arbeit
+                      </th>
+                      <th className="py-2.5 px-2 min-w-[90px] text-blue-600 dark:text-blue-400 font-bold">
+                        Wartezeit Std.
+                      </th>
+                      <th className="py-2.5 px-2 min-w-[75px]">Wickel</th>
+                      <th className="py-2.5 px-2 min-w-[115px]">Bemerkung</th>
                       <th className="py-2.5 px-2 w-10"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800/60">
                     {draftRows.map((row, idx) => {
                       const isPersonalMissing =
-                        row.personal === undefined || row.personal === null || row.personal <= 0;
-                      const isContainerUncertain = row.uncertainFields?.includes("containerNumber");
+                        row.personal === undefined ||
+                        row.personal === null ||
+                        row.personal <= 0;
+                      const isContainerUncertain =
+                        row.uncertainFields?.includes("containerNumber");
+                      const waitingInfo = computeRowWaitingDetails(row);
+                      const otherWorkCount = row.anderweitigeArbeiten?.length || 0;
 
                       return (
-                        <tr
-                          key={idx}
-                          className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors"
-                        >
-                          <td className="py-2 px-2 text-gray-400 font-mono text-[11px]">{idx + 1}</td>
+                        <React.Fragment key={idx}>
+                          <tr className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
+                            <td className="py-2 px-2 text-gray-400 font-mono text-[11px]">
+                              {idx + 1}.
+                            </td>
 
-                          {/* Datum */}
-                          <td className="py-2 px-1">
-                            <input
-                              type="text"
-                              value={row.date || ""}
-                              onChange={(e) => updateRowField(idx, "date", e.target.value)}
-                              className="w-full px-2 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white font-mono text-xs focus:ring-1 focus:ring-blue-500 outline-none"
-                            />
-                          </td>
-
-                          {/* Container Number */}
-                          <td className="py-2 px-1">
-                            <div className="relative">
+                            {/* Datum */}
+                            <td className="py-2 px-1">
                               <input
                                 type="text"
-                                value={row.containerNumber || ""}
-                                onChange={(e) => updateRowField(idx, "containerNumber", e.target.value)}
-                                className={`w-full px-2 py-1 rounded bg-transparent border font-mono font-bold text-xs outline-none ${
-                                  isContainerUncertain
-                                    ? "border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                                    : "border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500"
-                                }`}
+                                value={row.date || ""}
+                                onChange={(e) =>
+                                  updateRowField(idx, "date", e.target.value)
+                                }
+                                className="w-full px-2 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white font-mono text-xs focus:ring-1 focus:ring-blue-500 outline-none"
                               />
-                              {isContainerUncertain && (
-                                <span className="absolute right-1 top-1.5 w-2 h-2 rounded-full bg-amber-500" title="Handschrift unsicher" />
-                              )}
-                            </div>
-                          </td>
+                            </td>
 
-                          {/* Fuß */}
-                          <td className="py-2 px-1">
-                            <select
-                              value={row.fuss || "40"}
-                              onChange={(e) => updateRowField(idx, "fuss", e.target.value)}
-                              className="w-full px-1.5 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white font-mono text-xs outline-none"
+                            {/* Container Number */}
+                            <td className="py-2 px-1">
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  value={row.containerNumber || ""}
+                                  onChange={(e) =>
+                                    updateRowField(
+                                      idx,
+                                      "containerNumber",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className={`w-full px-2 py-1 rounded bg-transparent border font-mono font-bold text-xs outline-none ${
+                                    isContainerUncertain
+                                      ? "border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                                      : "border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500"
+                                  }`}
+                                />
+                                {isContainerUncertain && (
+                                  <span
+                                    className="absolute right-1 top-1.5 w-2 h-2 rounded-full bg-amber-500"
+                                    title="Handschrift unsicher"
+                                  />
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Fuß */}
+                            <td className="py-2 px-1">
+                              <select
+                                value={row.fuss || "40"}
+                                onChange={(e) =>
+                                  updateRowField(idx, "fuss", e.target.value)
+                                }
+                                className="w-full px-1.5 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white font-mono text-xs outline-none"
+                              >
+                                <option value="20">20</option>
+                                <option value="40">40</option>
+                                <option value="45">45</option>
+                              </select>
+                            </td>
+
+                            {/* Artikel */}
+                            <td className="py-2 px-1">
+                              <input
+                                type="text"
+                                value={row.artikel || ""}
+                                onChange={(e) =>
+                                  updateRowField(idx, "artikel", e.target.value)
+                                }
+                                className="w-full px-2 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs outline-none"
+                              />
+                            </td>
+
+                            {/* Kartons */}
+                            <td className="py-2 px-1">
+                              <input
+                                type="number"
+                                value={row.kartons ?? ""}
+                                onChange={(e) =>
+                                  updateRowField(
+                                    idx,
+                                    "kartons",
+                                    parseInt(e.target.value, 10) || 0,
+                                  )
+                                }
+                                className="w-full px-2 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white font-mono text-xs outline-none text-right"
+                              />
+                            </td>
+
+                            {/* Termin */}
+                            <td className="py-2 px-1">
+                              <input
+                                type="text"
+                                value={row.termin || ""}
+                                placeholder="08:00"
+                                onChange={(e) =>
+                                  updateRowField(idx, "termin", e.target.value)
+                                }
+                                className="w-full px-2 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white font-mono text-xs outline-none"
+                              />
+                            </td>
+
+                            {/* Ankunft */}
+                            <td className="py-2 px-1">
+                              <input
+                                type="text"
+                                value={row.ankunft || ""}
+                                placeholder="07:45"
+                                onChange={(e) =>
+                                  updateRowField(idx, "ankunft", e.target.value)
+                                }
+                                className="w-full px-2 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white font-mono text-xs outline-none"
+                              />
+                            </td>
+
+                            {/* Start */}
+                            <td className="py-2 px-1">
+                              <input
+                                type="text"
+                                value={row.start || ""}
+                                placeholder="08:15"
+                                onChange={(e) =>
+                                  updateRowField(idx, "start", e.target.value)
+                                }
+                                className="w-full px-2 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white font-mono text-xs outline-none"
+                              />
+                            </td>
+
+                            {/* Ende */}
+                            <td className="py-2 px-1">
+                              <input
+                                type="text"
+                                value={row.ende || ""}
+                                placeholder="11:30"
+                                onChange={(e) =>
+                                  updateRowField(idx, "ende", e.target.value)
+                                }
+                                className="w-full px-2 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white font-mono text-xs outline-none"
+                              />
+                            </td>
+
+                            {/* Dauer (Formula Ende - Start, read-only) */}
+                            <td
+                              className="py-2 px-2 font-mono text-gray-600 dark:text-gray-300 text-xs"
+                              title="Excel-Formel: Ende minus Start (h:mm)"
                             >
-                              <option value="20">20</option>
-                              <option value="40">40</option>
-                              <option value="45">45</option>
-                            </select>
-                          </td>
+                              {computeDauerClock(row.start, row.ende)}
+                            </td>
 
-                          {/* Artikel */}
-                          <td className="py-2 px-1">
-                            <input
-                              type="text"
-                              value={row.artikel || ""}
-                              onChange={(e) => updateRowField(idx, "artikel", e.target.value)}
-                              className="w-full px-2 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs outline-none"
-                            />
-                          </td>
-
-                          {/* Kartons */}
-                          <td className="py-2 px-1">
-                            <input
-                              type="number"
-                              value={row.kartons ?? ""}
-                              onChange={(e) => updateRowField(idx, "kartons", parseInt(e.target.value, 10) || 0)}
-                              className="w-full px-2 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white font-mono text-xs outline-none text-right"
-                            />
-                          </td>
-
-                          {/* Termin */}
-                          <td className="py-2 px-1">
-                            <input
-                              type="text"
-                              value={row.termin || ""}
-                              placeholder="08:00"
-                              onChange={(e) => updateRowField(idx, "termin", e.target.value)}
-                              className="w-full px-2 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white font-mono text-xs outline-none"
-                            />
-                          </td>
-
-                          {/* Ankunft */}
-                          <td className="py-2 px-1">
-                            <input
-                              type="text"
-                              value={row.ankunft || ""}
-                              placeholder="07:45"
-                              onChange={(e) => updateRowField(idx, "ankunft", e.target.value)}
-                              className="w-full px-2 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white font-mono text-xs outline-none"
-                            />
-                          </td>
-
-                          {/* Start */}
-                          <td className="py-2 px-1">
-                            <input
-                              type="text"
-                              value={row.start || ""}
-                              placeholder="08:15"
-                              onChange={(e) => updateRowField(idx, "start", e.target.value)}
-                              className="w-full px-2 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white font-mono text-xs outline-none"
-                            />
-                          </td>
-
-                          {/* Ende */}
-                          <td className="py-2 px-1">
-                            <input
-                              type="text"
-                              value={row.ende || ""}
-                              placeholder="11:30"
-                              onChange={(e) => updateRowField(idx, "ende", e.target.value)}
-                              className="w-full px-2 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white font-mono text-xs outline-none"
-                            />
-                          </td>
-
-                          {/* Personal (Strict Warning if Missing) */}
-                          <td className="py-2 px-1 bg-amber-500/5 dark:bg-amber-500/10">
-                            <div className="relative">
+                            {/* Personal */}
+                            <td className="py-2 px-1 bg-amber-500/5 dark:bg-amber-500/10">
                               <input
                                 type="number"
                                 min={1}
-                                max={20}
+                                max={30}
                                 value={row.personal ?? ""}
                                 placeholder="Fehlt!"
-                                onChange={(e) => updateRowField(idx, "personal", parseInt(e.target.value, 10) || undefined)}
+                                onChange={(e) =>
+                                  updateRowField(
+                                    idx,
+                                    "personal",
+                                    parseInt(e.target.value, 10) || undefined,
+                                  )
+                                }
                                 className={`w-full px-2 py-1 rounded font-mono font-bold text-xs outline-none ${
                                   isPersonalMissing
                                     ? "border-2 border-rose-500 bg-rose-500/10 text-rose-600 dark:text-rose-400"
                                     : "border border-amber-300 dark:border-amber-700 text-gray-900 dark:text-white"
                                 }`}
                               />
-                            </div>
-                          </td>
+                            </td>
 
-                          {/* Wartezeit Von */}
-                          <td className="py-2 px-1">
-                            <input
-                              type="text"
-                              value={row.wartezeitVon || ""}
-                              placeholder="09:00"
-                              onChange={(e) => updateRowField(idx, "wartezeitVon", e.target.value)}
-                              className="w-full px-2 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white font-mono text-xs outline-none"
-                            />
-                          </td>
+                            {/* Wartezeit Von–Bis (Exported as ONE combined cell) */}
+                            <td className="py-2 px-1">
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="text"
+                                  value={row.wartezeitVon || ""}
+                                  placeholder="09:00"
+                                  onChange={(e) =>
+                                    updateRowField(
+                                      idx,
+                                      "wartezeitVon",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className="w-16 px-1.5 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white font-mono text-xs outline-none"
+                                />
+                                <span className="text-[10px] text-gray-400">
+                                  bis
+                                </span>
+                                <input
+                                  type="text"
+                                  value={row.wartezeitBis || ""}
+                                  placeholder="09:50"
+                                  onChange={(e) =>
+                                    updateRowField(
+                                      idx,
+                                      "wartezeitBis",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className="w-16 px-1.5 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white font-mono text-xs outline-none"
+                                />
+                              </div>
+                            </td>
 
-                          {/* Wartezeit Bis */}
-                          <td className="py-2 px-1">
-                            <input
-                              type="text"
-                              value={row.wartezeitBis || ""}
-                              placeholder="09:50"
-                              onChange={(e) => updateRowField(idx, "wartezeitBis", e.target.value)}
-                              className="w-full px-2 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white font-mono text-xs outline-none"
-                            />
-                          </td>
+                            {/* Anderweitige Arbeit während Wartezeit (Deduction Mechanism) */}
+                            <td className="py-2 px-1">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedOtherWorkRow(
+                                    expandedOtherWorkRow === idx ? null : idx,
+                                  )
+                                }
+                                className={`px-2 py-1 rounded text-[11px] font-semibold border transition-colors ${
+                                  otherWorkCount > 0
+                                    ? "bg-purple-500/10 border-purple-500/40 text-purple-700 dark:text-purple-300"
+                                    : "border-gray-200 dark:border-gray-700 text-gray-500 hover:text-gray-800"
+                                }`}
+                              >
+                                {otherWorkCount > 0
+                                  ? `${otherWorkCount} Abzug (-${formatGermanDecimalHours(
+                                      waitingInfo.deductionHours,
+                                    )} Std.)`
+                                  : "+ Abzug"}
+                              </button>
+                            </td>
 
-                          {/* Wartezeit Std (Calculated) */}
-                          <td className="py-2 px-2 font-mono font-bold text-blue-600 dark:text-blue-400 text-xs">
-                            {row.wartezeitStd || "—"}
-                          </td>
+                            {/* Wartezeit Std (Net worker-hours in German decimal notation) */}
+                            <td className="py-2 px-2 font-mono font-bold text-blue-600 dark:text-blue-400 text-xs">
+                              {waitingInfo.netHours > 0
+                                ? `${waitingInfo.formattedDecimal} Std.`
+                                : row.wartezeitStd
+                                  ? `${row.wartezeitStd} Std.`
+                                  : "0 Std."}
+                            </td>
 
-                          {/* Wickel */}
-                          <td className="py-2 px-1">
-                            <input
-                              type="text"
-                              value={row.wickel || ""}
-                              placeholder="z. B. 12 Pal."
-                              onChange={(e) => updateRowField(idx, "wickel", e.target.value)}
-                              className="w-full px-2 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs outline-none"
-                            />
-                          </td>
+                            {/* Wickel */}
+                            <td className="py-2 px-1">
+                              <input
+                                type="text"
+                                value={row.wickel || ""}
+                                placeholder="z. B. 12 Pal."
+                                onChange={(e) =>
+                                  updateRowField(idx, "wickel", e.target.value)
+                                }
+                                className="w-full px-2 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs outline-none"
+                              />
+                            </td>
 
-                          {/* Bemerkung */}
-                          <td className="py-2 px-1">
-                            <input
-                              type="text"
-                              value={row.bemerkung || ""}
-                              placeholder="z. B. Verspätung"
-                              onChange={(e) => updateRowField(idx, "bemerkung", e.target.value)}
-                              className="w-full px-2 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs outline-none"
-                            />
-                          </td>
+                            {/* Bemerkung */}
+                            <td className="py-2 px-1">
+                              <input
+                                type="text"
+                                value={row.bemerkung || ""}
+                                placeholder="z. B. Verspätung"
+                                onChange={(e) =>
+                                  updateRowField(idx, "bemerkung", e.target.value)
+                                }
+                                className="w-full px-2 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs outline-none"
+                              />
+                            </td>
 
-                          {/* Actions */}
-                          <td className="py-2 px-1 text-center">
-                            <button
-                              onClick={() => removeRow(idx)}
-                              className="text-gray-400 hover:text-rose-500 transition-colors p-1"
-                              title="Zeile entfernen"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </td>
-                        </tr>
+                            {/* Actions */}
+                            <td className="py-2 px-1 text-center">
+                              <button
+                                onClick={() => removeRow(idx)}
+                                className="text-gray-400 hover:text-rose-500 transition-colors p-1"
+                                title="Zeile entfernen"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+
+                          {/* Expandable sub-panel for repeatable "Anderweitige Arbeit während Wartezeit" */}
+                          {expandedOtherWorkRow === idx && (
+                            <tr className="bg-purple-500/5 dark:bg-purple-950/20">
+                              <td colSpan={18} className="p-3">
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-purple-800 dark:text-purple-300">
+                                      Anderweitige Arbeit während der Wartezeit (Zeile{" "}
+                                      {idx + 1}: {row.containerNumber || "Container"}) —
+                                      wird von den Wartezeit-Personalstunden abgezogen:
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => addOtherWorkEntry(idx)}
+                                      className="px-2.5 py-1 rounded-lg bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 inline-flex items-center gap-1"
+                                    >
+                                      <Plus className="w-3.5 h-3.5" />
+                                      <span>Eintrag hinzufügen</span>
+                                    </button>
+                                  </div>
+
+                                  {(row.anderweitigeArbeiten || []).length === 0 ? (
+                                    <p className="text-xs text-gray-500">
+                                      Keine Abzüge eingetragen. Klicken Sie auf „Eintrag
+                                      hinzufügen“, wenn Mitarbeiter während der Wartezeit an
+                                      einem anderen Container gearbeitet haben.
+                                    </p>
+                                  ) : (
+                                    <div className="space-y-1.5">
+                                      {(row.anderweitigeArbeiten || []).map(
+                                        (entry, eIdx) => (
+                                          <div
+                                            key={eIdx}
+                                            className="flex flex-wrap items-center gap-2 text-xs"
+                                          >
+                                            <label className="flex items-center gap-1">
+                                              <span className="text-gray-500">
+                                                Personal:
+                                              </span>
+                                              <input
+                                                type="number"
+                                                min={1}
+                                                max={row.personal || 20}
+                                                value={entry.personal ?? ""}
+                                                onChange={(e) =>
+                                                  updateOtherWorkEntry(
+                                                    idx,
+                                                    eIdx,
+                                                    "personal",
+                                                    parseInt(e.target.value, 10) ||
+                                                      0,
+                                                  )
+                                                }
+                                                className="w-16 px-2 py-1 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 font-mono"
+                                              />
+                                            </label>
+                                            <label className="flex items-center gap-1">
+                                              <span className="text-gray-500">
+                                                Von:
+                                              </span>
+                                              <input
+                                                type="text"
+                                                placeholder="09:15"
+                                                value={entry.von || ""}
+                                                onChange={(e) =>
+                                                  updateOtherWorkEntry(
+                                                    idx,
+                                                    eIdx,
+                                                    "von",
+                                                    e.target.value,
+                                                  )
+                                                }
+                                                className="w-20 px-2 py-1 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 font-mono"
+                                              />
+                                            </label>
+                                            <label className="flex items-center gap-1">
+                                              <span className="text-gray-500">
+                                                Bis:
+                                              </span>
+                                              <input
+                                                type="text"
+                                                placeholder="09:45"
+                                                value={entry.bis || ""}
+                                                onChange={(e) =>
+                                                  updateOtherWorkEntry(
+                                                    idx,
+                                                    eIdx,
+                                                    "bis",
+                                                    e.target.value,
+                                                  )
+                                                }
+                                                className="w-20 px-2 py-1 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 font-mono"
+                                              />
+                                            </label>
+                                            <input
+                                              type="text"
+                                              placeholder="Notiz (optional)"
+                                              value={entry.bemerkung || ""}
+                                              onChange={(e) =>
+                                                updateOtherWorkEntry(
+                                                  idx,
+                                                  eIdx,
+                                                  "bemerkung",
+                                                  e.target.value,
+                                                )
+                                              }
+                                              className="w-44 px-2 py-1 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900"
+                                            />
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                removeOtherWorkEntry(idx, eIdx)
+                                              }
+                                              className="text-rose-500 hover:text-rose-700 px-2 py-1 font-semibold"
+                                            >
+                                              Entfernen
+                                            </button>
+                                          </div>
+                                        ),
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       );
                     })}
                   </tbody>
                 </table>
               </div>
 
-              {/* Warnings Legend & Summary */}
-              <div className="pt-3 border-t border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between text-xs text-gray-400 gap-2">
-                <div className="flex items-center gap-4">
+              {/* Warnings Legend & Weekly/Daily Summary Rows */}
+              <div className="pt-3 border-t border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between text-xs text-gray-500 gap-4">
+                <div className="flex flex-wrap items-center gap-4">
                   <span className="flex items-center gap-1.5">
                     <span className="w-3 h-3 rounded border-2 border-rose-500 bg-rose-500/10 inline-block" />
                     <span>Personal fehlt (Nicht raten)</span>
@@ -779,12 +1327,33 @@ export default function ContainerListsPage() {
                     <span>Handschrift / Wert unsicher</span>
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <span className="font-bold text-blue-500">Wartezeit Std:</span>
-                    <span>(Bis - Von) × Personal</span>
+                    <span className="font-bold text-blue-600">Wartezeit:</span>
+                    <span>(Bis − Von) × Personal − anderw. Arbeit</span>
                   </span>
                 </div>
 
-                <div>Gesamt: <strong className="text-gray-900 dark:text-white font-mono">{draftRows.length}</strong> Container</div>
+                <div className="flex flex-wrap items-center gap-4">
+                  <div>
+                    {isSchwalbe ? "Gesamt Wartezeit:" : "Wartezeit Summe:"}{" "}
+                    <strong className="text-blue-600 dark:text-blue-400 font-mono">
+                      {summaryStats.totalWartezeitFormatted}
+                    </strong>
+                  </div>
+                  {isSchwalbe && (
+                    <div>
+                      Gesamt Personal Std. ohne Wartezeit:{" "}
+                      <strong className="text-emerald-600 dark:text-emerald-400 font-mono">
+                        {summaryStats.totalWorkHoursOhneWartezeitFormatted}
+                      </strong>
+                    </div>
+                  )}
+                  <div>
+                    Container:{" "}
+                    <strong className="text-gray-900 dark:text-white font-mono">
+                      {draftRows.length}
+                    </strong>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -875,7 +1444,9 @@ export default function ContainerListsPage() {
                       <td className="py-3 px-4 font-medium text-gray-700 dark:text-gray-300">
                         <div>{item.title || `Liste ${item.site}`}</div>
                         <div className="text-[11px] text-gray-400">
-                          {item.date ? new Date(item.date).toLocaleDateString("de-DE") : "—"}
+                          {item.date
+                            ? new Date(item.date).toLocaleDateString("de-DE")
+                            : "—"}
                         </div>
                       </td>
 
@@ -893,38 +1464,41 @@ export default function ContainerListsPage() {
 
                       <td className="py-3 px-4 text-right">
                         <div className="inline-flex items-center gap-1.5">
-                        <button
-                          onClick={async () => {
-                            const token = getAuthToken();
-                            const headers: Record<string, string> = {};
-                            if (token) headers["Authorization"] = `Bearer ${token}`;
-                            const res = await fetch(`${API_URL}/container-lists/${item.id}`, { headers });
-                            if (res.ok) {
-                              const full = await res.json();
-                              setSelectedSavedList(full);
-                            }
-                          }}
-                          className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold text-xs inline-flex items-center gap-1"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>Ansehen</span>
-                        </button>
-                        <button
-                          onClick={() => downloadExport(item.id, "xlsx", item.site)}
-                          title="Als Excel exportieren"
-                          className="px-2.5 py-1.5 rounded-lg bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 font-semibold text-xs inline-flex items-center gap-1"
-                        >
-                          <FileSpreadsheet className="w-3.5 h-3.5" />
-                          <span>XLSX</span>
-                        </button>
-                        <button
-                          onClick={() => downloadExport(item.id, "pdf", item.site)}
-                          title="Als PDF exportieren"
-                          className="px-2.5 py-1.5 rounded-lg bg-red-600/10 hover:bg-red-600/20 text-red-700 dark:text-red-400 font-semibold text-xs inline-flex items-center gap-1"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          <span>PDF</span>
-                        </button>
+                          <button
+                            onClick={async () => {
+                              const token = getAuthToken();
+                              const headers: Record<string, string> = {};
+                              if (token) headers["Authorization"] = `Bearer ${token}`;
+                              const res = await fetch(
+                                `${API_URL}/container-lists/${item.id}`,
+                                { headers },
+                              );
+                              if (res.ok) {
+                                const full = await res.json();
+                                setSelectedSavedList(full);
+                              }
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold text-xs inline-flex items-center gap-1"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Ansehen</span>
+                          </button>
+                          <button
+                            onClick={() => downloadExport(item.id, "xlsx", item.site)}
+                            title="Als Excel exportieren"
+                            className="px-2.5 py-1.5 rounded-lg bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 font-semibold text-xs inline-flex items-center gap-1"
+                          >
+                            <FileSpreadsheet className="w-3.5 h-3.5" />
+                            <span>XLSX</span>
+                          </button>
+                          <button
+                            onClick={() => downloadExport(item.id, "pdf", item.site)}
+                            title="Als PDF exportieren"
+                            className="px-2.5 py-1.5 rounded-lg bg-red-600/10 hover:bg-red-600/20 text-red-700 dark:text-red-400 font-semibold text-xs inline-flex items-center gap-1"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>PDF</span>
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -950,20 +1524,34 @@ export default function ContainerListsPage() {
                   </span>
                 </h3>
                 <p className="text-xs text-gray-400 mt-1">
-                  Erfasst am {new Date(selectedSavedList.createdAt).toLocaleString("de-DE")} • {selectedSavedList.rows?.length || 0} Container
+                  Erfasst am{" "}
+                  {new Date(selectedSavedList.createdAt).toLocaleString("de-DE")} •{" "}
+                  {selectedSavedList.rows?.length || 0} Container
                 </p>
               </div>
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => downloadExport(selectedSavedList.id, "xlsx", selectedSavedList.site)}
+                  onClick={() =>
+                    downloadExport(
+                      selectedSavedList.id,
+                      "xlsx",
+                      selectedSavedList.site,
+                    )
+                  }
                   className="px-3 py-1.5 rounded-xl bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 text-xs font-semibold inline-flex items-center gap-1"
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5" />
                   <span>Excel</span>
                 </button>
                 <button
-                  onClick={() => downloadExport(selectedSavedList.id, "pdf", selectedSavedList.site)}
+                  onClick={() =>
+                    downloadExport(
+                      selectedSavedList.id,
+                      "pdf",
+                      selectedSavedList.site,
+                    )
+                  }
                   className="px-3 py-1.5 rounded-xl bg-red-600/10 hover:bg-red-600/20 text-red-700 dark:text-red-400 text-xs font-semibold inline-flex items-center gap-1"
                 >
                   <Download className="w-3.5 h-3.5" />
@@ -991,31 +1579,58 @@ export default function ContainerListsPage() {
                       <th className="py-2 px-2">Kartons</th>
                       <th className="py-2 px-2">Start</th>
                       <th className="py-2 px-2">Ende</th>
-                      <th className="py-2 px-2">Personal</th>
-                      <th className="py-2 px-2">Wartezeit</th>
-                      <th className="py-2 px-2 font-bold text-blue-600">Wartez. Std</th>
+                      <th className="py-2 px-2">Dauer</th>
+                      <th className="py-2 px-2">
+                        {selectedSavedList.site === "Schwalbe"
+                          ? "Personal Anzahl"
+                          : "Personal"}
+                      </th>
+                      <th className="py-2 px-2">
+                        {selectedSavedList.site === "Gant"
+                          ? "Wartezeit"
+                          : "Wartezeit Von–Bis"}
+                      </th>
+                      <th className="py-2 px-2 font-bold text-blue-600">
+                        Wartezeit Std.
+                      </th>
                       <th className="py-2 px-2">Bemerkung</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                     {selectedSavedList.rows?.map((r, i) => (
-                      <tr key={r.rowOrder || i} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/20">
-                        <td className="py-2 px-2 font-mono text-gray-400">{i + 1}</td>
+                      <tr
+                        key={r.rowOrder || i}
+                        className="hover:bg-gray-50/50 dark:hover:bg-gray-800/20"
+                      >
+                        <td className="py-2 px-2 font-mono text-gray-400">
+                          {i + 1}
+                        </td>
                         <td className="py-2 px-2">{r.date || "—"}</td>
-                        <td className="py-2 px-2 font-mono font-bold text-gray-900 dark:text-white">{r.containerNumber || "—"}</td>
+                        <td className="py-2 px-2 font-mono font-bold text-gray-900 dark:text-white">
+                          {r.containerNumber || "—"}
+                        </td>
                         <td className="py-2 px-2 font-mono">{r.fuss || "—"}</td>
                         <td className="py-2 px-2">{r.artikel || "—"}</td>
                         <td className="py-2 px-2 font-mono">{r.kartons ?? "—"}</td>
                         <td className="py-2 px-2 font-mono">{r.start || "—"}</td>
                         <td className="py-2 px-2 font-mono">{r.ende || "—"}</td>
-                        <td className="py-2 px-2 font-mono font-semibold">{r.personal ?? "—"}</td>
+                        <td className="py-2 px-2 font-mono">
+                          {computeDauerClock(r.start, r.ende)}
+                        </td>
+                        <td className="py-2 px-2 font-mono font-semibold">
+                          {r.personal ?? "—"}
+                        </td>
                         <td className="py-2 px-2 font-mono text-gray-500">
-                          {r.wartezeitVon && r.wartezeitBis ? `${r.wartezeitVon} - ${r.wartezeitBis}` : "—"}
+                          {r.wartezeitVon && r.wartezeitBis
+                            ? `${r.wartezeitVon} bis ${r.wartezeitBis}`
+                            : r.wartezeitVon || "—"}
                         </td>
                         <td className="py-2 px-2 font-mono font-bold text-blue-600 dark:text-blue-400">
-                          {r.wartezeitStd || "—"}
+                          {r.wartezeitStd ? `${r.wartezeitStd} Std.` : "—"}
                         </td>
-                        <td className="py-2 px-2 text-gray-500">{r.bemerkung || "—"}</td>
+                        <td className="py-2 px-2 text-gray-500">
+                          {r.bemerkung || "—"}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
