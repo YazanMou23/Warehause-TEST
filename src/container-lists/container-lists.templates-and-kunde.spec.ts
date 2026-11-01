@@ -237,6 +237,83 @@ describe('Container Liste — Kunde Auto-Detection, Original Templates & Account
       ]);
       expect(created.rows[0].warnings).toEqual([]);
     });
+
+    it('updates a saved container list (metadata + edited rows) and recalculates wartezeitStd via ContainerListsService.update', async () => {
+      let createdRowsPayload: any[] = [];
+      let updatedMetadataPayload: any = null;
+
+      const prismaMock: any = {
+        containerList: {
+          findUnique: async () => ({
+            id: 'saved-list-1',
+            site: 'Gant',
+            title: 'Alt',
+            date: new Date('2026-09-21'),
+            rows: [],
+          }),
+        },
+        $transaction: async (cb: any) => {
+          const tx = {
+            containerListRow: {
+              deleteMany: jest.fn(async () => ({ count: 1 })),
+              createMany: jest.fn(async (args: any) => {
+                createdRowsPayload = args.data;
+                return { count: args.data.length };
+              }),
+            },
+            containerList: {
+              update: jest.fn(async (args: any) => {
+                updatedMetadataPayload = args.data;
+                return {
+                  id: 'saved-list-1',
+                  site: args.data.site || 'Gant',
+                  title: args.data.title || 'Alt',
+                  date: args.data.date || new Date('2026-09-21'),
+                  rows: createdRowsPayload.map((r, idx) => ({
+                    id: `row-new-${idx}`,
+                    ...r,
+                  })),
+                };
+              }),
+            },
+          };
+          return cb(tx);
+        },
+      };
+
+      const service = new ContainerListsService(prismaMock);
+      const updated = await service.update('saved-list-1', {
+        site: 'Schwalbe',
+        title: 'Schwalbe Bearbeitet',
+        date: '2026-09-22',
+        rows: [
+          {
+            id: 'old-row-id',
+            rowOrder: 1,
+            date: '2026-09-22',
+            containerNumber: 'MSKU9999999',
+            fuss: '40',
+            kartons: 1200,
+            start: '08:00',
+            ende: '10:00',
+            personal: 5,
+            wartezeitVon: '07:15',
+            wartezeitBis: '08:00', // 45m * 5 = 3.75 Std. -> "3,75"
+            anderweitigeArbeiten: [{ personal: 1, von: '07:15', bis: '07:45' }], // -0.5 Std. -> "3,25"
+            bemerkung: 'Nachbearbeitet',
+          },
+        ],
+      });
+
+      expect(updatedMetadataPayload.site).toBe('Schwalbe');
+      expect(updatedMetadataPayload.title).toBe('Schwalbe Bearbeitet');
+      expect(createdRowsPayload).toHaveLength(1);
+      expect(createdRowsPayload[0].containerNumber).toBe('MSKU9999999');
+      expect(createdRowsPayload[0].wartezeitStd).toBe('3,25');
+      expect((updated.rows[0] as any).anderweitigeArbeiten).toEqual([
+        { personal: 1, von: '07:15', bis: '07:45' },
+      ]);
+    });
   });
 
   describe('[Mocked Unit Tests] 2, 3, 4, 5 & 7. Excel Template Fidelity Across All 8 Customer Templates', () => {

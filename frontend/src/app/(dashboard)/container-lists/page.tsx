@@ -16,6 +16,8 @@ import {
   Search,
   FileSpreadsheet,
   Download,
+  Pencil,
+  X,
 } from "lucide-react";
 import { API_URL } from "@/config/api";
 import { getAuthToken } from "@/app/utils/auth";
@@ -43,6 +45,7 @@ interface CustomerMatchResult {
 }
 
 interface ContainerRow {
+  id?: string;
   rowOrder?: number;
   date?: string;
   containerNumber?: string;
@@ -167,6 +170,96 @@ function computeRowWorkHoursWithoutWaiting(row: ContainerRow): number {
   return ((e - s) / 60) * personal;
 }
 
+function sanitizeRowForPayload(r: ContainerRow, idx: number): ContainerRow {
+  const calc = computeRowWaitingDetails(r);
+  const wartezeitStd =
+    calc.netHours > 0
+      ? calc.formattedDecimal
+      : r.wartezeitStd
+        ? String(r.wartezeitStd)
+        : undefined;
+
+  return {
+    rowOrder: idx + 1,
+    date: r.date ?? undefined,
+    containerNumber: r.containerNumber ?? undefined,
+    fuss: r.fuss ? String(r.fuss) : undefined,
+    artikel: r.artikel !== undefined && r.artikel !== null ? String(r.artikel) : undefined,
+    kartons:
+      r.kartons !== undefined && r.kartons !== null && !isNaN(Number(r.kartons))
+        ? Math.round(Number(r.kartons))
+        : undefined,
+    termin: r.termin ?? undefined,
+    ankunft: r.ankunft ?? undefined,
+    start: r.start ?? undefined,
+    ende: r.ende ?? undefined,
+    personal:
+      r.personal !== undefined && r.personal !== null && !isNaN(Number(r.personal))
+        ? Math.round(Number(r.personal))
+        : undefined,
+    wartezeitVon: r.wartezeitVon ?? undefined,
+    wartezeitBis: r.wartezeitBis ?? undefined,
+    wartezeitStd,
+    wickel: r.wickel !== undefined && r.wickel !== null ? String(r.wickel) : undefined,
+    preis:
+      r.preis !== undefined && r.preis !== null && !isNaN(Number(r.preis))
+        ? Number(r.preis)
+        : undefined,
+    ps: r.ps ?? undefined,
+    extraTeam: r.extraTeam ?? undefined,
+    bemerkung: r.bemerkung ?? undefined,
+    anderweitigeArbeiten: (r.anderweitigeArbeiten || []).map((entry) => ({
+      personal: Number(entry.personal) || 0,
+      von: entry.von || "",
+      bis: entry.bis || "",
+      bemerkung: entry.bemerkung || "",
+    })),
+    warnings: Array.isArray(r.warnings) ? r.warnings : [],
+    uncertainFields: Array.isArray(r.uncertainFields) ? r.uncertainFields : [],
+  };
+}
+
+function applyRowFieldUpdate(
+  rows: ContainerRow[],
+  index: number,
+  field: keyof ContainerRow,
+  value: any,
+): ContainerRow[] {
+  const updated = [...rows];
+  const target: ContainerRow = { ...updated[index], [field]: value };
+
+  // Auto-split if user pasted combined "09:00 bis 09:50" or "08:00-09:30" into wartezeitVon
+  if (field === "wartezeitVon" && typeof value === "string") {
+    const m = value
+      .trim()
+      .match(/^(\d{1,2}[:.]\d{2})\s*(?:bis|-|–)\s*(\d{1,2}[:.]\d{2})$/i);
+    if (m) {
+      target.wartezeitVon = m[1].replace(".", ":");
+      target.wartezeitBis = m[2].replace(".", ":");
+    }
+  }
+
+  if (
+    field === "wartezeitVon" ||
+    field === "wartezeitBis" ||
+    field === "personal" ||
+    field === "anderweitigeArbeiten"
+  ) {
+    const calc = computeRowWaitingDetails(target);
+    target.wartezeitStd = calc.formattedDecimal;
+  }
+
+  if (field === "personal" && Number(value) > 0) {
+    target.uncertainFields = (target.uncertainFields || []).filter(
+      (f) => f !== "personal",
+    );
+    target.warnings = (target.warnings || []).filter((w) => w.field !== "personal");
+  }
+
+  updated[index] = target;
+  return updated;
+}
+
 export default function ContainerListsPage() {
   const [activeTab, setActiveTab] = useState<"upload" | "saved">("upload");
 
@@ -179,6 +272,7 @@ export default function ContainerListsPage() {
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isExtracting, setIsExtracting] = useState<boolean>(false);
+  const [editingListId, setEditingListId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState<string>("");
   const [draftDate, setDraftDate] = useState<string>("");
   const [draftRows, setDraftRows] = useState<ContainerRow[]>([]);
@@ -189,12 +283,19 @@ export default function ContainerListsPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [expandedOtherWorkRow, setExpandedOtherWorkRow] = useState<number | null>(null);
 
-  // Saved Lists State
+  // Saved Lists & Modal Edit State
   const [savedLists, setSavedLists] = useState<SavedContainerList[]>([]);
   const [isLoadingSaved, setIsLoadingSaved] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [filterSite, setFilterSite] = useState<string>("");
   const [selectedSavedList, setSelectedSavedList] = useState<SavedContainerList | null>(null);
+  const [isEditingModal, setIsEditingModal] = useState<boolean>(false);
+  const [modalEditSite, setModalEditSite] = useState<string>("");
+  const [modalEditTitle, setModalEditTitle] = useState<string>("");
+  const [modalEditDate, setModalEditDate] = useState<string>("");
+  const [modalEditRows, setModalEditRows] = useState<ContainerRow[]>([]);
+  const [modalExpandedOtherWorkRow, setModalExpandedOtherWorkRow] = useState<number | null>(null);
+  const [isSavingModal, setIsSavingModal] = useState<boolean>(false);
 
   const isSchwalbe = selectedSite === "Schwalbe";
   const isGant = selectedSite === "Gant";
@@ -217,6 +318,132 @@ export default function ContainerListsPage() {
       console.error(err);
     } finally {
       setIsLoadingSaved(false);
+    }
+  };
+
+  const openSavedListDetail = async (id: string, startInEditMode = false) => {
+    setErrorMessage(null);
+    try {
+      const token = getAuthToken();
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const res = await fetch(`${API_URL}/container-lists/${id}`, { headers });
+      if (!res.ok) {
+        throw new Error("Gespeicherte Liste konnte nicht geladen werden.");
+      }
+      const full: SavedContainerList = await res.json();
+      setSelectedSavedList(full);
+      setModalEditSite(full.site || "Gant");
+      setModalEditTitle(full.title || `Entladeliste ${full.site}`);
+      setModalEditDate(
+        full.date ? new Date(full.date).toISOString().slice(0, 10) : "",
+      );
+      setModalEditRows(
+        (full.rows || []).map((r) => ({
+          ...r,
+          anderweitigeArbeiten: r.anderweitigeArbeiten || [],
+        })),
+      );
+      setModalExpandedOtherWorkRow(null);
+      setIsEditingModal(startInEditMode);
+    } catch (err: any) {
+      setErrorMessage(err.message || "Fehler beim Öffnen der Liste");
+    }
+  };
+
+  const loadSavedListIntoMainEditor = (list: SavedContainerList) => {
+    setEditingListId(list.id);
+    setSelectedSite(list.site);
+    setIsManualSiteOverride(true);
+    setIsSiteConfirmed(true);
+    setCustomerDetection(null);
+    setDraftTitle(list.title || `Entladeliste ${list.site}`);
+    setDraftDate(
+      list.date ? new Date(list.date).toISOString().slice(0, 10) : "",
+    );
+    setDraftRows(
+      (list.rows || []).map((r) => ({
+        ...r,
+        anderweitigeArbeiten: r.anderweitigeArbeiten || [],
+      })),
+    );
+    setGlobalWarnings([]);
+    setIsSimulatedDraft(false);
+    setSelectedSavedList(null);
+    setIsEditingModal(false);
+    setActiveTab("upload");
+    setSuccessMessage(
+      `Gespeicherte Liste „${list.title || list.site}“ zur Bearbeitung geladen.`,
+    );
+  };
+
+  const cancelMainEditorEdit = () => {
+    setEditingListId(null);
+    setDraftTitle("");
+    setDraftDate("");
+    setDraftRows([]);
+    setSelectedSite("");
+    setIsManualSiteOverride(false);
+    setIsSiteConfirmed(false);
+    setCustomerDetection(null);
+    setSuccessMessage(null);
+    setErrorMessage(null);
+  };
+
+  const handleSaveModalChanges = async () => {
+    if (!selectedSavedList) return;
+    if (modalEditRows.length === 0) {
+      setErrorMessage("Die Containerliste muss mindestens eine Zeile enthalten.");
+      return;
+    }
+
+    setIsSavingModal(true);
+    setErrorMessage(null);
+
+    try {
+      const token = getAuthToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const payload = {
+        site: modalEditSite,
+        title: modalEditTitle || `Entladeliste ${modalEditSite}`,
+        date: modalEditDate || undefined,
+        status: "SAVED",
+        rows: modalEditRows.map((r, idx) => sanitizeRowForPayload(r, idx)),
+      };
+
+      const res = await fetch(`${API_URL}/container-lists/${selectedSavedList.id}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err || "Fehler beim Aktualisieren der Containerliste");
+      }
+
+      const updated: SavedContainerList = await res.json();
+      setSelectedSavedList(updated);
+      setModalEditSite(updated.site);
+      setModalEditTitle(updated.title || "");
+      setModalEditDate(
+        updated.date ? new Date(updated.date).toISOString().slice(0, 10) : "",
+      );
+      setModalEditRows(
+        (updated.rows || []).map((r) => ({
+          ...r,
+          anderweitigeArbeiten: r.anderweitigeArbeiten || [],
+        })),
+      );
+      setIsEditingModal(false);
+      setSuccessMessage("Änderungen an der Containerliste erfolgreich gespeichert!");
+      fetchSavedLists();
+    } catch (err: any) {
+      setErrorMessage(`Aktualisierung fehlgeschlagen: ${err.message}`);
+    } finally {
+      setIsSavingModal(false);
     }
   };
 
@@ -278,6 +505,7 @@ export default function ContainerListsPage() {
     }
 
     setIsExtracting(true);
+    setEditingListId(null);
     setErrorMessage(null);
     setSuccessMessage(null);
     setIsSimulatedDraft(false);
@@ -354,39 +582,7 @@ export default function ContainerListsPage() {
   };
 
   const updateRowField = (index: number, field: keyof ContainerRow, value: any) => {
-    const updated = [...draftRows];
-    const target: ContainerRow = { ...updated[index], [field]: value };
-
-    // Auto-split if user pasted combined "09:00 bis 09:50" or "08:00-09:30" into wartezeitVon
-    if (field === "wartezeitVon" && typeof value === "string") {
-      const m = value
-        .trim()
-        .match(/^(\d{1,2}[:.]\d{2})\s*(?:bis|-|–)\s*(\d{1,2}[:.]\d{2})$/i);
-      if (m) {
-        target.wartezeitVon = m[1].replace(".", ":");
-        target.wartezeitBis = m[2].replace(".", ":");
-      }
-    }
-
-    if (
-      field === "wartezeitVon" ||
-      field === "wartezeitBis" ||
-      field === "personal" ||
-      field === "anderweitigeArbeiten"
-    ) {
-      const calc = computeRowWaitingDetails(target);
-      target.wartezeitStd = calc.formattedDecimal;
-    }
-
-    if (field === "personal" && Number(value) > 0) {
-      target.uncertainFields = (target.uncertainFields || []).filter(
-        (f) => f !== "personal",
-      );
-      target.warnings = (target.warnings || []).filter((w) => w.field !== "personal");
-    }
-
-    updated[index] = target;
-    setDraftRows(updated);
+    setDraftRows((prev) => applyRowFieldUpdate(prev, index, field, value));
   };
 
   const addOtherWorkEntry = (rowIndex: number) => {
@@ -457,6 +653,84 @@ export default function ContainerListsPage() {
     setDraftRows(updated);
   };
 
+  // Modal row helpers
+  const updateModalRowField = (
+    index: number,
+    field: keyof ContainerRow,
+    value: any,
+  ) => {
+    setModalEditRows((prev) => applyRowFieldUpdate(prev, index, field, value));
+  };
+
+  const addModalRow = () => {
+    setModalEditRows((prev) => [
+      ...prev,
+      {
+        rowOrder: prev.length + 1,
+        date: modalEditDate || "",
+        containerNumber: "",
+        fuss: "40",
+        artikel: "",
+        kartons: 0,
+        termin: "",
+        ankunft: "",
+        start: "",
+        ende: "",
+        personal: 2,
+        wartezeitVon: "",
+        wartezeitBis: "",
+        wartezeitStd: "",
+        wickel: "",
+        preis: 0,
+        ps: "",
+        extraTeam: "",
+        bemerkung: "",
+        anderweitigeArbeiten: [],
+        warnings: [],
+        uncertainFields: [],
+      },
+    ]);
+  };
+
+  const removeModalRow = (index: number) => {
+    setModalEditRows((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const addModalOtherWorkEntry = (rowIndex: number) => {
+    const row = modalEditRows[rowIndex];
+    const nextEntries: OtherWorkEntry[] = [
+      ...(row.anderweitigeArbeiten || []),
+      {
+        personal: 1,
+        von: row.wartezeitVon || "",
+        bis: row.wartezeitBis || "",
+        bemerkung: "",
+      },
+    ];
+    updateModalRowField(rowIndex, "anderweitigeArbeiten", nextEntries);
+    setModalExpandedOtherWorkRow(rowIndex);
+  };
+
+  const updateModalOtherWorkEntry = (
+    rowIndex: number,
+    entryIndex: number,
+    field: keyof OtherWorkEntry,
+    value: any,
+  ) => {
+    const row = modalEditRows[rowIndex];
+    const entries = [...(row.anderweitigeArbeiten || [])];
+    entries[entryIndex] = { ...entries[entryIndex], [field]: value };
+    updateModalRowField(rowIndex, "anderweitigeArbeiten", entries);
+  };
+
+  const removeModalOtherWorkEntry = (rowIndex: number, entryIndex: number) => {
+    const row = modalEditRows[rowIndex];
+    const entries = (row.anderweitigeArbeiten || []).filter(
+      (_, i) => i !== entryIndex,
+    );
+    updateModalRowField(rowIndex, "anderweitigeArbeiten", entries);
+  };
+
   // Totals across draft rows
   const summaryStats = useMemo(() => {
     let totalWartezeitHours = 0;
@@ -472,6 +746,25 @@ export default function ContainerListsPage() {
       )} Std.`,
     };
   }, [draftRows]);
+
+  // Totals across modal rows
+  const modalSummaryStats = useMemo(() => {
+    const sourceRows = isEditingModal
+      ? modalEditRows
+      : selectedSavedList?.rows || [];
+    let totalWartezeitHours = 0;
+    let totalWorkHoursOhneWartezeit = 0;
+    for (const r of sourceRows) {
+      totalWartezeitHours += computeRowWaitingDetails(r).netHours;
+      totalWorkHoursOhneWartezeit += computeRowWorkHoursWithoutWaiting(r);
+    }
+    return {
+      totalWartezeitFormatted: `${formatGermanDecimalHours(totalWartezeitHours)} Std.`,
+      totalWorkHoursOhneWartezeitFormatted: `${formatGermanDecimalHours(
+        totalWorkHoursOhneWartezeit,
+      )} Std.`,
+    };
+  }, [isEditingModal, modalEditRows, selectedSavedList]);
 
   const handleSaveToDatabase = async () => {
     if (draftRows.length === 0) {
@@ -493,27 +786,54 @@ export default function ContainerListsPage() {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const payload = {
-        site: selectedSite,
-        title: draftTitle || `Containerliste ${selectedSite}`,
-        date: draftDate || new Date().toISOString().slice(0, 10),
-        rawFileName: selectedFile?.name,
-        status: "SAVED",
-        rows: draftRows,
-      };
+      const sanitizedRows = draftRows.map((r, idx) => sanitizeRowForPayload(r, idx));
 
-      const res = await fetch(`${API_URL}/container-lists`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-      });
+      if (editingListId) {
+        const updatePayload = {
+          site: selectedSite,
+          title: draftTitle || `Containerliste ${selectedSite}`,
+          date: draftDate || undefined,
+          status: "SAVED",
+          rows: sanitizedRows,
+        };
 
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(err || "Fehler beim Speichern");
+        const res = await fetch(`${API_URL}/container-lists/${editingListId}`, {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify(updatePayload),
+        });
+
+        if (!res.ok) {
+          const err = await res.text();
+          throw new Error(err || "Fehler beim Aktualisieren");
+        }
+
+        setSuccessMessage("Gespeicherte Containerliste erfolgreich aktualisiert!");
+        setEditingListId(null);
+      } else {
+        const createPayload = {
+          site: selectedSite,
+          title: draftTitle || `Containerliste ${selectedSite}`,
+          date: draftDate || new Date().toISOString().slice(0, 10),
+          rawFileName: selectedFile?.name,
+          status: "SAVED",
+          rows: sanitizedRows,
+        };
+
+        const res = await fetch(`${API_URL}/container-lists`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(createPayload),
+        });
+
+        if (!res.ok) {
+          const err = await res.text();
+          throw new Error(err || "Fehler beim Speichern");
+        }
+
+        setSuccessMessage("Containerliste erfolgreich in der Datenbank gespeichert!");
       }
 
-      setSuccessMessage("Containerliste erfolgreich in der Datenbank gespeichert!");
       setSelectedFile(null);
       setDraftRows([]);
       setCustomerDetection(null);
@@ -551,7 +871,7 @@ export default function ContainerListsPage() {
             </h1>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            KI-gestützte Erfassung, Prüfung und originalgetreuer Vorlagen-Export der Kundenstandorte.
+            KI-gestützte Erfassung, Prüfung, Nachbearbeitung und originalgetreuer Vorlagen-Export der Kundenstandorte.
           </p>
         </div>
 
@@ -565,7 +885,7 @@ export default function ContainerListsPage() {
                 : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
             }`}
           >
-            Neue Liste erfassen
+            {editingListId ? "Liste bearbeiten" : "Neue Liste erfassen"}
           </button>
           <button
             onClick={() => setActiveTab("saved")}
@@ -611,10 +931,26 @@ export default function ContainerListsPage() {
         <div className="space-y-6">
           {/* Step 1: Upload & Configuration Box */}
           <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm space-y-4">
-            <h2 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <UploadCloud className="w-5 h-5 text-blue-600" />
-              <span>1. Original-Containerliste hochladen (Foto, PDF oder CSV)</span>
-            </h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <UploadCloud className="w-5 h-5 text-blue-600" />
+                <span>
+                  {editingListId
+                    ? "Gespeicherte Containerliste bearbeiten"
+                    : "1. Original-Containerliste hochladen (Foto, PDF oder CSV)"}
+                </span>
+              </h2>
+              {editingListId && (
+                <button
+                  type="button"
+                  onClick={cancelMainEditorEdit}
+                  className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-semibold inline-flex items-center gap-1"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Bearbeitung abbrechen (Neue Liste)</span>
+                </button>
+              )}
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Site selector with Auto-Detection & Manual Override */}
@@ -623,7 +959,7 @@ export default function ContainerListsPage() {
                   <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500">
                     Kunde / Standort (Vorlage)
                   </label>
-                  {isManualSiteOverride && (
+                  {isManualSiteOverride && !editingListId && (
                     <button
                       type="button"
                       onClick={() => handleSiteSelectorChange("")}
@@ -658,36 +994,65 @@ export default function ContainerListsPage() {
                 </p>
               </div>
 
-              {/* File Dropzone */}
+              {/* File Dropzone or Title/Date Metadata when editing */}
               <div className="md:col-span-2">
-                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
-                  Datei auswählen
-                </label>
-                <div className="flex flex-col sm:flex-row items-center gap-3">
-                  <input
-                    type="file"
-                    accept="image/*,application/pdf,text/csv,.csv"
-                    onChange={handleFileChange}
-                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/40 dark:file:text-blue-300 cursor-pointer"
-                  />
-                  <button
-                    onClick={handleExtract}
-                    disabled={!selectedFile || isExtracting}
-                    className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-sm flex items-center justify-center gap-2 whitespace-nowrap shadow-sm shadow-blue-500/20 transition-all"
-                  >
-                    {isExtracting ? (
-                      <>
-                        <RotateCw className="w-4 h-4 animate-spin" />
-                        <span>Analysiere...</span>
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="w-4 h-4" />
-                        <span>KI-Extraktion starten</span>
-                      </>
-                    )}
-                  </button>
-                </div>
+                {editingListId ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
+                        Titel der Liste
+                      </label>
+                      <input
+                        type="text"
+                        value={draftTitle}
+                        onChange={(e) => setDraftTitle(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
+                        Listen-Datum
+                      </label>
+                      <input
+                        type="date"
+                        value={draftDate}
+                        onChange={(e) => setDraftDate(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
+                      Datei auswählen
+                    </label>
+                    <div className="flex flex-col sm:flex-row items-center gap-3">
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf,text/csv,.csv"
+                        onChange={handleFileChange}
+                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/40 dark:file:text-blue-300 cursor-pointer"
+                      />
+                      <button
+                        onClick={handleExtract}
+                        disabled={!selectedFile || isExtracting}
+                        className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-sm flex items-center justify-center gap-2 whitespace-nowrap shadow-sm shadow-blue-500/20 transition-all"
+                      >
+                        {isExtracting ? (
+                          <>
+                            <RotateCw className="w-4 h-4 animate-spin" />
+                            <span>Analysiere...</span>
+                          </>
+                        ) : (
+                          <>
+                            <FileText className="w-4 h-4" />
+                            <span>KI-Extraktion starten</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -820,7 +1185,9 @@ export default function ContainerListsPage() {
                 <div>
                   <h2 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
                     <span>
-                      2. Entwurf prüfen &amp; korrigieren ({draftRows.length} Container)
+                      {editingListId
+                        ? `Gespeicherte Liste bearbeiten (${draftRows.length} Container)`
+                        : `2. Entwurf prüfen & korrigieren (${draftRows.length} Container)`}
                     </span>
                     {selectedSite && isSiteConfirmed ? (
                       <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
@@ -855,7 +1222,11 @@ export default function ContainerListsPage() {
                     ) : (
                       <Save className="w-4 h-4" />
                     )}
-                    <span>In Datenbank speichern</span>
+                    <span>
+                      {editingListId
+                        ? "Änderungen speichern"
+                        : "In Datenbank speichern"}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -1465,23 +1836,19 @@ export default function ContainerListsPage() {
                       <td className="py-3 px-4 text-right">
                         <div className="inline-flex items-center gap-1.5">
                           <button
-                            onClick={async () => {
-                              const token = getAuthToken();
-                              const headers: Record<string, string> = {};
-                              if (token) headers["Authorization"] = `Bearer ${token}`;
-                              const res = await fetch(
-                                `${API_URL}/container-lists/${item.id}`,
-                                { headers },
-                              );
-                              if (res.ok) {
-                                const full = await res.json();
-                                setSelectedSavedList(full);
-                              }
-                            }}
+                            onClick={() => openSavedListDetail(item.id, false)}
                             className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold text-xs inline-flex items-center gap-1"
                           >
                             <Eye className="w-3.5 h-3.5" />
                             <span>Ansehen</span>
+                          </button>
+                          <button
+                            onClick={() => openSavedListDetail(item.id, true)}
+                            className="px-3 py-1.5 rounded-lg bg-blue-600/10 hover:bg-blue-600/20 text-blue-700 dark:text-blue-400 font-semibold text-xs inline-flex items-center gap-1"
+                            title="Gespeicherte Containerliste bearbeiten"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                            <span>Bearbeiten</span>
                           </button>
                           <button
                             onClick={() => downloadExport(item.id, "xlsx", item.site)}
@@ -1510,55 +1877,131 @@ export default function ContainerListsPage() {
         </div>
       )}
 
-      {/* ─── MODAL: INSPECT SAVED LIST ─────────────────────────────────── */}
+      {/* ─── MODAL: INSPECT & EDIT SAVED LIST ──────────────────────────── */}
       {selectedSavedList && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
-            <div className="p-5 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl w-full max-w-6xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-gray-200 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
                   <FileText className="w-5 h-5 text-blue-600" />
-                  <span>{selectedSavedList.title}</span>
+                  <span>
+                    {isEditingModal
+                      ? `Containerliste bearbeiten: ${modalEditTitle || selectedSavedList.title}`
+                      : selectedSavedList.title}
+                  </span>
                   <span className="px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 text-xs font-semibold">
-                    {selectedSavedList.site}
+                    {isEditingModal ? modalEditSite : selectedSavedList.site}
                   </span>
                 </h3>
                 <p className="text-xs text-gray-400 mt-1">
                   Erfasst am{" "}
                   {new Date(selectedSavedList.createdAt).toLocaleString("de-DE")} •{" "}
-                  {selectedSavedList.rows?.length || 0} Container
+                  {isEditingModal
+                    ? modalEditRows.length
+                    : selectedSavedList.rows?.length || 0}{" "}
+                  Container
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {!isEditingModal ? (
+                  <>
+                    <button
+                      onClick={() => setIsEditingModal(true)}
+                      className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      <span>Bearbeiten</span>
+                    </button>
+                    <button
+                      onClick={() => loadSavedListIntoMainEditor(selectedSavedList)}
+                      className="px-3 py-1.5 rounded-xl bg-blue-600/10 hover:bg-blue-600/20 text-blue-700 dark:text-blue-400 text-xs font-semibold inline-flex items-center gap-1"
+                      title="Im großen Haupteditor öffnen"
+                    >
+                      <span>Im Haupteditor öffnen</span>
+                    </button>
+                    <button
+                      onClick={() =>
+                        downloadExport(
+                          selectedSavedList.id,
+                          "xlsx",
+                          selectedSavedList.site,
+                        )
+                      }
+                      className="px-3 py-1.5 rounded-xl bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 text-xs font-semibold inline-flex items-center gap-1"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5" />
+                      <span>Excel</span>
+                    </button>
+                    <button
+                      onClick={() =>
+                        downloadExport(
+                          selectedSavedList.id,
+                          "pdf",
+                          selectedSavedList.site,
+                        )
+                      }
+                      className="px-3 py-1.5 rounded-xl bg-red-600/10 hover:bg-red-600/20 text-red-700 dark:text-red-400 text-xs font-semibold inline-flex items-center gap-1"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>PDF</span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={addModalRow}
+                      className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs font-semibold inline-flex items-center gap-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Zeile hinzufügen</span>
+                    </button>
+                    <button
+                      onClick={handleSaveModalChanges}
+                      disabled={isSavingModal}
+                      className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm"
+                    >
+                      {isSavingModal ? (
+                        <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Save className="w-3.5 h-3.5" />
+                      )}
+                      <span>Änderungen speichern</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        // Reset modal edits from selectedSavedList
+                        setModalEditSite(selectedSavedList.site);
+                        setModalEditTitle(selectedSavedList.title || "");
+                        setModalEditDate(
+                          selectedSavedList.date
+                            ? new Date(selectedSavedList.date)
+                                .toISOString()
+                                .slice(0, 10)
+                            : "",
+                        );
+                        setModalEditRows(
+                          (selectedSavedList.rows || []).map((r) => ({
+                            ...r,
+                            anderweitigeArbeiten: r.anderweitigeArbeiten || [],
+                          })),
+                        );
+                        setIsEditingModal(false);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-xs font-semibold hover:bg-gray-200"
+                    >
+                      Abbrechen
+                    </button>
+                  </>
+                )}
+
                 <button
-                  onClick={() =>
-                    downloadExport(
-                      selectedSavedList.id,
-                      "xlsx",
-                      selectedSavedList.site,
-                    )
-                  }
-                  className="px-3 py-1.5 rounded-xl bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 text-xs font-semibold inline-flex items-center gap-1"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>Excel</span>
-                </button>
-                <button
-                  onClick={() =>
-                    downloadExport(
-                      selectedSavedList.id,
-                      "pdf",
-                      selectedSavedList.site,
-                    )
-                  }
-                  className="px-3 py-1.5 rounded-xl bg-red-600/10 hover:bg-red-600/20 text-red-700 dark:text-red-400 text-xs font-semibold inline-flex items-center gap-1"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>PDF</span>
-                </button>
-                <button
-                  onClick={() => setSelectedSavedList(null)}
+                  onClick={() => {
+                    setSelectedSavedList(null);
+                    setIsEditingModal(false);
+                  }}
                   className="px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-xs font-semibold hover:bg-gray-200"
                 >
                   Schließen
@@ -1566,7 +2009,52 @@ export default function ContainerListsPage() {
               </div>
             </div>
 
+            {/* Modal Body */}
             <div className="p-6 overflow-y-auto space-y-4">
+              {/* Metadata editor when in modal edit mode */}
+              {isEditingModal && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800">
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-1">
+                      Standort / Kunde (Vorlage)
+                    </label>
+                    <select
+                      value={modalEditSite}
+                      onChange={(e) => setModalEditSite(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-semibold text-gray-900 dark:text-white outline-none"
+                    >
+                      {SUPPORTED_SITES.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-1">
+                      Titel der Liste
+                    </label>
+                    <input
+                      type="text"
+                      value={modalEditTitle}
+                      onChange={(e) => setModalEditTitle(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-medium text-gray-900 dark:text-white outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-1">
+                      Datum
+                    </label>
+                    <input
+                      type="date"
+                      value={modalEditDate}
+                      onChange={(e) => setModalEditDate(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-medium text-gray-900 dark:text-white outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
@@ -1577,64 +2065,442 @@ export default function ContainerListsPage() {
                       <th className="py-2 px-2">Fuß</th>
                       <th className="py-2 px-2">Artikel</th>
                       <th className="py-2 px-2">Kartons</th>
+                      {isEditingModal && (
+                        <>
+                          <th className="py-2 px-2">Termin</th>
+                          <th className="py-2 px-2">Ankunft</th>
+                        </>
+                      )}
                       <th className="py-2 px-2">Start</th>
                       <th className="py-2 px-2">Ende</th>
                       <th className="py-2 px-2">Dauer</th>
                       <th className="py-2 px-2">
-                        {selectedSavedList.site === "Schwalbe"
+                        {(isEditingModal ? modalEditSite : selectedSavedList.site) ===
+                        "Schwalbe"
                           ? "Personal Anzahl"
                           : "Personal"}
                       </th>
                       <th className="py-2 px-2">
-                        {selectedSavedList.site === "Gant"
+                        {(isEditingModal ? modalEditSite : selectedSavedList.site) ===
+                        "Gant"
                           ? "Wartezeit"
                           : "Wartezeit Von–Bis"}
                       </th>
+                      {isEditingModal && <th className="py-2 px-2">Anderw. Arbeit</th>}
                       <th className="py-2 px-2 font-bold text-blue-600">
                         Wartezeit Std.
                       </th>
+                      {isEditingModal && <th className="py-2 px-2">Wickel</th>}
                       <th className="py-2 px-2">Bemerkung</th>
+                      {isEditingModal && <th className="py-2 px-2 w-8"></th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {selectedSavedList.rows?.map((r, i) => (
-                      <tr
-                        key={r.rowOrder || i}
-                        className="hover:bg-gray-50/50 dark:hover:bg-gray-800/20"
-                      >
-                        <td className="py-2 px-2 font-mono text-gray-400">
-                          {i + 1}
-                        </td>
-                        <td className="py-2 px-2">{r.date || "—"}</td>
-                        <td className="py-2 px-2 font-mono font-bold text-gray-900 dark:text-white">
-                          {r.containerNumber || "—"}
-                        </td>
-                        <td className="py-2 px-2 font-mono">{r.fuss || "—"}</td>
-                        <td className="py-2 px-2">{r.artikel || "—"}</td>
-                        <td className="py-2 px-2 font-mono">{r.kartons ?? "—"}</td>
-                        <td className="py-2 px-2 font-mono">{r.start || "—"}</td>
-                        <td className="py-2 px-2 font-mono">{r.ende || "—"}</td>
-                        <td className="py-2 px-2 font-mono">
-                          {computeDauerClock(r.start, r.ende)}
-                        </td>
-                        <td className="py-2 px-2 font-mono font-semibold">
-                          {r.personal ?? "—"}
-                        </td>
-                        <td className="py-2 px-2 font-mono text-gray-500">
-                          {r.wartezeitVon && r.wartezeitBis
-                            ? `${r.wartezeitVon} bis ${r.wartezeitBis}`
-                            : r.wartezeitVon || "—"}
-                        </td>
-                        <td className="py-2 px-2 font-mono font-bold text-blue-600 dark:text-blue-400">
-                          {r.wartezeitStd ? `${r.wartezeitStd} Std.` : "—"}
-                        </td>
-                        <td className="py-2 px-2 text-gray-500">
-                          {r.bemerkung || "—"}
-                        </td>
-                      </tr>
-                    ))}
+                    {!isEditingModal
+                      ? selectedSavedList.rows?.map((r, i) => (
+                          <tr
+                            key={r.rowOrder || i}
+                            className="hover:bg-gray-50/50 dark:hover:bg-gray-800/20"
+                          >
+                            <td className="py-2 px-2 font-mono text-gray-400">
+                              {i + 1}
+                            </td>
+                            <td className="py-2 px-2">{r.date || "—"}</td>
+                            <td className="py-2 px-2 font-mono font-bold text-gray-900 dark:text-white">
+                              {r.containerNumber || "—"}
+                            </td>
+                            <td className="py-2 px-2 font-mono">{r.fuss || "—"}</td>
+                            <td className="py-2 px-2">{r.artikel || "—"}</td>
+                            <td className="py-2 px-2 font-mono">{r.kartons ?? "—"}</td>
+                            <td className="py-2 px-2 font-mono">{r.start || "—"}</td>
+                            <td className="py-2 px-2 font-mono">{r.ende || "—"}</td>
+                            <td className="py-2 px-2 font-mono">
+                              {computeDauerClock(r.start, r.ende)}
+                            </td>
+                            <td className="py-2 px-2 font-mono font-semibold">
+                              {r.personal ?? "—"}
+                            </td>
+                            <td className="py-2 px-2 font-mono text-gray-500">
+                              {r.wartezeitVon && r.wartezeitBis
+                                ? `${r.wartezeitVon} bis ${r.wartezeitBis}`
+                                : r.wartezeitVon || "—"}
+                            </td>
+                            <td className="py-2 px-2 font-mono font-bold text-blue-600 dark:text-blue-400">
+                              {r.wartezeitStd ? `${r.wartezeitStd} Std.` : "—"}
+                            </td>
+                            <td className="py-2 px-2 text-gray-500">
+                              {r.bemerkung || "—"}
+                            </td>
+                          </tr>
+                        ))
+                      : modalEditRows.map((row, idx) => {
+                          const waitingInfo = computeRowWaitingDetails(row);
+                          const otherWorkCount =
+                            row.anderweitigeArbeiten?.length || 0;
+                          return (
+                            <React.Fragment key={idx}>
+                              <tr className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30">
+                                <td className="py-1.5 px-2 font-mono text-gray-400">
+                                  {idx + 1}
+                                </td>
+                                <td className="py-1.5 px-1">
+                                  <input
+                                    type="text"
+                                    value={row.date || ""}
+                                    onChange={(e) =>
+                                      updateModalRowField(idx, "date", e.target.value)
+                                    }
+                                    className="w-24 px-2 py-1 rounded border border-gray-200 dark:border-gray-700 bg-transparent font-mono text-xs"
+                                  />
+                                </td>
+                                <td className="py-1.5 px-1">
+                                  <input
+                                    type="text"
+                                    value={row.containerNumber || ""}
+                                    onChange={(e) =>
+                                      updateModalRowField(
+                                        idx,
+                                        "containerNumber",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className="w-32 px-2 py-1 rounded border border-gray-200 dark:border-gray-700 bg-transparent font-mono font-bold text-xs"
+                                  />
+                                </td>
+                                <td className="py-1.5 px-1">
+                                  <select
+                                    value={row.fuss || "40"}
+                                    onChange={(e) =>
+                                      updateModalRowField(idx, "fuss", e.target.value)
+                                    }
+                                    className="w-16 px-1 py-1 rounded border border-gray-200 dark:border-gray-700 bg-transparent font-mono text-xs"
+                                  >
+                                    <option value="20">20</option>
+                                    <option value="40">40</option>
+                                    <option value="45">45</option>
+                                  </select>
+                                </td>
+                                <td className="py-1.5 px-1">
+                                  <input
+                                    type="text"
+                                    value={row.artikel || ""}
+                                    onChange={(e) =>
+                                      updateModalRowField(
+                                        idx,
+                                        "artikel",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className="w-24 px-2 py-1 rounded border border-gray-200 dark:border-gray-700 bg-transparent text-xs"
+                                  />
+                                </td>
+                                <td className="py-1.5 px-1">
+                                  <input
+                                    type="number"
+                                    value={row.kartons ?? ""}
+                                    onChange={(e) =>
+                                      updateModalRowField(
+                                        idx,
+                                        "kartons",
+                                        parseInt(e.target.value, 10) || 0,
+                                      )
+                                    }
+                                    className="w-20 px-2 py-1 rounded border border-gray-200 dark:border-gray-700 bg-transparent font-mono text-xs text-right"
+                                  />
+                                </td>
+                                <td className="py-1.5 px-1">
+                                  <input
+                                    type="text"
+                                    value={row.termin || ""}
+                                    onChange={(e) =>
+                                      updateModalRowField(
+                                        idx,
+                                        "termin",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className="w-16 px-1.5 py-1 rounded border border-gray-200 dark:border-gray-700 bg-transparent font-mono text-xs"
+                                  />
+                                </td>
+                                <td className="py-1.5 px-1">
+                                  <input
+                                    type="text"
+                                    value={row.ankunft || ""}
+                                    onChange={(e) =>
+                                      updateModalRowField(
+                                        idx,
+                                        "ankunft",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className="w-16 px-1.5 py-1 rounded border border-gray-200 dark:border-gray-700 bg-transparent font-mono text-xs"
+                                  />
+                                </td>
+                                <td className="py-1.5 px-1">
+                                  <input
+                                    type="text"
+                                    value={row.start || ""}
+                                    onChange={(e) =>
+                                      updateModalRowField(idx, "start", e.target.value)
+                                    }
+                                    className="w-16 px-1.5 py-1 rounded border border-gray-200 dark:border-gray-700 bg-transparent font-mono text-xs"
+                                  />
+                                </td>
+                                <td className="py-1.5 px-1">
+                                  <input
+                                    type="text"
+                                    value={row.ende || ""}
+                                    onChange={(e) =>
+                                      updateModalRowField(idx, "ende", e.target.value)
+                                    }
+                                    className="w-16 px-1.5 py-1 rounded border border-gray-200 dark:border-gray-700 bg-transparent font-mono text-xs"
+                                  />
+                                </td>
+                                <td className="py-1.5 px-2 font-mono text-gray-500">
+                                  {computeDauerClock(row.start, row.ende)}
+                                </td>
+                                <td className="py-1.5 px-1">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={30}
+                                    value={row.personal ?? ""}
+                                    onChange={(e) =>
+                                      updateModalRowField(
+                                        idx,
+                                        "personal",
+                                        parseInt(e.target.value, 10) || undefined,
+                                      )
+                                    }
+                                    className="w-16 px-2 py-1 rounded border border-amber-300 dark:border-amber-700 bg-transparent font-mono font-bold text-xs"
+                                  />
+                                </td>
+                                <td className="py-1.5 px-1">
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      type="text"
+                                      value={row.wartezeitVon || ""}
+                                      placeholder="09:00"
+                                      onChange={(e) =>
+                                        updateModalRowField(
+                                          idx,
+                                          "wartezeitVon",
+                                          e.target.value,
+                                        )
+                                      }
+                                      className="w-14 px-1 py-1 rounded border border-gray-200 dark:border-gray-700 bg-transparent font-mono text-xs"
+                                    />
+                                    <span className="text-[10px] text-gray-400">
+                                      bis
+                                    </span>
+                                    <input
+                                      type="text"
+                                      value={row.wartezeitBis || ""}
+                                      placeholder="09:50"
+                                      onChange={(e) =>
+                                        updateModalRowField(
+                                          idx,
+                                          "wartezeitBis",
+                                          e.target.value,
+                                        )
+                                      }
+                                      className="w-14 px-1 py-1 rounded border border-gray-200 dark:border-gray-700 bg-transparent font-mono text-xs"
+                                    />
+                                  </div>
+                                </td>
+                                <td className="py-1.5 px-1">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setModalExpandedOtherWorkRow(
+                                        modalExpandedOtherWorkRow === idx
+                                          ? null
+                                          : idx,
+                                      )
+                                    }
+                                    className={`px-2 py-1 rounded text-[11px] font-semibold border ${
+                                      otherWorkCount > 0
+                                        ? "bg-purple-500/10 border-purple-500/40 text-purple-700 dark:text-purple-300"
+                                        : "border-gray-200 dark:border-gray-700 text-gray-500"
+                                    }`}
+                                  >
+                                    {otherWorkCount > 0
+                                      ? `${otherWorkCount} Abzug`
+                                      : "+ Abzug"}
+                                  </button>
+                                </td>
+                                <td className="py-1.5 px-2 font-mono font-bold text-blue-600 dark:text-blue-400">
+                                  {waitingInfo.netHours > 0
+                                    ? `${waitingInfo.formattedDecimal} Std.`
+                                    : row.wartezeitStd
+                                      ? `${row.wartezeitStd} Std.`
+                                      : "0 Std."}
+                                </td>
+                                <td className="py-1.5 px-1">
+                                  <input
+                                    type="text"
+                                    value={row.wickel || ""}
+                                    onChange={(e) =>
+                                      updateModalRowField(
+                                        idx,
+                                        "wickel",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className="w-16 px-1.5 py-1 rounded border border-gray-200 dark:border-gray-700 bg-transparent text-xs"
+                                  />
+                                </td>
+                                <td className="py-1.5 px-1">
+                                  <input
+                                    type="text"
+                                    value={row.bemerkung || ""}
+                                    onChange={(e) =>
+                                      updateModalRowField(
+                                        idx,
+                                        "bemerkung",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className="w-28 px-2 py-1 rounded border border-gray-200 dark:border-gray-700 bg-transparent text-xs"
+                                  />
+                                </td>
+                                <td className="py-1.5 px-1 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => removeModalRow(idx)}
+                                    className="text-gray-400 hover:text-rose-500 p-1"
+                                    title="Zeile entfernen"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+
+                              {modalExpandedOtherWorkRow === idx && (
+                                <tr className="bg-purple-500/5 dark:bg-purple-950/20">
+                                  <td colSpan={18} className="p-3">
+                                    <div className="space-y-2">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-xs font-semibold text-purple-800 dark:text-purple-300">
+                                          Anderweitige Arbeit während der Wartezeit
+                                          (Zeile {idx + 1}):
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => addModalOtherWorkEntry(idx)}
+                                          className="px-2.5 py-1 rounded-lg bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 inline-flex items-center gap-1"
+                                        >
+                                          <Plus className="w-3.5 h-3.5" />
+                                          <span>Eintrag hinzufügen</span>
+                                        </button>
+                                      </div>
+                                      {(row.anderweitigeArbeiten || []).map(
+                                        (entry, eIdx) => (
+                                          <div
+                                            key={eIdx}
+                                            className="flex flex-wrap items-center gap-2 text-xs"
+                                          >
+                                            <label className="flex items-center gap-1">
+                                              <span>Personal:</span>
+                                              <input
+                                                type="number"
+                                                min={1}
+                                                value={entry.personal ?? ""}
+                                                onChange={(e) =>
+                                                  updateModalOtherWorkEntry(
+                                                    idx,
+                                                    eIdx,
+                                                    "personal",
+                                                    parseInt(e.target.value, 10) ||
+                                                      0,
+                                                  )
+                                                }
+                                                className="w-16 px-2 py-1 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 font-mono"
+                                              />
+                                            </label>
+                                            <label className="flex items-center gap-1">
+                                              <span>Von:</span>
+                                              <input
+                                                type="text"
+                                                value={entry.von || ""}
+                                                onChange={(e) =>
+                                                  updateModalOtherWorkEntry(
+                                                    idx,
+                                                    eIdx,
+                                                    "von",
+                                                    e.target.value,
+                                                  )
+                                                }
+                                                className="w-20 px-2 py-1 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 font-mono"
+                                              />
+                                            </label>
+                                            <label className="flex items-center gap-1">
+                                              <span>Bis:</span>
+                                              <input
+                                                type="text"
+                                                value={entry.bis || ""}
+                                                onChange={(e) =>
+                                                  updateModalOtherWorkEntry(
+                                                    idx,
+                                                    eIdx,
+                                                    "bis",
+                                                    e.target.value,
+                                                  )
+                                                }
+                                                className="w-20 px-2 py-1 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 font-mono"
+                                              />
+                                            </label>
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                removeModalOtherWorkEntry(idx, eIdx)
+                                              }
+                                              className="text-rose-500 hover:text-rose-700 px-2 py-1 font-semibold"
+                                            >
+                                              Entfernen
+                                            </button>
+                                          </div>
+                                        ),
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Modal Summary Footer */}
+              <div className="pt-3 border-t border-gray-200 dark:border-gray-800 flex flex-wrap items-center justify-between text-xs text-gray-500 gap-4">
+                <div>
+                  Standort-Vorlage:{" "}
+                  <strong className="text-gray-900 dark:text-white">
+                    {isEditingModal ? modalEditSite : selectedSavedList.site}
+                  </strong>
+                </div>
+                <div className="flex flex-wrap items-center gap-4">
+                  <div>
+                    {(isEditingModal ? modalEditSite : selectedSavedList.site) ===
+                    "Schwalbe"
+                      ? "Gesamt Wartezeit:"
+                      : "Wartezeit Summe:"}{" "}
+                    <strong className="text-blue-600 dark:text-blue-400 font-mono">
+                      {modalSummaryStats.totalWartezeitFormatted}
+                    </strong>
+                  </div>
+                  {(isEditingModal ? modalEditSite : selectedSavedList.site) ===
+                    "Schwalbe" && (
+                    <div>
+                      Gesamt Personal Std. ohne Wartezeit:{" "}
+                      <strong className="text-emerald-600 dark:text-emerald-400 font-mono">
+                        {modalSummaryStats.totalWorkHoursOhneWartezeitFormatted}
+                      </strong>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
