@@ -92,6 +92,7 @@ export default function ContainerListsPage() {
   const [globalWarnings, setGlobalWarnings] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isSimulatedDraft, setIsSimulatedDraft] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Saved Lists State
@@ -194,6 +195,7 @@ export default function ContainerListsPage() {
     setIsExtracting(true);
     setErrorMessage(null);
     setSuccessMessage(null);
+    setIsSimulatedDraft(false);
 
     try {
       const formData = new FormData();
@@ -221,7 +223,13 @@ export default function ContainerListsPage() {
       setDraftDate(draft.date || new Date().toISOString().slice(0, 10));
       setDraftRows(draft.rows || []);
       setGlobalWarnings(draft.globalWarnings || []);
-      setSuccessMessage(`Erfolgreich extrahiert: ${draft.rows?.length || 0} Container-Zeilen gefunden.`);
+      const simulated = !!draft.simulated;
+      setIsSimulatedDraft(simulated);
+      if (simulated) {
+        setSuccessMessage(null);
+      } else {
+        setSuccessMessage(`Erfolgreich extrahiert: ${draft.rows?.length || 0} Container-Zeilen gefunden.`);
+      }
     } catch (err: any) {
       setErrorMessage(`Fehler bei der Extraktion: ${err.message}`);
     } finally {
@@ -392,6 +400,17 @@ export default function ContainerListsPage() {
       </div>
 
       {/* Notifications */}
+      {isSimulatedDraft && (
+        <div className="flex items-center gap-2.5 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-sm font-semibold">
+          <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+          <span>
+            Simulierte Vorschau (KI-Mock-Modus): Es wurden KEINE echten Daten
+            extrahiert. Alle Werte unten sind Platzhalter und müssen manuell
+            geprüft oder ersetzt werden.
+          </span>
+        </div>
+      )}
+
       {successMessage && (
         <div className="flex items-center gap-2.5 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-sm font-medium">
           <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
@@ -522,7 +541,7 @@ export default function ContainerListsPage() {
                   <thead>
                     <tr className="border-b border-gray-200 dark:border-gray-800 text-gray-400 font-semibold uppercase tracking-wider">
                       <th className="py-2.5 px-2 w-10">#</th>
-                      <th className="py-2.5 px-2 min-w-[90px]">Datum</th>
+                      <th className="py-2.5 px-2 min-w-[108px]">Datum</th>
                       <th className="py-2.5 px-2 min-w-[140px]">Container-Nr.</th>
                       <th className="py-2.5 px-2 min-w-[70px]">Fuß</th>
                       <th className="py-2.5 px-2 min-w-[130px]">Artikel</th>
