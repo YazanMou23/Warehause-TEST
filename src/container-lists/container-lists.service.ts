@@ -826,7 +826,7 @@ export class ContainerListsService {
     doc
       .fontSize(14)
       .font('Helvetica-Bold')
-      .text(`Container-Liste (CTR-Liste) — ${list.site}`, { align: 'center' });
+      .text(`Container-Liste — ${list.site}`, { align: 'center' });
     doc
       .fontSize(10)
       .font('Helvetica')

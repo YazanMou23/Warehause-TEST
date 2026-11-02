@@ -867,7 +867,7 @@ export default function ContainerListsPage() {
               <FileSpreadsheet className="w-6 h-6" />
             </div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Container-Listen (CTR-Liste)
+              Container-Listen
             </h1>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
