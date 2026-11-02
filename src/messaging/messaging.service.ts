@@ -237,12 +237,16 @@ export class MessagingService implements OnModuleInit {
       return this.selfService.verifyWebhookSignature(rawBody, signatureHeader, secretOverride);
     }
 
-    const appSecret =
-      secretOverride ??
-      process.env.WHATSAPP_APP_SECRET ??
-      process.env.META_APP_SECRET;
+    const candidates = [
+      secretOverride,
+      process.env.WHATSAPP_APP_SECRET,
+      process.env.META_APP_SECRET,
+    ];
+    const appSecret = candidates
+      .find((c): c is string => typeof c === 'string' && c.trim().length > 0)
+      ?.trim();
 
-    if (!appSecret || !appSecret.trim()) {
+    if (!appSecret) {
       throw new UnauthorizedException('Webhook app secret is not configured');
     }
     if (!signatureHeader || typeof signatureHeader !== 'string') {
