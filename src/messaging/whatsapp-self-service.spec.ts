@@ -10,6 +10,7 @@ import { TimesheetService } from '../timesheet/timesheet.service';
 describe('Phase-1 Worker WhatsApp Self-Service', () => {
   const APP_SECRET = 'test_meta_app_secret_2026';
   const REFERENCE_DATE = new Date('2026-10-20T10:00:00.000Z'); // October 2026
+  const originalEnv = { ...process.env };
 
   const workerAli = {
     id: 'emp-ali-1',
@@ -53,7 +54,9 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
   }
 
   beforeEach(() => {
+    process.env = { ...originalEnv };
     process.env.WHATSAPP_APP_SECRET = APP_SECRET;
+    delete process.env.META_APP_SECRET;
 
     mockPrisma = {
       user: {
@@ -123,7 +126,12 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
   });
 
   afterEach(() => {
+    process.env = { ...originalEnv };
     jest.restoreAllMocks();
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
   });
 
   // ─── 1. Webhook Signature Verification ──────────────────────────────────────
@@ -310,6 +318,70 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
       expect(() =>
         standalone.verifyWebhookSignature(standaloneSig.rawBody, standaloneSig.signature),
       ).toThrow(UnauthorizedException);
+    });
+
+    it('selects correct next candidate when ConfigService returns a blank primary secret', async () => {
+      const syntheticMetaSecret = 'synthetic_config_meta_secret_fallback_789';
+
+      const configWithBlankPrimary = {
+        get: jest.fn((key: string) => {
+          if (key === 'WHATSAPP_APP_SECRET') return '   ';
+          if (key === 'META_APP_SECRET') return syntheticMetaSecret;
+          return undefined;
+        }),
+      } as unknown as ConfigService;
+
+      // Ensure process.env does not interfere with ConfigService candidate selection
+      delete process.env.WHATSAPP_APP_SECRET;
+      delete process.env.META_APP_SECRET;
+
+      const serviceWithConfig = new WhatsappSelfServiceService(
+        mockPrisma,
+        timesheetService,
+        configWithBlankPrimary,
+      );
+
+      // Candidate 2 (ConfigService WHATSAPP_APP_SECRET) is whitespace; candidate 3 (ConfigService META_APP_SECRET) is selected
+      const valid = signPayload(sampleWebhookBody, syntheticMetaSecret);
+      expect(
+        serviceWithConfig.verifyWebhookSignature(valid.rawBody, valid.signature),
+      ).toBe(true);
+
+      // Request signed with wrong secret is rejected
+      const wrong = signPayload(sampleWebhookBody, 'wrong_synthetic_secret');
+      expect(() =>
+        serviceWithConfig.verifyWebhookSignature(wrong.rawBody, wrong.signature),
+      ).toThrow(UnauthorizedException);
+
+      expect(configWithBlankPrimary.get).toHaveBeenCalledWith('WHATSAPP_APP_SECRET');
+      expect(configWithBlankPrimary.get).toHaveBeenCalledWith('META_APP_SECRET');
+    });
+
+    it('falls through ConfigService blank primary to process.env candidate when ConfigService secondary is also missing/blank', async () => {
+      const syntheticEnvSecret = 'synthetic_env_meta_secret_fallback_999';
+
+      const configWithBothBlank = {
+        get: jest.fn((key: string) => {
+          if (key === 'WHATSAPP_APP_SECRET') return '';
+          if (key === 'META_APP_SECRET') return '   ';
+          return undefined;
+        }),
+      } as unknown as ConfigService;
+
+      process.env.WHATSAPP_APP_SECRET = '   ';
+      process.env.META_APP_SECRET = syntheticEnvSecret;
+
+      const serviceWithFallback = new WhatsappSelfServiceService(
+        mockPrisma,
+        timesheetService,
+        configWithBothBlank,
+      );
+
+      // Candidates 2, 3, 4 are blank; candidate 5 (process.env.META_APP_SECRET) is selected
+      const valid = signPayload(sampleWebhookBody, syntheticEnvSecret);
+      expect(
+        serviceWithFallback.verifyWebhookSignature(valid.rawBody, valid.signature),
+      ).toBe(true);
     });
   });
 
