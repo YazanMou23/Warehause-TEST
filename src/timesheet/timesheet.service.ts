@@ -479,9 +479,7 @@ export class TimesheetService {
 
     const enriched = data.map((ts) => ({
       ...ts,
-      totalHours: ts.entries
-        .filter((e) => (e as any).isActive !== false)
-        .reduce((sum, e) => sum + e.totalHours, 0),
+      totalHours: this.calculateTimesheetTotalHours(ts.entries as any),
       entryCount: ts.entries.filter(
         (e) => (e as any).isActive !== false && e.startTime?.trim(),
       ).length,
@@ -623,14 +621,7 @@ export class TimesheetService {
       const start = dto.startTime ?? entry.startTime;
       const end = dto.endTime ?? entry.endTime;
       const brk = dto.breakMinutes ?? entry.breakMinutes;
-      if (start && end) {
-        const [sH, sM] = start.split(':').map(Number);
-        const [eH, eM] = end.split(':').map(Number);
-        const netMin = (eH * 60 + eM) - (sH * 60 + sM) - brk;
-        updateData.totalHours = Math.max(0, Math.round((netMin / 60) * 100) / 100);
-      } else {
-        updateData.totalHours = 0;
-      }
+      updateData.totalHours = start && end ? this.calculateHours(start, end, brk) : 0;
     }
 
     const updated = await this.prisma.timesheetEntry.update({
@@ -757,6 +748,189 @@ export class TimesheetService {
     });
 
     return { message: 'Stundenzettel erfolgreich gelöscht' };
+  }
+
+  // ─── Shared Worker Timesheet Calculation & Read-Only Query ─────────────────
+
+  /**
+   * Calculates net hours for a start/end time string ("HH:mm") and break minutes,
+   * using the exact worker timesheet formula.
+   */
+  calculateHours(startTime: string, endTime: string, breakMinutes = 0): number {
+    if (!startTime?.trim() || !endTime?.trim()) return 0;
+    const [startH, startM] = startTime.trim().split(':').map(Number);
+    const [endH, endM] = endTime.trim().split(':').map(Number);
+    if (isNaN(startH) || isNaN(startM) || isNaN(endH) || isNaN(endM)) return 0;
+    const startMinutes = startH * 60 + startM;
+    const endMinutes = endH * 60 + endM;
+    if (endMinutes <= startMinutes) return 0;
+    const netMinutes = endMinutes - startMinutes - (Number(breakMinutes) || 0);
+    return Math.max(0, Math.round((netMinutes / 60) * 100) / 100);
+  }
+
+  /**
+   * Calculates hours for a single timesheet entry using the exact worker timesheet logic.
+   */
+  calculateEntryHours(entry: {
+    startTime?: string | null;
+    endTime?: string | null;
+    breakMinutes?: number | null;
+    totalHours?: number | null;
+    isActive?: boolean | null;
+  }): number {
+    if (!entry || entry.isActive === false) return 0;
+    if (entry.startTime?.trim() && entry.endTime?.trim()) {
+      return this.calculateHours(
+        entry.startTime.trim(),
+        entry.endTime.trim(),
+        Number(entry.breakMinutes) || 0,
+      );
+    }
+    if (typeof entry.totalHours === 'number' && !isNaN(entry.totalHours)) {
+      return Math.max(0, Math.round(entry.totalHours * 100) / 100);
+    }
+    return 0;
+  }
+
+  /**
+   * Sums active timesheet entries using the worker timesheet calculation.
+   */
+  calculateTimesheetTotalHours(
+    entries: Array<{
+      startTime?: string | null;
+      endTime?: string | null;
+      breakMinutes?: number | null;
+      totalHours?: number | null;
+      isActive?: boolean | null;
+    }>,
+  ): number {
+    const sum = (entries || [])
+      .filter((e) => e && e.isActive !== false)
+      .reduce((acc, e) => acc + this.calculateEntryHours(e), 0);
+    return Math.round(sum * 100) / 100;
+  }
+
+  /**
+   * Dedicated read-only query for a single worker's confirmed timesheet hours
+   * within a requested date range (exact date or month).
+   * Enforces employeeId isolation at the query level and never uses
+   * separate Attendance totals.
+   */
+  async getWorkerTimesheetHoursForPeriod(
+    employeeId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<{
+    hasRecords: boolean;
+    totalHours: number | null;
+    daysCount: number;
+    entries: Array<{
+      date: string;
+      weekday: string;
+      startTime: string;
+      endTime: string;
+      breakMinutes: number;
+      hours: number;
+      location: string | null;
+    }>;
+  }> {
+    if (!employeeId || typeof employeeId !== 'string') {
+      throw new BadRequestException('employeeId is required');
+    }
+
+    const timesheets = await this.prisma.timesheet.findMany({
+      where: {
+        employeeId,
+        status: TimesheetStatus.CONFIRMED,
+        entries: {
+          some: {
+            date: {
+              gte: startDate,
+              lte: endDate,
+            },
+          },
+        },
+      },
+      include: {
+        entries: {
+          where: {
+            date: {
+              gte: startDate,
+              lte: endDate,
+            },
+          },
+          orderBy: { date: 'asc' },
+        },
+      },
+      orderBy: { weekStartDate: 'asc' },
+    });
+
+    const startMs = startDate.getTime();
+    const endMs = endDate.getTime();
+
+    const matchedEntries: Array<{
+      date: string;
+      weekday: string;
+      startTime: string;
+      endTime: string;
+      breakMinutes: number;
+      hours: number;
+      location: string | null;
+    }> = [];
+
+    for (const ts of timesheets || []) {
+      // Strict worker & status isolation
+      if (ts.employeeId !== employeeId) continue;
+      if (ts.status && ts.status !== TimesheetStatus.CONFIRMED) continue;
+
+      for (const entry of ts.entries || []) {
+        if ((entry as any).isActive === false) continue;
+        const entryDate = entry.date instanceof Date ? entry.date : new Date(entry.date);
+        if (isNaN(entryDate.getTime())) continue;
+        const entryMs = entryDate.getTime();
+        if (entryMs < startMs || entryMs > endMs) continue;
+
+        const hasTimes = Boolean(entry.startTime?.trim() && entry.endTime?.trim());
+        const hasExplicitHours =
+          typeof entry.totalHours === 'number' &&
+          !isNaN(entry.totalHours) &&
+          (entry.totalHours > 0 || Boolean(entry.startTime?.trim()));
+
+        if (!hasTimes && !hasExplicitHours) continue;
+
+        const hours = this.calculateEntryHours(entry as any);
+        matchedEntries.push({
+          date: entryDate.toISOString().split('T')[0],
+          weekday: entry.weekday || '',
+          startTime: entry.startTime?.trim() || '',
+          endTime: entry.endTime?.trim() || '',
+          breakMinutes: Number(entry.breakMinutes) || 0,
+          hours,
+          location: entry.location || null,
+        });
+      }
+    }
+
+    matchedEntries.sort((a, b) => a.date.localeCompare(b.date));
+
+    if (matchedEntries.length === 0) {
+      return {
+        hasRecords: false,
+        totalHours: null,
+        daysCount: 0,
+        entries: [],
+      };
+    }
+
+    const totalHours =
+      Math.round(matchedEntries.reduce((sum, e) => sum + e.hours, 0) * 100) / 100;
+
+    return {
+      hasRecords: true,
+      totalHours,
+      daysCount: matchedEntries.length,
+      entries: matchedEntries,
+    };
   }
 
   // ─── Helpers ───────────────────────────────────────────────────────────────

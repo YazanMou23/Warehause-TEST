@@ -1,11 +1,20 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Optional, UnauthorizedException } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { WhatsappSelfServiceService } from './whatsapp-self-service.service';
 
 @Injectable()
 export class MessagingService implements OnModuleInit {
   private readonly logger = new Logger(MessagingService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly processedMessageIds = new Map<string, number>();
+  private static readonly MESSAGE_DEDUP_TTL_MS = 24 * 60 * 60 * 1000;
+  private static readonly MESSAGE_DEDUP_MAX_SIZE = 10000;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly selfService?: WhatsappSelfServiceService,
+  ) {}
 
   async onModuleInit() {
     this.syncWabaWebhookSubscription().catch((err) => {
@@ -216,9 +225,116 @@ export class MessagingService implements OnModuleInit {
   }
 
   /**
+   * Verifies Meta X-Hub-Signature-256 HMAC-SHA256 signature using the app secret.
+   * Rejects invalid or unsigned webhook requests.
+   */
+  verifyWebhookSignature(
+    rawBody: Buffer | string | undefined,
+    signatureHeader: string | undefined,
+    secretOverride?: string,
+  ): boolean {
+    if (this.selfService) {
+      return this.selfService.verifyWebhookSignature(rawBody, signatureHeader, secretOverride);
+    }
+
+    const appSecret =
+      secretOverride ??
+      process.env.WHATSAPP_APP_SECRET ??
+      process.env.META_APP_SECRET;
+
+    if (!appSecret || !appSecret.trim()) {
+      throw new UnauthorizedException('Webhook app secret is not configured');
+    }
+    if (!signatureHeader || typeof signatureHeader !== 'string') {
+      throw new UnauthorizedException('Missing webhook signature');
+    }
+    const trimmedSig = signatureHeader.trim();
+    if (!trimmedSig.toLowerCase().startsWith('sha256=')) {
+      throw new UnauthorizedException('Invalid webhook signature format');
+    }
+    const receivedHex = trimmedSig.slice('sha256='.length).trim().toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(receivedHex)) {
+      throw new UnauthorizedException('Invalid webhook signature digest');
+    }
+    if (rawBody === undefined || rawBody === null) {
+      throw new UnauthorizedException('Missing webhook payload body');
+    }
+
+    const payloadBuffer = Buffer.isBuffer(rawBody)
+      ? rawBody
+      : Buffer.from(typeof rawBody === 'string' ? rawBody : JSON.stringify(rawBody), 'utf8');
+
+    const expectedHex = crypto
+      .createHmac('sha256', appSecret.trim())
+      .update(payloadBuffer)
+      .digest('hex')
+      .toLowerCase();
+
+    const expectedBuf = Buffer.from(expectedHex, 'utf8');
+    const receivedBuf = Buffer.from(receivedHex, 'utf8');
+    if (
+      expectedBuf.length !== receivedBuf.length ||
+      !crypto.timingSafeEqual(expectedBuf, receivedBuf)
+    ) {
+      throw new UnauthorizedException('Invalid webhook signature');
+    }
+    return true;
+  }
+
+  /**
+   * Checks and records an incoming message ID for deduplication.
+   * Returns true if the message ID is new and should be processed;
+   * returns false if it has already been seen.
+   */
+  markMessageIdProcessed(messageId?: string | null): boolean {
+    if (!messageId || typeof messageId !== 'string') return true;
+    const id = messageId.trim();
+    if (!id) return true;
+
+    const now = Date.now();
+    // Prune expired entries if map grows large
+    if (this.processedMessageIds.size >= MessagingService.MESSAGE_DEDUP_MAX_SIZE) {
+      for (const [k, ts] of this.processedMessageIds.entries()) {
+        if (now - ts > MessagingService.MESSAGE_DEDUP_TTL_MS) {
+          this.processedMessageIds.delete(k);
+        }
+      }
+      if (this.processedMessageIds.size >= MessagingService.MESSAGE_DEDUP_MAX_SIZE) {
+        const oldestKey = this.processedMessageIds.keys().next().value;
+        if (oldestKey) this.processedMessageIds.delete(oldestKey);
+      }
+    }
+
+    const existingTs = this.processedMessageIds.get(id);
+    if (existingTs !== undefined && now - existingTs <= MessagingService.MESSAGE_DEDUP_TTL_MS) {
+      return false;
+    }
+
+    this.processedMessageIds.set(id, now);
+    return true;
+  }
+
+  /**
    * Process Meta WhatsApp Cloud API webhook events
    */
-  async handleWebhookPayload(body: any): Promise<void> {
+  async handleWebhookPayload(
+    body: any,
+    options?: {
+      signature?: string;
+      rawBody?: Buffer | string;
+      verifySignature?: boolean;
+      referenceDate?: Date;
+    },
+  ): Promise<void> {
+    if (options?.verifySignature || options?.signature !== undefined) {
+      const raw =
+        options?.rawBody ??
+        (typeof body === 'string'
+          ? Buffer.from(body, 'utf8')
+          : Buffer.from(JSON.stringify(body ?? {}), 'utf8'));
+      this.verifyWebhookSignature(raw, options?.signature);
+    }
+
     if (!body || body.object !== 'whatsapp_business_account') return;
 
     // Top-level audit log so managers/admins can verify Meta reached the server
@@ -261,7 +377,7 @@ export class MessagingService implements OnModuleInit {
         if (value.messages && Array.isArray(value.messages)) {
           for (const msg of value.messages) {
             try {
-              await this.processIncomingWebhookMessage(msg);
+              await this.processIncomingWebhookMessage(msg, options?.referenceDate);
             } catch (err: any) {
               this.logger.error(`Error processing incoming WhatsApp message from ${msg.from}: ${err.message}`);
             }
@@ -272,28 +388,60 @@ export class MessagingService implements OnModuleInit {
   }
 
   /**
-   * Helper to find active user by incoming phone number variations.
+   * Deterministically normalizes a phone number to E.164 digits without '+'.
+   * Never uses last-digit or substring approximations.
+   */
+  normalizePhoneStrict(phone: string | null | undefined): string {
+    if (this.selfService) {
+      return this.selfService.normalizePhoneNumber(phone);
+    }
+    if (!phone || typeof phone !== 'string') return '';
+    let cleaned = phone.trim();
+    if (!cleaned || /[a-zA-Z]/.test(cleaned)) return '';
+    cleaned = cleaned.replace(/^\+(\d{1,3})\s*\(0\)/, '+$1');
+    cleaned = cleaned.replace(/^00(\d{1,3})\s*\(0\)/, '00$1');
+    const hasPlus = cleaned.startsWith('+');
+    let digits = cleaned.replace(/\D/g, '');
+    if (!digits) return '';
+    if (!hasPlus) {
+      if (digits.startsWith('00')) {
+        digits = digits.slice(2);
+      } else if (digits.startsWith('0')) {
+        digits = '49' + digits.slice(1);
+      }
+    }
+    if (digits.length < 7 || digits.length > 15) return '';
+    return digits;
+  }
+
+  /**
+   * Matches the sender phone to EXACTLY ONE active user by exact normalized phone number.
+   * Never uses last-digit/fuzzy matching. Returns null if unknown (0 matches) or ambiguous (>1 matches).
    */
   private async findUserByPhone(phone: string) {
-    const cleanFrom = this.formatPhoneNumber(phone);
-    const last9 = cleanFrom.slice(-9);
-    const last8 = cleanFrom.slice(-8);
-    const germanLocal = '0' + cleanFrom.substring(2);
-    const international = '+' + cleanFrom;
+    if (this.selfService) {
+      const resolved = await this.selfService.resolveWorkerByExactPhone(phone);
+      return resolved.status === 'MATCHED' ? resolved.worker : null;
+    }
 
-    return this.prisma.user.findFirst({
+    const normalized = this.normalizePhoneStrict(phone);
+    if (!normalized) return null;
+
+    const activeUsers = await this.prisma.user.findMany({
       where: {
         isActive: true,
         deletedAt: null,
-        OR: [
-          { phone: cleanFrom },
-          { phone: germanLocal },
-          { phone: international },
-          { phone: { contains: last9 } },
-          { phone: { contains: last8 } },
-        ],
       },
     });
+
+    const matches = (activeUsers || []).filter(
+      (u: any) => u.phone && this.normalizePhoneStrict(u.phone) === normalized,
+    );
+
+    if (matches.length !== 1) {
+      return null;
+    }
+    return matches[0];
   }
 
   /**
@@ -331,17 +479,30 @@ export class MessagingService implements OnModuleInit {
   }
 
   /**
-   * Process individual incoming message (Interactive button reply, Template button reply, or custom text).
-   * Synchronizes PlanEmployee confirmation status and EmployeeAbsence records.
+   * Process individual incoming message:
+   * - Deduplicates incoming message IDs (msg.id).
+   * - Preserves existing CONFIRM / SICK button replies and their behavior.
+   * - Routes natural-language text messages to read-only Phase-1 Worker Self-Service
+   *   (German, Turkish, Arabic, Ukrainian) without modifying hours, plans, or records.
    */
-  private async processIncomingWebhookMessage(msg: any): Promise<void> {
-    const rawFrom = String(msg.from || '');
-    const cleanFrom = this.formatPhoneNumber(rawFrom);
+  async processIncomingWebhookMessage(msg: any, referenceDate?: Date): Promise<void> {
+    if (!msg) return;
+
+    // Deduplicate incoming message ID
+    if (msg.id && !this.markMessageIdProcessed(String(msg.id))) {
+      this.logger.warn(
+        `[WhatsApp Webhook] Duplicate incoming message ID ignored: ${msg.id}`,
+      );
+      return;
+    }
+
+    const rawFrom = String(msg.from || '').trim();
+    const cleanFrom = this.normalizePhoneStrict(rawFrom) || this.formatPhoneNumber(rawFrom);
 
     const isInteractive = msg.type === 'interactive' && Boolean(msg.interactive?.button_reply);
     const isTemplateButton = msg.type === 'button' && Boolean(msg.button?.text || msg.button?.payload);
 
-    // 1. Process Button Click (from both Interactive Buttons and Template Quick Replies)
+    // 1. Process Button Click (CONFIRM / SICK buttons — preserved unchanged)
     if (isInteractive || isTemplateButton) {
       const buttonId = (
         msg.interactive?.button_reply?.id ||
@@ -361,7 +522,7 @@ export class MessagingService implements OnModuleInit {
         `[WhatsApp Webhook] 🔘 User clicked ${msg.type} button: "${buttonTitle}" (ID/Payload: "${buttonId}") from +${cleanFrom}`,
       );
 
-      // Check if buttonId has CONFIRM_{planId}_{employeeId} or SICK_{planId}_{employeeId} or CUSTOM_{planId}_{employeeId}
+      // Check if buttonId has CONFIRM_{planId}_{employeeId} or SICK_{planId}_{employeeId}
       const parts = buttonId.split('_');
       let actionPrefix = parts[0]?.toUpperCase() || '';
       let targetPlanId = parts[1] || '';
@@ -392,26 +553,35 @@ export class MessagingService implements OnModuleInit {
           lowerId === '2'
         ) {
           actionPrefix = 'SICK';
-        } else if (
-          lowerId.includes('custom') ||
-          lowerTitle.includes('nachricht') ||
-          lowerTitle === '3' ||
-          lowerId === '3'
-        ) {
-          actionPrefix = 'CUSTOM';
         } else {
           actionPrefix = 'CUSTOM';
         }
       }
 
-      // If planId or employeeId was not encoded in buttonId, find user by phone number
+      // If planId or employeeId was not encoded in buttonId, find user by exact normalized phone number
       if (!targetPlanId || !targetEmpId) {
-        const user = await this.findUserByPhone(cleanFrom);
+        const user = await this.findUserByPhone(rawFrom);
         if (user) {
           targetEmpId = user.id;
           const assignment = await this.findPendingOrRecentAssignment(user.id);
           if (assignment) {
             targetPlanId = assignment.planId;
+          }
+        }
+      } else if (this.prisma.user?.findMany) {
+        // Verify sender phone matches targetEmpId when users exist in DB
+        const activeUsers = await this.prisma.user.findMany({
+          where: { isActive: true, deletedAt: null },
+        });
+        if (Array.isArray(activeUsers) && activeUsers.length > 0) {
+          const matches = activeUsers.filter(
+            (u: any) => u.phone && this.normalizePhoneStrict(u.phone) === this.normalizePhoneStrict(rawFrom),
+          );
+          if (matches.length !== 1 || matches[0].id !== targetEmpId) {
+            this.logger.warn(
+              `[WhatsApp Webhook] Button click sender +${rawFrom} does not uniquely match employee ${targetEmpId}; ignoring.`,
+            );
+            return;
           }
         }
       }
@@ -491,153 +661,54 @@ export class MessagingService implements OnModuleInit {
             `🤒 Ihre Krankmeldung wurde erfasst und an die Schichtleitung übermittelt. Gute Besserung!`,
           ).catch(() => {});
           return;
-
-        } else if (actionPrefix === 'CUSTOM') {
-          await this.prisma.planEmployee.updateMany({
-            where: { planId: targetPlanId, employeeId: targetEmpId },
-            data: {
-              confirmationStatus: 'CUSTOM_RESPONSE',
-              responseNote: 'Wartet auf individuelle Textnachricht',
-              respondedAt: new Date(),
-              responseChannel: 'WHATSAPP_BUTTON',
-            },
-          });
-
-          await this.prisma.actionLog.create({
-            data: {
-              userId: targetEmpId,
-              action: 'WHATSAPP_NOTE_RECEIVED',
-              details: `Mitarbeiter hat "Schreib Nachricht" gewählt via WhatsApp-Button`,
-            },
-          }).catch(() => {});
-
-          await this.sendWhatsAppDirect(
-            cleanFrom,
-            `💬 Bitte schreiben Sie uns direkt hier im Chat eine kurze Nachricht (z. B. Grund der Verhinderung oder wann Sie kommen können).`,
-          ).catch(() => {});
-          return;
         }
       } else {
         this.logger.warn(
           `[WhatsApp Webhook] Could not resolve plan or employee for button click from +${cleanFrom}`,
         );
       }
+      return;
     }
 
-    // 2. Process Incoming Freeform Text Messages
+    // 2. Process Incoming Conversational Text Messages (Phase-1 Worker Self-Service)
+    // Strictly read-only: cannot edit hours, plans, or other records, and does not
+    // store custom worker messages as requests.
     if (msg.type === 'text' && msg.text?.body) {
       const incomingText = msg.text.body.trim();
-      this.logger.log(`[WhatsApp Webhook] Received text from +${cleanFrom}: "${incomingText}"`);
+      this.logger.log(`[WhatsApp Webhook] Received text from +${rawFrom}: "${incomingText}"`);
 
-      const user = await this.findUserByPhone(cleanFrom);
-      if (!user) {
-        this.logger.warn(`[WhatsApp Webhook] No active user found for phone +${cleanFrom}`);
+      if (!this.selfService) {
+        this.logger.warn('[WhatsApp Webhook] WhatsappSelfServiceService is not initialized.');
+        return;
+      }
+
+      const convResult = await this.selfService.handleIncomingConversation(
+        rawFrom,
+        incomingText,
+        referenceDate,
+      );
+
+      if (
+        convResult.status === 'UNKNOWN_IDENTITY' ||
+        convResult.status === 'AMBIGUOUS_IDENTITY'
+      ) {
+        this.logger.warn(
+          `[WhatsApp Webhook] Identity status ${convResult.status} for phone +${rawFrom} — no personal data returned.`,
+        );
         await this.prisma.actionLog.create({
           data: {
-            action: 'WHATSAPP_UNKNOWN_SENDER',
-            details: `WhatsApp-Nachricht von unbekannter Nummer +${cleanFrom} erhalten: "${incomingText}"`,
+            action:
+              convResult.status === 'AMBIGUOUS_IDENTITY'
+                ? 'WHATSAPP_AMBIGUOUS_SENDER'
+                : 'WHATSAPP_UNKNOWN_SENDER',
+            details: `WhatsApp-Nachricht von nicht eindeutig zugeordneter Nummer +${rawFrom} (${convResult.status})`,
           },
         }).catch(() => {});
         return;
       }
 
-      const recentAssignment = await this.findPendingOrRecentAssignment(user.id);
-      if (recentAssignment) {
-        const lower = incomingText.toLowerCase();
-        let targetStatus: 'CONFIRMED' | 'SICK' | 'CUSTOM_RESPONSE' = 'CUSTOM_RESPONSE';
-        let noteText = incomingText;
-
-        if (
-          lower === '1' ||
-          lower.includes('bin da') ||
-          lower.includes('komme') ||
-          lower === 'ja' ||
-          lower.startsWith('confirm') ||
-          lower.startsWith('accept')
-        ) {
-          targetStatus = 'CONFIRMED';
-          noteText = `Zugesagt („${incomingText}“)`;
-        } else if (
-          lower === '2' ||
-          lower.includes('krank') ||
-          lower.includes('arzt') ||
-          lower.startsWith('sick') ||
-          lower.startsWith('decline')
-        ) {
-          targetStatus = 'SICK';
-          noteText = `Krankmeldung via Text („${incomingText}“)`;
-
-          // Sync with EmployeeAbsence
-          const normDate = new Date(recentAssignment.plan.date);
-          normDate.setUTCHours(0, 0, 0, 0);
-          await this.prisma.employeeAbsence.upsert({
-            where: {
-              employeeId_date: {
-                employeeId: user.id,
-                date: normDate,
-              },
-            },
-            create: {
-              employeeId: user.id,
-              date: normDate,
-              status: 'KRANK',
-              reason: noteText,
-            },
-            update: {
-              status: 'KRANK',
-              reason: noteText,
-            },
-          }).catch(() => {});
-        } else if (lower === '3' || lower.startsWith('3') || lower.includes('nachricht')) {
-          targetStatus = 'CUSTOM_RESPONSE';
-          noteText =
-            incomingText.length > 2 ? incomingText : 'Mitarbeiter wünscht Rücksprache (Option 3)';
-        } else {
-          targetStatus = 'CUSTOM_RESPONSE';
-          noteText = incomingText;
-        }
-
-        await this.prisma.planEmployee.update({
-          where: {
-            planId_employeeId: {
-              planId: recentAssignment.planId,
-              employeeId: user.id,
-            },
-          },
-          data: {
-            confirmationStatus: targetStatus,
-            responseNote: noteText,
-            respondedAt: new Date(),
-            responseChannel: 'WHATSAPP_TEXT',
-          },
-        });
-
-        await this.prisma.actionLog.create({
-          data: {
-            userId: user.id,
-            action:
-              targetStatus === 'CONFIRMED'
-                ? 'WHATSAPP_CONFIRMED'
-                : targetStatus === 'SICK'
-                ? 'WHATSAPP_SICK_REPORT'
-                : 'WHATSAPP_NOTE_RECEIVED',
-            details: `Mitarbeiter "${user.name}" (${user.phone}) Rückmeldung per Text: "${incomingText}" (${targetStatus})`,
-          },
-        }).catch(() => {});
-
-        const formattedPlanDate = new Date(recentAssignment.plan.date).toLocaleDateString('de-DE');
-        const replyAck =
-          targetStatus === 'CONFIRMED'
-            ? `✅ Vielen Dank, ${user.name}! Ihre Zusage („Ich bin da“) wurde für Ihren Schichteinsatz am ${formattedPlanDate} gespeichert.`
-            : targetStatus === 'SICK'
-            ? `🤒 Ihre Krankmeldung wurde erfasst und an die Schichtleitung übermittelt. Gute Besserung!`
-            : `👍 Vielen Dank, ${user.name}! Ihre Nachricht („${incomingText}“) wurde für Ihren Schichteinsatz am ${formattedPlanDate} vermerkt.`;
-
-        await this.sendWhatsAppDirect(cleanFrom, replyAck).catch(() => {});
-      } else {
-        this.logger.warn(
-          `[WhatsApp Webhook] No plan assignment found for user ${user.name} (+${cleanFrom})`,
-        );
+      if (convResult.replyText) {
+        await this.sendWhatsAppDirect(cleanFrom, convResult.replyText).catch(() => {});
       }
     }
   }
@@ -647,7 +718,8 @@ export class MessagingService implements OnModuleInit {
    */
   async simulateIncomingMessage(phone: string, text: string): Promise<{ success: boolean; message: string }> {
     const fakeMsg = {
-      from: this.formatPhoneNumber(phone),
+      id: `sim-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      from: phone,
       type: 'text',
       text: { body: text },
     };
