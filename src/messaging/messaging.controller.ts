@@ -4,6 +4,8 @@ import {
   Get,
   Body,
   Query,
+  Headers,
+  Req,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -56,19 +58,34 @@ export class MessagingController {
   /**
    * POST /messaging/webhook
    * Meta Webhook Event Receiver.
-   * Meta sends incoming messages and message delivery status updates here.
+   * Verifies Meta X-Hub-Signature-256 HMAC-SHA256 using the app secret and rejects invalid requests.
    */
   @Post('webhook')
   @Public()
   @HttpCode(HttpStatus.OK)
-  async handleWebhook(@Body() body: any) {
+  async handleWebhook(
+    @Body() body: any,
+    @Headers('x-hub-signature-256') signature?: string,
+    @Req() req?: any,
+  ) {
+    const sig =
+      signature ??
+      req?.headers?.['x-hub-signature-256'] ??
+      req?.headers?.['X-Hub-Signature-256'];
+    const rawBody =
+      req?.rawBody ??
+      (typeof body === 'string'
+        ? Buffer.from(body, 'utf8')
+        : Buffer.from(JSON.stringify(body ?? {}), 'utf8'));
+
+    this.messagingService.verifyWebhookSignature(rawBody, sig);
     await this.messagingService.handleWebhookPayload(body);
     return 'EVENT_RECEIVED';
   }
 
   /**
    * POST /messaging/webhook/simulate
-   * Manually simulate an incoming employee WhatsApp message (e.g. 1, 2, or custom note)
+   * Manually simulate an incoming employee WhatsApp message
    */
   @Post('webhook/simulate')
   @Roles(Role.MANAGER, Role.ADMIN)
@@ -105,7 +122,6 @@ export class MessagingController {
   async syncWaba(@Query('wabaId') wabaId?: string) {
     return this.messagingService.syncWabaWebhookSubscription(wabaId);
   }
-
 
   @Post('whatsapp')
   @Roles(Role.MANAGER, Role.ADMIN)
@@ -181,7 +197,6 @@ export class MessagingController {
   @Post('sms')
   @Roles(Role.MANAGER, Role.ADMIN)
   async sendSMS(@Body() body: SendWhatsAppDto) {
-    // Bug#7: sendSMS now returns { success, error } — proxy result directly
     return this.messagingService.sendSMS(body.phone, body.message);
   }
 
