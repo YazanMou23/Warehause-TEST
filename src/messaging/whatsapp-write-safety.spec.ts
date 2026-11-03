@@ -464,6 +464,7 @@ describe('Phase-2 WhatsApp Reply Write Safety & Concurrency Guards', () => {
         '491701234567',
         expect.stringContaining('Ihre Nachricht wurde gespeichert'),
       );
+      expect(sendWhatsAppSpy).toHaveBeenCalledTimes(1);
     });
 
     it('answers hours question via self-service while awaiting note without consuming note state', async () => {
@@ -552,6 +553,7 @@ describe('Phase-2 WhatsApp Reply Write Safety & Concurrency Guards', () => {
 
       // No acknowledgment sent if count === 0
       expect(sendWhatsAppSpy).not.toHaveBeenCalled();
+      expect(sendWhatsAppSpy).toHaveBeenCalledTimes(0);
     });
 
     it('does not save note and clarifies when worker is not awaiting a note', async () => {
@@ -698,26 +700,87 @@ describe('Phase-2 WhatsApp Reply Write Safety & Concurrency Guards', () => {
   // ─── 7. Button Action Allowlist & Unknown Payloads ──────────────────────────
 
   describe('7. Button Action Allowlist & Unknown Payloads', () => {
-    it('rejects unknown button action payload with zero database writes and zero acknowledgment', async () => {
-      const msg = {
-        id: 'wamid.btn.unknown',
-        from: '491701234567',
-        timestamp: String(BASE_TIMESTAMP_SEC),
-        type: 'interactive',
-        interactive: {
-          button_reply: {
-            id: `UNKNOWN_ACTION_plan-101_${workerAli.id}`,
-            title: 'Unbekannte Aktion',
-          },
+    it('rejects unknown button IDs containing 1/2/3 and negative/conflicting titles with valid pending assignment mocked', async () => {
+      // Mock a valid pending assignment for worker Ali: if action recognition incorrectly matches
+      // via substring or fallback, it would attempt to update this assignment.
+      mockPrisma.planEmployee.findFirst.mockResolvedValue({
+        planId: 'plan-101',
+        employeeId: workerAli.id,
+        confirmationStatus: 'PENDING',
+        respondedAt: null,
+        plan: { id: 'plan-101', date: REFERENCE_DATE, deletedAt: null },
+      });
+      mockPrisma.planEmployee.findMany.mockResolvedValue([
+        {
+          planId: 'plan-101',
+          employeeId: workerAli.id,
+          confirmationStatus: 'PENDING',
+          responseNote: null,
+          respondedAt: null,
+          plan: { id: 'plan-101', date: REFERENCE_DATE, deletedAt: null },
         },
-      };
+      ]);
 
-      await messagingService.processIncomingWebhookMessage(msg, REFERENCE_DATE);
+      const warnSpy = jest.spyOn((messagingService as any).logger, 'warn');
 
-      // Must NOT update any plan, absence, or send messages
-      expect(mockPrisma.planEmployee.updateMany).not.toHaveBeenCalled();
-      expect(mockPrisma.employeeAbsence.upsert).not.toHaveBeenCalled();
-      expect(sendWhatsAppSpy).not.toHaveBeenCalled();
+      const testCases = [
+        // 1. Unknown ID containing '1' and negative title ("Ich bin nicht da")
+        {
+          id: 'UNKNOWN_1_ACTION',
+          title: 'Ich bin nicht da',
+        },
+        // 2. Unknown ID containing plan-101 and employeeId, but unknown action token prefix
+        {
+          id: `UNKNOWN_ACTION_plan-101_${workerAli.id}`,
+          title: 'Unbekannte Aktion',
+        },
+        // 3. Opaque option containing '2' with negative title ("Nein, nicht da")
+        {
+          id: 'OPTION_2_SPECIAL',
+          title: 'Nein, nicht da',
+        },
+        // 4. Custom button containing '3' with inverted title ("Ich bin da nicht")
+        {
+          id: 'BTN_3_CUSTOM_UNKNOWN',
+          title: 'Ich bin da nicht',
+        },
+        // 5. Conflicting ID (CONFIRM) and conflicting title (SICK label)
+        {
+          id: `CONFIRM_plan-101_${workerAli.id}`,
+          title: 'Ich bin krank',
+        },
+        // 6. Conflicting ID (SICK) and conflicting title (CONFIRM label)
+        {
+          id: `SICK_plan-101_${workerAli.id}`,
+          title: 'Ich bin da',
+        },
+      ];
+
+      for (const tc of testCases) {
+        jest.clearAllMocks();
+        const msg = {
+          id: `wamid.unknown.${Math.random().toString(36).slice(2)}`,
+          from: '491701234567',
+          timestamp: String(BASE_TIMESTAMP_SEC),
+          type: 'interactive',
+          interactive: {
+            button_reply: {
+              id: tc.id,
+              title: tc.title,
+            },
+          },
+        };
+
+        await messagingService.processIncomingWebhookMessage(msg, REFERENCE_DATE);
+
+        // Assert zero confirmation writes, zero absence upserts, zero sends
+        expect(mockPrisma.planEmployee.updateMany).not.toHaveBeenCalled();
+        expect(mockPrisma.employeeAbsence.upsert).not.toHaveBeenCalled();
+        expect(sendWhatsAppSpy).not.toHaveBeenCalled();
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('Unknown button action ID'),
+        );
+      }
     });
 
     it('rejects arbitrary template button text with zero database writes', async () => {
@@ -737,6 +800,76 @@ describe('Phase-2 WhatsApp Reply Write Safety & Concurrency Guards', () => {
       expect(mockPrisma.planEmployee.updateMany).not.toHaveBeenCalled();
       expect(mockPrisma.employeeAbsence.upsert).not.toHaveBeenCalled();
       expect(sendWhatsAppSpy).not.toHaveBeenCalled();
+    });
+
+    it('accepts valid multilingual button replies (DE, TR, AR, UK) and documented action tokens', async () => {
+      mockPrisma.planEmployee.updateMany.mockResolvedValue({ count: 1 });
+
+      const validCases = [
+        // DE: CONFIRM action prefix
+        {
+          id: `CONFIRM_plan-101_${workerAli.id}`,
+          title: '✅ Ich bin da',
+          expectedStatus: 'CONFIRMED',
+        },
+        // DE: SICK action prefix
+        {
+          id: `SICK_plan-101_${workerAli.id}`,
+          title: '🤒 Ich bin krank',
+          expectedStatus: 'SICK',
+        },
+        // DE: CUSTOM action prefix
+        {
+          id: `CUSTOM_plan-101_${workerAli.id}`,
+          title: '💬 Custom Nachricht',
+          expectedStatus: 'CUSTOM_RESPONSE',
+        },
+        // TR: Turkish title without ID prefix (legacy button)
+        {
+          id: 'legacy_btn',
+          title: 'Evet',
+          expectedStatus: 'CONFIRMED',
+        },
+        // AR: Arabic title without ID prefix (legacy button)
+        {
+          id: 'legacy_btn',
+          title: 'مريض',
+          expectedStatus: 'SICK',
+        },
+        // UK: Ukrainian title without ID prefix (legacy button)
+        {
+          id: 'legacy_btn',
+          title: 'Повідомлення',
+          expectedStatus: 'CUSTOM_RESPONSE',
+        },
+      ];
+
+      for (const vc of validCases) {
+        jest.clearAllMocks();
+        const msg = {
+          id: `wamid.valid.${Math.random().toString(36).slice(2)}`,
+          from: '491701234567',
+          timestamp: String(BASE_TIMESTAMP_SEC),
+          type: 'interactive',
+          interactive: {
+            button_reply: {
+              id: vc.id,
+              title: vc.title,
+            },
+          },
+        };
+
+        await messagingService.processIncomingWebhookMessage(msg, REFERENCE_DATE);
+
+        expect(mockPrisma.planEmployee.updateMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              confirmationStatus: vc.expectedStatus,
+            }),
+          }),
+        );
+        expect(sendWhatsAppSpy).toHaveBeenCalledTimes(1);
+      }
     });
   });
 });
