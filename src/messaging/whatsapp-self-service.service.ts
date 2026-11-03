@@ -276,14 +276,18 @@ export class WhatsappSelfServiceService {
     signatureHeader: string | undefined,
     secretOverride?: string,
   ): boolean {
-    const appSecret =
-      secretOverride ??
-      this.configService?.get<string>('WHATSAPP_APP_SECRET') ??
-      this.configService?.get<string>('META_APP_SECRET') ??
-      process.env.WHATSAPP_APP_SECRET ??
-      process.env.META_APP_SECRET;
+    const candidates = [
+      secretOverride,
+      this.configService?.get<string>('WHATSAPP_APP_SECRET'),
+      this.configService?.get<string>('META_APP_SECRET'),
+      process.env.WHATSAPP_APP_SECRET,
+      process.env.META_APP_SECRET,
+    ];
+    const appSecret = candidates
+      .find((c): c is string => typeof c === 'string' && c.trim().length > 0)
+      ?.trim();
 
-    if (!appSecret || !appSecret.trim()) {
+    if (!appSecret) {
       this.logger.error(
         '[WhatsApp Webhook] Missing WHATSAPP_APP_SECRET / META_APP_SECRET configuration; rejecting webhook request.',
       );
