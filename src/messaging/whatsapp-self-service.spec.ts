@@ -10,6 +10,7 @@ import { TimesheetService } from '../timesheet/timesheet.service';
 describe('Phase-1 Worker WhatsApp Self-Service', () => {
   const APP_SECRET = 'test_meta_app_secret_2026';
   const REFERENCE_DATE = new Date('2026-10-20T10:00:00.000Z'); // October 2026
+  const originalEnv = { ...process.env };
 
   const workerAli = {
     id: 'emp-ali-1',
@@ -53,7 +54,9 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
   }
 
   beforeEach(() => {
+    process.env = { ...originalEnv };
     process.env.WHATSAPP_APP_SECRET = APP_SECRET;
+    delete process.env.META_APP_SECRET;
 
     mockPrisma = {
       user: {
@@ -123,7 +126,12 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
   });
 
   afterEach(() => {
+    process.env = { ...originalEnv };
     jest.restoreAllMocks();
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
   });
 
   // ─── 1. Webhook Signature Verification ──────────────────────────────────────
@@ -212,6 +220,168 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
       await expect(
         messagingController.handleWebhook(sampleWebhookBody, signature, { rawBody }),
       ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('falls back to META_APP_SECRET when WHATSAPP_APP_SECRET is empty string or whitespace', async () => {
+      process.env.WHATSAPP_APP_SECRET = '   ';
+      process.env.META_APP_SECRET = 'test_fallback_meta_secret_synthetic_123';
+
+      const { rawBody, signature } = signPayload(
+        sampleWebhookBody,
+        'test_fallback_meta_secret_synthetic_123',
+      );
+      const res = await messagingController.handleWebhook(sampleWebhookBody, signature, {
+        rawBody,
+        headers: { 'x-hub-signature-256': signature },
+      });
+      expect(res).toBe('EVENT_RECEIVED');
+      expect(sendWhatsAppSpy).toHaveBeenCalledTimes(1);
+
+      // Verify that signing with wrong/old secret is rejected
+      const wrong = signPayload(sampleWebhookBody, 'wrong_synthetic_secret');
+      await expect(
+        messagingController.handleWebhook(sampleWebhookBody, wrong.signature, {
+          rawBody: wrong.rawBody,
+          headers: { 'x-hub-signature-256': wrong.signature },
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('selects higher-priority non-blank candidate when both WHATSAPP_APP_SECRET and META_APP_SECRET are set', async () => {
+      process.env.WHATSAPP_APP_SECRET = 'test_priority_whatsapp_secret';
+      process.env.META_APP_SECRET = 'test_priority_meta_secret';
+
+      // Primary candidate must be selected
+      const primary = signPayload(sampleWebhookBody, 'test_priority_whatsapp_secret');
+      const res = await messagingController.handleWebhook(sampleWebhookBody, primary.signature, {
+        rawBody: primary.rawBody,
+        headers: { 'x-hub-signature-256': primary.signature },
+      });
+      expect(res).toBe('EVENT_RECEIVED');
+
+      // Secondary candidate must be rejected because primary was selected
+      const secondary = signPayload(sampleWebhookBody, 'test_priority_meta_secret');
+      await expect(
+        messagingController.handleWebhook(sampleWebhookBody, secondary.signature, {
+          rawBody: secondary.rawBody,
+          headers: { 'x-hub-signature-256': secondary.signature },
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('rejects when all candidates are missing or blank/whitespace', async () => {
+      process.env.WHATSAPP_APP_SECRET = '   \t  ';
+      process.env.META_APP_SECRET = '';
+
+      const { rawBody, signature } = signPayload(sampleWebhookBody, APP_SECRET);
+      await expect(
+        messagingController.handleWebhook(sampleWebhookBody, signature, {
+          rawBody,
+          headers: { 'x-hub-signature-256': signature },
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('supports secretOverride with blank fallback and handles standalone messagingService path', async () => {
+      // secretOverride takes priority if non-blank
+      process.env.WHATSAPP_APP_SECRET = 'test_env_secret';
+      const overrideSig = signPayload(sampleWebhookBody, 'test_override_secret');
+
+      const accepted = selfService.verifyWebhookSignature(
+        overrideSig.rawBody,
+        overrideSig.signature,
+        '  test_override_secret  ',
+      );
+      expect(accepted).toBe(true);
+
+      // If secretOverride is whitespace, falls back to non-blank WHATSAPP_APP_SECRET
+      const envSig = signPayload(sampleWebhookBody, 'test_env_secret');
+      const fallbackAccepted = selfService.verifyWebhookSignature(
+        envSig.rawBody,
+        envSig.signature,
+        '    ',
+      );
+      expect(fallbackAccepted).toBe(true);
+
+      // Standalone messagingService without selfService respects non-blank fallback
+      const standalone = new MessagingService(mockPrisma);
+      process.env.WHATSAPP_APP_SECRET = '   ';
+      process.env.META_APP_SECRET = 'standalone_meta_secret';
+      const standaloneSig = signPayload(sampleWebhookBody, 'standalone_meta_secret');
+      expect(
+        standalone.verifyWebhookSignature(standaloneSig.rawBody, standaloneSig.signature),
+      ).toBe(true);
+
+      // Standalone messagingService rejects if all blank
+      process.env.WHATSAPP_APP_SECRET = ' ';
+      process.env.META_APP_SECRET = '';
+      expect(() =>
+        standalone.verifyWebhookSignature(standaloneSig.rawBody, standaloneSig.signature),
+      ).toThrow(UnauthorizedException);
+    });
+
+    it('selects correct next candidate when ConfigService returns a blank primary secret', async () => {
+      const syntheticMetaSecret = 'synthetic_config_meta_secret_fallback_789';
+
+      const configWithBlankPrimary = {
+        get: jest.fn((key: string) => {
+          if (key === 'WHATSAPP_APP_SECRET') return '   ';
+          if (key === 'META_APP_SECRET') return syntheticMetaSecret;
+          return undefined;
+        }),
+      } as unknown as ConfigService;
+
+      // Ensure process.env does not interfere with ConfigService candidate selection
+      delete process.env.WHATSAPP_APP_SECRET;
+      delete process.env.META_APP_SECRET;
+
+      const serviceWithConfig = new WhatsappSelfServiceService(
+        mockPrisma,
+        timesheetService,
+        configWithBlankPrimary,
+      );
+
+      // Candidate 2 (ConfigService WHATSAPP_APP_SECRET) is whitespace; candidate 3 (ConfigService META_APP_SECRET) is selected
+      const valid = signPayload(sampleWebhookBody, syntheticMetaSecret);
+      expect(
+        serviceWithConfig.verifyWebhookSignature(valid.rawBody, valid.signature),
+      ).toBe(true);
+
+      // Request signed with wrong secret is rejected
+      const wrong = signPayload(sampleWebhookBody, 'wrong_synthetic_secret');
+      expect(() =>
+        serviceWithConfig.verifyWebhookSignature(wrong.rawBody, wrong.signature),
+      ).toThrow(UnauthorizedException);
+
+      expect(configWithBlankPrimary.get).toHaveBeenCalledWith('WHATSAPP_APP_SECRET');
+      expect(configWithBlankPrimary.get).toHaveBeenCalledWith('META_APP_SECRET');
+    });
+
+    it('falls through ConfigService blank primary to process.env candidate when ConfigService secondary is also missing/blank', async () => {
+      const syntheticEnvSecret = 'synthetic_env_meta_secret_fallback_999';
+
+      const configWithBothBlank = {
+        get: jest.fn((key: string) => {
+          if (key === 'WHATSAPP_APP_SECRET') return '';
+          if (key === 'META_APP_SECRET') return '   ';
+          return undefined;
+        }),
+      } as unknown as ConfigService;
+
+      process.env.WHATSAPP_APP_SECRET = '   ';
+      process.env.META_APP_SECRET = syntheticEnvSecret;
+
+      const serviceWithFallback = new WhatsappSelfServiceService(
+        mockPrisma,
+        timesheetService,
+        configWithBothBlank,
+      );
+
+      // Candidates 2, 3, 4 are blank; candidate 5 (process.env.META_APP_SECRET) is selected
+      const valid = signPayload(sampleWebhookBody, syntheticEnvSecret);
+      expect(
+        serviceWithFallback.verifyWebhookSignature(valid.rawBody, valid.signature),
+      ).toBe(true);
     });
   });
 
