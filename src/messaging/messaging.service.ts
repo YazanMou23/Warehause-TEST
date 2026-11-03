@@ -546,27 +546,74 @@ export class MessagingService implements OnModuleInit {
    * Commits PlanEmployee, required EmployeeAbsence sync (if SICK), and ActionLog together.
    * Required write failures are NOT swallowed.
    */
-  // Multilingual button keywords
-  private static readonly CONFIRM_KEYWORDS = [
-    'confirm', 'accept', 'bin da', 'ich bin da', 'komme', 'ja', '1',
-    'evet', 'buradayım', 'buradayim',
-    'حاضر', 'سأحضر', 'نعم',
-    'я буду', 'прийду', 'так',
-  ];
+  // Documented legacy button labels for exact full-string matching only (strictly NO substring/includes matching)
+  private static readonly EXACT_CONFIRM_LABELS = new Set([
+    'confirm',
+    'accept',
+    'ich bin da',
+    '✅ ich bin da',
+    'bin da',
+    'ja',
+    'evet',
+    'buradayım',
+    'buradayim',
+    'حاضر',
+    'سأحضر',
+    'نعم',
+    'я буду',
+    'прийду',
+    'так',
+  ]);
 
-  private static readonly SICK_KEYWORDS = [
-    'sick', 'decline', 'krank', 'ich bin krank', 'arzt', 'nein', '2',
-    'hasta', 'hastayım', 'hastayim',
-    'مريض', 'لا',
-    'захворів', 'хворий', 'ні',
-  ];
+  private static readonly EXACT_SICK_LABELS = new Set([
+    'sick',
+    'decline',
+    'ich bin krank',
+    '🤒 ich bin krank',
+    'krank',
+    'nein',
+    'hasta',
+    'hastayım',
+    'hastayim',
+    'مريض',
+    'لا',
+    'захворів',
+    'хворий',
+    'ні',
+  ]);
 
-  private static readonly CUSTOM_KEYWORDS = [
-    'custom', 'nachricht', 'schreib nachricht', 'rücksprache', 'ruecksprache', '3',
+  private static readonly EXACT_CUSTOM_LABELS = new Set([
+    'custom',
+    'custom nachricht',
+    '💬 custom nachricht',
+    'schreib nachricht',
+    'nachricht',
+    'rücksprache',
+    'ruecksprache',
     'mesaj',
     'رسالة',
     'повідомлення',
-  ];
+  ]);
+
+  /**
+   * Resolves a button label or ID strictly via exact full-string match against documented template labels.
+   * Never uses substring matching (`includes`).
+   */
+  private resolveActionFromLabel(raw?: string | null): 'CONFIRM' | 'SICK' | 'CUSTOM' | null {
+    if (!raw || typeof raw !== 'string') return null;
+    const clean = raw.trim().toLowerCase();
+    if (!clean) return null;
+
+    const isConfirm = MessagingService.EXACT_CONFIRM_LABELS.has(clean);
+    const isSick = MessagingService.EXACT_SICK_LABELS.has(clean);
+    const isCustom = MessagingService.EXACT_CUSTOM_LABELS.has(clean);
+
+    const matchCount = (isConfirm ? 1 : 0) + (isSick ? 1 : 0) + (isCustom ? 1 : 0);
+    if (matchCount !== 1) return null;
+    if (isConfirm) return 'CONFIRM';
+    if (isSick) return 'SICK';
+    return 'CUSTOM';
+  }
 
   /**
    * Executes a guarded atomic update on a worker's PlanEmployee assignment inside a single transaction.
@@ -739,39 +786,43 @@ export class MessagingService implements OnModuleInit {
         let targetPlanId = parts[1] || '';
         let targetEmpId = parts.slice(2).join('_') || '';
 
-        const lowerId = buttonId.toLowerCase();
-        const lowerTitle = buttonTitle.toLowerCase();
-
-        let actionPrefix: 'CONFIRM' | 'SICK' | 'CUSTOM' | null = null;
-
+        // 1. Strict parsed action token from button ID prefix
+        let actionFromId: 'CONFIRM' | 'SICK' | 'CUSTOM' | null = null;
         if (rawPrefix === 'CONFIRM' || rawPrefix === 'ACCEPT') {
-          actionPrefix = 'CONFIRM';
+          actionFromId = 'CONFIRM';
         } else if (rawPrefix === 'SICK' || rawPrefix === 'DECLINE') {
-          actionPrefix = 'SICK';
+          actionFromId = 'SICK';
         } else if (rawPrefix === 'CUSTOM') {
-          actionPrefix = 'CUSTOM';
+          actionFromId = 'CUSTOM';
         } else {
-          // Multilingual keyword matching
-          const matchesConfirm = MessagingService.CONFIRM_KEYWORDS.some(
-            (k) => lowerId.includes(k) || lowerTitle.includes(k) || lowerId === k || lowerTitle === k,
-          );
-          const matchesSick = MessagingService.SICK_KEYWORDS.some(
-            (k) => lowerId.includes(k) || lowerTitle.includes(k) || lowerId === k || lowerTitle === k,
-          );
-          const matchesCustom = MessagingService.CUSTOM_KEYWORDS.some(
-            (k) => lowerId.includes(k) || lowerTitle.includes(k) || lowerId === k || lowerTitle === k,
-          );
-
-          if (matchesConfirm) {
-            actionPrefix = 'CONFIRM';
-          } else if (matchesSick) {
-            actionPrefix = 'SICK';
-          } else if (matchesCustom) {
-            actionPrefix = 'CUSTOM';
-          }
+          // Exact full-string match only for legacy button IDs (never substring)
+          actionFromId = this.resolveActionFromLabel(buttonId);
         }
 
-        // Action allowlist check: ignore unknown payloads without writing
+        // 2. Strict exact full-string match for button title
+        const actionFromTitle = this.resolveActionFromLabel(buttonTitle);
+
+        // Check for negative title (e.g. "Ich bin nicht da", "Nein, nicht da")
+        const isNegativeTitle = /\b(nicht|kein|keine|not|hayır|hayir)\b/i.test(buttonTitle);
+
+        let actionPrefix: 'CONFIRM' | 'SICK' | 'CUSTOM' | null = null;
+        if (isNegativeTitle && actionFromId === 'CONFIRM') {
+          // Conflicting negative title overrides confirm ID
+          actionPrefix = null;
+        } else if (actionFromId && actionFromTitle) {
+          if (actionFromId === actionFromTitle) {
+            actionPrefix = actionFromId;
+          } else {
+            // Conflicting action between ID and title (e.g. ID says CONFIRM but title says SICK)
+            actionPrefix = null;
+          }
+        } else if (actionFromId) {
+          actionPrefix = actionFromId;
+        } else if (actionFromTitle) {
+          actionPrefix = actionFromTitle;
+        }
+
+        // Action allowlist check: ignore unknown or conflicting payloads without writing
         if (!actionPrefix) {
           this.logger.warn(
             `[WhatsApp Webhook] Unknown button action ID "${buttonId}" (title: "${buttonTitle}"). Ignored without writing.`,
