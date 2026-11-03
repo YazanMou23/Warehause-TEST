@@ -7,6 +7,15 @@ import { SetEmployeeAbsenceDto } from './dto/employee-absence.dto';
 import { EmailService } from '../email/email.service';
 import { MessagingService } from '../messaging/messaging.service';
 
+// ---------------------------------------------------------------------------
+// TEMPORARY PAUSE (requested by the app owner on 2026-11-03): all work-plan
+// notification EMAILS (assignment, update, removal, cancellation - automatic
+// and manual resend) are paused. WhatsApp plan messages, in-app notification
+// records, plans, attendance and absences are NOT affected.
+// To re-enable emails: set this to false (or revert this commit) and redeploy.
+// ---------------------------------------------------------------------------
+const PLAN_EMAIL_NOTIFICATIONS_PAUSED = true;
+
 @Injectable()
 export class PlanningService {
   private readonly logger = new Logger(PlanningService.name);
@@ -225,6 +234,10 @@ export class PlanningService {
 
   private async notifyRemovedEmployees(updatedPlan: any, removedEmployeeIds: string[]) {
     if (!removedEmployeeIds || removedEmployeeIds.length === 0) return;
+    if (PLAN_EMAIL_NOTIFICATIONS_PAUSED) {
+      this.logger.log('[PlanEmailPause] Plan notification emails temporarily paused; email sends skipped.');
+    }
+
     const removedEmployees = await this.prisma.user.findMany({
       where: { id: { in: removedEmployeeIds } },
       select: { id: true, name: true, email: true, phone: true },
@@ -243,7 +256,7 @@ export class PlanningService {
         })
         .catch(() => {});
 
-      if (emp.email) {
+      if (emp.email && !PLAN_EMAIL_NOTIFICATIONS_PAUSED) {
         const shiftTime = updatedPlan.shift || (updatedPlan.startTime && updatedPlan.endTime ? `${new Date(updatedPlan.startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} - ${new Date(updatedPlan.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'Standardschicht');
         const warehousesList = (updatedPlan.locations && updatedPlan.locations.length > 0)
           ? updatedPlan.locations.map((loc: any) => `${loc.warehouseName || 'Lager'} (${loc.hallName || 'Halle'})`)
@@ -270,6 +283,10 @@ export class PlanningService {
 
   private async notifyDeletedPlan(plan: any) {
     if (!plan || !plan.assignedEmployees || plan.assignedEmployees.length === 0) return;
+    if (PLAN_EMAIL_NOTIFICATIONS_PAUSED) {
+      this.logger.log('[PlanEmailPause] Plan notification emails temporarily paused; email sends skipped.');
+    }
+
     const formattedDate = new Date(plan.date).toLocaleDateString('de-DE');
 
     for (const emp of plan.assignedEmployees) {
@@ -286,7 +303,7 @@ export class PlanningService {
         })
         .catch(() => {});
 
-      if (emp.email) {
+      if (emp.email && !PLAN_EMAIL_NOTIFICATIONS_PAUSED) {
         const shiftTime = plan.shift || (plan.startTime && plan.endTime ? `${new Date(plan.startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} - ${new Date(plan.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'Standardschicht');
         const warehousesList = (plan.locations && plan.locations.length > 0)
           ? plan.locations.map((loc: any) => `${loc.warehouseName || 'Lager'} (${loc.hallName || 'Halle'})`)
@@ -543,6 +560,10 @@ export class PlanningService {
     actorId?: string,
   ) {
     if (!employees || employees.length === 0) return;
+    if (PLAN_EMAIL_NOTIFICATIONS_PAUSED) {
+      this.logger.log('[PlanEmailPause] Plan notification emails temporarily paused; email sends skipped.');
+    }
+
 
     // Deduplicate employees by ID to prevent duplicate notifications
     const uniqueEmployees: Array<{ id: string; name: string; email?: string | null; phone?: string | null }> = [];
@@ -649,7 +670,7 @@ export class PlanningService {
           this.logger.error(`Notification DB error for user ${employee.id}: ${err.message}`);
         });
 
-      if (targetEmail) {
+      if (targetEmail && !PLAN_EMAIL_NOTIFICATIONS_PAUSED) {
         const planDetails = {
           employeeName: empName,
           date: formattedDate,
