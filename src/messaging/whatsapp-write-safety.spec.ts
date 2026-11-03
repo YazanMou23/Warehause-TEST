@@ -451,6 +451,7 @@ describe('Phase-2 WhatsApp Reply Write Safety & Concurrency Guards', () => {
           planId: 'plan-101',
           employeeId: workerAli.id,
           confirmationStatus: 'CUSTOM_RESPONSE',
+          responseNote: 'Wartet auf individuelle Textnachricht',
           OR: [{ respondedAt: null }, { respondedAt: { lt: new Date(BASE_TIMESTAMP_SEC * 1000) } }],
         },
         data: expect.objectContaining({
@@ -463,6 +464,94 @@ describe('Phase-2 WhatsApp Reply Write Safety & Concurrency Guards', () => {
         '491701234567',
         expect.stringContaining('Ihre Nachricht wurde gespeichert'),
       );
+    });
+
+    it('answers hours question via self-service while awaiting note without consuming note state', async () => {
+      mockPrisma.planEmployee.findMany.mockResolvedValue([
+        {
+          planId: 'plan-101',
+          employeeId: workerAli.id,
+          confirmationStatus: 'CUSTOM_RESPONSE',
+          responseNote: 'Wartet auf individuelle Textnachricht',
+          plan: { date: REFERENCE_DATE, deletedAt: null },
+        },
+      ]);
+      mockPrisma.timesheet.findMany.mockResolvedValue([
+        {
+          id: 'ts-oct-2026',
+          employeeId: workerAli.id,
+          status: 'CONFIRMED',
+          entries: [
+            {
+              date: new Date('2026-10-15T00:00:00.000Z'),
+              weekday: 'Donnerstag',
+              startTime: '08:00',
+              endTime: '16:00',
+              breakMinutes: 0,
+              totalHours: 8,
+              isActive: true,
+            },
+          ],
+        },
+      ]);
+
+      const msg = {
+        id: 'wamid.note.hours_query',
+        from: '491701234567',
+        timestamp: String(BASE_TIMESTAMP_SEC),
+        type: 'text',
+        text: { body: 'Wie viele Stunden habe ich diesen Monat gearbeitet?' },
+      };
+
+      await messagingService.processIncomingWebhookMessage(msg, REFERENCE_DATE);
+
+      // Must NOT update planEmployee or consume note
+      expect(mockPrisma.planEmployee.updateMany).not.toHaveBeenCalled();
+      // Must answer with hours
+      expect(sendWhatsAppSpy).toHaveBeenCalledWith(
+        '491701234567',
+        expect.stringContaining('8 Std.'),
+      );
+    });
+
+    it('drops note update when waiting state was concurrently consumed (count === 0)', async () => {
+      mockPrisma.planEmployee.findMany.mockResolvedValue([
+        {
+          planId: 'plan-101',
+          employeeId: workerAli.id,
+          confirmationStatus: 'CUSTOM_RESPONSE',
+          responseNote: 'Wartet auf individuelle Textnachricht',
+          plan: { date: REFERENCE_DATE, deletedAt: null },
+        },
+      ]);
+      // Simulate race condition where another request consumed or updated the waiting state first
+      mockPrisma.planEmployee.updateMany.mockResolvedValue({ count: 0 });
+
+      const msg = {
+        id: 'wamid.note.race_consumed',
+        from: '491701234567',
+        timestamp: String(BASE_TIMESTAMP_SEC),
+        type: 'text',
+        text: { body: 'Ich komme 15 Minuten später.' },
+      };
+
+      await messagingService.processIncomingWebhookMessage(msg, REFERENCE_DATE);
+
+      // Verified atomic condition in updateMany includes responseNote
+      expect(mockPrisma.planEmployee.updateMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({
+          planId: 'plan-101',
+          employeeId: workerAli.id,
+          confirmationStatus: 'CUSTOM_RESPONSE',
+          responseNote: 'Wartet auf individuelle Textnachricht',
+        }),
+        data: expect.objectContaining({
+          responseNote: 'Ich komme 15 Minuten später.',
+        }),
+      });
+
+      // No acknowledgment sent if count === 0
+      expect(sendWhatsAppSpy).not.toHaveBeenCalled();
     });
 
     it('does not save note and clarifies when worker is not awaiting a note', async () => {
@@ -489,6 +578,40 @@ describe('Phase-2 WhatsApp Reply Write Safety & Concurrency Guards', () => {
   // ─── 6. Failure Recovery & In-Memory Dedup Release ───────────────────────────
 
   describe('6. Failure Recovery & In-Memory Dedup Release', () => {
+    it('releases in-memory dedup claim when pre-transaction lookup fails and allows retry', async () => {
+      mockPrisma.user.findMany.mockRejectedValueOnce(new Error('Pre-transaction lookup connection reset'));
+
+      const msg = {
+        id: 'wamid.pre.fail',
+        from: '491701234567',
+        timestamp: String(BASE_TIMESTAMP_SEC),
+        type: 'interactive',
+        interactive: {
+          button_reply: {
+            id: `CONFIRM_plan-101_${workerAli.id}`,
+            title: 'Ich bin da',
+          },
+        },
+      };
+
+      // Error must propagate out
+      await expect(
+        messagingService.processIncomingWebhookMessage(msg, REFERENCE_DATE),
+      ).rejects.toThrow('Pre-transaction lookup connection reset');
+
+      // Outbound acknowledgment and DB mutations must NOT have occurred
+      expect(mockPrisma.planEmployee.updateMany).not.toHaveBeenCalled();
+      expect(sendWhatsAppSpy).not.toHaveBeenCalled();
+
+      // Retry with the exact same msg.id after lookup recovers: must NOT be dropped as duplicate
+      mockPrisma.user.findMany.mockResolvedValue([workerAli, workerHassan]);
+      mockPrisma.planEmployee.updateMany.mockResolvedValue({ count: 1 });
+
+      await messagingService.processIncomingWebhookMessage(msg, REFERENCE_DATE);
+      expect(mockPrisma.planEmployee.updateMany).toHaveBeenCalledTimes(1);
+      expect(sendWhatsAppSpy).toHaveBeenCalledTimes(1);
+    });
+
     it('releases in-memory dedup claim when DB transaction fails and propagates error', async () => {
       mockPrisma.$transaction.mockRejectedValue(new Error('PostgreSQL connection timeout'));
 
@@ -543,5 +666,78 @@ describe('Phase-2 WhatsApp Reply Write Safety & Concurrency Guards', () => {
 
       expect(sendWhatsAppSpy).not.toHaveBeenCalled();
     });
+
+    it('preserves dedup claim after successful commit even if subsequent call arrives with same message ID', async () => {
+      const msg = {
+        id: 'wamid.commit.dedup',
+        from: '491701234567',
+        timestamp: String(BASE_TIMESTAMP_SEC),
+        type: 'interactive',
+        interactive: {
+          button_reply: {
+            id: `CONFIRM_plan-101_${workerAli.id}`,
+            title: 'Ich bin da',
+          },
+        },
+      };
+
+      await messagingService.processIncomingWebhookMessage(msg, REFERENCE_DATE);
+      expect(mockPrisma.planEmployee.updateMany).toHaveBeenCalledTimes(1);
+      expect(sendWhatsAppSpy).toHaveBeenCalledTimes(1);
+
+      // Clear call history and resend the exact same message
+      jest.clearAllMocks();
+      await messagingService.processIncomingWebhookMessage(msg, REFERENCE_DATE);
+
+      // Because it was already committed, dedup remains claimed, so duplicate delivery is ignored
+      expect(mockPrisma.planEmployee.updateMany).not.toHaveBeenCalled();
+      expect(sendWhatsAppSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── 7. Button Action Allowlist & Unknown Payloads ──────────────────────────
+
+  describe('7. Button Action Allowlist & Unknown Payloads', () => {
+    it('rejects unknown button action payload with zero database writes and zero acknowledgment', async () => {
+      const msg = {
+        id: 'wamid.btn.unknown',
+        from: '491701234567',
+        timestamp: String(BASE_TIMESTAMP_SEC),
+        type: 'interactive',
+        interactive: {
+          button_reply: {
+            id: `UNKNOWN_ACTION_plan-101_${workerAli.id}`,
+            title: 'Unbekannte Aktion',
+          },
+        },
+      };
+
+      await messagingService.processIncomingWebhookMessage(msg, REFERENCE_DATE);
+
+      // Must NOT update any plan, absence, or send messages
+      expect(mockPrisma.planEmployee.updateMany).not.toHaveBeenCalled();
+      expect(mockPrisma.employeeAbsence.upsert).not.toHaveBeenCalled();
+      expect(sendWhatsAppSpy).not.toHaveBeenCalled();
+    });
+
+    it('rejects arbitrary template button text with zero database writes', async () => {
+      const msg = {
+        id: 'wamid.btn.arbitrary',
+        from: '491701234567',
+        timestamp: String(BASE_TIMESTAMP_SEC),
+        type: 'button',
+        button: {
+          text: 'Foo Bar Random Text',
+          payload: 'FOO_BAR',
+        },
+      };
+
+      await messagingService.processIncomingWebhookMessage(msg, REFERENCE_DATE);
+
+      expect(mockPrisma.planEmployee.updateMany).not.toHaveBeenCalled();
+      expect(mockPrisma.employeeAbsence.upsert).not.toHaveBeenCalled();
+      expect(sendWhatsAppSpy).not.toHaveBeenCalled();
+    });
   });
 });
+
