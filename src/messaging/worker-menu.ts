@@ -4,7 +4,7 @@ import { SupportedLanguage, WhatsappSelfServiceService } from './whatsapp-self-s
 
 type Lang = SupportedLanguage;
 type Kind = 'HOURS' | 'PLANS';
-type Action = { step: string; kind?: Kind; year?: number; half?: number; query?: string; page?: number; language?: Lang };
+type Action = { step: string; kind?: Kind; year?: number; half?: number; query?: string; page?: number; language?: Lang; fromDay?:number; toDay?:number; month?:number };
 export type WorkerMenuReply = { body: string; rows: { id: string; title: string }[] };
 const words: Record<Lang, string[]> = {
   de: ['Menü', 'Meine Stunden', 'Meine Schichten', 'Bestimmter Tag', 'Sprache / Hilfe', 'Dieser Monat', 'Letzter Monat', 'Monat und Jahr', 'Ganzes Jahr', 'Alle Monate', 'Kommende Schichten', 'Registrierte Stunden', 'Geplante Schicht', 'Zurück', 'Weiter', 'Datum: TT.MM.JJJJ', 'Jahr: JJJJ (2000–2100)', 'Auswahl abgelaufen. Menü neu öffnen.', 'Bitte auswählen', 'Änderungen: Schichtleitung. Keine Stundenbuchung im Chat.'],
@@ -19,10 +19,10 @@ const monthNames: Record<Lang, string[]> = {
  uk: ['січень','лютий','березень','квітень','травень','червень','липень','серпень','вересень','жовтень','листопад','грудень'],
 };
 const prompts:Record<Lang,{period:string;month:string;range:string;last:string;two:string}>={
- de:{period:'Zeitraum wählen. Vergangene Wochen: Montag bis Sonntag.',month:'Monat/Jahr: 10.2026. Oder nur Jahr 2026 für die Monatsauswahl.',range:'Von/bis eingeben: 01.10.2026 - 31.10.2026. Beide Tage zählen. Oder KW 44 2026.',last:'Letzte Woche',two:'Letzte 2 Wochen'},
- ar:{period:'اختر الفترة. الأسبوع الماضي أو الأسبوعان الماضيان: من الاثنين إلى الأحد.',month:'اكتب الشهر والسنة مثل 10.2026، أو السنة 2026 لفتح الأشهر.',range:'اكتب من تاريخ إلى تاريخ: 01.10.2026 - 31.10.2026. يشمل اليومين. أو KW 44 2026.',last:'الأسبوع الماضي',two:'آخر أسبوعين'},
- tr:{period:'Dönemi seç. Geçmiş haftalar: pazartesi-pazar.',month:'Ay/yıl: 10.2026. Ay seçimi için yalnızca 2026 da yazabilirsin.',range:'Başlangıç ve bitiş: 01.10.2026 - 31.10.2026. İki gün de dahil. Ya da KW 44 2026.',last:'Geçen hafta',two:'Son 2 hafta'},
- uk:{period:'Обери період. Минулі тижні: понеділок-неділя.',month:'Місяць/рік: 10.2026. Або лише 2026 для вибору місяця.',range:'Введи дати: 01.10.2026 - 31.10.2026. Обидва дні включено. Або KW 44 2026.',last:'Минулий тиждень',two:'Останні 2 тижні'},
+ de:{period:'Zeitraum wählen. Nur Tage: 7-12, danach Monat/Jahr. Vergangene Wochen: Montag bis Sonntag.',month:'Monat/Jahr: 10.2026. Oder nur Jahr 2026 für die Monatsauswahl.',range:'Von/bis eingeben: 01.10.2026 - 31.10.2026. Beide Tage zählen. Oder KW 44 2026. Nur Tage: 7-12, danach Monat und Jahr.',last:'Letzte Woche',two:'Letzte 2 Wochen'},
+ ar:{period:'اختر الفترة. للأيام اكتب 7-12 ثم الشهر والسنة. الأسبوع الماضي أو الأسبوعان الماضيان: من الاثنين إلى الأحد.',month:'اكتب الشهر والسنة مثل 10.2026، أو السنة 2026 لفتح الأشهر.',range:'اكتب من تاريخ إلى تاريخ: 01.10.2026 - 31.10.2026. يشمل اليومين. أو KW 44 2026. للأيام فقط اكتب 7-12، ثم أسألك الشهر والسنة.',last:'الأسبوع الماضي',two:'آخر أسبوعين'},
+ tr:{period:'Dönemi seç. Günler: 7-12, sonra ay/yıl. Geçmiş haftalar: pazartesi-pazar.',month:'Ay/yıl: 10.2026. Ay seçimi için yalnızca 2026 da yazabilirsin.',range:'Başlangıç ve bitiş: 01.10.2026 - 31.10.2026. İki gün de dahil. Ya da KW 44 2026. Yalnızca günler: 7-12, sonra ay ve yıl.',last:'Geçen hafta',two:'Son 2 hafta'},
+ uk:{period:'Обери період. Дні: 7-12, потім місяць/рік. Минулі тижні: понеділок-неділя.',month:'Місяць/рік: 10.2026. Або лише 2026 для вибору місяця.',range:'Введи дати: 01.10.2026 - 31.10.2026. Обидва дні включено. Або KW 44 2026. Лише дні: 7-12, потім місяць і рік.',last:'Минулий тиждень',two:'Останні 2 тижні'},
 };
 /** Opaque menu tokens carry no employee ID. Every click is bound to the freshly
  * verified worker. Restart/expiry fail closed. Never handles assignment writes. */
@@ -53,6 +53,35 @@ export class WorkerMenu {
     lang = pending.language;
     const a = pending.action;
     const noun=a.kind==='PLANS'?'Meine Schichtpläne':'Meine Stunden';
+    // A day-only range is accepted in period/range context. In a month picker,
+    // 7–12 retains its visible paging meaning and never becomes work dates.
+    const dayRange=value.match(/^(\d{1,2})\s*[-–]\s*(\d{1,2})$/);
+    if(dayRange && (a.step==='range'||a.step==='period')){
+      const fromDay=Number(dayRange[1]),toDay=Number(dayRange[2]);
+      if(fromDay<1||toDay>31||fromDay>toDay)return this.view(owner,lang,{de:'Tage müssen zwischen 1 und 31 aufsteigend sein, z. B. 7-12.',ar:'الأيام لازم تكون من 1 إلى 31 وبالترتيب، مثل 7-12.',tr:'Günler 1–31 arasında ve sıralı olmalı: 7-12.',uk:'Дні мають бути від 1 до 31 за порядком: 7-12.'}[lang],[[words[lang][13],{step:'main'}]]);
+      return this.askDayMonth(owner,lang,{step:'dayMonth',kind:a.kind,fromDay,toDay});
+    }
+    if(a.step==='dayMonth'){
+      const month=Number(value);
+      if(/^\d{1,2}$/.test(value)&&month>=1&&month<=12){
+        this.awaiting.set(owner,{at:Date.now(),language:lang,action:{...a,step:'dayYear',month}});
+        return this.view(owner,lang,`${a.fromDay}-${a.toDay}, ${month}: ${{de:'Jahr eingeben: 2026',ar:'اكتب السنة مثل 2026',tr:'Yılı yaz: 2026',uk:'Введи рік: 2026'}[lang]}`,[[words[lang][13],{step:'main'}]]);
+      }
+      if(/^[0-9. /–-]+$/.test(value))return this.askDayMonth(owner,lang,a);
+      return null;
+    }
+    if(a.step==='dayYear'){
+      if(/^(20\d{2}|2100)$/.test(value)){
+        const full=(day:number)=>`${String(day).padStart(2,'0')}.${String(a.month).padStart(2,'0')}.${value}`;
+        const start=full(a.fromDay!),end=full(a.toDay!);
+        // Reject impossible month lengths and restart month/year input for correction.
+        if(parseWorkerRange(`${start} - ${end}`,now)?.invalid)return this.askDayMonth(owner,lang,{...a,step:'dayMonth',month:undefined});
+        this.awaiting.delete(owner);
+        return this.query(owner,phone,`${noun} ${start} - ${end}`,lang,now);
+      }
+      if(/^[0-9. /–-]+$/.test(value))return this.view(owner,lang,words[lang][16],[[words[lang][13],{step:'main'}]]);
+      return null;
+    }
     if(a.step==='months'){
       if(/^(7\s*[-–]\s*12|1\s*[-–]\s*6)$/.test(value))return this.months(owner,lang,a.kind!,a.year!,value.startsWith('7')?1:0);
       const month=value.match(/^(\d{1,2})(?:\s*-\s*[^\d]+)?$/);
@@ -105,12 +134,16 @@ export class WorkerMenu {
     this.awaiting.set(owner,{at:Date.now(),language:lang,action:{step:'period',kind:a.kind}});
     return this.view(owner,lang,prompts[lang].period,rows);
   }
+  private askDayMonth(owner:string,lang:Lang,action:Action){
+    this.awaiting.set(owner,{at:Date.now(),language:lang,action});
+    return this.view(owner,lang,`${action.fromDay}-${action.toDay}: ${{de:'Welcher Monat? Zahl 1–12 eingeben.',ar:'أي شهر؟ اكتب رقم الشهر من 1 إلى 12.',tr:'Hangi ay? 1–12 yaz.',uk:'Який місяць? Введи число 1–12.'}[lang]}`,[[words[lang][13],{step:'main'}]]);
+  }
   private months(owner:string, lang:Lang, kind:Kind, year:number, half:number) {
     const rows: [string,Action][] = monthNames[lang].slice(half*6,half*6+6).map((name,i)=>[`${half*6+i+1} - ${name}`,{step:'query',query:`${kind==='HOURS'?'Meine Stunden':'Meine Schichtpläne'} ${half*6+i+1}.${year}`}]);
     rows.push([half===0?'7–12':'1–6',{step:'months',kind,year,half:half===0?1:0}],[words[lang][13],{step:'main'}]);
     if(this.awaiting.size>=10000)this.awaiting.delete(this.awaiting.keys().next().value!);
     this.awaiting.set(owner,{at:Date.now(),language:lang,action:{step:'months',kind,year,half}});
-    return this.view(owner,lang,`${year} - ${{de:'Monat wählen (1–12)',ar:'اختر الشهر (1–12)',tr:'Ay seç (1–12)',uk:'Обери місяць (1–12)'}[lang]}`,rows);
+    return this.view(owner,lang,`${year} - ${{de:'Monat wählen. 7–12 zeigt Monate Juli-Dezember, keine Tage.',ar:'اختر الشهر. 7–12 هنا أشهر يوليو–ديسمبر، مو أيام.',tr:'Ay seç. Burada 7–12 temmuz-aralık aylarıdır, gün değil.',uk:'Обери місяць. Тут 7–12 означає липень-грудень, не дні.'}[lang]}`,rows);
   }
   async query(owner:string,phone:string,query:string,lang:Lang,now:Date,page=0):Promise<WorkerMenuReply> {
     const result=await this.self.handleIncomingConversation(phone,query,now,lang,page);
