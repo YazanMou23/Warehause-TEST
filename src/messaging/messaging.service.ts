@@ -1241,7 +1241,7 @@ export class MessagingService implements OnModuleInit {
 
         // AI is last: never consume shift options or a pending CUSTOM note.
         // The adapter is disabled by default and fails closed without a durable ledger.
-        if (this.workerAi && this.selfService) {
+        if (this.workerAi && this.selfService && this.workerAi.isAllowedSender(rawFrom)) {
           const ai = await this.workerAi.classify(resolvedSender.id, incomingText, replyLanguage, knownWorkerNames, referenceDate ?? new Date());
           if (ai && !ai.needsClarification && ai.intent !== 'UNKNOWN') {
             if (ai.intent === 'LANGUAGE') {

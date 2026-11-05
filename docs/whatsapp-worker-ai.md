@@ -87,3 +87,15 @@ No migration command was executed against Neon or any connected database.
 Owner applies migration after reviewing SQL, then tests concurrent reservations in
 a disposable DB before activation. Rollback: disable feature first; do not drop the
 ledger during an active accounting period.
+
+## Single WhatsApp test sender gate
+`WHATSAPP_WORKER_AI_TEST_PHONE` must contain exactly one explicitly approved
+international number (optional +/visual spacing); unset/empty/invalid = nobody.
+The webhook checks it only for AI fallback. Other workers still get existing
+rules/help. No suffix matches, wildcards, list or inferred German prefix.
+The number is used locally for gating, never sent to OpenAI. Existing verified
+worker identity is still required. `WHATSAPP_WORKER_AI_ENABLED` stays OFF by
+default and must also be true to call the API. A gate alone never enables it.
+No number is hardcoded, and no Render value was changed by this PR. Obtain the
+specific test number from the user before configuring. Internal synthetic test
+harness calls are not WhatsApp messages and are independently scoped/approved.
