@@ -1,3 +1,4 @@
+import { workerMenuBody } from './worker-menu-copy';
 import { randomBytes } from 'crypto';
 import { SupportedLanguage, WhatsappSelfServiceService } from './whatsapp-self-service.service';
 
@@ -30,7 +31,7 @@ export class WorkerMenu {
     return { id, title: title.slice(0, 24) };
   }
   private view(owner: string, lang: Lang, body: string, items: [string, Action][]): WorkerMenuReply {
-    return { body, rows: items.map(([title, action]) => this.row(owner, lang, title, action)) };
+    return { body:workerMenuBody(body,lang,items.map(([,action])=>action.step)), rows: items.map(([title, action]) => this.row(owner, lang, title, action)) };
   }
   main(owner: string, lang: Lang, prefix = '') {
     this.awaiting.delete(owner);
