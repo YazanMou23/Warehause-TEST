@@ -61,7 +61,7 @@ describe('WhatsApp first accepted choice is final', () => {
     expect(message).toContain(choice === 'CONFIRM' ? 'Ich bin da' : choice === 'SICK' ? 'Ich bin krank' : 'Nachricht');
     expect(message).toContain('nicht mehr gültig');
     expect(message).toContain('Schichtleitung');
-    expect(message.includes('Bitte schreibe jetzt')).toBe(choice === 'CUSTOM');
+    expect(message.includes('Schreibe jetzt')).toBe(choice === 'CUSTOM');
     expect(db.planEmployee.updateMany.mock.invocationCallOrder[0]).toBeLessThan(send.mock.invocationCallOrder[0]);
   });
 

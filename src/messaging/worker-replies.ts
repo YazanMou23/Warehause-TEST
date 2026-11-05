@@ -3,22 +3,22 @@ import type { SupportedLanguage } from './whatsapp-self-service.service';
 export type WorkerReplyKey = 'NO_PENDING' | 'MULTIPLE_PENDING' | 'MULTIPLE_NOTES' | 'NOTE_SAVED';
 const replies: Record<WorkerReplyKey, Record<SupportedLanguage, string>> = {
   NO_PENDING: {
-    de: 'Für dich liegt gerade keine offene Schicht zur Bestätigung vor.',
-    tr: 'Şu anda onayını bekleyen açık bir vardiyan yok.',
-    ar: 'ما عندك حالياً شفت مفتوح بانتظار تأكيدك.',
-    uk: 'Зараз немає відкритої зміни, яка очікує на твоє підтвердження.',
+    de: 'ℹ️ Für dich liegt gerade keine offene Schicht zur Bestätigung vor.',
+    tr: 'ℹ️ Şu anda onayını bekleyen açık bir vardiyan yok.',
+    ar: 'ℹ️ ما عندك حالياً شفت مفتوح بانتظار تأكيدك.',
+    uk: 'ℹ️ Зараз немає відкритої зміни, яка очікує на твоє підтвердження.',
   },
   MULTIPLE_PENDING: {
-    de: 'Mehrere Schichten warten auf deine Antwort. Nutze bitte die Schaltflächen in der jeweiligen Plan-Nachricht.',
-    tr: 'Birden fazla vardiya yanıtını bekliyor. Lütfen ilgili plan mesajındaki düğmeleri kullan.',
-    ar: 'في أكثر من شفت بانتظار ردك. استخدم أزرار رسالة الشفت المقصود.',
-    uk: 'Кілька змін очікують на твою відповідь. Скористайся кнопками у повідомленні з планом потрібної зміни.',
+    de: '📅 Mehrere Schichten warten auf deine Antwort.\n💬 Nutze bitte die Schaltflächen in der jeweiligen Plan-Nachricht.',
+    tr: '📅 Birden fazla vardiya yanıtını bekliyor.\n💬 Lütfen ilgili plan mesajındaki düğmeleri kullan.',
+    ar: '📅 في أكثر من شفت بانتظار ردك.\n💬 استخدم أزرار رسالة الشفت المقصود.',
+    uk: '📅 Кілька змін очікують на твою відповідь.\n💬 Скористайся кнопками у повідомленні з планом потрібної зміни.',
   },
   MULTIPLE_NOTES: {
-    de: 'Mehrere Schichten warten auf deine Nachricht. Wende dich bitte an die Schichtleitung, damit sie richtig zugeordnet wird.',
-    tr: 'Birden fazla vardiya mesajını bekliyor. Mesajın doğru vardiyaya atanması için vardiya sorumlusuyla iletişime geç.',
-    ar: 'في أكثر من شفت بانتظار رسالتك. تواصل مع مسؤول الشفت حتى تنربط رسالتك بالشفت الصحيح.',
-    uk: 'Кілька змін очікують на твоє повідомлення. Звернися до керівника зміни, щоб його правильно прив’язали.',
+    de: '📅 Mehrere Schichten warten auf deine Nachricht.\n👤 Wende dich bitte an die Schichtleitung, damit sie richtig zugeordnet wird.',
+    tr: '📅 Birden fazla vardiya mesajını bekliyor.\n👤 Mesajın doğru vardiyaya atanması için vardiya sorumlusuyla iletişime geç.',
+    ar: '📅 في أكثر من شفت بانتظار رسالتك.\n👤 تواصل مع مسؤول الشفت حتى تنربط رسالتك بالشفت الصحيح.',
+    uk: '📅 Кілька змін очікують на твоє повідомлення.\n👤 Звернися до керівника зміни, щоб його правильно прив’язали.',
   },
   NOTE_SAVED: {
     de: '✅ Deine Nachricht wurde für die Schichtleitung gespeichert.',
