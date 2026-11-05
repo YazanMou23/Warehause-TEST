@@ -319,6 +319,68 @@ export class MessagingService implements OnModuleInit {
   }
 
   /**
+   * Releases an in-memory message ID claim if processing failed before commit.
+   * This allows Meta's automated webhook retries to be re-attempted.
+   */
+  releaseMessageIdProcessed(messageId?: string | null): void {
+    if (!messageId || typeof messageId !== 'string') return;
+    const id = messageId.trim();
+    if (id) {
+      this.processedMessageIds.delete(id);
+    }
+  }
+
+  /**
+   * Validates the Meta WhatsApp event timestamp.
+   * Meta sends Unix epoch integer seconds as a string (e.g. "1730592000").
+   * Rejects missing, non-numeric, millisecond-scale, historical (<2020),
+   * or future timestamps beyond the 300s (5-minute) clock-skew tolerance.
+   * NEVER substitutes local server time or now.
+   */
+  validateMetaEventTimestamp(rawTimestamp: any, serverNowMs = Date.now()): Date | null {
+    if (rawTimestamp === undefined || rawTimestamp === null) return null;
+    const str = String(rawTimestamp).trim();
+    if (!/^\d+$/.test(str)) return null;
+
+    const seconds = Number(str);
+    if (!Number.isSafeInteger(seconds)) return null;
+
+    const minSeconds = 1577836800; // 2020-01-01
+    const maxSkewSeconds = Math.floor(serverNowMs / 1000) + 300; // max 5 min future skew
+
+    if (seconds < minSeconds || seconds > maxSkewSeconds) {
+      return null;
+    }
+
+    return new Date(seconds * 1000);
+  }
+
+  /**
+   * Resolves the incoming phone to EXACTLY ONE active, non-deleted worker.
+   * Rejects ambiguous or unknown phone numbers without touching any plan records.
+   */
+  async resolveWorkerSender(rawPhone: string): Promise<{ id: string; name: string; phone?: string | null } | null> {
+    if (this.selfService) {
+      const resolved = await this.selfService.resolveWorkerByExactPhone(rawPhone);
+      return resolved.status === 'MATCHED' ? resolved.worker : null;
+    }
+
+    const norm = this.normalizePhoneStrict(rawPhone);
+    if (!norm) return null;
+
+    const users = await this.prisma.user.findMany({
+      where: { isActive: true, deletedAt: null },
+      select: { id: true, name: true, phone: true },
+    });
+
+    const matches = (users || []).filter(
+      (u: any) => u.phone && this.normalizePhoneStrict(u.phone) === norm,
+    );
+
+    return matches.length === 1 ? matches[0] : null;
+  }
+
+  /**
    * Process Meta WhatsApp Cloud API webhook events
    */
   async handleWebhookPayload(
@@ -380,11 +442,7 @@ export class MessagingService implements OnModuleInit {
         // Process incoming messages from employees/users
         if (value.messages && Array.isArray(value.messages)) {
           for (const msg of value.messages) {
-            try {
-              await this.processIncomingWebhookMessage(msg, options?.referenceDate);
-            } catch (err: any) {
-              this.logger.error(`Error processing incoming WhatsApp message from ${msg.from}: ${err.message}`);
-            }
+            await this.processIncomingWebhookMessage(msg, options?.referenceDate);
           }
         }
       }
@@ -483,11 +541,181 @@ export class MessagingService implements OnModuleInit {
   }
 
   /**
+   * Executes a guarded atomic update on a worker's PlanEmployee assignment inside a single transaction.
+   * Updates PlanEmployee only if respondedAt is null or strictly older than the eventDate.
+   * Commits PlanEmployee, required EmployeeAbsence sync (if SICK), and ActionLog together.
+   * Required write failures are NOT swallowed.
+   */
+  // Documented legacy button labels for exact full-string matching only (strictly NO substring/includes matching)
+  private static readonly EXACT_CONFIRM_LABELS = new Set([
+    'confirm',
+    'accept',
+    'ich bin da',
+    '✅ ich bin da',
+    'bin da',
+    'ja',
+    'evet',
+    'buradayım',
+    'buradayim',
+    'حاضر',
+    'سأحضر',
+    'نعم',
+    'я буду',
+    'прийду',
+    'так',
+  ]);
+
+  private static readonly EXACT_SICK_LABELS = new Set([
+    'sick',
+    'decline',
+    'ich bin krank',
+    '🤒 ich bin krank',
+    'krank',
+    'nein',
+    'hasta',
+    'hastayım',
+    'hastayim',
+    'مريض',
+    'لا',
+    'захворів',
+    'хворий',
+    'ні',
+  ]);
+
+  private static readonly EXACT_CUSTOM_LABELS = new Set([
+    'custom',
+    'custom nachricht',
+    '💬 custom nachricht',
+    'schreib nachricht',
+    'nachricht',
+    'rücksprache',
+    'ruecksprache',
+    'mesaj',
+    'رسالة',
+    'повідомлення',
+  ]);
+
+  /**
+   * Resolves a button label or ID strictly via exact full-string match against documented template labels.
+   * Never uses substring matching (`includes`).
+   */
+  private resolveActionFromLabel(raw?: string | null): 'CONFIRM' | 'SICK' | 'CUSTOM' | null {
+    if (!raw || typeof raw !== 'string') return null;
+    const clean = raw.trim().toLowerCase();
+    if (!clean) return null;
+
+    const isConfirm = MessagingService.EXACT_CONFIRM_LABELS.has(clean);
+    const isSick = MessagingService.EXACT_SICK_LABELS.has(clean);
+    const isCustom = MessagingService.EXACT_CUSTOM_LABELS.has(clean);
+
+    const matchCount = (isConfirm ? 1 : 0) + (isSick ? 1 : 0) + (isCustom ? 1 : 0);
+    if (matchCount !== 1) return null;
+    if (isConfirm) return 'CONFIRM';
+    if (isSick) return 'SICK';
+    return 'CUSTOM';
+  }
+
+  /**
+   * Executes a guarded atomic update on a worker's PlanEmployee assignment inside a single transaction.
+   * Updates PlanEmployee only if respondedAt is null or strictly older than the eventDate.
+   * Commits PlanEmployee, required EmployeeAbsence sync (if SICK), and ActionLog together.
+   * Required write failures are NOT swallowed.
+   */
+  private async executeGuardedAssignmentUpdate(params: {
+    planId: string;
+    employeeId: string;
+    eventDate: Date;
+    status: 'CONFIRMED' | 'SICK' | 'CUSTOM_RESPONSE';
+    note: string;
+    channel: 'WHATSAPP_BUTTON' | 'WHATSAPP_TEXT';
+    actionType: string;
+    actionDetails: string;
+    requiredCurrentStatus?: string;
+    requiredCurrentNote?: string;
+  }): Promise<{ accepted: boolean }> {
+    return await this.prisma.$transaction(async (tx: any) => {
+      const whereClause: any = {
+        planId: params.planId,
+        employeeId: params.employeeId,
+        OR: [
+          { respondedAt: null },
+          { respondedAt: { lt: params.eventDate } },
+        ],
+      };
+
+      if (params.requiredCurrentStatus) {
+        whereClause.confirmationStatus = params.requiredCurrentStatus;
+      }
+      if (params.requiredCurrentNote) {
+        whereClause.responseNote = params.requiredCurrentNote;
+      }
+
+      const updateRes = await tx.planEmployee.updateMany({
+        where: whereClause,
+        data: {
+          confirmationStatus: params.status,
+          responseNote: params.note,
+          respondedAt: params.eventDate,
+          responseChannel: params.channel,
+        },
+      });
+
+      if (updateRes.count === 0) {
+        return { accepted: false };
+      }
+
+      // If status is SICK, sync with EmployeeAbsence
+      if (params.status === 'SICK') {
+        const plan = await tx.plan.findUnique({ where: { id: params.planId } });
+        if (!plan) {
+          throw new Error(`Plan ${params.planId} not found during absence synchronization`);
+        }
+        const normDate = new Date(plan.date);
+        normDate.setUTCHours(0, 0, 0, 0);
+
+        await tx.employeeAbsence.upsert({
+          where: {
+            employeeId_date: {
+              employeeId: params.employeeId,
+              date: normDate,
+            },
+          },
+          create: {
+            employeeId: params.employeeId,
+            date: normDate,
+            status: 'KRANK',
+            reason: params.note,
+          },
+          update: {
+            status: 'KRANK',
+            reason: params.note,
+          },
+        });
+      }
+
+      // Record audit log
+      await tx.actionLog.create({
+        data: {
+          userId: params.employeeId,
+          action: params.actionType,
+          details: params.actionDetails,
+        },
+      });
+
+      return { accepted: true };
+    });
+  }
+
+  /**
    * Process individual incoming message:
    * - Deduplicates incoming message IDs (msg.id).
-   * - Preserves existing CONFIRM / SICK button replies and their behavior.
-   * - Routes natural-language text messages to read-only Phase-1 Worker Self-Service
-   *   (German, Turkish, Arabic, Ukrainian) without modifying hours, plans, or records.
+   * - Validates Meta event timestamp in integer seconds (rejects missing/invalid/future).
+   * - Strictly resolves sender to exactly one active, non-deleted worker.
+   * - Verifies sender-to-actual-assignment authorization.
+   * - Executes atomic conditional updates inside a transaction (commit before acknowledgment).
+   * - Releases in-memory dedup claims on transaction failure and propagates error for retry.
+   * - Restricts follow-up notes only to assignments awaiting a note; otherwise clarifies.
+   * - Routes read-only questions to Phase-1 Worker Self-Service without touching plan status.
    */
   async processIncomingWebhookMessage(msg: any, referenceDate?: Date): Promise<void> {
     if (!msg) return;
@@ -500,220 +728,443 @@ export class MessagingService implements OnModuleInit {
       return;
     }
 
-    const rawFrom = String(msg.from || '').trim();
-    const cleanFrom = this.normalizePhoneStrict(rawFrom) || this.formatPhoneNumber(rawFrom);
+    let committed = false;
+    try {
+      const rawFrom = String(msg.from || '').trim();
+      const cleanFrom = this.normalizePhoneStrict(rawFrom) || this.formatPhoneNumber(rawFrom);
 
-    const isInteractive = msg.type === 'interactive' && Boolean(msg.interactive?.button_reply);
-    const isTemplateButton = msg.type === 'button' && Boolean(msg.button?.text || msg.button?.payload);
-
-    // 1. Process Button Click (CONFIRM / SICK buttons — preserved unchanged)
-    if (isInteractive || isTemplateButton) {
-      const buttonId = (
-        msg.interactive?.button_reply?.id ||
-        msg.button?.payload ||
-        msg.button?.text ||
-        ''
-      ).trim();
-
-      const buttonTitle = (
-        msg.interactive?.button_reply?.title ||
-        msg.button?.text ||
-        msg.button?.payload ||
-        ''
-      ).trim();
-
-      this.logger.log(
-        `[WhatsApp Webhook] 🔘 User clicked ${msg.type} button: "${buttonTitle}" (ID/Payload: "${buttonId}") from +${cleanFrom}`,
-      );
-
-      // Check if buttonId has CONFIRM_{planId}_{employeeId} or SICK_{planId}_{employeeId}
-      const parts = buttonId.split('_');
-      let actionPrefix = parts[0]?.toUpperCase() || '';
-      let targetPlanId = parts[1] || '';
-      let targetEmpId = parts.slice(2).join('_') || '';
-
-      const lowerId = buttonId.toLowerCase();
-      const lowerTitle = buttonTitle.toLowerCase();
-
-      // Normalize action prefix
-      if (
-        actionPrefix !== 'CONFIRM' &&
-        actionPrefix !== 'ACCEPT' &&
-        actionPrefix !== 'SICK' &&
-        actionPrefix !== 'DECLINE' &&
-        actionPrefix !== 'CUSTOM'
-      ) {
-        if (
-          lowerId.includes('confirm') ||
-          lowerTitle.includes('bin da') ||
-          lowerTitle === '1' ||
-          lowerId === '1'
-        ) {
-          actionPrefix = 'CONFIRM';
-        } else if (
-          lowerId.includes('sick') ||
-          lowerTitle.includes('krank') ||
-          lowerTitle === '2' ||
-          lowerId === '2'
-        ) {
-          actionPrefix = 'SICK';
-        } else {
-          actionPrefix = 'CUSTOM';
-        }
-      }
-
-      // If planId or employeeId was not encoded in buttonId, find user by exact normalized phone number
-      if (!targetPlanId || !targetEmpId) {
-        const user = await this.findUserByPhone(rawFrom);
-        if (user) {
-          targetEmpId = user.id;
-          const assignment = await this.findPendingOrRecentAssignment(user.id);
-          if (assignment) {
-            targetPlanId = assignment.planId;
-          }
-        }
-      } else if (this.prisma.user?.findMany) {
-        // Verify sender phone matches targetEmpId when users exist in DB
-        const activeUsers = await this.prisma.user.findMany({
-          where: { isActive: true, deletedAt: null },
-        });
-        if (Array.isArray(activeUsers) && activeUsers.length > 0) {
-          const matches = activeUsers.filter(
-            (u: any) => u.phone && this.normalizePhoneStrict(u.phone) === this.normalizePhoneStrict(rawFrom),
-          );
-          if (matches.length !== 1 || matches[0].id !== targetEmpId) {
-            this.logger.warn(
-              `[WhatsApp Webhook] Button click sender +${rawFrom} does not uniquely match employee ${targetEmpId}; ignoring.`,
-            );
-            return;
-          }
-        }
-      }
-
-      if (targetPlanId && targetEmpId) {
-        if (actionPrefix === 'CONFIRM' || actionPrefix === 'ACCEPT') {
-          await this.prisma.planEmployee.updateMany({
-            where: { planId: targetPlanId, employeeId: targetEmpId },
-            data: {
-              confirmationStatus: 'CONFIRMED',
-              responseNote: 'Zugesagt („Ich bin da“)',
-              respondedAt: new Date(),
-              responseChannel: 'WHATSAPP_BUTTON',
-            },
-          });
-
-          await this.prisma.actionLog.create({
-            data: {
-              userId: targetEmpId,
-              action: 'WHATSAPP_CONFIRMED',
-              details: `Mitarbeiter hat Schicht zugesagt („Ich bin da“) via WhatsApp-Button`,
-            },
-          }).catch(() => {});
-
-          await this.sendWhatsAppDirect(
-            cleanFrom,
-            `✅ Vielen Dank! Ihre Zusage („Ich bin da“) wurde erfolgreich gespeichert. Wir freuen uns auf Ihren Einsatz!`,
-          ).catch(() => {});
-          return;
-
-        } else if (actionPrefix === 'SICK' || actionPrefix === 'DECLINE') {
-          await this.prisma.planEmployee.updateMany({
-            where: { planId: targetPlanId, employeeId: targetEmpId },
-            data: {
-              confirmationStatus: 'SICK',
-              responseNote: 'Krankmeldung via WhatsApp („Ich bin krank“)',
-              respondedAt: new Date(),
-              responseChannel: 'WHATSAPP_BUTTON',
-            },
-          });
-
-          // Sync with EmployeeAbsence
-          const plan = await this.prisma.plan.findUnique({ where: { id: targetPlanId } });
-          if (plan) {
-            const normDate = new Date(plan.date);
-            normDate.setUTCHours(0, 0, 0, 0);
-            await this.prisma.employeeAbsence.upsert({
-              where: {
-                employeeId_date: {
-                  employeeId: targetEmpId,
-                  date: normDate,
-                },
-              },
-              create: {
-                employeeId: targetEmpId,
-                date: normDate,
-                status: 'KRANK',
-                reason: 'Krankmeldung via WhatsApp-Button („Ich bin krank“)',
-              },
-              update: {
-                status: 'KRANK',
-                reason: 'Krankmeldung via WhatsApp-Button („Ich bin krank“)',
-              },
-            }).catch(() => {});
-          }
-
-          await this.prisma.actionLog.create({
-            data: {
-              userId: targetEmpId,
-              action: 'WHATSAPP_SICK_REPORT',
-              details: `Mitarbeiter hat sich krank gemeldet („Ich bin krank“) via WhatsApp-Button`,
-            },
-          }).catch(() => {});
-
-          await this.sendWhatsAppDirect(
-            cleanFrom,
-            `🤒 Ihre Krankmeldung wurde erfasst und an die Schichtleitung übermittelt. Gute Besserung!`,
-          ).catch(() => {});
-          return;
-        }
-      } else {
+      // 1. Validate Meta event timestamp in integer seconds
+      const serverNowMs = referenceDate ? referenceDate.getTime() : Date.now();
+      const eventDate = this.validateMetaEventTimestamp(msg.timestamp, serverNowMs);
+      if (!eventDate) {
         this.logger.warn(
-          `[WhatsApp Webhook] Could not resolve plan or employee for button click from +${cleanFrom}`,
+          `[WhatsApp Webhook] Rejected message from +${rawFrom}: invalid/missing/future event timestamp "${msg.timestamp}"`,
         );
-      }
-      return;
-    }
-
-    // 2. Process Incoming Conversational Text Messages (Phase-1 Worker Self-Service)
-    // Strictly read-only: cannot edit hours, plans, or other records, and does not
-    // store custom worker messages as requests.
-    if (msg.type === 'text' && msg.text?.body) {
-      const incomingText = msg.text.body.trim();
-      this.logger.log(`[WhatsApp Webhook] Received text from +${rawFrom}: "${incomingText}"`);
-
-      if (!this.selfService) {
-        this.logger.warn('[WhatsApp Webhook] WhatsappSelfServiceService is not initialized.');
         return;
       }
 
-      const convResult = await this.selfService.handleIncomingConversation(
-        rawFrom,
-        incomingText,
-        referenceDate,
-      );
-
-      if (
-        convResult.status === 'UNKNOWN_IDENTITY' ||
-        convResult.status === 'AMBIGUOUS_IDENTITY'
-      ) {
+      // 2. Resolve sender to exactly one active, non-deleted worker
+      const resolvedSender = await this.resolveWorkerSender(rawFrom);
+      if (!resolvedSender) {
         this.logger.warn(
-          `[WhatsApp Webhook] Identity status ${convResult.status} for phone +${rawFrom} — no personal data returned.`,
+          `[WhatsApp Webhook] Sender +${rawFrom} does not resolve to exactly one active worker. Rejecting.`,
         );
         await this.prisma.actionLog.create({
           data: {
-            action:
-              convResult.status === 'AMBIGUOUS_IDENTITY'
-                ? 'WHATSAPP_AMBIGUOUS_SENDER'
-                : 'WHATSAPP_UNKNOWN_SENDER',
-            details: `WhatsApp-Nachricht von nicht eindeutig zugeordneter Nummer +${rawFrom} (${convResult.status})`,
+            action: 'WHATSAPP_UNKNOWN_SENDER',
+            details: `WhatsApp-Nachricht von nicht eindeutig zugeordneter Nummer +${rawFrom}`,
           },
         }).catch(() => {});
         return;
       }
 
-      if (convResult.replyText) {
-        await this.sendWhatsAppDirect(cleanFrom, convResult.replyText).catch(() => {});
+      const isInteractive = msg.type === 'interactive' && Boolean(msg.interactive?.button_reply);
+      const isTemplateButton = msg.type === 'button' && Boolean(msg.button?.text || msg.button?.payload);
+
+      // ─── 3. Button / Interactive Replies ───────────────────────────────────
+      if (isInteractive || isTemplateButton) {
+        const buttonId = (
+          msg.interactive?.button_reply?.id ||
+          msg.button?.payload ||
+          msg.button?.text ||
+          ''
+        ).trim();
+
+        const buttonTitle = (
+          msg.interactive?.button_reply?.title ||
+          msg.button?.text ||
+          msg.button?.payload ||
+          ''
+        ).trim();
+
+        this.logger.log(
+          `[WhatsApp Webhook] 🔘 User clicked ${msg.type} button: "${buttonTitle}" (ID/Payload: "${buttonId}") from +${cleanFrom}`,
+        );
+
+        const parts = buttonId.split('_');
+        const rawPrefix = parts[0]?.toUpperCase() || '';
+        let targetPlanId = parts[1] || '';
+        let targetEmpId = parts.slice(2).join('_') || '';
+
+        // 1. Strict parsed action token from button ID prefix
+        let actionFromId: 'CONFIRM' | 'SICK' | 'CUSTOM' | null = null;
+        if (rawPrefix === 'CONFIRM' || rawPrefix === 'ACCEPT') {
+          actionFromId = 'CONFIRM';
+        } else if (rawPrefix === 'SICK' || rawPrefix === 'DECLINE') {
+          actionFromId = 'SICK';
+        } else if (rawPrefix === 'CUSTOM') {
+          actionFromId = 'CUSTOM';
+        } else {
+          // Exact full-string match only for legacy button IDs (never substring)
+          actionFromId = this.resolveActionFromLabel(buttonId);
+        }
+
+        // 2. Strict exact full-string match for button title
+        const actionFromTitle = this.resolveActionFromLabel(buttonTitle);
+
+        // Check for negative title (e.g. "Ich bin nicht da", "Nein, nicht da")
+        const isNegativeTitle = /\b(nicht|kein|keine|not|hayır|hayir)\b/i.test(buttonTitle);
+
+        let actionPrefix: 'CONFIRM' | 'SICK' | 'CUSTOM' | null = null;
+        if (isNegativeTitle && actionFromId === 'CONFIRM') {
+          // Conflicting negative title overrides confirm ID
+          actionPrefix = null;
+        } else if (actionFromId && actionFromTitle) {
+          if (actionFromId === actionFromTitle) {
+            actionPrefix = actionFromId;
+          } else {
+            // Conflicting action between ID and title (e.g. ID says CONFIRM but title says SICK)
+            actionPrefix = null;
+          }
+        } else if (actionFromId) {
+          actionPrefix = actionFromId;
+        } else if (actionFromTitle) {
+          actionPrefix = actionFromTitle;
+        }
+
+        // Action allowlist check: ignore unknown or conflicting payloads without writing
+        if (!actionPrefix) {
+          this.logger.warn(
+            `[WhatsApp Webhook] Unknown button action ID "${buttonId}" (title: "${buttonTitle}"). Ignored without writing.`,
+          );
+          return;
+        }
+
+        // Verify assignment ownership and existence
+        if (targetPlanId && targetEmpId) {
+          if (targetEmpId !== resolvedSender.id) {
+            this.logger.warn(
+              `[WhatsApp Webhook] Sender +${rawFrom} (${resolvedSender.id}) does not match button target employee ${targetEmpId}; ignoring.`,
+            );
+            return;
+          }
+
+          const assignment = await this.prisma.planEmployee.findFirst({
+            where: {
+              planId: targetPlanId,
+              employeeId: resolvedSender.id,
+              plan: { deletedAt: null },
+            },
+            include: { plan: true },
+          });
+
+          if (!assignment) {
+            this.logger.warn(
+              `[WhatsApp Webhook] Assignment for plan ${targetPlanId} and worker ${resolvedSender.id} not found or deleted; ignoring.`,
+            );
+            return;
+          }
+        } else {
+          const todayStart = new Date(serverNowMs);
+          todayStart.setUTCHours(0, 0, 0, 0);
+
+          const pendingAssignments = await this.prisma.planEmployee.findMany({
+            where: {
+              employeeId: resolvedSender.id,
+              confirmationStatus: 'PENDING',
+              plan: {
+                date: { gte: todayStart },
+                deletedAt: null,
+              },
+            },
+            orderBy: { plan: { date: 'asc' } },
+            include: { plan: true },
+          });
+
+          if (pendingAssignments.length === 0) {
+            this.logger.warn(`[WhatsApp Webhook] No pending assignment found for worker ${resolvedSender.id}`);
+            await this.sendWhatsAppDirect(
+              cleanFrom,
+              'Für Ihre Rufnummer liegt derzeit keine offene Schicht zur Bestätigung vor.',
+            ).catch(() => {});
+            return;
+          }
+
+          if (pendingAssignments.length > 1) {
+            this.logger.warn(`[WhatsApp Webhook] Ambiguous plan: worker ${resolvedSender.id} has ${pendingAssignments.length} pending plans`);
+            await this.sendWhatsAppDirect(
+              cleanFrom,
+              'Wir haben mehrere offene Schichten für Sie gefunden. Bitte antworten Sie direkt über die Schaltflächen in der jeweiligen Schichtplan-Nachricht.',
+            ).catch(() => {});
+            return;
+          }
+
+          targetPlanId = pendingAssignments[0].planId;
+          targetEmpId = resolvedSender.id;
+        }
+
+        let noteText = '';
+        let actionType = '';
+        let actionDetails = '';
+        let ackMessage = '';
+
+        if (actionPrefix === 'CONFIRM') {
+          noteText = 'Zugesagt („Ich bin da“)';
+          actionType = 'WHATSAPP_CONFIRMED';
+          actionDetails = 'Mitarbeiter hat Schicht zugesagt („Ich bin da“) via WhatsApp-Button';
+          ackMessage = '✅ Vielen Dank! Ihre Zusage („Ich bin da“) wurde erfolgreich gespeichert. Wir freuen uns auf Ihren Einsatz!';
+        } else if (actionPrefix === 'SICK') {
+          noteText = 'Krankmeldung via WhatsApp („Ich bin krank“)';
+          actionType = 'WHATSAPP_SICK_REPORT';
+          actionDetails = 'Mitarbeiter hat sich krank gemeldet („Ich bin krank“) via WhatsApp-Button';
+          ackMessage = '🤒 Ihre Krankmeldung wurde erfasst und an die Schichtleitung übermittelt. Gute Besserung!';
+        } else {
+          noteText = 'Wartet auf individuelle Textnachricht';
+          actionType = 'WHATSAPP_NOTE_RECEIVED';
+          actionDetails = 'Mitarbeiter hat "Schreib Nachricht" gewählt via WhatsApp-Button';
+          ackMessage = '💬 Bitte schreiben Sie uns direkt hier im Chat eine kurze Nachricht (z. B. Grund der Verhinderung oder wann Sie kommen können).';
+        }
+
+        const result = await this.executeGuardedAssignmentUpdate({
+          planId: targetPlanId,
+          employeeId: targetEmpId,
+          eventDate,
+          status: actionPrefix === 'CONFIRM' ? 'CONFIRMED' : actionPrefix === 'SICK' ? 'SICK' : 'CUSTOM_RESPONSE',
+          note: noteText,
+          channel: 'WHATSAPP_BUTTON',
+          actionType,
+          actionDetails,
+        });
+
+        if (result.accepted) {
+          committed = true;
+          await this.sendWhatsAppDirect(cleanFrom, ackMessage).catch((err) => {
+            this.logger.error(`[WhatsApp Webhook] Outbound acknowledgment delivery failed to +${cleanFrom}: ${err.message}`);
+          });
+        } else {
+          this.logger.warn(
+            `[WhatsApp Webhook] Dropped stale/superseded button reply for plan ${targetPlanId}, employee ${targetEmpId} (event: ${eventDate.toISOString()})`,
+          );
+        }
+        return;
       }
+
+      // ─── 4. Text Messages ──────────────────────────────────────────────────
+      if (msg.type === 'text' && msg.text?.body) {
+        const incomingText = msg.text.body.trim();
+        this.logger.log(`[WhatsApp Webhook] Received text from +${rawFrom}: "${incomingText}"`);
+
+        // 4a. Check if text is an explicit plan option reply: 1, 2, 3
+        const lower = incomingText.toLowerCase();
+        let explicitAction: 'CONFIRM' | 'SICK' | 'CUSTOM' | null = null;
+        if (
+          lower === '1' ||
+          lower === 'ich bin da' ||
+          lower === 'bin da' ||
+          lower === 'komme' ||
+          lower === 'ja' ||
+          lower === 'evet' ||
+          lower === 'buradayım' ||
+          lower === 'buradayim' ||
+          lower === 'حاضر' ||
+          lower === 'نعم' ||
+          lower === 'я буду' ||
+          lower === 'прийду' ||
+          lower === 'так'
+        ) {
+          explicitAction = 'CONFIRM';
+        } else if (
+          lower === '2' ||
+          lower === 'ich bin krank' ||
+          lower === 'krank' ||
+          lower === 'arzt' ||
+          lower === 'nein' ||
+          lower === 'hasta' ||
+          lower === 'hastayım' ||
+          lower === 'hastayim' ||
+          lower === 'مريض' ||
+          lower === 'لا' ||
+          lower === 'захворів' ||
+          lower === 'хворий' ||
+          lower === 'ні'
+        ) {
+          explicitAction = 'SICK';
+        } else if (
+          lower === '3' ||
+          lower === 'nachricht' ||
+          lower === 'rücksprache' ||
+          lower === 'ruecksprache' ||
+          lower === 'mesaj' ||
+          lower === 'رسالة' ||
+          lower === 'повідомлення'
+        ) {
+          explicitAction = 'CUSTOM';
+        }
+
+        if (explicitAction) {
+          const todayStart = new Date(serverNowMs);
+          todayStart.setUTCHours(0, 0, 0, 0);
+
+          const pendingAssignments = await this.prisma.planEmployee.findMany({
+            where: {
+              employeeId: resolvedSender.id,
+              confirmationStatus: 'PENDING',
+              plan: {
+                date: { gte: todayStart },
+                deletedAt: null,
+              },
+            },
+            orderBy: { plan: { date: 'asc' } },
+            include: { plan: true },
+          });
+
+          if (pendingAssignments.length === 0) {
+            await this.sendWhatsAppDirect(
+              cleanFrom,
+              'Für Ihre Rufnummer liegt derzeit keine offene Schicht zur Bestätigung vor.',
+            ).catch(() => {});
+            return;
+          }
+
+          if (pendingAssignments.length > 1) {
+            await this.sendWhatsAppDirect(
+              cleanFrom,
+              'Wir haben mehrere offene Schichten für Sie gefunden. Bitte antworten Sie direkt über die Schaltflächen in der jeweiligen Schichtplan-Nachricht.',
+            ).catch(() => {});
+            return;
+          }
+
+          const targetAssignment = pendingAssignments[0];
+          let noteText = '';
+          let actionType = '';
+          let actionDetails = '';
+          let ackMessage = '';
+
+          if (explicitAction === 'CONFIRM') {
+            noteText = `Zugesagt („${incomingText}“)`;
+            actionType = 'WHATSAPP_CONFIRMED';
+            actionDetails = `Mitarbeiter hat Schicht zugesagt via WhatsApp-Text („${incomingText}“)`;
+            ackMessage = '✅ Vielen Dank! Ihre Zusage („Ich bin da“) wurde erfolgreich gespeichert. Wir freuen uns auf Ihren Einsatz!';
+          } else if (explicitAction === 'SICK') {
+            noteText = `Krankmeldung via WhatsApp-Text („${incomingText}“)`;
+            actionType = 'WHATSAPP_SICK_REPORT';
+            actionDetails = `Mitarbeiter hat sich krank gemeldet via WhatsApp-Text („${incomingText}“)`;
+            ackMessage = '🤒 Ihre Krankmeldung wurde erfasst und an die Schichtleitung übermittelt. Gute Besserung!';
+          } else {
+            noteText = 'Wartet auf individuelle Textnachricht';
+            actionType = 'WHATSAPP_NOTE_RECEIVED';
+            actionDetails = `Mitarbeiter hat Option 3 gewählt via WhatsApp-Text („${incomingText}“)`;
+            ackMessage = '💬 Bitte schreiben Sie uns direkt hier im Chat eine kurze Nachricht (z. B. Grund der Verhinderung oder wann Sie kommen können).';
+          }
+
+          const result = await this.executeGuardedAssignmentUpdate({
+            planId: targetAssignment.planId,
+            employeeId: resolvedSender.id,
+            eventDate,
+            status: explicitAction === 'CONFIRM' ? 'CONFIRMED' : explicitAction === 'SICK' ? 'SICK' : 'CUSTOM_RESPONSE',
+            note: noteText,
+            channel: 'WHATSAPP_TEXT',
+            actionType,
+            actionDetails,
+          });
+
+          if (result.accepted) {
+            committed = true;
+            await this.sendWhatsAppDirect(cleanFrom, ackMessage).catch((err) => {
+              this.logger.error(`[WhatsApp Webhook] Outbound acknowledgment delivery failed to +${cleanFrom}: ${err.message}`);
+            });
+          } else {
+            this.logger.warn(
+              `[WhatsApp Webhook] Dropped stale/superseded text reply for plan ${targetAssignment.planId}, employee ${resolvedSender.id} (event: ${eventDate.toISOString()})`,
+            );
+          }
+          return;
+        }
+
+        // 4b. Check read-only self-service questions & cross-worker/mutation protections BEFORE follow-up note capture!
+        if (this.selfService) {
+          let otherNames: string[] = [];
+          try {
+            const otherUsers = await this.prisma.user.findMany({
+              where: { isActive: true, deletedAt: null, NOT: { id: resolvedSender.id } },
+              select: { name: true },
+            });
+            otherNames = (otherUsers || []).map((u: any) => u.name).filter(Boolean);
+          } catch (_) {}
+
+          const parsed = this.selfService.parseWorkerMessage(
+            incomingText,
+            referenceDate ?? new Date(),
+            resolvedSender.name,
+            otherNames,
+          );
+
+          if (
+            parsed.intent === 'HOURS' ||
+            parsed.intent === 'PLANS' ||
+            parsed.intent === 'CROSS_WORKER_ACCESS' ||
+            parsed.intent === 'MUTATION_ATTEMPT'
+          ) {
+            const convResult = await this.selfService.handleIncomingConversation(
+              rawFrom,
+              incomingText,
+              referenceDate,
+            );
+            if (convResult.replyText) {
+              await this.sendWhatsAppDirect(cleanFrom, convResult.replyText).catch(() => {});
+            }
+            return;
+          }
+        }
+
+        // 4c. Follow-up note capture ONLY for assignment uniquely awaiting a note
+        const todayStart = new Date(serverNowMs);
+        todayStart.setUTCHours(0, 0, 0, 0);
+
+        const awaitingAssignments = await this.prisma.planEmployee.findMany({
+          where: {
+            employeeId: resolvedSender.id,
+            confirmationStatus: 'CUSTOM_RESPONSE',
+            responseNote: 'Wartet auf individuelle Textnachricht',
+            plan: {
+              date: { gte: todayStart },
+              deletedAt: null,
+            },
+          },
+          include: { plan: true },
+        });
+
+        if (awaitingAssignments.length === 1) {
+          const awaitingAssignment = awaitingAssignments[0];
+          const result = await this.executeGuardedAssignmentUpdate({
+            planId: awaitingAssignment.planId,
+            employeeId: resolvedSender.id,
+            eventDate,
+            status: 'CUSTOM_RESPONSE',
+            note: incomingText,
+            channel: 'WHATSAPP_TEXT',
+            actionType: 'WHATSAPP_NOTE_RECEIVED',
+            actionDetails: `Mitarbeiter hat Notiz gesendet: "${incomingText}"`,
+            requiredCurrentStatus: 'CUSTOM_RESPONSE',
+            requiredCurrentNote: 'Wartet auf individuelle Textnachricht',
+          });
+
+          if (result.accepted) {
+            committed = true;
+            await this.sendWhatsAppDirect(
+              cleanFrom,
+              '✅ Vielen Dank für Ihre Rückmeldung! Ihre Nachricht wurde gespeichert und an die Schichtleitung weitergeleitet.',
+            ).catch(() => {});
+          } else {
+            this.logger.warn(
+              `[WhatsApp Webhook] Dropped stale or already-consumed follow-up note for plan ${awaitingAssignment.planId}, employee ${resolvedSender.id}`,
+            );
+          }
+          return;
+        }
+
+        // 4d. Ambiguous or unrecognized text: clarify without mutating records
+        await this.sendWhatsAppDirect(
+          cleanFrom,
+          'Vielen Dank für Ihre Nachricht. Wenn Sie eine Schicht bestätigen oder sich krankmelden möchten, nutzen Sie bitte die Schaltflächen in Ihrer Schichtplan-Nachricht. Für Auskünfte zu Ihren Arbeitszeiten oder Plänen fragen Sie z. B. „Wie viele Stunden habe ich diesen Monat?“',
+        ).catch(() => {});
+        return;
+      }
+    } catch (err: any) {
+      if (!committed) {
+        this.releaseMessageIdProcessed(msg.id);
+      }
+      throw err;
     }
   }
 
@@ -738,13 +1189,16 @@ export class MessagingService implements OnModuleInit {
    * Diagnostic helper: Return configuration guide for Meta Developer Console
    */
   getWebhookStatus() {
-    const verifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || 'logiflow_whatsapp_verify_2026';
+    const verifyTokenConfigured =
+      typeof process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN === 'string' &&
+      process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN.trim().length > 0;
     const callbackUrl = 'https://warehause-test.onrender.com/messaging/webhook';
     return {
       callbackUrl,
-      verifyToken,
+      verifyTokenConfigured,
       requiredWebhookField: 'messages',
-      instructions: 'In der Meta Developer Console (developers.facebook.com): App -> WhatsApp -> Konfiguration -> Webhook-Felder -> Verwalten -> "messages" abonnieren.',
+      instructions:
+        'In der Meta Developer Console (developers.facebook.com): App -> WhatsApp -> Konfiguration -> Webhook-Felder -> Verwalten -> "messages" abonnieren. Als Verifizierungs-Token den selbst gewaehlten Wert der Server-Umgebungsvariablen WHATSAPP_WEBHOOK_VERIFY_TOKEN eintragen (der Wert wird aus Sicherheitsgruenden nicht angezeigt).',
     };
   }
 
