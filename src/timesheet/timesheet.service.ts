@@ -408,14 +408,14 @@ export class TimesheetService {
         await this.hours.create({ data: att }, tx);
       }
 
-    // ── Audit log ────────────────────────────────────────────────────────────
-    await tx.actionLog.create({
-      data: {
-        userId: actorId,
-        action: 'TIMESHEET_CONFIRM',
-        details: `Stundenzettel "${id}" bestätigt für Mitarbeiter "${confirmed.employee?.name ?? confirmed.employeeName}" (${activeWorkingEntries.length} aktive Tage, ${activeWorkingEntries.reduce((s, e) => s + (e.totalHours || 0), 0).toFixed(2)} h)`,
-      },
-    });
+      // ── Audit log ────────────────────────────────────────────────────────────
+      await tx.actionLog.create({
+        data: {
+          userId: actorId,
+          action: 'TIMESHEET_CONFIRM',
+          details: `Stundenzettel "${id}" bestätigt für Mitarbeiter "${confirmed.employee?.name ?? confirmed.employeeName}" (${activeWorkingEntries.length} aktive Tage, ${activeWorkingEntries.reduce((s, e) => s + (e.totalHours || 0), 0).toFixed(2)} h)`,
+        },
+      });
 
       return this.hours.projectTimesheet(confirmed,tx);
     });
