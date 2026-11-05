@@ -414,7 +414,7 @@ export default function ShiftConfirmationList({
               <div className="text-slate-500 font-bold uppercase text-[10px]">Callback URL (in Meta eintragen):</div>
               <div className="text-emerald-700 select-all font-semibold">https://warehause-test.onrender.com/messaging/webhook</div>
               <div className="text-slate-500 font-bold uppercase text-[10px] mt-2">Verifizierungs-Token (Verify Token):</div>
-              <div className="text-amber-800 select-all font-semibold">logiflow_whatsapp_verify_2026</div>
+              <div className="text-amber-800 font-semibold">Selbst gewählter Wert — als WHATSAPP_WEBHOOK_VERIFY_TOKEN auf Render setzen und denselben Wert in Meta eintragen (wird hier nicht mehr angezeigt)</div>
             </div>
 
             <div className="bg-amber-50/80 p-3.5 rounded-xl border border-amber-200 text-amber-900 text-xs space-y-1.5 shadow-2xs">
