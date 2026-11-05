@@ -1790,17 +1790,17 @@ export class WhatsappSelfServiceService {
     }
   }
 
-  private formatHelpReply(lang: SupportedLanguage, workerName: string): string {
+  formatHelpReply(lang: SupportedLanguage, workerName: string): string {
     switch (lang) {
       case 'tr':
-        return `👋 Merhaba ${workerName}! Bana kendi çalışma saatlerinizi (ör. "Bu ay kaç saat çalıştım?", "15.10.2026 saatlerim") veya vardiya planınızı (ör. "Gelecek vardiyam ne zaman?", "Geçmiş vardiyalarım") sorabilirsiniz.`;
+        return `Merhaba ${workerName}, mesajınızı anlayamadım. Kendi bilgileriniz için örnekler:\n• Bu ay kaç saat çalıştım?\n• Ekim 2026 kaç saat çalıştım?\n• Vardiyalarım Ekim 2026\nBir vardiyaya yanıt vermek için o plan mesajındaki düğmeleri kullanın.`;
       case 'ar':
-        return `👋 مرحباً ${workerName}! يمكنك سؤالي عن ساعات عملك (مثال: "كم ساعة عملت هذا الشهر؟" أو "ساعاتي في 15.10.2026") أو عن جدول مناوباتك (مثال: "ما هو جدول عملي القادم؟" أو "مناوباتي السابقة").`;
+        return `مرحباً ${workerName}، لم أفهم طلبك. للاستعلام عن بياناتك جرّب:\n• كم ساعة عملت هذا الشهر؟\n• ساعاتي في أكتوبر 2026\n• مناوباتي في أكتوبر 2026\nللرد على شفت استخدم أزرار رسالة خطته.`;
       case 'uk':
-        return `👋 Вітаємо, ${workerName}! Ви можете запитати про свої робочі години (наприклад: "Скільки годин я відпрацював цього місяця?", "Мої години за 15.10.2026") або про свій графік змін (наприклад: "Коли моя наступна зміна?", "Мої минулі зміни").`;
+        return `Вітаємо, ${workerName}! Не вдалося зрозуміти запит. Приклади для ваших даних:\n• Скільки годин я відпрацював цього місяця?\n• Мої години за жовтень 2026\n• Мої зміни жовтень 2026\nЩоб відповісти щодо зміни, скористайтеся кнопками в повідомленні з її планом.`;
       case 'de':
       default:
-        return `👋 Hallo ${workerName}! Sie können mich nach Ihren Stundenzettel-Stunden (z. B. „Wie viele Stunden habe ich diesen Monat gearbeitet?“ oder „Meine Stunden am 15.10.2026“) oder nach Ihrem Schichtplan (z. B. „Wann ist meine nächste Schicht?“ oder „Meine bisherigen Einsätze“) fragen.`;
+        return `Hallo ${workerName}, ich habe Ihre Anfrage nicht verstanden. Beispiele für Ihre eigenen Daten:\n• Wie viele Stunden habe ich diesen Monat gearbeitet?\n• Wie viele Stunden habe ich im Oktober 2026 gearbeitet?\n• Meine Schichtpläne im Oktober 2026\nFür eine Schichtantwort nutzen Sie die Schaltflächen in der jeweiligen Plan-Nachricht.`;
     }
   }
 }
