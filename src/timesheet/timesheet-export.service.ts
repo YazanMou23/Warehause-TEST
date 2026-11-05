@@ -194,17 +194,18 @@ export class TimesheetExportService {
     sheet.getRow(1).height = 28;
 
     // ── Mitarbeiter-Info ─────────────────────────────────────────────────────
+    for(const row of [2,3,4]){sheet.mergeCells(`A${row}:B${row}`);sheet.mergeCells(`C${row}:G${row}`);}
     sheet.getCell('A2').value = 'Mitarbeiter:';
-    sheet.getCell('B2').value = timesheet.employee?.name ?? timesheet.employeeName;
+    sheet.getCell('C2').value = timesheet.employee?.name ?? timesheet.employeeName;
     sheet.getCell('A3').value = 'Kalenderwoche:';
-    sheet.getCell('B3').value = this.getKw(timesheet.weekStartDate);
+    sheet.getCell('C3').value = this.getKw(timesheet.weekStartDate);
     sheet.getCell('A4').value = 'Zeitraum:';
-    sheet.getCell('B4').value = this.getWeekRange(timesheet.weekStartDate);
+    sheet.getCell('C4').value = this.getWeekRange(timesheet.weekStartDate);
 
     [sheet.getCell('A2'), sheet.getCell('A3'), sheet.getCell('A4')].forEach((c) => {
       c.font = { bold: true, color: { argb: 'FF64748B' } };
     });
-    [sheet.getCell('B2'), sheet.getCell('B3'), sheet.getCell('B4')].forEach((c) => {
+    [sheet.getCell('C2'), sheet.getCell('C3'), sheet.getCell('C4')].forEach((c) => {
       c.font = { bold: true };
     });
 
