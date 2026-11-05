@@ -42,3 +42,7 @@ New branch from main 9418898. No schema, production-data, settings or UI edits.
 Tests use stateful storage stubs enforcing actual status/note/timestamp predicates, covering each first choice against all later buttons, concurrent choices, one-time CUSTOM notes, action-looking note text, ambiguous waiting notes and restart/retry delivery. The database predicate is atomic; the test suite is not a real database concurrency/load test.
 
 Existing already-sent WhatsApp buttons remain visible. They cannot alter a locked assignment. Managers retain their existing separate correction workflow. Plain-text replies without message correlation retain the previously documented unique-PENDING-plan limitation.
+
+## Saved-choice acknowledgment
+
+User approved at 17:28 CET: replace the previous acknowledgment (do not send an extra duplicate) with a plain-text saved-choice notice containing the plan date when readable, exact plan ID, selected option, notice that old options are no longer valid, and the shift-lead correction route. CUSTOM additionally asks for one message now. The acknowledgment is sent only after the transaction commits. If the descriptive context lookup fails, acknowledge with the exact plan ID rather than inventing a date. No buttons are visually removed.

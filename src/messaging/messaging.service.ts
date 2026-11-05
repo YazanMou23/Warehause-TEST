@@ -634,6 +634,27 @@ export class MessagingService implements OnModuleInit {
     await this.sendWhatsAppDirect(phone, 'Ihre Auswahl ist bereits gespeichert und kann hier nicht geändert werden. Bitte wenden Sie sich an die Schichtleitung.').catch(() => {});
   }
 
+  private async choiceLockedAcknowledgment(
+    planId: string,
+    choice: 'CONFIRM' | 'SICK' | 'CUSTOM',
+  ): Promise<string> {
+    // Read descriptive context only after the choice commits. A context lookup
+    // failure must not undo the saved choice or claim delivery succeeded.
+    let dateLabel = '';
+    try {
+      const plan = await this.prisma.plan.findUnique({ where: { id: planId }, select: { date: true } });
+      const date = plan?.date ? new Date(plan.date) : null;
+      if (date && !isNaN(date.getTime())) {
+        dateLabel = ` am ${String(date.getUTCDate()).padStart(2, '0')}.${String(date.getUTCMonth() + 1).padStart(2, '0')}.${date.getUTCFullYear()}`;
+      }
+    } catch {
+      this.logger.warn('[WhatsApp Webhook] Saved choice context unavailable; acknowledging with plan ID');
+    }
+    const label = choice === 'CONFIRM' ? 'Ich bin da' : choice === 'SICK' ? 'Ich bin krank' : 'Nachricht';
+    return `✅ Ihre Auswahl für die Schicht${dateLabel} (Plan ${planId}) wurde gespeichert: ${label}. Die bisherigen Optionen sind nicht mehr gültig. Für Änderungen wenden Sie sich bitte an die Schichtleitung.` +
+      (choice === 'CUSTOM' ? ' Bitte schreiben Sie jetzt Ihre Nachricht hier im Chat. Sie können einen Nachrichtentext senden.' : '');
+  }
+
   private async executeGuardedAssignmentUpdate(params: {
     planId: string;
     employeeId: string;
@@ -931,23 +952,19 @@ export class MessagingService implements OnModuleInit {
         let noteText = '';
         let actionType = '';
         let actionDetails = '';
-        let ackMessage = '';
 
         if (actionPrefix === 'CONFIRM') {
           noteText = 'Zugesagt („Ich bin da“)';
           actionType = 'WHATSAPP_CONFIRMED';
           actionDetails = 'Mitarbeiter hat Schicht zugesagt („Ich bin da“) via WhatsApp-Button';
-          ackMessage = '✅ Vielen Dank! Ihre Zusage („Ich bin da“) wurde erfolgreich gespeichert. Wir freuen uns auf Ihren Einsatz!';
         } else if (actionPrefix === 'SICK') {
           noteText = 'Krankmeldung via WhatsApp („Ich bin krank“)';
           actionType = 'WHATSAPP_SICK_REPORT';
           actionDetails = 'Mitarbeiter hat sich krank gemeldet („Ich bin krank“) via WhatsApp-Button';
-          ackMessage = '🤒 Ihre Krankmeldung wurde erfasst und an die Schichtleitung übermittelt. Gute Besserung!';
         } else {
           noteText = 'Wartet auf individuelle Textnachricht';
           actionType = 'WHATSAPP_NOTE_RECEIVED';
           actionDetails = 'Mitarbeiter hat "Schreib Nachricht" gewählt via WhatsApp-Button';
-          ackMessage = '💬 Bitte schreiben Sie uns direkt hier im Chat eine kurze Nachricht (z. B. Grund der Verhinderung oder wann Sie kommen können).';
         }
 
         const result = await this.executeGuardedAssignmentUpdate({
@@ -963,7 +980,7 @@ export class MessagingService implements OnModuleInit {
 
         if (result.accepted) {
           committed = true;
-          await this.sendWhatsAppDirect(cleanFrom, ackMessage).catch((err) => {
+          await this.sendWhatsAppDirect(cleanFrom, await this.choiceLockedAcknowledgment(targetPlanId, actionPrefix)).catch((err) => {
             this.logger.error(`[WhatsApp Webhook] Outbound acknowledgment delivery failed to +${cleanFrom}: ${err.message}`);
           });
         } else {
@@ -1154,23 +1171,19 @@ export class MessagingService implements OnModuleInit {
           let noteText = '';
           let actionType = '';
           let actionDetails = '';
-          let ackMessage = '';
 
           if (explicitAction === 'CONFIRM') {
             noteText = `Zugesagt („${incomingText}“)`;
             actionType = 'WHATSAPP_CONFIRMED';
             actionDetails = `Mitarbeiter hat Schicht zugesagt via WhatsApp-Text („${incomingText}“)`;
-            ackMessage = '✅ Vielen Dank! Ihre Zusage („Ich bin da“) wurde erfolgreich gespeichert. Wir freuen uns auf Ihren Einsatz!';
           } else if (explicitAction === 'SICK') {
             noteText = `Krankmeldung via WhatsApp-Text („${incomingText}“)`;
             actionType = 'WHATSAPP_SICK_REPORT';
             actionDetails = `Mitarbeiter hat sich krank gemeldet via WhatsApp-Text („${incomingText}“)`;
-            ackMessage = '🤒 Ihre Krankmeldung wurde erfasst und an die Schichtleitung übermittelt. Gute Besserung!';
           } else {
             noteText = 'Wartet auf individuelle Textnachricht';
             actionType = 'WHATSAPP_NOTE_RECEIVED';
             actionDetails = `Mitarbeiter hat Option 3 gewählt via WhatsApp-Text („${incomingText}“)`;
-            ackMessage = '💬 Bitte schreiben Sie uns direkt hier im Chat eine kurze Nachricht (z. B. Grund der Verhinderung oder wann Sie kommen können).';
           }
 
           const result = await this.executeGuardedAssignmentUpdate({
@@ -1186,7 +1199,7 @@ export class MessagingService implements OnModuleInit {
 
           if (result.accepted) {
             committed = true;
-            await this.sendWhatsAppDirect(cleanFrom, ackMessage).catch((err) => {
+            await this.sendWhatsAppDirect(cleanFrom, await this.choiceLockedAcknowledgment(targetAssignment.planId, explicitAction)).catch((err) => {
               this.logger.error(`[WhatsApp Webhook] Outbound acknowledgment delivery failed to +${cleanFrom}: ${err.message}`);
             });
           } else {

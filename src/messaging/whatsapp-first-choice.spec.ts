@@ -51,6 +51,27 @@ describe('WhatsApp first accepted choice is final', () => {
     expect(send).toHaveBeenLastCalledWith('491701234567', expect.stringContaining('kann hier nicht geändert werden'));
   });
 
+  it.each(['CONFIRM', 'SICK', 'CUSTOM'])('acknowledges saved %s once with shift, choice and lock details', async choice => {
+    await service.processIncomingWebhookMessage(button(choice, 'first'), now);
+    expect(send).toHaveBeenCalledTimes(1);
+    const message = send.mock.calls[0][1];
+    expect(message).toContain('05.11.2026');
+    expect(message).toContain('Plan plan-1');
+    expect(message).toContain(choice === 'CONFIRM' ? 'Ich bin da' : choice === 'SICK' ? 'Ich bin krank' : 'Nachricht');
+    expect(message).toContain('nicht mehr gültig');
+    expect(message).toContain('Schichtleitung');
+    expect(message.includes('Bitte schreiben Sie jetzt')).toBe(choice === 'CUSTOM');
+    expect(db.planEmployee.updateMany.mock.invocationCallOrder[0]).toBeLessThan(send.mock.invocationCallOrder[0]);
+  });
+
+  it('keeps acknowledgment honest when descriptive plan lookup fails after commit', async () => {
+    db.plan.findUnique.mockRejectedValue(new Error('context read failed'));
+    await service.processIncomingWebhookMessage(button('CONFIRM', 'read-fails'), now);
+    expect(rows[0].confirmationStatus).toBe('CONFIRMED');
+    expect(send).toHaveBeenCalledWith('491701234567', expect.stringContaining('Plan plan-1'));
+    expect(send.mock.calls[0][1]).not.toContain('05.11.2026');
+  });
+
   it('concurrent distinct choices commit only one status, audit and acknowledgment', async () => {
     await Promise.all([
       service.processIncomingWebhookMessage(button('CONFIRM', 'concurrent-a'), now),
