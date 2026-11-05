@@ -1656,42 +1656,42 @@ export class WhatsappSelfServiceService {
     switch (lang) {
       case 'tr':
         if (isExactDate) {
-          return `🕒 Merhaba ${workerName}, ${periodLabel} tarihi için onaylı puantaj (Stundenzettel) kaydın: ${hoursStr}${single && single.startTime && single.endTime ? ` (${single.startTime}–${single.endTime}, Mola: ${single.breakMinutes} dk.)` : ''}.`;
+          return `🕒 Merhaba ${workerName}, ${periodLabel} tarihi için kayıtlı çalışma saati kaydın: ${hoursStr}${single && single.startTime && single.endTime ? ` (${single.startTime}–${single.endTime}, Mola: ${single.breakMinutes} dk.)` : ''}.`;
         }
-        return `🕒 Merhaba ${workerName}, ${periodLabel} dönemi için onaylı puantaj (Stundenzettel) toplamın: ${hoursStr} (${daysCount} iş günü).`;
+        return `🕒 Merhaba ${workerName}, ${periodLabel} dönemi için kayıtlı çalışma saati toplamın: ${hoursStr} (${daysCount} iş günü).`;
 
       case 'ar':
         if (isExactDate) {
-          return `🕒 مرحباً ${workerName}، ساعات عملك المؤكدة في كشف الساعات بتاريخ ${periodLabel}: ${hoursStr}${single && single.startTime && single.endTime ? ` (${single.startTime}–${single.endTime}، استراحة: ${single.breakMinutes} دقيقة)` : ''}.`;
+          return `🕒 مرحباً ${workerName}، ساعات عملك المسجلة بتاريخ ${periodLabel}: ${hoursStr}${single && single.startTime && single.endTime ? ` (${single.startTime}–${single.endTime}، استراحة: ${single.breakMinutes} دقيقة)` : ''}.`;
         }
-        return `🕒 مرحباً ${workerName}، إجمالي ساعات عملك المؤكدة في كشف الساعات للفترة ${periodLabel}: ${hoursStr} (${daysCount} أيام عمل).`;
+        return `🕒 مرحباً ${workerName}، إجمالي ساعات عملك المسجلة للفترة ${periodLabel}: ${hoursStr} (${daysCount} أيام عمل).`;
 
       case 'uk':
         if (isExactDate) {
-          return `🕒 Привіт, ${workerName}! Твої підтверджені години за табелем на дату ${periodLabel}: ${hoursStr}${single && single.startTime && single.endTime ? ` (${single.startTime}–${single.endTime}, перерва: ${single.breakMinutes} хв.)` : ''}.`;
+          return `🕒 Привіт, ${workerName}! Твої зареєстровані години на дату ${periodLabel}: ${hoursStr}${single && single.startTime && single.endTime ? ` (${single.startTime}–${single.endTime}, перерва: ${single.breakMinutes} хв.)` : ''}.`;
         }
-        return `🕒 Привіт, ${workerName}! Твої підтверджені години за табелем за період ${periodLabel}: ${hoursStr} (відпрацьованих днів: ${daysCount}).`;
+        return `🕒 Привіт, ${workerName}! Твої зареєстровані години за період ${periodLabel}: ${hoursStr} (відпрацьованих днів: ${daysCount}).`;
 
       case 'de':
       default:
         if (isExactDate) {
-          return `🕒 Hallo ${workerName}, Deine bestätigten Stundenzettel-Stunden für den ${periodLabel} betragen: ${hoursStr}${timeDetail}.`;
+          return `🕒 Hallo ${workerName}, Deine registrierten Arbeitsstunden für den ${periodLabel} betragen: ${hoursStr}${timeDetail}.`;
         }
-        return `🕒 Hallo ${workerName}, Deine bestätigten Stundenzettel-Stunden für den Zeitraum ${periodLabel} betragen insgesamt: ${hoursStr} (${daysCount} Arbeitstage).`;
+        return `🕒 Hallo ${workerName}, Deine registrierten Arbeitsstunden für den Zeitraum ${periodLabel} betragen insgesamt: ${hoursStr} (${daysCount} Arbeitstage).`;
     }
   }
 
   private formatNoHoursRecordsReply(lang: SupportedLanguage, periodLabel: string): string {
     switch (lang) {
       case 'tr':
-        return `ℹ️ ${periodLabel} dönemi için sistemde henüz onaylanmış puantaj (Stundenzettel) kaydı bulunmamaktadır.`;
+        return `ℹ️ ${periodLabel} dönemi için sistemde henüz kayıtlı çalışma saati bulunmamaktadır.`;
       case 'ar':
-        return `ℹ️ لا توجد سجلات ساعات عمل مؤكدة في كشف الساعات للفترة ${periodLabel}.`;
+        return `ℹ️ لا توجد سجلات ساعات عمل مسجلة للفترة ${periodLabel}.`;
       case 'uk':
-        return `ℹ️ За період ${periodLabel} у системі немає підтверджених записів у табелі обліку робочого часу.`;
+        return `ℹ️ За період ${periodLabel} у системі немає зареєстрованих робочих годин.`;
       case 'de':
       default:
-        return `ℹ️ Für den Zeitraum ${periodLabel} liegen noch keine bestätigten Stundenzettel-Einträge vor.`;
+        return `ℹ️ Für den Zeitraum ${periodLabel} liegen noch keine registrierten Arbeitszeiteinträge vor.`;
     }
   }
 

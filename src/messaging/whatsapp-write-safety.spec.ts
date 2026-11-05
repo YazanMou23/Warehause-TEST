@@ -478,6 +478,7 @@ describe('Phase-2 WhatsApp Reply Write Safety & Concurrency Guards', () => {
           plan: { date: REFERENCE_DATE, deletedAt: null },
         },
       ]);
+      mockPrisma.attendance.findMany.mockResolvedValue([{employeeId:workerAli.id,date:new Date('2026-10-15T00:00:00Z'),clockIn:new Date('2026-10-15T08:00:00Z'),clockOut:new Date('2026-10-15T16:00:00Z'),totalHours:8,breakMinutes:0}]);
       mockPrisma.timesheet.findMany.mockResolvedValue([
         {
           id: 'ts-oct-2026',
