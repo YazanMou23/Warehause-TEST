@@ -18,7 +18,7 @@ describe('WhatsApp first accepted choice is final', () => {
     rows = [{ planId: 'plan-1', employeeId: 'worker-1', confirmationStatus: 'PENDING', respondedAt: null, responseNote: null }];
     db = {
       user: { findMany: jest.fn().mockResolvedValue([{ id: 'worker-1', name: 'Test Worker', phone: '+491701234567' }]) },
-      plan: { findUnique: jest.fn().mockResolvedValue({ date: now }) },
+      plan: { findUnique: jest.fn().mockResolvedValue({ date: now, locations: [{ warehouse: { name: 'Wesel' }, hall: { name: 'Zwilling' } }] }) },
       planEmployee: {
         findFirst: jest.fn(({ where }: any) => Promise.resolve(rows.find(r => r.planId === where.planId))),
         findMany: jest.fn(({ where }: any) => Promise.resolve(rows.filter(r => r.confirmationStatus === where.confirmationStatus && (!where.responseNote || r.responseNote === where.responseNote)))),
@@ -56,11 +56,12 @@ describe('WhatsApp first accepted choice is final', () => {
     expect(send).toHaveBeenCalledTimes(1);
     const message = send.mock.calls[0][1];
     expect(message).toContain('05.11.2026');
-    expect(message).toContain('Plan plan-1');
+    expect(message).toContain('Wesel / Zwilling');
+    expect(message).not.toContain('plan-1');
     expect(message).toContain(choice === 'CONFIRM' ? 'Ich bin da' : choice === 'SICK' ? 'Ich bin krank' : 'Nachricht');
     expect(message).toContain('nicht mehr gültig');
     expect(message).toContain('Schichtleitung');
-    expect(message.includes('Bitte schreiben Sie jetzt')).toBe(choice === 'CUSTOM');
+    expect(message.includes('Bitte schreibe jetzt')).toBe(choice === 'CUSTOM');
     expect(db.planEmployee.updateMany.mock.invocationCallOrder[0]).toBeLessThan(send.mock.invocationCallOrder[0]);
   });
 
@@ -68,7 +69,8 @@ describe('WhatsApp first accepted choice is final', () => {
     db.plan.findUnique.mockRejectedValue(new Error('context read failed'));
     await service.processIncomingWebhookMessage(button('CONFIRM', 'read-fails'), now);
     expect(rows[0].confirmationStatus).toBe('CONFIRMED');
-    expect(send).toHaveBeenCalledWith('491701234567', expect.stringContaining('Plan plan-1'));
+    expect(send).toHaveBeenCalledWith('491701234567', expect.stringContaining('Schicht'));
+    expect(send.mock.calls[0][1]).not.toContain('plan-1');
     expect(send.mock.calls[0][1]).not.toContain('05.11.2026');
   });
 
