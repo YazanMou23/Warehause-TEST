@@ -1,5 +1,7 @@
 import { Injectable, Logger, OnModuleInit, Optional, UnauthorizedException } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { WorkerInboundLedger } from './worker-inbound-ledger.service';
+import { WorkerMenu, WorkerMenuReply } from './worker-menu';
 import { WorkerAiService } from './worker-ai.service';
 import { workerReply } from './worker-replies';
 import { PrismaService } from '../prisma/prisma.service';
@@ -17,7 +19,14 @@ export class MessagingService implements OnModuleInit {
     private readonly prisma: PrismaService,
     @Optional() private readonly selfService?: WhatsappSelfServiceService,
     @Optional() private readonly workerAi?: WorkerAiService,
+    @Optional() private readonly inboundLedger?: WorkerInboundLedger,
   ) {}
+
+  private menu?: WorkerMenu;
+  private workerMenu(): WorkerMenu | undefined {
+    if (!this.menu && this.selfService) this.menu = new WorkerMenu(this.selfService);
+    return this.menu;
+  }
 
   async onModuleInit() {
     this.syncWabaWebhookSubscription().catch((err) => {
@@ -817,8 +826,27 @@ export class MessagingService implements OnModuleInit {
         return;
       }
 
-      const languageText = msg.text?.body || msg.interactive?.button_reply?.title || msg.button?.text || '';
+      // Registered by MessagingModule in production. Optional only for isolated
+      // service construction in legacy tests. Validate before durable admission.
+      if (this.inboundLedger && !await this.inboundLedger.claim(String(msg.id || ''), resolvedSender.id)) {
+        this.logger.log('[WhatsApp Webhook] Duplicate inbound suppressed');
+        return;
+      }
+
+      const languageText = msg.text?.body || msg.interactive?.list_reply?.title || msg.interactive?.button_reply?.title || msg.button?.text || '';
       const replyLanguage = this.selfService?.replyLanguage(resolvedSender.id, languageText) ?? 'de';
+
+      // Menu IDs and list replies never enter assignment-decision routing.
+      const menuId = msg.interactive?.list_reply?.id || msg.interactive?.button_reply?.id;
+      if (msg.type === 'interactive' && (msg.interactive?.list_reply || String(menuId || '').startsWith('MENU_'))) {
+        const menu = this.workerMenu();
+        if (menu) await this.sendWorkerMenu(cleanFrom, await menu.click(resolvedSender.id, rawFrom, String(menuId || ''), replyLanguage, referenceDate ?? new Date()));
+        return;
+      }
+      if (msg.type === 'text' && msg.text?.body && this.workerMenu()) {
+        const menuReply = await this.workerMenu()!.text(resolvedSender.id, rawFrom, msg.text.body, replyLanguage, referenceDate ?? new Date());
+        if (menuReply) { await this.sendWorkerMenu(cleanFrom, menuReply); return; }
+      }
 
       const isInteractive = msg.type === 'interactive' && Boolean(msg.interactive?.button_reply);
       const isTemplateButton = msg.type === 'button' && Boolean(msg.button?.text || msg.button?.payload);
@@ -1018,7 +1046,7 @@ export class MessagingService implements OnModuleInit {
         this.logger.log('[WhatsApp Webhook] Text received');
 
         if (this.selfService?.explicitLanguageRequest(incomingText)) {
-          await this.sendWhatsAppDirect(cleanFrom, this.selfService.formatHelpReply(replyLanguage, resolvedSender.name)).catch(() => {});
+          await this.sendWorkerMenu(cleanFrom, this.workerMenu()!.main(resolvedSender.id, replyLanguage, this.selfService.formatHelpReply(replyLanguage, resolvedSender.name)));
           return;
         }
 
@@ -1060,7 +1088,8 @@ export class MessagingService implements OnModuleInit {
               replyLanguage,
             );
             if (convResult.replyText) {
-              await this.sendWhatsAppDirect(cleanFrom, convResult.replyText).catch(() => {});
+              if (convResult.nextPage !== undefined) await this.sendWorkerMenu(cleanFrom, this.workerMenu()!.withNext(resolvedSender.id, replyLanguage, incomingText, convResult.nextPage, convResult.replyText));
+              else await this.sendWhatsAppDirect(cleanFrom, convResult.replyText).catch(() => {});
             }
             return;
           }
@@ -1250,7 +1279,7 @@ export class MessagingService implements OnModuleInit {
               await this.sendWhatsAppDirect(cleanFrom, this.selfService.formatHelpReply(chosen, resolvedSender.name)).catch(() => {});
               return;
             }
-            let period = ai.period === 'MONTH' ? `${ai.month}.${ai.year}` : ai.period === 'EXACT_DATE' ? ai.date!.split('-').reverse().join('.') : '';
+            let period = ai.period === 'YEAR' ? `Jahr ${ai.year}` : ai.period === 'ALL' ? 'alle Monate' : ai.period === 'MONTH' ? `${ai.month}.${ai.year}` : ai.period === 'EXACT_DATE' ? ai.date!.split('-').reverse().join('.') : '';
             if (ai.period === 'CURRENT_MONTH') {
               const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin', year:'numeric', month:'2-digit', day:'2-digit' }).format(referenceDate ?? new Date());
               period = `${Number(day.slice(5,7))}.${day.slice(0,4)}`;
@@ -1259,13 +1288,18 @@ export class MessagingService implements OnModuleInit {
               // Re-enter the read-only handler; identity and backend scoping are rechecked.
               const canonical = `${ai.intent === 'HOURS' ? 'Meine Stunden' : 'Meine Schichtpläne'} ${period || 'kommende'}`;
               const result = await this.selfService.handleIncomingConversation(rawFrom, canonical, referenceDate, replyLanguage);
-              await this.sendWhatsAppDirect(cleanFrom, result.replyText).catch(() => {});
+              if (result.nextPage !== undefined) await this.sendWorkerMenu(cleanFrom, this.workerMenu()!.withNext(resolvedSender.id, replyLanguage, canonical, result.nextPage, result.replyText));
+              else await this.sendWhatsAppDirect(cleanFrom, result.replyText).catch(() => {});
               return;
             }
           }
         }
 
         // 4d. Ambiguous or unrecognized text: clarify without mutating records
+        if (this.workerMenu()) {
+          await this.sendWorkerMenu(cleanFrom, this.workerMenu()!.main(resolvedSender.id, replyLanguage, this.selfService!.formatHelpReply(replyLanguage, resolvedSender.name)));
+          return;
+        }
         await this.sendWhatsAppDirect(
           cleanFrom,
           this.selfService?.formatHelpReply(replyLanguage, resolvedSender.name) ??
@@ -1313,6 +1347,35 @@ export class MessagingService implements OnModuleInit {
       instructions:
         'In der Meta Developer Console (developers.facebook.com): App -> WhatsApp -> Konfiguration -> Webhook-Felder -> Verwalten -> "messages" abonnieren. Als Verifizierungs-Token den selbst gewaehlten Wert der Server-Umgebungsvariablen WHATSAPP_WEBHOOK_VERIFY_TOKEN eintragen (der Wert wird aus Sicherheitsgruenden nicht angezeigt).',
     };
+  }
+
+  /** List messages are replies to inbound worker traffic only. Never template
+   * fallback here: the introduction template remains a separate design item. */
+  async sendWorkerMenu(phone: string, menu: WorkerMenuReply): Promise<void> {
+    const id = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    const key = process.env.WHATSAPP_ACCESS_TOKEN;
+    // Bound the interactive body; preserve long data text in normal chunks.
+    let body = menu.body;
+    if (body.length > 1000) {
+      for (let offset = 0; offset < body.length; offset += 3500) {
+        const sent = await this.sendWhatsAppDirect(phone, body.slice(offset, offset + 3500));
+        if (!sent.success) throw new Error('Worker menu data delivery failed');
+      }
+      body = 'Menü / القائمة / Menü / Меню';
+    }
+    if (id && key) {
+      const response = await fetch(`https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v22.0'}/${id}/messages`, {
+        method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messaging_product:'whatsapp', to:this.formatPhoneNumber(phone), type:'interactive', interactive: {
+          type:'list', body:{text:body}, action:{button:'Menü / قائمة', sections:[{ rows:menu.rows.slice(0,10) }]},
+        }}),
+      });
+      if (response.ok) return;
+      // Surface errors for webhook retry rather than claiming menu delivery.
+      throw new Error(`Worker menu delivery failed (${response.status})`);
+    }
+    // No compatible transport: give clear text commands, never send opaque IDs.
+    await this.sendWhatsAppDirect(phone, `${body}\n${menu.rows.map(row => row.title).join(' | ')}\nMenü / قائمة / Menü / Меню`);
   }
 
   /**
