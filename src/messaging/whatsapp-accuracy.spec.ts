@@ -1,4 +1,3 @@
-import { PlanningService } from '../planning/planning.service';
 import { MessagingService } from './messaging.service';
 import { WhatsappSelfServiceService } from './whatsapp-self-service.service';
 
@@ -48,40 +47,39 @@ describe('WhatsApp accuracy regressions', () => {
     }));
   });
 
-  // Characterization of unresolved policy issues. These document current
-  // behavior, not a desired requirement; do not change absence data implicitly.
-  it('documents that plain no currently writes SICK and a KRANK absence', async () => {
-    db.plan.findUnique = jest.fn().mockResolvedValue({ date: now });
-    db.employeeAbsence = { upsert: jest.fn().mockResolvedValue({}) };
+  it.each(['nein', 'لا', 'ні', 'hayır', 'hayir'])('clarifies plain refusal %s without status or absence writes', async (text) => {
+    db.employeeAbsence = { upsert: jest.fn() };
     await service.processIncomingWebhookMessage({
-      id: 'plain-no', from: '491701234567', timestamp: String(now.getTime() / 1000),
-      type: 'text', text: { body: 'nein' },
+      id: `no-${text}`, from: '491701234567', timestamp: String(now.getTime() / 1000),
+      type: 'text', text: { body: text },
     }, now);
-    expect(db.planEmployee.updateMany).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ confirmationStatus: 'SICK' }),
-    }));
-    expect(db.employeeAbsence.upsert).toHaveBeenCalled();
+    expect(db.planEmployee.updateMany).not.toHaveBeenCalled();
+    expect(db.employeeAbsence.upsert).not.toHaveBeenCalled();
+    expect(send).toHaveBeenCalledTimes(1);
   });
 
-  it('documents changed SICK -> CONFIRMED still displays SICK due to existing absence', async () => {
-    db.employeeAbsence = { findMany: jest.fn().mockResolvedValue([
-      { employeeId: worker.id, date: new Date('2026-11-05Z'), status: 'KRANK' },
-    ]) };
+  it('does not infer sickness from a legacy decline button title', async () => {
     await service.processIncomingWebhookMessage({
-      id: 'change-confirm', from: '491701234567', timestamp: String(now.getTime() / 1000),
-      type: 'interactive', interactive: { button_reply: { id: 'CONFIRM_plan-1_worker-1', title: 'Ich bin da' } },
+      id: 'legacy-no', from: '491701234567', timestamp: String(now.getTime() / 1000),
+      type: 'button', button: { payload: 'decline', text: 'Nein' },
+    }, now);
+    expect(db.planEmployee.updateMany).not.toHaveBeenCalled();
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['CONFIRM', 'CUSTOM', 'SICK'])('atomically blocks %s after sickness without touching absence data', async (action) => {
+    db.planEmployee.findFirst.mockResolvedValue({ planId: 'plan-1', employeeId: worker.id, confirmationStatus: 'SICK' });
+    db.planEmployee.updateMany.mockImplementation(({ where }: any) => Promise.resolve({ count: where.confirmationStatus?.not === 'SICK' ? 0 : 1 }));
+    const title = action === 'CONFIRM' ? 'Ich bin da' : action === 'SICK' ? 'Ich bin krank' : 'Custom Nachricht';
+    await service.processIncomingWebhookMessage({
+      id: `locked-${action}`, from: '491701234567', timestamp: String(now.getTime() / 1000),
+      type: 'interactive', interactive: { button_reply: { id: `${action}_plan-1_worker-1`, title } },
     }, now);
     expect(db.planEmployee.updateMany).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ confirmationStatus: 'CONFIRMED' }),
+      where: expect.objectContaining({ confirmationStatus: { not: 'SICK' } }),
     }));
-    db.planEmployee.findMany.mockResolvedValue([{
-      planId: 'plan-1', employeeId: worker.id, confirmationStatus: 'CONFIRMED',
-      responseNote: 'Zugesagt', employee: worker,
-      plan: { date: new Date('2026-11-05Z'), locations: [], employeeSegments: [] },
-    }]);
-    const planning = new PlanningService(db, {} as any, service);
-    const result = await planning.getConfirmations({ date: '2026-11-05' });
-    expect(JSON.stringify(result)).toContain('SICK');
+    expect(db.actionLog.create).not.toHaveBeenCalled();
+    expect(send).toHaveBeenCalledWith('491701234567', expect.stringContaining('kann hier nicht geändert werden'));
   });
 
   it.each([

@@ -1066,6 +1066,7 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
         where: {
           planId: 'plan-22',
           employeeId: workerAli.id,
+          confirmationStatus: { not: 'SICK' },
           OR: [{ respondedAt: null }, { respondedAt: { lt: expect.any(Date) } }],
         },
         data: expect.objectContaining({
@@ -1102,6 +1103,7 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
         where: {
           planId: 'plan-22',
           employeeId: workerAli.id,
+          confirmationStatus: { not: 'SICK' },
           OR: [{ respondedAt: null }, { respondedAt: { lt: expect.any(Date) } }],
         },
         data: expect.objectContaining({

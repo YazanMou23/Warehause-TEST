@@ -11,12 +11,14 @@ No live messages, production POSTs, schema migrations, data edits or setting cha
 
 The new regression suite has 15 tests: 12 failed on the unchanged base, one legacy-compatibility test already passed, and two characterization tests document unresolved policy behavior. All pass with this branch.
 
-## Open issues requiring a policy decision
+## User-approved policy follow-up (2026-11-05 14:48 CET)
 
-1. **High: refusal is treated as sickness.** Plain `nein`, `لا`, `ні`, etc. are mapped to SICK and create a KRANK absence. A refusal is not necessarily illness. Decide whether to ask for clarification or record a non-sickness response. Do not change existing absence records automatically.
-2. **High: illness reversal conflicts with the list.** A later CONFIRM button can save CONFIRMED and acknowledge success, but an existing KRANK absence overrides the displayed confirmation back to SICK. Removing a daily absence can affect other assignments or a manager-entered absence. Decide who can withdraw sickness and how to prove the absence came from this reply before any cleanup.
+- Plain `nein`, `لا`, `ні`, `hayır`/`hayir` now asks for clarification and never records sickness or changes a shift. The same protection applies to button titles/legacy plain refusal payloads.
+- Existing SICK status cannot be changed through worker replies. The transaction uses an atomic `confirmationStatus != SICK` predicate and returns a contact-shift-lead reply after a blocked attempt, not a success acknowledgment. Existing absences are never deleted.
+- Broader first-choice locking (CONFIRMED/CUSTOM as well as SICK) awaits clarification. CUSTOM must still allow the requested follow-up note if that policy is selected.
+- Already-sent WhatsApp buttons are not visually hidden/disabled by this backend change.
 
-Both behaviors have executable characterization tests in `whatsapp-accuracy.spec.ts`.
+The follow-up adds policy regressions and updates exact predicate expectations. Final local suite: 137 tests, 7 suites, all passing.
 
 ## Remaining source-level limitations, not production failures observed
 
