@@ -1,10 +1,11 @@
 import { workerMenuBody } from './worker-menu-copy';
+import { parseWorkerRange } from './worker-period-range';
 import { randomBytes } from 'crypto';
 import { SupportedLanguage, WhatsappSelfServiceService } from './whatsapp-self-service.service';
 
 type Lang = SupportedLanguage;
 type Kind = 'HOURS' | 'PLANS';
-type Action = { step: string; kind?: Kind; year?: number; half?: number; query?: string; page?: number; language?: Lang };
+type Action = { step: string; kind?: Kind; year?: number; half?: number; query?: string; page?: number; language?: Lang; fromDay?:number; toDay?:number; month?:number };
 export type WorkerMenuReply = { body: string; rows: { id: string; title: string }[] };
 const words: Record<Lang, string[]> = {
   de: ['Menü', 'Meine Stunden', 'Meine Schichten', 'Bestimmter Tag', 'Sprache / Hilfe', 'Dieser Monat', 'Letzter Monat', 'Monat und Jahr', 'Ganzes Jahr', 'Alle Monate', 'Kommende Schichten', 'Registrierte Stunden', 'Geplante Schicht', 'Zurück', 'Weiter', 'Datum: TT.MM.JJJJ', 'Jahr: JJJJ (2000–2100)', 'Auswahl abgelaufen. Menü neu öffnen.', 'Bitte auswählen', 'Änderungen: Schichtleitung. Keine Stundenbuchung im Chat.'],
@@ -17,6 +18,12 @@ const monthNames: Record<Lang, string[]> = {
  ar: ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'],
  tr: ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'],
  uk: ['січень','лютий','березень','квітень','травень','червень','липень','серпень','вересень','жовтень','листопад','грудень'],
+};
+const prompts:Record<Lang,{period:string;month:string;range:string;last:string;two:string}>={
+ de:{period:'Zeitraum wählen. Nur Tage: 7-12, danach Monat/Jahr. Vergangene Wochen: Montag bis Sonntag.',month:'Monat/Jahr: 10.2026. Oder nur Jahr 2026 für die Monatsauswahl.',range:'Von/bis eingeben: 01.10.2026 - 31.10.2026. Beide Tage zählen. Oder KW 44 2026. Nur Tage: 7-12, danach Monat und Jahr.',last:'Letzte Woche',two:'Letzte 2 Wochen'},
+ ar:{period:'اختر الفترة. للأيام اكتب 7-12 ثم الشهر والسنة. الأسبوع الماضي أو الأسبوعان الماضيان: من الاثنين إلى الأحد.',month:'اكتب الشهر والسنة مثل 10.2026، أو السنة 2026 لفتح الأشهر.',range:'اكتب من تاريخ إلى تاريخ: 01.10.2026 - 31.10.2026. يشمل اليومين. أو KW 44 2026. للأيام فقط اكتب 7-12، ثم أسألك الشهر والسنة.',last:'الأسبوع الماضي',two:'آخر أسبوعين'},
+ tr:{period:'Dönemi seç. Günler: 7-12, sonra ay/yıl. Geçmiş haftalar: pazartesi-pazar.',month:'Ay/yıl: 10.2026. Ay seçimi için yalnızca 2026 da yazabilirsin.',range:'Başlangıç ve bitiş: 01.10.2026 - 31.10.2026. İki gün de dahil. Ya da KW 44 2026. Yalnızca günler: 7-12, sonra ay ve yıl.',last:'Geçen hafta',two:'Son 2 hafta'},
+ uk:{period:'Обери період. Дні: 7-12, потім місяць/рік. Минулі тижні: понеділок-неділя.',month:'Місяць/рік: 10.2026. Або лише 2026 для вибору місяця.',range:'Введи дати: 01.10.2026 - 31.10.2026. Обидва дні включено. Або KW 44 2026. Лише дні: 7-12, потім місяць і рік.',last:'Минулий тиждень',two:'Останні 2 тижні'},
 };
 /** Opaque menu tokens carry no employee ID. Every click is bound to the freshly
  * verified worker. Restart/expiry fail closed. Never handles assignment writes. */
@@ -36,7 +43,7 @@ export class WorkerMenu {
   main(owner: string, lang: Lang, prefix = '') {
     this.awaiting.delete(owner);
     const w = words[lang];
-    return this.view(owner, lang, `${prefix}${prefix ? '\n' : ''}${w[18]}`, [[w[1], {step:'period',kind:'HOURS'}],[w[2],{step:'period',kind:'PLANS'}],[w[3],{step:'day'}],[w[4],{step:'language'}]]);
+    return this.view(owner, lang, `${prefix}${prefix ? '\n' : ''}${{de:'Was möchtest du sehen?',ar:'شو بدك تشوف؟ ساعاتك المسجلة، خططك، أو يوم محدد.',tr:'Neyi görmek istiyorsun?',uk:'Що хочеш переглянути?'}[lang]}`, [[w[1], {step:'period',kind:'HOURS'}],[w[2],{step:'period',kind:'PLANS'}],[w[3],{step:'day'}],[w[4],{step:'language'}]]);
   }
   isMenuText(text: string) { return /^(القائمة|قائمة|مرحبا|مرحباً|men[uü]|hallo|merhaba|меню|привіт|hilfe|مساعدة|yardım|допомога)[!.؟?]*$/iu.test(text.trim()); }
   async text(owner: string, phone: string, text: string, lang: Lang, now: Date): Promise<WorkerMenuReply | null> {
@@ -46,6 +53,49 @@ export class WorkerMenu {
     const value = text.trim().replace(/[٠-٩۰-۹]/g,d=>String(d.charCodeAt(0)-(d>='۰'?1776:1632)));
     lang = pending.language;
     const a = pending.action;
+    const noun=a.kind==='PLANS'?'Meine Schichtpläne':'Meine Stunden';
+    // A day-only range is accepted in period/range context. In a month picker,
+    // 7–12 retains its visible paging meaning and never becomes work dates.
+    const dayRange=value.match(/^(\d{1,2})\s*[-–]\s*(\d{1,2})$/);
+    if(dayRange && (a.step==='range'||a.step==='period')){
+      const fromDay=Number(dayRange[1]),toDay=Number(dayRange[2]);
+      if(fromDay<1||toDay>31||fromDay>toDay)return this.view(owner,lang,{de:'Tage müssen zwischen 1 und 31 aufsteigend sein, z. B. 7-12.',ar:'الأيام لازم تكون من 1 إلى 31 وبالترتيب، مثل 7-12.',tr:'Günler 1–31 arasında ve sıralı olmalı: 7-12.',uk:'Дні мають бути від 1 до 31 за порядком: 7-12.'}[lang],[[words[lang][13],{step:'main'}]]);
+      return this.askDayMonth(owner,lang,{step:'dayMonth',kind:a.kind,fromDay,toDay});
+    }
+    if(a.step==='dayMonth'){
+      const month=Number(value);
+      if(/^\d{1,2}$/.test(value)&&month>=1&&month<=12){
+        this.awaiting.set(owner,{at:Date.now(),language:lang,action:{...a,step:'dayYear',month}});
+        return this.view(owner,lang,`${a.fromDay}-${a.toDay}, ${month}: ${{de:'Jahr eingeben: 2026',ar:'اكتب السنة مثل 2026',tr:'Yılı yaz: 2026',uk:'Введи рік: 2026'}[lang]}`,[[words[lang][13],{step:'main'}]]);
+      }
+      if(/^[0-9. /–-]+$/.test(value))return this.askDayMonth(owner,lang,a);
+      return null;
+    }
+    if(a.step==='dayYear'){
+      if(/^(20\d{2}|2100)$/.test(value)){
+        const full=(day:number)=>`${String(day).padStart(2,'0')}.${String(a.month).padStart(2,'0')}.${value}`;
+        const start=full(a.fromDay!),end=full(a.toDay!);
+        // Reject impossible month lengths and restart month/year input for correction.
+        if(parseWorkerRange(`${start} - ${end}`,now)?.invalid)return this.askDayMonth(owner,lang,{...a,step:'dayMonth',month:undefined});
+        this.awaiting.delete(owner);
+        return this.query(owner,phone,`${noun} ${start} - ${end}`,lang,now);
+      }
+      if(/^[0-9. /–-]+$/.test(value))return this.view(owner,lang,words[lang][16],[[words[lang][13],{step:'main'}]]);
+      return null;
+    }
+    if(a.step==='months'){
+      if(/^(7\s*[-–]\s*12|1\s*[-–]\s*6)$/.test(value))return this.months(owner,lang,a.kind!,a.year!,value.startsWith('7')?1:0);
+      const month=value.match(/^(\d{1,2})(?:\s*-\s*[^\d]+)?$/);
+      if(month && Number(month[1])>=1 && Number(month[1])<=12){this.awaiting.delete(owner);return this.query(owner,phone,`${noun} ${month[1]}.${a.year}`,lang,now);}
+    }
+    if((a.step==='year' && a.half!==-1 || a.step==='months' || a.step==='period') && /^(?:\d{1,2}[./]20\d{2}|20\d{2}[-/.]\d{1,2})$/.test(value)){
+      this.awaiting.delete(owner);return this.query(owner,phone,`${noun} ${value}`,lang,now);
+    }
+    if((a.step==='range' && /(?:\d{4}|أسبوع|اسبوع|woche|hafta|тиж|\bKW\b)/iu.test(value)) || (a.step==='period' && /(?:\d{4}.*\d{4}|أسبوع|اسبوع|woche|hafta|тиж|\bKW\b)/iu.test(value))){
+      // A range prompt must never silently become a single day or whole year.
+      if(a.step==='range'&&!parseWorkerRange(value,now))return this.view(owner,lang,prompts[lang].range,[[words[lang][13],{step:'main'}]]);
+      return this.query(owner,phone,`${noun} ${value}`,lang,now);
+    }
     if (a.step === 'date' && /^\d{1,2}\.\d{1,2}\.20\d{2}$/.test(value)) {
       this.awaiting.delete(owner); return this.query(owner,phone,`${a.kind==='HOURS'?'Meine Stunden':'Meine Schichtpläne'} ${value}`,lang,now);
     }
@@ -54,7 +104,9 @@ export class WorkerMenu {
       return a.half === -1 ? this.query(owner,phone,`${a.kind==='HOURS'?'Meine Stunden':'Meine Schichtpläne'} Jahr ${value}`,lang,now) : this.months(owner,lang,a.kind!,Number(value),0);
     }
     if (/^[123]$/.test(value)) return null;
-    if (/^[0-9. /-]+$/.test(value)) return this.view(owner, lang, words[lang][a.step === 'date' ? 15 : 16], [[words[lang][13], { step:'main' }]]);
+    if(a.step==='range' && /^[0-9. /–-]+$/.test(value))return this.view(owner,lang,prompts[lang].range,[[words[lang][13],{step:'main'}]]);
+    if (/^[123]$/.test(value)) return null;
+    if (/^[0-9. /–-]+$/.test(value)) return this.view(owner, lang, a.step==='months'?`${a.year}: ${{de:'Monat 1–12 wählen',ar:'اختر شهراً من 1 إلى 12',tr:'1–12 ay seç',uk:'Обери місяць 1–12'}[lang]}`:a.step==='year'&&a.half!==-1?prompts[lang].month:words[lang][a.step === 'date' ? 15 : 16], [[words[lang][13], { step:'main' }]]);
     // Do not absorb a shift choice or arbitrary follow-up note as date input.
     return null;
   }
@@ -69,8 +121,8 @@ export class WorkerMenu {
     if (a.step==='months') return this.months(owner,lang,a.kind!,a.year!,a.half!);
     if (a.step==='setLanguage') { this.self.replyLanguage(owner, {de:'Deutsch',ar:'بالعربي',tr:'Türkçe',uk:'українською'}[a.language!]); return this.main(owner,a.language!); }
     if (a.step==='language') return this.view(owner,lang,`${w[18]}\n${w[19]}`, [['Deutsch',{step:'setLanguage',language:'de'}],['العربية',{step:'setLanguage',language:'ar'}],['Türkçe',{step:'setLanguage',language:'tr'}],['Українська',{step:'setLanguage',language:'uk'}],[w[13],{step:'main'}]]);
-    if (a.step==='day') return this.view(owner,lang,w[18],[[w[11],{step:'date',kind:'HOURS'}],[w[12],{step:'date',kind:'PLANS'}],[w[13],{step:'main'}]]);
-    if (a.step==='date' || a.step==='year') { if(this.awaiting.size>=10000) this.awaiting.delete(this.awaiting.keys().next().value!); this.awaiting.set(owner,{at:Date.now(),language:lang,action:a}); return this.view(owner,lang,w[a.step==='date'?15:16],[[w[13],{step:'main'}]]); }
+    if (a.step==='day') return this.view(owner,lang,{de:'Gearbeitet oder geplant?',ar:'ساعات عمل مسجلة أم مناوبة مخططة؟',tr:'Kayıtlı saat mi, plan mı?',uk:'Зареєстровані години чи план?'}[lang],[[w[11],{step:'date',kind:'HOURS'}],[w[12],{step:'date',kind:'PLANS'}],[w[13],{step:'main'}]]);
+    if (a.step==='date' || a.step==='year' || a.step==='range') { if(this.awaiting.size>=10000) this.awaiting.delete(this.awaiting.keys().next().value!); this.awaiting.set(owner,{at:Date.now(),language:lang,action:a}); return this.view(owner,lang,a.step==='range'?prompts[lang].range:a.step==='year'&&a.half!==-1?prompts[lang].month:w[a.step==='date'?15:16],[[w[13],{step:'main'}]]); }
     const noun = a.kind==='HOURS'?'Meine Stunden':'Meine Schichtpläne';
     const date = new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
     const year=Number(date.slice(0,4)), month=Number(date.slice(5,7));
@@ -78,13 +130,21 @@ export class WorkerMenu {
     const q = (tail:string):Action=>({step:'query',query:`${noun} ${tail}`});
     const rows: [string,Action][] = [[w[5],q(`${month}.${year}`)],[w[6],q(`${previous.getUTCMonth()+1}.${previous.getUTCFullYear()}`)],[w[7],{step:'year',kind:a.kind}],[w[8],{step:'year',kind:a.kind,half:-1}],[w[9],q('alle Monate')]];
     if(a.kind==='PLANS') rows.unshift([w[10],q('kommende')]);
-    rows.push([w[13],{step:'main'}]);
-    return this.view(owner,lang,w[18],rows);
+    rows.push([{de:'Datum / Kalenderwoche',ar:'فترة أو رقم أسبوع KW',tr:'Tarih / hafta no.',uk:'Дати / номер тижня'}[lang],{step:'range',kind:a.kind}],[prompts[lang].last,q('letzte Woche')],[prompts[lang].two,q('letzte 2 Wochen')],[w[13],{step:'main'}]);
+    if(this.awaiting.size>=10000)this.awaiting.delete(this.awaiting.keys().next().value!);
+    this.awaiting.set(owner,{at:Date.now(),language:lang,action:{step:'period',kind:a.kind}});
+    return this.view(owner,lang,prompts[lang].period,rows);
+  }
+  private askDayMonth(owner:string,lang:Lang,action:Action){
+    this.awaiting.set(owner,{at:Date.now(),language:lang,action});
+    return this.view(owner,lang,`${action.fromDay}-${action.toDay}: ${{de:'Welcher Monat? Zahl 1–12 eingeben.',ar:'أي شهر؟ اكتب رقم الشهر من 1 إلى 12.',tr:'Hangi ay? 1–12 yaz.',uk:'Який місяць? Введи число 1–12.'}[lang]}`,[[words[lang][13],{step:'main'}]]);
   }
   private months(owner:string, lang:Lang, kind:Kind, year:number, half:number) {
     const rows: [string,Action][] = monthNames[lang].slice(half*6,half*6+6).map((name,i)=>[`${half*6+i+1} - ${name}`,{step:'query',query:`${kind==='HOURS'?'Meine Stunden':'Meine Schichtpläne'} ${half*6+i+1}.${year}`}]);
     rows.push([half===0?'7–12':'1–6',{step:'months',kind,year,half:half===0?1:0}],[words[lang][13],{step:'main'}]);
-    return this.view(owner,lang,String(year),rows);
+    if(this.awaiting.size>=10000)this.awaiting.delete(this.awaiting.keys().next().value!);
+    this.awaiting.set(owner,{at:Date.now(),language:lang,action:{step:'months',kind,year,half}});
+    return this.view(owner,lang,`${year} - ${{de:'Monat wählen. 7–12 zeigt Monate Juli-Dezember, keine Tage.',ar:'اختر الشهر. 7–12 هنا أشهر يوليو–ديسمبر، مو أيام.',tr:'Ay seç. Burada 7–12 temmuz-aralık aylarıdır, gün değil.',uk:'Обери місяць. Тут 7–12 означає липень-грудень, не дні.'}[lang]}`,rows);
   }
   async query(owner:string,phone:string,query:string,lang:Lang,now:Date,page=0):Promise<WorkerMenuReply> {
     const result=await this.self.handleIncomingConversation(phone,query,now,lang,page);
