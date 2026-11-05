@@ -79,3 +79,16 @@ describe('Safe diagnostic reasons', () => {
     expect(JSON.stringify(diag.mock.calls)).not.toMatch(/private/);
   });
 });
+
+describe('Single test sender allowlist', () => {
+  const service = (value?: string) => new WorkerAiService({get:()=>value} as any);
+  it.each([undefined,'','*','491701234567,491701234568','01701234567','+000491701234567','letters'])('rejects missing/invalid configuration %s', value => {
+    expect(service(value).isAllowedSender('491701234567')).toBe(false);
+  });
+  it.each(['491701234567','+491701234567','+49 170 1234567'])('matches the exact international number %s', value => {
+    expect(service('+491701234567').isAllowedSender(value)).toBe(true);
+  });
+  it.each(['491701234568','1701234567','01701234567','00491701234567','fake491701234567','491701234567,491701234568',''])('rejects a different/malformed sender %s', value => {
+    expect(service('+491701234567').isAllowedSender(value)).toBe(false);
+  });
+});

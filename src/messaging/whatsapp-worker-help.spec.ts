@@ -99,7 +99,7 @@ describe('AI fallback routing (mocked synthetic worker)', () => {
     };
     db.$transaction=jest.fn(cb=>cb(db));
     self = new WhatsappSelfServiceService(db, {} as any, {} as any);
-    ai = { classify:jest.fn().mockResolvedValue(null) };
+    ai = { classify:jest.fn().mockResolvedValue(null), isAllowedSender:jest.fn().mockReturnValue(true) };
     service = new MessagingService(db,self,ai);
     send=jest.spyOn(service,'sendWhatsAppDirect').mockResolvedValue({success:true});
   });
@@ -110,6 +110,13 @@ describe('AI fallback routing (mocked synthetic worker)', () => {
     const handle=jest.spyOn(self,'handleIncomingConversation').mockResolvedValue({replyText:'synthetic hours',handled:true,status:'OK',language:'ar'});
     await service.processIncomingWebhookMessage(message('odd synthetic question'),now);
     expect(handle).toHaveBeenCalledWith('491701234567','Meine Stunden 10.2026',now,'ar');
+    expect(db.planEmployee.updateMany).not.toHaveBeenCalled();
+  });
+  it('does not classify a sender outside the explicit test allowlist', async () => {
+    ai.isAllowedSender.mockReturnValue(false);
+    await service.processIncomingWebhookMessage(message('odd synthetic question'),now);
+    expect(ai.classify).not.toHaveBeenCalled();
+    expect(send).toHaveBeenCalledTimes(1);
     expect(db.planEmployee.updateMany).not.toHaveBeenCalled();
   });
   it('never sends a pending note to the AI', async () => {
