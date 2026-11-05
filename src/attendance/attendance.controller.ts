@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { AttendanceService } from './attendance.service';
 import { ClockInDto } from './dto/clock-in.dto';
 import { ClockOutDto } from './dto/clock-out.dto';
@@ -95,6 +95,10 @@ export class AttendanceController {
   async update(@Param('id') id: string, @Body() dto: UpdateAttendanceDto) {
     return this.attendanceService.updateAttendance(id, dto);
   }
+
+  @Patch(':id')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  async patch(@Param('id') id:string,@Body() dto:UpdateAttendanceDto) { return this.attendanceService.updateAttendance(id,dto); }
 
   @Post('manual')
   @Roles(Role.MANAGER, Role.ADMIN, Role.EMPLOYEE)

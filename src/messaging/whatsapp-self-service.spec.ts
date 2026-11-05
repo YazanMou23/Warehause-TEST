@@ -75,15 +75,11 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
       },
       $transaction: jest.fn((cb) => cb(mockPrisma)),
       attendance: {
-        findMany: jest.fn().mockResolvedValue([
-          // Intentionally different attendance total (e.g. 999h) to prove self-service NEVER uses attendance totals
-          {
-            id: 'att-fake-999',
-            employeeId: workerAli.id,
-            totalHours: 999,
-            date: new Date('2026-10-15T00:00:00.000Z'),
-          },
-        ]),
+        findMany: jest.fn().mockImplementation(async () => {
+          // Fixture adapter: confirmed legacy fixture entries represent posted ledger rows.
+          const sheets = await mockPrisma.timesheet.findMany();
+          return sheets.filter((t:any)=>t.status===TimesheetStatus.CONFIRMED).flatMap((t:any)=>t.entries.filter((e:any)=>e.isActive!==false && (e.startTime||e.totalHours>0)).map((e:any)=>({...e,source:'SCAN',totalHours:e.startTime && e.endTime ? timesheetService.calculateHours(e.startTime,e.endTime,e.breakMinutes) : e.totalHours,employeeId:t.employeeId,clockIn:new Date(`${e.date.toISOString().slice(0,10)}T${e.startTime||'00:00'}:00Z`),clockOut:e.endTime?new Date(`${e.date.toISOString().slice(0,10)}T${e.endTime}:00Z`):null})));
+        }),
         update: jest.fn(),
       },
       plan: {
@@ -623,11 +619,10 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
         REFERENCE_DATE,
       );
 
-      expect(mockPrisma.timesheet.findMany).toHaveBeenCalledWith(
+      expect(mockPrisma.attendance.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
             employeeId: workerAli.id,
-            status: TimesheetStatus.CONFIRMED,
           }),
         }),
       );
@@ -780,7 +775,7 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
       expect(deRes.totalHours).toBe(24);
       expect(deRes.replyText).toContain('Oktober 2026');
       expect(deRes.replyText).toContain('24 Std.');
-      expect(mockPrisma.attendance.findMany).not.toHaveBeenCalled();
+      expect(mockPrisma.attendance.findMany).toHaveBeenCalled();
 
       // Turkish
       const trRes = await selfService.handleIncomingConversation(

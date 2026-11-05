@@ -1,3 +1,4 @@
+import { WorkHoursService } from '../work-hours/work-hours.service';
 import {
   Injectable,
   NotFoundException,
@@ -13,6 +14,7 @@ import { UpdateTimesheetDto } from './dto/update-timesheet.dto';
 import { UpdateTimesheetEntryDto } from './dto/update-timesheet-entry.dto';
 import { TimesheetStatus, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class TimesheetService {
@@ -20,6 +22,7 @@ export class TimesheetService {
     private readonly prisma: PrismaService,
     private readonly ocrService: TimesheetOcrService,
     private readonly matcherService: TimesheetMatcherService,
+    private readonly hours: WorkHoursService = new WorkHoursService(prisma),
   ) {}
 
   // ─── SCAN & CREATE ─────────────────────────────────────────────────────────
@@ -205,104 +208,82 @@ export class TimesheetService {
       throw new NotFoundException(`Stundenzettel mit ID ${id} nicht gefunden`);
     }
 
+    if (timesheet.status === TimesheetStatus.CONFIRMED) throw new ConflictException('Already posted: edit registered entries instead of confirming again');
+
     // ── Validate active working entries ─────────────────────────────────────
     const activeWorkingEntries = dto.entries.filter(
       (e) => e.isActive !== false && e.startTime?.trim(),
     );
 
     for (const entry of activeWorkingEntries) {
-      this.validateEntry(entry as any);
+      this.validateEntry({...entry,startTime:entry.startTime!,breakMinutes:entry.breakMinutes??0,totalHours:entry.totalHours??this.calculateHours(entry.startTime!,entry.endTime??'',entry.breakMinutes??0)});
     }
 
-    // ── Resolve employee ─────────────────────────────────────────────────────
-    let employeeId: string;
-
-    if (dto.employeeId) {
-      // Verify employee exists
-      const emp = await this.prisma.user.findFirst({
-        where: { id: dto.employeeId, isActive: true, deletedAt: null },
-      });
-      if (!emp) {
-        throw new NotFoundException(`Mitarbeiter mit ID ${dto.employeeId} nicht gefunden`);
-      }
-      employeeId = emp.id;
-    } else if (dto.createNewEmployee) {
-      // Create a new employee
-      const newEmp = dto.createNewEmployee;
-
-      // Check for duplicates
-      const existing = await this.prisma.user.findFirst({
-        where: {
-          OR: [{ username: newEmp.username }, { phone: newEmp.phone }],
-        },
-      });
-      if (existing) {
-        throw new ConflictException(
-          'Ein Mitarbeiter mit diesem Benutzernamen oder dieser Telefonnummer existiert bereits',
-        );
-      }
-
-      const passwordHash = await bcrypt.hash(newEmp.password, 10);
-      const createdUser = await this.prisma.user.create({
-        data: {
-          username: newEmp.username,
-          name: newEmp.name,
-          phone: newEmp.phone,
-          passwordHash,
-          role: Role.EMPLOYEE,
-        },
-      });
-
-      await this.prisma.actionLog.create({
-        data: {
-          userId: actorId,
-          action: 'CREATE_USER',
-          details: `Neuer Mitarbeiter "${createdUser.name}" (${createdUser.username}) via Stundenzettel-Scan angelegt`,
-        },
-      });
-
-      employeeId = createdUser.id;
-    } else {
-      throw new BadRequestException(
-        'Bitte wähle einen Mitarbeiter aus oder lege einen neuen an',
-      );
-    }
-
-    // ── Check per-date duplicates: employee + work date must be unique ────────
-    const weekStart = dto.weekStartDate ? new Date(dto.weekStartDate) : timesheet.weekStartDate;
-
-    const entryDates = activeWorkingEntries
-      .filter((e) => e.date)
-      .map((e) => new Date(e.date));
-
-    if (entryDates.length > 0) {
-      const conflictingEntry = await this.prisma.timesheetEntry.findFirst({
-        where: {
-          date: { in: entryDates },
-          isActive: true,
-          timesheet: {
-            id: { not: id }, // exclude the timesheet being edited from self-check
-            employeeId,
-            status: TimesheetStatus.CONFIRMED,
-          },
-        },
-        include: { timesheet: { select: { id: true } } },
-      });
-
-      if (conflictingEntry) {
-        const conflictDate = conflictingEntry.date.toISOString().split('T')[0];
-        throw new ConflictException(
-          `DUPLICATE_DATE:${conflictDate}`,
-        );
-      }
-    }
+    const weekStart = dto.weekStartDate ? new Date(dto.weekStartDate) : new Date(timesheet.weekStartDate);
+    weekStart.setUTCHours(0,0,0,0);const weekEnd=new Date(weekStart);weekEnd.setUTCDate(weekEnd.getUTCDate()+7);
+    if(dto.entries.some(e=>!Number.isFinite(new Date(e.date).getTime()) || new Date(e.date)<weekStart || new Date(e.date)>=weekEnd))throw new BadRequestException('Entry date must be within the sheet week');
 
     // ── Persist in transaction ───────────────────────────────────────────────
     const updated: any = await this.prisma.$transaction(async (tx) => {
-      // 1. Delete old attendance entries linked to this timesheet
-      await tx.attendance.deleteMany({
-        where: { timesheetId: id },
-      });
+      const claimed = await tx.timesheet.updateMany({where:{id,status:TimesheetStatus.PENDING_REVIEW},data:{status:TimesheetStatus.CONFIRMED}});
+      if(claimed.count !== 1) throw new ConflictException('Timesheet already posted');
+      // ── Resolve employee ─────────────────────────────────────────────────────
+      let employeeId: string;
+
+      if (dto.employeeId) {
+        // Verify employee exists
+        const emp = await tx.user.findFirst({
+          where: { id: dto.employeeId, isActive: true, deletedAt: null },
+        });
+        if (!emp) {
+          throw new NotFoundException(`Mitarbeiter mit ID ${dto.employeeId} nicht gefunden`);
+        }
+        employeeId = emp.id;
+      } else if (dto.createNewEmployee) {
+        // Create a new employee
+        const newEmp = dto.createNewEmployee;
+
+        // Check for duplicates
+        const existing = await tx.user.findFirst({
+          where: {
+            OR: [{ username: newEmp.username }, { phone: newEmp.phone }],
+          },
+        });
+        if (existing) {
+          throw new ConflictException(
+            'Ein Mitarbeiter mit diesem Benutzernamen oder dieser Telefonnummer existiert bereits',
+          );
+        }
+
+        const passwordHash = await bcrypt.hash(newEmp.password, 10);
+        const createdUser = await tx.user.create({
+          data: {
+            username: newEmp.username,
+            name: newEmp.name,
+            phone: newEmp.phone,
+            passwordHash,
+            role: Role.EMPLOYEE,
+          },
+        });
+
+        await tx.actionLog.create({
+          data: {
+            userId: actorId,
+            action: 'CREATE_USER',
+            details: `Neuer Mitarbeiter "${createdUser.name}" (${createdUser.username}) via Stundenzettel-Scan angelegt`,
+          },
+        });
+
+        employeeId = createdUser.id;
+      } else {
+        throw new BadRequestException(
+          'Bitte wähle einen Mitarbeiter aus oder lege einen neuen an',
+        );
+      }
+
+
+      // Existing posted rows on a draft are inconsistent; never delete them silently.
+      if(await tx.attendance.count({where:{timesheetId:id}})) throw new ConflictException('Draft already has posted hours; reconcile first');
 
       // 2. Delete old timesheet entries
       await tx.timesheetEntry.deleteMany({ where: { timesheetId: id } });
@@ -336,10 +317,12 @@ export class TimesheetService {
         const startTimeVal = e.startTime?.trim() || '';
         const endTimeVal = e.endTime?.trim() || null;
         const breakMinVal = Number(e.breakMinutes) || 0;
-        const totalHoursVal = isEntryActive ? (Number(e.totalHours) || 0) : 0;
+        const totalHoursVal = isEntryActive ? (e.totalHours ?? this.calculateHours(startTimeVal,endTimeVal??'',breakMinVal)) : 0;
         const locationVal = e.location?.trim() || null;
 
+        const sourceEntryId = randomUUID();
         entriesToCreate.push({
+          id: sourceEntryId,
           weekday: e.weekday,
           date: new Date(e.date),
           startTime: startTimeVal,
@@ -371,6 +354,7 @@ export class TimesheetService {
             }
           }
 
+          if (!entryWhId || !entryHallId) throw new BadRequestException('Warehouse/hall required to post hours');
           if (entryWhId && entryHallId) {
             const [startH, startM] = startTimeVal.split(':').map(Number);
             const clockIn = new Date(e.date);
@@ -381,9 +365,11 @@ export class TimesheetService {
               const [endH, endM] = endTimeVal.split(':').map(Number);
               clockOut = new Date(e.date);
               clockOut.setUTCHours(endH || 0, endM || 0, 0, 0);
+              if(clockOut < clockIn) clockOut.setUTCDate(clockOut.getUTCDate()+1);
             }
 
             attendanceToCreate.push({
+              id: this.hours.entryAttendanceId(sourceEntryId),
               employeeId,
               warehouseId: entryWhId,
               hallId: entryHallId,
@@ -419,20 +405,21 @@ export class TimesheetService {
 
       // Create attendance records
       for (const att of attendanceToCreate) {
-        await tx.attendance.create({ data: att });
+        await this.hours.create({ data: att }, tx);
       }
 
-      return confirmed;
+      // ── Audit log ────────────────────────────────────────────────────────────
+      await tx.actionLog.create({
+        data: {
+          userId: actorId,
+          action: 'TIMESHEET_CONFIRM',
+          details: `Stundenzettel "${id}" bestätigt für Mitarbeiter "${confirmed.employee?.name ?? confirmed.employeeName}" (${activeWorkingEntries.length} aktive Tage, ${activeWorkingEntries.reduce((s, e) => s + (e.totalHours || 0), 0).toFixed(2)} h)`,
+        },
+      });
+
+      return this.hours.projectTimesheet(confirmed,tx);
     });
 
-    // ── Audit log ────────────────────────────────────────────────────────────
-    await this.prisma.actionLog.create({
-      data: {
-        userId: actorId,
-        action: 'TIMESHEET_CONFIRM',
-        details: `Stundenzettel "${id}" bestätigt für Mitarbeiter "${updated.employee?.name ?? updated.employeeName}" (${activeWorkingEntries.length} aktive Tage, ${activeWorkingEntries.reduce((s, e) => s + (e.totalHours || 0), 0).toFixed(2)} h)`,
-      },
-    });
 
     return updated;
   }
@@ -477,13 +464,9 @@ export class TimesheetService {
       }),
     ]);
 
-    const enriched = data.map((ts) => ({
-      ...ts,
-      totalHours: this.calculateTimesheetTotalHours(ts.entries as any),
-      entryCount: ts.entries.filter(
-        (e) => (e as any).isActive !== false && e.startTime?.trim(),
-      ).length,
-      entries: ts.entries,
+    const enriched = await Promise.all(data.map(async (ts) => {
+      const projected = await this.hours.projectTimesheet(ts);
+      return { ...projected, totalHours: projected.hoursSource==='ATTENDANCE' ? projected.totalHours : this.calculateTimesheetTotalHours(projected.entries as any), entryCount: projected.entries.filter((e:any)=>e.isActive!==false && e.startTime?.trim()).length };
     }));
 
     return {
@@ -507,14 +490,14 @@ export class TimesheetService {
       throw new NotFoundException(`Stundenzettel mit ID ${id} nicht gefunden`);
     }
 
-    return timesheet;
+    return this.hours.projectTimesheet(timesheet);
   }
 
   // ─── UPDATE PENDING (patch header) ────────────────────────────────────────
 
   /**
    * PATCH /timesheets/:id
-   * Update header fields (employeeName, weekStartDate, employeeId) for PENDING_REVIEW or CONFIRMED timesheets.
+   * Update header fields (employeeName, weekStartDate, employeeId) for PENDING_REVIEW timesheets. Posted headers are fixed.
    */
   async updatePending(id: string, dto: UpdateTimesheetDto, actorId: string) {
     const timesheet = await this.prisma.timesheet.findUnique({
@@ -525,6 +508,8 @@ export class TimesheetService {
     if (!timesheet) {
       throw new NotFoundException(`Stundenzettel mit ID ${id} nicht gefunden`);
     }
+
+    if(timesheet.status===TimesheetStatus.CONFIRMED) throw new BadRequestException('Posted header is fixed; edit registered hours entries');
 
     const updateData: any = {};
     if (dto.employeeName !== undefined) updateData.employeeName = dto.employeeName;
@@ -538,30 +523,6 @@ export class TimesheetService {
         employee: { select: { id: true, name: true } },
       },
     });
-
-    // If confirmed, update linked attendance employeeName/date references if needed
-    if (timesheet.status === TimesheetStatus.CONFIRMED && timesheet.employeeId) {
-      if (dto.weekStartDate) {
-        // Shift attendance dates
-        const diffDays = Math.round((new Date(dto.weekStartDate).getTime() - timesheet.weekStartDate.getTime()) / 86400000);
-        if (diffDays !== 0) {
-          const attendances = await this.prisma.attendance.findMany({ where: { timesheetId: id } });
-          for (const att of attendances) {
-            const newDate = new Date(att.date);
-            newDate.setDate(newDate.getDate() + diffDays);
-            const newClockIn = new Date(att.clockIn);
-            newClockIn.setDate(newClockIn.getDate() + diffDays);
-            const newClockOut = att.clockOut ? new Date(att.clockOut) : null;
-            if (newClockOut) newClockOut.setDate(newClockOut.getDate() + diffDays);
-
-            await this.prisma.attendance.update({
-              where: { id: att.id },
-              data: { date: newDate, clockIn: newClockIn, clockOut: newClockOut },
-            });
-          }
-        }
-      }
-    }
 
     await this.prisma.actionLog.create({
       data: {
@@ -592,6 +553,37 @@ export class TimesheetService {
     });
     if (!timesheet) {
       throw new NotFoundException(`Stundenzettel mit ID ${timesheetId} nicht gefunden`);
+    }
+
+    if(timesheet.status===TimesheetStatus.CONFIRMED) {
+      if(!timesheet.employeeId) throw new ConflictException('Posted timesheet has no employee');
+      const ledgerEmployeeId=timesheet.employeeId;
+      return this.prisma.$transaction(async tx=>{
+        // Projected confirmed rows use Attendance.id only. Stale source IDs must not recreate hours.
+        const weekStart=new Date(timesheet.weekStartDate);weekStart.setUTCHours(0,0,0,0);const weekEnd=new Date(weekStart);weekEnd.setUTCDate(weekEnd.getUTCDate()+7);
+        let posted = await tx.attendance.findFirst({where:{id:entryId,employeeId:ledgerEmployeeId,date:{gte:weekStart,lt:weekEnd}}});
+        if(!posted) throw new NotFoundException('Registered hours entry not found; never recreate from stale OCR');
+        if(dto.isActive===false) { await this.hours.delete({where:{id:posted.id}},tx);await tx.actionLog.create({data:{userId:actorId,action:'REGISTERED_HOURS_DELETE',details:'Posted hours deleted from timesheet view'}}); return {...posted,isActive:false,totalHours:0}; }
+        const date = dto.date ? new Date(dto.date) : posted.date;
+        if(date<weekStart || date>=weekEnd)throw new BadRequestException('Entry date must stay within sheet week; use attendance editor to move it');
+        const start = dto.startTime ?? this.hours.displayTime(posted.clockIn,posted.source);
+        const end = dto.endTime ?? (posted.clockOut?this.hours.displayTime(posted.clockOut,posted.source):null);
+        const clockIn = dto.startTime===undefined && dto.date===undefined ? posted.clockIn : this.hours.clockOnWorkDate(date,start,posted.source);
+        let clockOut:Date|null=null;
+        if(end) { clockOut=dto.endTime===undefined && dto.date===undefined ? posted.clockOut : this.hours.clockOnWorkDate(date,end,posted.source);if(clockOut && clockOut<clockIn) {const tomorrow=new Date(date);tomorrow.setUTCDate(tomorrow.getUTCDate()+1);clockOut=this.hours.clockOnWorkDate(tomorrow,end,posted.source);} }
+        const breakMinutes=dto.breakMinutes??posted.breakMinutes;
+        const totalHours=dto.totalHours??this.hours.calculate(clockIn,clockOut,breakMinutes);
+        let warehouseId=posted.warehouseId,hallId=posted.hallId;
+        if(dto.location?.trim()) {
+          const wh=await tx.warehouse.findFirst({where:{name:dto.location.trim(),deletedAt:null},include:{halls:{where:{deletedAt:null}}}});
+          if(!wh) throw new BadRequestException('Choose a warehouse/hall in attendance editor');
+          warehouseId=wh.id;hallId=wh.halls.some(h=>h.id===hallId)?hallId:wh.halls.length===1?wh.halls[0].id:'';
+          if(!hallId)throw new BadRequestException('Choose hall in attendance editor');
+        }
+        const updated=await this.hours.update({where:{id:posted.id},data:{date,clockIn,clockOut,breakMinutes,totalHours,warehouseId,hallId}},tx);
+        await tx.actionLog.create({data:{userId:actorId,action:'REGISTERED_HOURS_UPDATE',details:'Posted hours updated from timesheet view'}});
+        return {id:updated.id,date:updated.date,startTime:this.hours.displayTime(updated.clockIn,updated.source),endTime:updated.clockOut?this.hours.displayTime(updated.clockOut,updated.source):null,breakMinutes:updated.breakMinutes,totalHours:updated.totalHours,isActive:true};
+      });
     }
 
     const entry = await this.prisma.timesheetEntry.findFirst({
@@ -628,88 +620,6 @@ export class TimesheetService {
       where: { id: entryId },
       data: updateData,
     });
-
-    // If timesheet is confirmed and has employeeId, sync updates to Attendance record
-    if (timesheet.status === TimesheetStatus.CONFIRMED && timesheet.employeeId) {
-      const att = await this.prisma.attendance.findFirst({
-        where: {
-          timesheetId,
-          date: new Date(entry.date),
-        },
-      });
-
-      const effectiveStartTime = updateData.startTime !== undefined ? updateData.startTime : entry.startTime;
-
-      if (!isEntryActive || !effectiveStartTime) {
-        // If deactivated or no start time, remove attendance record
-        if (att) {
-          await this.prisma.attendance.delete({ where: { id: att.id } });
-        }
-      } else {
-        const targetDate = updateData.date ? new Date(updateData.date) : new Date(att ? att.date : entry.date);
-        const start = effectiveStartTime;
-        const end = updateData.endTime !== undefined ? updateData.endTime : entry.endTime;
-        const [sH, sM] = start ? start.split(':').map(Number) : [0, 0];
-
-        const clockIn = new Date(targetDate);
-        clockIn.setUTCHours(sH || 0, sM || 0, 0, 0);
-
-        let clockOut: Date | null = null;
-        if (end) {
-          const [eH, eM] = end.split(':').map(Number);
-          clockOut = new Date(targetDate);
-          clockOut.setUTCHours(eH || 0, eM || 0, 0, 0);
-        }
-
-        let newWhId = att?.warehouseId || timesheet.employee?.warehouseId;
-        let newHallId = att?.hallId || timesheet.employee?.hallId;
-        if (updateData.location) {
-          const matchedWh = await this.prisma.warehouse.findFirst({
-            where: {
-              name: { contains: updateData.location, mode: 'insensitive' },
-              deletedAt: null,
-            },
-            include: { halls: { where: { deletedAt: null }, take: 1 } },
-          });
-          if (matchedWh) {
-            newWhId = matchedWh.id;
-            if (matchedWh.halls?.length > 0) {
-              newHallId = matchedWh.halls[0].id;
-            }
-          }
-        }
-
-        if (att) {
-          await this.prisma.attendance.update({
-            where: { id: att.id },
-            data: {
-              date: targetDate,
-              clockIn,
-              clockOut,
-              breakMinutes: updateData.breakMinutes ?? att.breakMinutes,
-              totalHours: updateData.totalHours ?? att.totalHours,
-              warehouseId: newWhId || att.warehouseId,
-              hallId: newHallId || att.hallId,
-            },
-          });
-        } else if (newWhId && newHallId) {
-          await this.prisma.attendance.create({
-            data: {
-              employeeId: timesheet.employeeId,
-              warehouseId: newWhId,
-              hallId: newHallId,
-              clockIn,
-              clockOut,
-              totalHours: updateData.totalHours ?? entry.totalHours,
-              breakMinutes: updateData.breakMinutes ?? entry.breakMinutes,
-              source: 'SCAN',
-              date: targetDate,
-              timesheetId,
-            },
-          });
-        }
-      }
-    }
 
     await this.prisma.actionLog.create({
       data: {
@@ -763,9 +673,9 @@ export class TimesheetService {
     if (isNaN(startH) || isNaN(startM) || isNaN(endH) || isNaN(endM)) return 0;
     const startMinutes = startH * 60 + startM;
     const endMinutes = endH * 60 + endM;
-    if (endMinutes <= startMinutes) return 0;
-    const netMinutes = endMinutes - startMinutes - (Number(breakMinutes) || 0);
-    return Math.max(0, Math.round((netMinutes / 60) * 100) / 100);
+    const span = endMinutes < startMinutes ? endMinutes + 1440 - startMinutes : endMinutes - startMinutes;
+    return Math.max(0, Math.round((span - (Number(breakMinutes)||0)) / 60 * 100) / 100);
+
   }
 
   /**
@@ -779,6 +689,7 @@ export class TimesheetService {
     isActive?: boolean | null;
   }): number {
     if (!entry || entry.isActive === false) return 0;
+    if (typeof entry.totalHours === 'number' && Number.isFinite(entry.totalHours)) return Math.max(0, Math.round(entry.totalHours*100)/100);
     if (entry.startTime?.trim() && entry.endTime?.trim()) {
       return this.calculateHours(
         entry.startTime.trim(),
@@ -810,12 +721,7 @@ export class TimesheetService {
     return Math.round(sum * 100) / 100;
   }
 
-  /**
-   * Dedicated read-only query for a single worker's confirmed timesheet hours
-   * within a requested date range (exact date or month).
-   * Enforces employeeId isolation at the query level and never uses
-   * separate Attendance totals.
-   */
+  /** Compatibility API: reads registered Attendance hours via the shared ledger. */
   async getWorkerTimesheetHoursForPeriod(
     employeeId: string,
     startDate: Date,
@@ -834,103 +740,7 @@ export class TimesheetService {
       location: string | null;
     }>;
   }> {
-    if (!employeeId || typeof employeeId !== 'string') {
-      throw new BadRequestException('employeeId is required');
-    }
-
-    const timesheets = await this.prisma.timesheet.findMany({
-      where: {
-        employeeId,
-        status: TimesheetStatus.CONFIRMED,
-        entries: {
-          some: {
-            date: {
-              gte: startDate,
-              lte: endDate,
-            },
-          },
-        },
-      },
-      include: {
-        entries: {
-          where: {
-            date: {
-              gte: startDate,
-              lte: endDate,
-            },
-          },
-          orderBy: { date: 'asc' },
-        },
-      },
-      orderBy: { weekStartDate: 'asc' },
-    });
-
-    const startMs = startDate.getTime();
-    const endMs = endDate.getTime();
-
-    const matchedEntries: Array<{
-      date: string;
-      weekday: string;
-      startTime: string;
-      endTime: string;
-      breakMinutes: number;
-      hours: number;
-      location: string | null;
-    }> = [];
-
-    for (const ts of timesheets || []) {
-      // Strict worker & status isolation
-      if (ts.employeeId !== employeeId) continue;
-      if (ts.status && ts.status !== TimesheetStatus.CONFIRMED) continue;
-
-      for (const entry of ts.entries || []) {
-        if ((entry as any).isActive === false) continue;
-        const entryDate = entry.date instanceof Date ? entry.date : new Date(entry.date);
-        if (isNaN(entryDate.getTime())) continue;
-        const entryMs = entryDate.getTime();
-        if (entryMs < startMs || entryMs > endMs) continue;
-
-        const hasTimes = Boolean(entry.startTime?.trim() && entry.endTime?.trim());
-        const hasExplicitHours =
-          typeof entry.totalHours === 'number' &&
-          !isNaN(entry.totalHours) &&
-          (entry.totalHours > 0 || Boolean(entry.startTime?.trim()));
-
-        if (!hasTimes && !hasExplicitHours) continue;
-
-        const hours = this.calculateEntryHours(entry as any);
-        matchedEntries.push({
-          date: entryDate.toISOString().split('T')[0],
-          weekday: entry.weekday || '',
-          startTime: entry.startTime?.trim() || '',
-          endTime: entry.endTime?.trim() || '',
-          breakMinutes: Number(entry.breakMinutes) || 0,
-          hours,
-          location: entry.location || null,
-        });
-      }
-    }
-
-    matchedEntries.sort((a, b) => a.date.localeCompare(b.date));
-
-    if (matchedEntries.length === 0) {
-      return {
-        hasRecords: false,
-        totalHours: null,
-        daysCount: 0,
-        entries: [],
-      };
-    }
-
-    const totalHours =
-      Math.round(matchedEntries.reduce((sum, e) => sum + e.hours, 0) * 100) / 100;
-
-    return {
-      hasRecords: true,
-      totalHours,
-      daysCount: matchedEntries.length,
-      entries: matchedEntries,
-    };
+    return this.hours.hoursForPeriod(employeeId,startDate,endDate);
   }
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -941,17 +751,11 @@ export class TimesheetService {
     breakMinutes: number;
     totalHours: number;
   }) {
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(entry.startTime) || !Number.isFinite(entry.totalHours) || entry.totalHours<0 || entry.breakMinutes<0) throw new BadRequestException('Invalid hours entry');
     if (!entry.endTime?.trim()) return;
-    const [startH, startM] = entry.startTime.split(':').map(Number);
-    const [endH, endM] = entry.endTime.trim().split(':').map(Number);
-    const startMinutes = startH * 60 + startM;
-    const endMinutes = endH * 60 + endM;
 
-    if (endMinutes <= startMinutes) {
-      throw new BadRequestException(
-        `Endzeit (${entry.endTime}) muss nach Startzeit (${entry.startTime}) liegen`,
-      );
-    }
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(entry.startTime) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(entry.endTime.trim()) || !Number.isFinite(entry.totalHours) || entry.totalHours < 0 || entry.breakMinutes < 0) throw new BadRequestException('Invalid hours entry');
+
   }
 
   private deriveWeekStart(ocrResult: { entries: Array<{ date: string }> }): Date {

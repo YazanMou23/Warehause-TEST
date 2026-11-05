@@ -1,3 +1,4 @@
+import { WorkHoursService } from '../work-hours/work-hours.service';
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -11,12 +12,11 @@ export class AttendanceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly settingsService: SettingsService,
+    private readonly hours: WorkHoursService = new WorkHoursService(prisma),
   ) {}
 
   private getTodayMidnight(): Date {
-    const d = new Date();
-    d.setUTCHours(0, 0, 0, 0);
-    return d;
+    return this.hours.workDate(new Date());
   }
 
   async clockIn(clockInDto: ClockInDto) {
@@ -51,7 +51,7 @@ export class AttendanceService {
 
     const today = this.getTodayMidnight();
 
-    const attendance = await this.prisma.attendance.create({
+    const attendance = await this.hours.create({
       data: {
         employeeId: clockInDto.employeeId,
         warehouseId: clockInDto.warehouseId,
@@ -79,9 +79,9 @@ export class AttendanceService {
 
     const clockOutTime = new Date();
     const durationMs = clockOutTime.getTime() - activeShift.clockIn.getTime();
-    const totalHours = Math.round((durationMs / 3600000) * 100) / 100; // Round to 2 decimal places
+    const totalHours = this.hours.calculate(activeShift.clockIn,clockOutTime,activeShift.breakMinutes??0); // Round to 2 decimal places
 
-    const updatedShift = await this.prisma.attendance.update({
+    const updatedShift = await this.hours.update({
       where: { id: activeShift.id },
       data: {
         clockOut: clockOutTime,
@@ -128,9 +128,9 @@ export class AttendanceService {
       // Clock Out
       const clockOutTime = new Date();
       const durationMs = clockOutTime.getTime() - activeShift.clockIn.getTime();
-      const totalHours = Math.round((durationMs / 3600000) * 100) / 100;
+      const totalHours = this.hours.calculate(activeShift.clockIn,clockOutTime,activeShift.breakMinutes??0);
 
-      const updatedShift = await this.prisma.attendance.update({
+      const updatedShift = await this.hours.update({
         where: { id: activeShift.id },
         data: {
           clockOut: clockOutTime,
@@ -152,7 +152,7 @@ export class AttendanceService {
     } else {
       // Clock In
       const today = this.getTodayMidnight();
-      const newShift = await this.prisma.attendance.create({
+      const newShift = await this.hours.create({
         data: {
           employeeId: targetEmpId,
           warehouseId: dto.warehouseId,
@@ -176,15 +176,16 @@ export class AttendanceService {
   }
 
   async getDailyAttendance(dateStr?: string, warehouseId?: string) {
-    const targetDate = dateStr ? new Date(dateStr) : new Date();
+    const targetDate = dateStr ? new Date(dateStr) : this.hours.workDate(new Date());
     targetDate.setUTCHours(0, 0, 0, 0);
 
-    const where: any = { date: targetDate };
+    const dayEnd = new Date(targetDate); dayEnd.setUTCDate(dayEnd.getUTCDate()+1);
+    const where: any = { date: {gte:targetDate,lt:dayEnd} };
     if (warehouseId) {
       where.warehouseId = warehouseId;
     }
 
-    const data = await this.prisma.attendance.findMany({
+    const data = await this.hours.list({
       where,
       include: {
         employee: {
@@ -223,10 +224,10 @@ export class AttendanceService {
     const startDate = new Date(Date.UTC(year, month - 1, 1));
     const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
-    const records = await this.prisma.attendance.findMany({
+    const records = await this.hours.list({
       where: {
         employeeId,
-        clockIn: {
+        date: {
           gte: startDate,
           lte: endDate,
         },
@@ -238,7 +239,7 @@ export class AttendanceService {
       orderBy: { clockIn: 'asc' },
     });
 
-    const totalHours = records.reduce((sum, r) => sum + (r.totalHours || 0), 0);
+    const totalHours = this.hours.sum(records);
 
     return {
       employee: {
@@ -297,6 +298,7 @@ export class AttendanceService {
     }
 
     const where: any = {
+      ...(query.employeeId && query.employeeId!=='ALL' ? {employeeId:query.employeeId}:{}),
       date: {
         gte: start,
         lte: end,
@@ -304,7 +306,7 @@ export class AttendanceService {
     };
 
     const [logs, absences] = await Promise.all([
-      this.prisma.attendance.findMany({
+      this.hours.list({
         where,
         include: {
           employee: { select: { id: true, name: true, phone: true, hallId: true, warehouseId: true } },
@@ -344,7 +346,7 @@ export class AttendanceService {
 
     const clockIn = new Date(dto.clockIn);
     const clockOut = dto.clockOut ? new Date(dto.clockOut) : null;
-    const targetDate = new Date(dto.date ?? dto.clockIn);
+    const targetDate = dto.date ? new Date(dto.date) : this.hours.workDate(clockIn);
 
     return this.prisma.$transaction(async (tx) => {
       let whId = dto.warehouseId || attendance.warehouseId;
@@ -361,13 +363,13 @@ export class AttendanceService {
         }
       }
 
-      const updated = await tx.attendance.update({
+      const updated = await this.hours.update({
         where: { id },
         data: {
           clockIn,
           clockOut,
           breakMinutes: dto.breakMinutes,
-          totalHours: dto.totalHours,
+          totalHours: dto.totalHours ?? this.hours.calculate(clockIn,clockOut,dto.breakMinutes??attendance.breakMinutes??0),
           warehouseId: whId,
           hallId: hlId,
           date: targetDate,
@@ -377,56 +379,7 @@ export class AttendanceService {
           warehouse: { select: { id: true, name: true } },
           hall: { select: { id: true, name: true } },
         },
-      });
-
-      // Keep TimesheetEntry in sync if it belongs to a timesheet
-      if (attendance.timesheetId) {
-        const entryDate = new Date(attendance.date);
-        const tsEntry = await tx.timesheetEntry.findFirst({
-          where: {
-            timesheetId: attendance.timesheetId,
-            date: entryDate,
-          },
-        });
-
-        if (tsEntry) {
-          const pad = (num: number) => num.toString().padStart(2, '0');
-          const startTimeStr = `${pad(clockIn.getUTCHours())}:${pad(clockIn.getUTCMinutes())}`;
-          const endTimeStr = clockOut
-            ? `${pad(clockOut.getUTCHours())}:${pad(clockOut.getUTCMinutes())}`
-            : '00:00';
-
-          let locationName = tsEntry.location;
-          if (whId) {
-            const wh = await tx.warehouse.findUnique({
-              where: { id: whId },
-              include: { halls: { where: { id: hlId } } },
-            });
-            if (wh) {
-              locationName = wh.name;
-              if (wh.halls?.length > 0) {
-                locationName += ` (${wh.halls[0].name})`;
-              }
-            }
-          }
-
-          const weekdaysGerman = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
-          const weekdayStr = weekdaysGerman[targetDate.getDay()] || 'Montag';
-
-          await tx.timesheetEntry.update({
-            where: { id: tsEntry.id },
-            data: {
-              date: targetDate,
-              weekday: weekdayStr,
-              startTime: startTimeStr,
-              endTime: endTimeStr,
-              breakMinutes: dto.breakMinutes,
-              totalHours: dto.totalHours,
-              location: locationName,
-            },
-          });
-        }
-      }
+      }, tx);
 
       // Trigger notification for hours changed
       await tx.notification.create({
@@ -482,7 +435,7 @@ export class AttendanceService {
       throw new BadRequestException('Kein Lager oder Halle im System gefunden. Bitte ordnen Sie dem Mitarbeiter ein Lager zu oder erstellen Sie ein Standard-Lager im System.');
     }
 
-    const manualEntry = await this.prisma.attendance.create({
+    const manualEntry = await this.hours.create({
       data: {
         employeeId: dto.employeeId,
         warehouseId: whId,
@@ -490,8 +443,8 @@ export class AttendanceService {
         clockIn,
         clockOut,
         breakMinutes: dto.breakMinutes ?? 0,
-        totalHours: dto.totalHours ?? 0,
-        date: new Date(dto.clockIn),
+        totalHours: dto.totalHours ?? this.hours.calculate(clockIn,clockOut,dto.breakMinutes??0),
+        date: dto.date && /^\d{4}-\d{2}-\d{2}$/.test(dto.date) ? new Date(dto.date) : this.hours.workDate(clockIn),
         source: 'MANUAL',
       },
       include: {
@@ -535,7 +488,7 @@ export class AttendanceService {
       }
     }
 
-    await this.prisma.attendance.delete({
+    await this.hours.delete({
       where: { id },
     });
 
@@ -608,7 +561,7 @@ export class AttendanceService {
     });
 
     // 2. All attendance records in range
-    const logs = await this.prisma.attendance.findMany({
+    const logs = await this.hours.list({
       where: {
         date: { gte: start, lte: end },
       },

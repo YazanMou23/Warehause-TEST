@@ -1,0 +1,16 @@
+const ts = require('typescript');
+const fs = require('fs');
+const vm = require('vm');
+const assert = require('node:assert/strict');
+const source = fs.readFileSync(require('path').join(__dirname, '../src/lib/registered-hours.ts'), 'utf8');
+const output = ts.transpileModule(source, {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText;
+const api = {};
+vm.runInNewContext(output, {exports:api, Intl, Date, Math, Error});
+assert.equal(api.registeredInstant('2026-11-03','08:00'),'2026-11-03T07:00:00.000Z');
+assert.equal(api.registeredClock('2026-11-03T07:00Z','MANUAL'),'08:00');
+assert.equal(api.registeredClock('2026-11-03T08:00Z','SCAN'),'08:00');
+assert.equal(api.registeredEnd('2026-11-03','22:00','06:00'),'2026-11-04T05:00:00.000Z');
+assert.throws(()=>api.registeredInstant('2026-10-25','02:30'));
+assert.throws(()=>api.registeredInstant('2026-03-29','02:30'));
+assert.equal(api.sumDay([{employeeId:'a',date:'day',totalHours:2},{employeeId:'a',date:'day',totalHours:8},{employeeId:'b',date:'day',totalHours:99}], 'a','day').totalHours,10);
+console.log('Registered hours frontend: 7 checks passed');

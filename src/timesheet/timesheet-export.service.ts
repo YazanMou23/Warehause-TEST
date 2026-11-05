@@ -1,11 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { WorkHoursService } from '../work-hours/work-hours.service';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 
 @Injectable()
 export class TimesheetExportService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly hours: WorkHoursService = new WorkHoursService(prisma)) {}
 
   // ─── PDF Export ────────────────────────────────────────────────────────────
 
@@ -37,7 +38,7 @@ export class TimesheetExportService {
       .text('LogiFlow', 40, 40)
       .fontSize(10)
       .fillColor('#64748b')
-      .text('Wöchentlicher Stundenzettel', 40, 65);
+      .text('Registrierte Wochenstunden', 40, 65);
 
     // ── Trennlinie ───────────────────────────────────────────────────────────
     doc
@@ -84,6 +85,7 @@ export class TimesheetExportService {
     let totalHours = 0;
 
     rows.forEach((entry: any, idx: number) => {
+      if(y>doc.page.height-85){doc.addPage();y=40;}
       const rowColor = idx % 2 === 0 ? '#ffffff' : lightGray;
       doc
         .rect(40, y, 515, 17)
@@ -186,23 +188,24 @@ export class TimesheetExportService {
     // ── Titel ────────────────────────────────────────────────────────────────
     sheet.mergeCells('A1:G1');
     const titleCell = sheet.getCell('A1');
-    titleCell.value = 'Wöchentlicher Stundenzettel';
+    titleCell.value = 'Registrierte Wochenstunden';
     titleCell.font = { bold: true, size: 16, color: { argb: 'FF1A56DB' } };
     titleCell.alignment = { horizontal: 'center' };
     sheet.getRow(1).height = 28;
 
     // ── Mitarbeiter-Info ─────────────────────────────────────────────────────
+    for(const row of [2,3,4]){sheet.mergeCells(`A${row}:B${row}`);sheet.mergeCells(`C${row}:G${row}`);}
     sheet.getCell('A2').value = 'Mitarbeiter:';
-    sheet.getCell('B2').value = timesheet.employee?.name ?? timesheet.employeeName;
+    sheet.getCell('C2').value = timesheet.employee?.name ?? timesheet.employeeName;
     sheet.getCell('A3').value = 'Kalenderwoche:';
-    sheet.getCell('B3').value = this.getKw(timesheet.weekStartDate);
+    sheet.getCell('C3').value = this.getKw(timesheet.weekStartDate);
     sheet.getCell('A4').value = 'Zeitraum:';
-    sheet.getCell('B4').value = this.getWeekRange(timesheet.weekStartDate);
+    sheet.getCell('C4').value = this.getWeekRange(timesheet.weekStartDate);
 
     [sheet.getCell('A2'), sheet.getCell('A3'), sheet.getCell('A4')].forEach((c) => {
       c.font = { bold: true, color: { argb: 'FF64748B' } };
     });
-    [sheet.getCell('B2'), sheet.getCell('B3'), sheet.getCell('B4')].forEach((c) => {
+    [sheet.getCell('C2'), sheet.getCell('C3'), sheet.getCell('C4')].forEach((c) => {
       c.font = { bold: true };
     });
 
@@ -317,7 +320,8 @@ export class TimesheetExportService {
       throw new NotFoundException(`Stundenzettel mit ID ${id} nicht gefunden`);
     }
 
-    return timesheet;
+    if(timesheet.status!=='CONFIRMED') throw new BadRequestException('Draft OCR is not a registered hours export');
+    return this.hours.projectTimesheet(timesheet);
   }
 
   private getKw(weekStart: Date | string): string {
