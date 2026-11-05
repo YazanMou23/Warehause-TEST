@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit, Optional, UnauthorizedException } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { workerReply } from './worker-replies';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupportedLanguage, WhatsappSelfServiceService } from './whatsapp-self-service.service';
 
@@ -625,9 +626,9 @@ export class MessagingService implements OnModuleInit {
   private refusalClarification(text: string, chosenLanguage?: SupportedLanguage): string {
     const language = chosenLanguage ?? this.selfService?.detectLanguage(text) ?? 'de';
     if (language === 'ar') return 'هل تقصد أنك مريض أم أنك لا تستطيع الحضور لسبب آخر؟ اختر زر المرض فقط إذا كنت مريضاً، أو اختر رسالة واكتب السبب. لم يتم تسجيل مرض.';
-    if (language === 'uk') return 'Ви захворіли чи не можете прийти з іншої причини? Оберіть кнопку хвороби лише у разі хвороби або кнопку повідомлення, щоб пояснити причину. Лікарняний не записано.';
-    if (language === 'tr' || /^hay[ıi]r$/i.test(text.trim())) return 'Hasta mısınız, yoksa başka bir nedenle mi gelemiyorsunuz? Yalnızca hastaysanız hastalık düğmesini, diğer nedenler için mesaj düğmesini kullanın. Hastalık kaydı oluşturulmadı.';
-    return 'Sind Sie krank oder können Sie aus einem anderen Grund nicht kommen? Nutzen Sie die Krank-Schaltfläche nur bei Krankheit oder die Nachrichten-Schaltfläche für einen anderen Grund. Es wurde keine Krankmeldung gespeichert.';
+    if (language === 'uk') return 'Ти захворів чи не можеш прийти з іншої причини? Обери кнопку хвороби лише у разі хвороби або кнопку повідомлення, щоб пояснити причину. Лікарняний не записано.';
+    if (language === 'tr' || /^hay[ıi]r$/i.test(text.trim())) return 'Hasta mısın, yoksa başka bir nedenle mi gelemiyorsun? Yalnızca hastaysan hastalık düğmesini, diğer nedenler için mesaj düğmesini kullan. Hastalık kaydı oluşturulmadı.';
+    return 'Bist du krank oder kannst du aus einem anderen Grund nicht kommen? Nutze die Krank-Schaltfläche nur bei Krankheit oder die Nachrichten-Schaltfläche für einen anderen Grund. Es wurde keine Krankmeldung gespeichert.';
   }
 
   private async sendLockedChoiceReply(phone: string, language: SupportedLanguage = 'de'): Promise<void> {
@@ -948,7 +949,7 @@ export class MessagingService implements OnModuleInit {
             this.logger.warn(`[WhatsApp Webhook] No pending assignment found for worker ${resolvedSender.id}`);
             await this.sendWhatsAppDirect(
               cleanFrom,
-              'Für Ihre Rufnummer liegt derzeit keine offene Schicht zur Bestätigung vor.',
+              workerReply('NO_PENDING', replyLanguage),
             ).catch(() => {});
             return;
           }
@@ -957,7 +958,7 @@ export class MessagingService implements OnModuleInit {
             this.logger.warn(`[WhatsApp Webhook] Ambiguous plan: worker ${resolvedSender.id} has ${pendingAssignments.length} pending plans`);
             await this.sendWhatsAppDirect(
               cleanFrom,
-              'Wir haben mehrere offene Schichten für Sie gefunden. Bitte antworten Sie direkt über die Schaltflächen in der jeweiligen Schichtplan-Nachricht.',
+              workerReply('MULTIPLE_PENDING', replyLanguage),
             ).catch(() => {});
             return;
           }
@@ -1079,7 +1080,7 @@ export class MessagingService implements OnModuleInit {
         });
 
         if (awaitingAssignments.length > 1) {
-          await this.sendWhatsAppDirect(cleanFrom, 'Mehrere Schichten warten auf Ihre Nachricht. Bitte wenden Sie sich an die Schichtleitung, damit Ihre Nachricht richtig zugeordnet wird.').catch(() => {});
+          await this.sendWhatsAppDirect(cleanFrom, workerReply('MULTIPLE_NOTES', replyLanguage)).catch(() => {});
           return;
         }
 
@@ -1102,10 +1103,7 @@ export class MessagingService implements OnModuleInit {
             committed = true;
             await this.sendWhatsAppDirect(
               cleanFrom,
-              replyLanguage === 'ar' ? '✅ تم حفظ رسالتك لمسؤول الشفت.' :
-              replyLanguage === 'tr' ? '✅ Mesajın vardiya sorumlusu için kaydedildi.' :
-              replyLanguage === 'uk' ? '✅ Твоє повідомлення збережено для керівника зміни.' :
-              '✅ Vielen Dank für Ihre Rückmeldung! Ihre Nachricht wurde gespeichert und an die Schichtleitung weitergeleitet.',
+              workerReply('NOTE_SAVED', replyLanguage),
             ).catch(() => {});
           } else {
             this.logger.warn(
@@ -1180,7 +1178,7 @@ export class MessagingService implements OnModuleInit {
           if (pendingAssignments.length === 0) {
             await this.sendWhatsAppDirect(
               cleanFrom,
-              'Für Ihre Rufnummer liegt derzeit keine offene Schicht zur Bestätigung vor.',
+              workerReply('NO_PENDING', replyLanguage),
             ).catch(() => {});
             return;
           }
@@ -1188,7 +1186,7 @@ export class MessagingService implements OnModuleInit {
           if (pendingAssignments.length > 1) {
             await this.sendWhatsAppDirect(
               cleanFrom,
-              'Wir haben mehrere offene Schichten für Sie gefunden. Bitte antworten Sie direkt über die Schaltflächen in der jeweiligen Schichtplan-Nachricht.',
+              workerReply('MULTIPLE_PENDING', replyLanguage),
             ).catch(() => {});
             return;
           }
