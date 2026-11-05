@@ -15,7 +15,7 @@ The new regression suite has 15 tests: 12 failed on the unchanged base, one lega
 
 - Plain `nein`, `لا`, `ні`, `hayır`/`hayir` now asks for clarification and never records sickness or changes a shift. The same protection applies to button titles/legacy plain refusal payloads.
 - Existing SICK status cannot be changed through worker replies. The transaction uses an atomic `confirmationStatus != SICK` predicate and returns a contact-shift-lead reply after a blocked attempt, not a success acknowledgment. Existing absences are never deleted.
-- Broader first-choice locking (CONFIRMED/CUSTOM as well as SICK) awaits clarification. CUSTOM must still allow the requested follow-up note if that policy is selected.
+- Approved at 17:17 CET: all first choices lock. Atomic PENDING-only updates prevent subsequent CONFIRM/SICK/CUSTOM changes. Only a CUSTOM assignment waiting for its note can accept one follow-up text. Read-only questions remain read-only. Action-like note text is captured before pending-plan action routing; multiple waiting notes prompt clarification instead of affecting a different shift.
 - Already-sent WhatsApp buttons are not visually hidden/disabled by this backend change.
 
 The follow-up adds policy regressions and updates exact predicate expectations. Final local suite: 137 tests, 7 suites, all passing.
@@ -35,3 +35,10 @@ Run `npm test -- --runInBand` and `npx tsc --noEmit`.
 Existing tests cover signature validation, exact sender matching, cross-worker denial, ownership guards, timestamp checks, stale reply protection, transaction failure/retry, note isolation, and shared timesheet-hour source.
 
 These are local unit/service checks. They do not establish Meta delivery, real data correctness, translated natural-language coverage, browser/UI rendering, or production behavior after deployment. The owner merges; this review does not deploy.
+
+## First-choice lock follow-up
+
+New branch from main 9418898. No schema, production-data, settings or UI edits.
+Tests use stateful storage stubs enforcing actual status/note/timestamp predicates, covering each first choice against all later buttons, concurrent choices, one-time CUSTOM notes, action-looking note text, ambiguous waiting notes and restart/retry delivery. The database predicate is atomic; the test suite is not a real database concurrency/load test.
+
+Existing already-sent WhatsApp buttons remain visible. They cannot alter a locked assignment. Managers retain their existing separate correction workflow. Plain-text replies without message correlation retain the previously documented unique-PENDING-plan limitation.
