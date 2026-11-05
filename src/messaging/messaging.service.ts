@@ -1189,13 +1189,16 @@ export class MessagingService implements OnModuleInit {
    * Diagnostic helper: Return configuration guide for Meta Developer Console
    */
   getWebhookStatus() {
-    const verifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || 'logiflow_whatsapp_verify_2026';
+    const verifyTokenConfigured =
+      typeof process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN === 'string' &&
+      process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN.trim().length > 0;
     const callbackUrl = 'https://warehause-test.onrender.com/messaging/webhook';
     return {
       callbackUrl,
-      verifyToken,
+      verifyTokenConfigured,
       requiredWebhookField: 'messages',
-      instructions: 'In der Meta Developer Console (developers.facebook.com): App -> WhatsApp -> Konfiguration -> Webhook-Felder -> Verwalten -> "messages" abonnieren.',
+      instructions:
+        'In der Meta Developer Console (developers.facebook.com): App -> WhatsApp -> Konfiguration -> Webhook-Felder -> Verwalten -> "messages" abonnieren. Als Verifizierungs-Token den selbst gewaehlten Wert der Server-Umgebungsvariablen WHATSAPP_WEBHOOK_VERIFY_TOKEN eintragen (der Wert wird aus Sicherheitsgruenden nicht angezeigt).',
     };
   }
 
