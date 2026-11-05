@@ -369,7 +369,7 @@ describe('Phase-2 WhatsApp Reply Write Safety & Concurrency Guards', () => {
       });
       expect(sendWhatsAppSpy).toHaveBeenCalledWith(
         '491701234567',
-        expect.stringContaining('Ihre Zusage („Ich bin da“) wurde erfolgreich gespeichert'),
+        expect.stringContaining('wurde gespeichert: Ich bin da'),
       );
     });
 
