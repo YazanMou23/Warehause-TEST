@@ -45,6 +45,23 @@ export class WorkerAiService {
     return this.config.get('WHATSAPP_WORKER_AI_ENABLED') === 'true' && !!this.ledger;
   }
 
+  /** One explicitly configured international test sender only. Never sent to OpenAI. */
+  isAllowedSender(phone: string): boolean {
+    const configured = this.config.get<string>('WHATSAPP_WORKER_AI_TEST_PHONE');
+    const normalize = (value: unknown): string | null => {
+      if (typeof value !== 'string') return null;
+      const trimmed = value.trim();
+      // Require international digits, optional + and visual spacing only.
+      // No suffix matching, local-number guesses, lists or wildcard support.
+      if (!/^\+?[1-9][0-9 ()-]*$/.test(trimmed)) return null;
+      const digits = trimmed.replace(/[+ ()-]/g, '');
+      return /^[1-9][0-9]{6,14}$/.test(digits) ? digits : null;
+    };
+    const expected = normalize(configured);
+    const actual = normalize(phone);
+    return expected !== null && actual !== null && expected === actual;
+  }
+
   sanitize(text: string, names: string[]): string | null {
     if (!text.trim() || text.length > WORKER_AI_LIMITS.maxChars) return null;
     // Avoid health, financial and command-like inputs altogether. Not a complete PII detector.
