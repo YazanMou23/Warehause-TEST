@@ -51,4 +51,17 @@ describe('explicit worker periods and complete menu flow (offline)',()=>{
   expect(self.parseWorkerMessage('Meine Stunden KW 53 2026',now)).toMatchObject({startDate:'2026-12-28',endDate:'2027-01-03'});
  });
 
+ it.each(cases)('%s day-range -> month -> year uses chosen month, not month paging',async(lang)=>{
+  let v=menu.main(worker.id,lang);v=(await menu.click(worker.id,worker.phone,v.rows[0].id,lang,now))!;v=(await menu.click(worker.id,worker.phone,v.rows[5].id,lang,now))!;
+  v=(await menu.text(worker.id,worker.phone,'7-12',lang,now))!;expect(v.body).toContain('12');expect(ledger.getWorkerTimesheetHoursForPeriod).not.toHaveBeenCalled();
+  v=(await menu.text(worker.id,worker.phone,'10',lang,now))!;expect(v.body).toContain('2026');expect(ledger.getWorkerTimesheetHoursForPeriod).not.toHaveBeenCalled();
+  await menu.text(worker.id,worker.phone,'2026',lang,now);expect(ledger.getWorkerTimesheetHoursForPeriod).toHaveBeenLastCalledWith(worker.id,new Date('2026-10-07Z'),new Date('2026-10-12T23:59:59.999Z'));
+ });
+ it('day-range validates month lengths, reversed days and correction in year step',async()=>{
+  let v=menu.main(worker.id,'ar');v=(await menu.click(worker.id,worker.phone,v.rows[0].id,'ar',now))!;
+  expect((await menu.text(worker.id,worker.phone,'12-7','ar',now))?.body).toContain('31');
+  await menu.text(worker.id,worker.phone,'29-31','ar',now);await menu.text(worker.id,worker.phone,'2','ar',now);
+  expect((await menu.text(worker.id,worker.phone,'2026','ar',now))?.body).toContain('أي شهر');expect(ledger.getWorkerTimesheetHoursForPeriod).not.toHaveBeenCalled();
+ });
+
 });
