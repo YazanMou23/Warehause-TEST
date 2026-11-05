@@ -437,9 +437,9 @@ export class WhatsappSelfServiceService {
   /**
    * Detects the worker's language: German (de), Turkish (tr), Arabic (ar), or Ukrainian (uk).
    */
-  // No language column exists in User. Explicit preferences are process-local,
+  // No language column exists in User. Conversation language is process-local,
   // isolated by verified worker ID, expire after 24 hours and reset on restart.
-  private readonly languageSessions = new Map<string, { language: SupportedLanguage; at: number }>();
+  private readonly languageSessions = new Map<string, { language: SupportedLanguage; at: number; explicit?:boolean }>();
 
   explicitLanguageRequest(text: string): SupportedLanguage | null {
     const t = text.trim().replace(/[?!؟.!]+$/g, '').trim().toLowerCase();
@@ -454,14 +454,36 @@ export class WhatsappSelfServiceService {
     const explicit = this.explicitLanguageRequest(text);
     if (explicit) {
       if (this.languageSessions.size >= 10000) this.languageSessions.delete(this.languageSessions.keys().next().value!);
-      this.languageSessions.set(workerId, { language: explicit, at: Date.now() });
+      this.languageSessions.set(workerId, { language: explicit, at: Date.now(),explicit:true });
       return explicit;
     }
     const session = this.languageSessions.get(workerId);
-    if (session && Date.now() - session.at < 24 * 60 * 60 * 1000) return session.language;
+    if (session && Date.now() - session.at < 24 * 60 * 60 * 1000) {
+      // Explicit language choices stay sticky. Inferred sessions follow clear
+      // language changes, never neutral text like ok, a number or a menu title.
+      if(session.explicit){session.at=Date.now();return session.language;}
+      const signal=this.conversationLanguageSignal(text);
+      session.at=Date.now();if(signal)session.language=signal;
+      return session.language;
+    }
     this.languageSessions.delete(workerId);
-    if (['de', 'tr', 'ar', 'uk'].includes(storedLanguage || '')) return storedLanguage as SupportedLanguage;
-    return this.detectLanguage(text);
+    const language=['de','tr','ar','uk'].includes(storedLanguage||'') ? storedLanguage as SupportedLanguage : this.conversationLanguageSignal(text);
+    if(language){this.rememberConversationLanguage(workerId,language);return language;}
+    return 'de';
+  }
+
+  rememberConversationLanguage(workerId:string,language:SupportedLanguage){
+    const old=this.languageSessions.get(workerId);
+    if(old?.explicit && Date.now()-old.at<24*60*60*1000){old.at=Date.now();return;}
+    if(this.languageSessions.size>=10000)this.languageSessions.delete(this.languageSessions.keys().next().value!);
+    this.languageSessions.set(workerId,{language,at:Date.now()});
+  }
+  private conversationLanguageSignal(text:string):SupportedLanguage|null{
+    if(/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(text))return 'ar';
+    if(/[\u0400-\u04FF]/.test(text))return 'uk';
+    if(this.detectLanguage(text)==='tr')return 'tr';
+    if(/(?:^|[^\p{L}])(hallo|danke|stunden|meine|schicht|schichten|deutsch|bitte|monat|jahr|woche|ja|nein)(?=$|[^\p{L}])/iu.test(text))return 'de';
+    return null;
   }
 
   detectLanguage(text: string): SupportedLanguage {

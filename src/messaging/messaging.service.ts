@@ -1281,6 +1281,13 @@ export class MessagingService implements OnModuleInit {
           return;
         }
 
+        // Courtesy text is not a new query. CUSTOM note capture and shift-choice
+        // routing above retain priority; no paid AI call for a simple thanks.
+        if(/^(ok(?:ay)?|okey|thanks|thank you|danke(?: schön)?|alles klar|تمام|شكرا|شكراً|شكراً لك|شكرا لك|تسلم|teşekkürler|tesekkurler|sağ ol|sag ol|дякую|гаразд)[!.،,؟?\s]*$/iu.test(incomingText.trim())){
+          await this.sendWhatsAppDirect(cleanFrom,{de:'👍 Gern. Wenn du etwas brauchst, öffne das Menü.',ar:'👍 تمام، بأي وقت. إذا احتجت شي افتح القائمة.',tr:'👍 Rica ederim. Bir şeye ihtiyacın olursa menüyü aç.',uk:'👍 Будь ласка. Якщо щось потрібно, відкрий меню.'}[replyLanguage]).catch(()=>{});
+          return;
+        }
+
         // AI is last: never consume shift options or a pending CUSTOM note.
         // The adapter is disabled by default and fails closed without a durable ledger.
         if (this.workerAi && this.selfService && this.workerAi.isAllowedSender(rawFrom)) {

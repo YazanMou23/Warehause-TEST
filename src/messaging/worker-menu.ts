@@ -114,6 +114,7 @@ export class WorkerMenu {
     const token = this.tokens.get(id);
     if (!token || token.owner!==owner || Date.now()-token.at>30*60*1000) return null;
     lang = token.language;
+    this.self.rememberConversationLanguage(owner,lang);
     const a = token.action, w = words[lang];
     this.awaiting.delete(owner);
     if (a.step==='main') return this.main(owner,lang);
