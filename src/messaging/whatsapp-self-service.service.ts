@@ -430,6 +430,33 @@ export class WhatsappSelfServiceService {
   /**
    * Detects the worker's language: German (de), Turkish (tr), Arabic (ar), or Ukrainian (uk).
    */
+  // No language column exists in User. Explicit preferences are process-local,
+  // isolated by verified worker ID, expire after 24 hours and reset on restart.
+  private readonly languageSessions = new Map<string, { language: SupportedLanguage; at: number }>();
+
+  explicitLanguageRequest(text: string): SupportedLanguage | null {
+    const t = text.trim().replace(/[?!؟.!]+$/g, '').trim().toLowerCase();
+    if (/^(بالعربي|بالعربية|عربي|العربية|(?:auf|in)\s+arabisch|arabisch|arabic)$/.test(t)) return 'ar';
+    if (/^(türkçe|turkce|(?:auf|in)\s+türkisch|türkisch|بالتركي)$/.test(t)) return 'tr';
+    if (/^(українською|українська|(?:auf|in)\s+ukrainisch|ukrainisch|بالاوكراني|بالأوكراني)$/.test(t)) return 'uk';
+    if (/^(deutsch|(?:auf|in)\s+deutsch|بالألماني|بالالماني)$/.test(t)) return 'de';
+    return null;
+  }
+
+  replyLanguage(workerId: string, text: string, storedLanguage?: string): SupportedLanguage {
+    const explicit = this.explicitLanguageRequest(text);
+    if (explicit) {
+      if (this.languageSessions.size >= 10000) this.languageSessions.delete(this.languageSessions.keys().next().value!);
+      this.languageSessions.set(workerId, { language: explicit, at: Date.now() });
+      return explicit;
+    }
+    const session = this.languageSessions.get(workerId);
+    if (session && Date.now() - session.at < 24 * 60 * 60 * 1000) return session.language;
+    this.languageSessions.delete(workerId);
+    if (['de', 'tr', 'ar', 'uk'].includes(storedLanguage || '')) return storedLanguage as SupportedLanguage;
+    return this.detectLanguage(text);
+  }
+
   detectLanguage(text: string): SupportedLanguage {
     if (!text) return 'de';
 
@@ -1290,6 +1317,7 @@ export class WhatsappSelfServiceService {
     senderPhone: string,
     messageText: string,
     referenceDate: Date = new Date(),
+    replyLanguage?: SupportedLanguage,
   ): Promise<SelfServiceReplyResult> {
     const language = this.detectLanguage(messageText);
 
@@ -1331,6 +1359,8 @@ export class WhatsappSelfServiceService {
       verifiedWorker.name,
       otherNames,
     );
+
+    parsed.language = replyLanguage ?? this.replyLanguage(verifiedWorker.id, messageText);
 
     // 3. Reject cross-worker access attempts
     if (parsed.intent === 'CROSS_WORKER_ACCESS') {
@@ -1549,9 +1579,9 @@ export class WhatsappSelfServiceService {
     switch (lang) {
       case 'tr':
         if (isExactDate) {
-          return `🕒 Merhaba ${workerName}, ${periodLabel} tarihi için onaylı puantaj (Stundenzettel) kaydınız: ${hoursStr}${single && single.startTime && single.endTime ? ` (${single.startTime}–${single.endTime}, Mola: ${single.breakMinutes} dk.)` : ''}.`;
+          return `🕒 Merhaba ${workerName}, ${periodLabel} tarihi için onaylı puantaj (Stundenzettel) kaydın: ${hoursStr}${single && single.startTime && single.endTime ? ` (${single.startTime}–${single.endTime}, Mola: ${single.breakMinutes} dk.)` : ''}.`;
         }
-        return `🕒 Merhaba ${workerName}, ${periodLabel} dönemi için onaylı puantaj (Stundenzettel) toplamınız: ${hoursStr} (${daysCount} iş günü).`;
+        return `🕒 Merhaba ${workerName}, ${periodLabel} dönemi için onaylı puantaj (Stundenzettel) toplamın: ${hoursStr} (${daysCount} iş günü).`;
 
       case 'ar':
         if (isExactDate) {
@@ -1561,16 +1591,16 @@ export class WhatsappSelfServiceService {
 
       case 'uk':
         if (isExactDate) {
-          return `🕒 Вітаємо, ${workerName}! Ваші підтверджені години за табелем на дату ${periodLabel}: ${hoursStr}${single && single.startTime && single.endTime ? ` (${single.startTime}–${single.endTime}, перерва: ${single.breakMinutes} хв.)` : ''}.`;
+          return `🕒 Привіт, ${workerName}! Твої підтверджені години за табелем на дату ${periodLabel}: ${hoursStr}${single && single.startTime && single.endTime ? ` (${single.startTime}–${single.endTime}, перерва: ${single.breakMinutes} хв.)` : ''}.`;
         }
-        return `🕒 Вітаємо, ${workerName}! Ваші підтверджені години за табелем за період ${periodLabel}: ${hoursStr} (відпрацьованих днів: ${daysCount}).`;
+        return `🕒 Привіт, ${workerName}! Твої підтверджені години за табелем за період ${periodLabel}: ${hoursStr} (відпрацьованих днів: ${daysCount}).`;
 
       case 'de':
       default:
         if (isExactDate) {
-          return `🕒 Hallo ${workerName}, Ihre bestätigten Stundenzettel-Stunden für den ${periodLabel} betragen: ${hoursStr}${timeDetail}.`;
+          return `🕒 Hallo ${workerName}, Deine bestätigten Stundenzettel-Stunden für den ${periodLabel} betragen: ${hoursStr}${timeDetail}.`;
         }
-        return `🕒 Hallo ${workerName}, Ihre bestätigten Stundenzettel-Stunden für den Zeitraum ${periodLabel} betragen insgesamt: ${hoursStr} (${daysCount} Arbeitstage).`;
+        return `🕒 Hallo ${workerName}, Deine bestätigten Stundenzettel-Stunden für den Zeitraum ${periodLabel} betragen insgesamt: ${hoursStr} (${daysCount} Arbeitstage).`;
     }
   }
 
@@ -1595,21 +1625,21 @@ export class WhatsappSelfServiceService {
     switch (lang) {
       case 'tr':
         return intent === 'HOURS'
-          ? `❓ Belirttiğiniz tarih veya dönem net değil. Lütfen tam tarihi (ör. 15.10.2026) veya ayı (ör. Ekim 2026) belirtin.`
-          : `❓ Belirttiğiniz tarih net değil. Lütfen vardiya planı için tam tarihi (ör. 15.10.2026) veya ayı belirtin.`;
+          ? `❓ Belirttiğiniz tarih veya dönem net değil. Lütfen tam tarihi (ör. 15.10.2026) veya ayı (ör. Ekim 2026) belirt.`
+          : `❓ Belirttiğiniz tarih net değil. Lütfen vardiya planı için tam tarihi (ör. 15.10.2026) veya ayı belirt.`;
       case 'ar':
         return intent === 'HOURS'
           ? `❓ التاريخ أو الفترة غير واضحة. يرجى تحديد التاريخ الكامل (مثال: 15.10.2026) أو الشهر والسنة (مثال: أكتوبر 2026).`
           : `❓ التاريخ غير واضح. يرجى تحديد التاريخ الكامل (مثال: 15.10.2026) لعرض جدول العمل.`;
       case 'uk':
         return intent === 'HOURS'
-          ? `❓ Вказана дата або період є неоднозначними. Будь ласка, вкажіть точну дату (наприклад, 15.10.2026) або місяць і рік (наприклад, жовтень 2026).`
-          : `❓ Вказана дата є неоднозначною. Будь ласка, вкажіть точну дату (наприклад, 15.10.2026) для перегляду графіка роботи.`;
+          ? `❓ Вказана дата або період є неоднозначними. Будь ласка, вкажи точну дату (наприклад, 15.10.2026) або місяць і рік (наприклад, жовтень 2026).`
+          : `❓ Вказана дата є неоднозначною. Будь ласка, вкажи точну дату (наприклад, 15.10.2026) для перегляду графіка роботи.`;
       case 'de':
       default:
         return intent === 'HOURS'
-          ? `❓ Das angegebene Datum ist nicht eindeutig. Bitte geben Sie ein genaues Datum (z. B. 15.10.2026) oder einen Monat mit Jahr (z. B. Oktober 2026) an.`
-          : `❓ Das angegebene Datum ist nicht eindeutig. Bitte geben Sie ein genaues Datum (z. B. 15.10.2026) für Ihren Schichtplan an.`;
+          ? `❓ Das angegebene Datum ist nicht eindeutig. Bitte gib ein genaues Datum (z. B. 15.10.2026) oder einen Monat mit Jahr (z. B. Oktober 2026) an.`
+          : `❓ Das angegebene Datum ist nicht eindeutig. Bitte gib ein genaues Datum (z. B. 15.10.2026) für deinen Schichtplan an.`;
     }
   }
 
@@ -1641,21 +1671,23 @@ export class WhatsappSelfServiceService {
           ? p.segments.map((s) => `${s.startTime}–${s.endTime}`).join(', ')
           : p.shift || '';
       const treffText = p.treffpunkt
-        ? ` | Treffpunkt: ${p.treffpunkt}${p.treffpunktTime ? ` (${p.treffpunktTime})` : ''}`
+        ? ` | ${{ de: 'Treffpunkt', tr: 'Buluşma yeri', ar: 'نقطة التجمع', uk: 'Місце зустрічі' }[lang]}: ${p.treffpunkt}${p.treffpunktTime ? ` (${p.treffpunktTime})` : ''}`
         : '';
       return `• ${formattedDate}: ${locText}${segText ? ` | ${segText}` : ''}${treffText}`;
     });
+
+    if (plans.length > 10) lines.push({ de: 'Weitere Schichten vorhanden. Frage nach einem genauen Datum.', tr: 'Başka vardiyalar da var. Belirli bir tarih sor.', ar: 'في شفتات إضافية. اسأل عن تاريخ محدد.', uk: 'Є інші зміни. Уточни дату.' }[lang]);
 
     switch (lang) {
       case 'tr': {
         const header =
           mode === 'HISTORICAL'
-            ? `📅 Merhaba ${workerName}, geçmiş vardiya planlarınız${periodLabel ? ` (${periodLabel})` : ''}:`
+            ? `📅 Merhaba ${workerName}, geçmiş vardiya planların${periodLabel ? ` (${periodLabel})` : ''}:`
             : mode === 'MONTH'
-            ? `📅 Merhaba ${workerName}, ${periodLabel} dönemi vardiya planlarınız:`
+            ? `📅 Merhaba ${workerName}, ${periodLabel} dönemi vardiya planların:`
             : mode === 'EXACT_DATE'
-            ? `📅 Merhaba ${workerName}, ${periodLabel} tarihli vardiya planınız:`
-            : `📅 Merhaba ${workerName}, gelecek vardiya planlarınız:`;
+            ? `📅 Merhaba ${workerName}, ${periodLabel} tarihli vardiya planın:`
+            : `📅 Merhaba ${workerName}, gelecek vardiya planların:`;
         return `${header}\n${lines.join('\n')}`;
       }
       case 'ar': {
@@ -1672,24 +1704,24 @@ export class WhatsappSelfServiceService {
       case 'uk': {
         const header =
           mode === 'HISTORICAL'
-            ? `📅 Вітаємо, ${workerName}! Ваші минулі зміни${periodLabel ? ` (${periodLabel})` : ''}:`
+            ? `📅 Привіт, ${workerName}! Твої минулі зміни${periodLabel ? ` (${periodLabel})` : ''}:`
             : mode === 'MONTH'
-            ? `📅 Вітаємо, ${workerName}! Ваші зміни за ${periodLabel}:`
+            ? `📅 Привіт, ${workerName}! Твої зміни за ${periodLabel}:`
             : mode === 'EXACT_DATE'
-            ? `📅 Вітаємо, ${workerName}! Ваш графік роботи на ${periodLabel}:`
-            : `📅 Вітаємо, ${workerName}! Ваші майбутні зміни:`;
+            ? `📅 Привіт, ${workerName}! Твій графік роботи на ${periodLabel}:`
+            : `📅 Привіт, ${workerName}! Твої майбутні зміни:`;
         return `${header}\n${lines.join('\n')}`;
       }
       case 'de':
       default: {
         const header =
           mode === 'HISTORICAL'
-            ? `📅 Hallo ${workerName}, Ihre bisherigen Schichtpläne${periodLabel ? ` (${periodLabel})` : ''}:`
+            ? `📅 Hallo ${workerName}, Deine bisherigen Schichtpläne${periodLabel ? ` (${periodLabel})` : ''}:`
             : mode === 'MONTH'
-            ? `📅 Hallo ${workerName}, Ihre Schichtpläne für ${periodLabel}:`
+            ? `📅 Hallo ${workerName}, Deine Schichtpläne für ${periodLabel}:`
             : mode === 'EXACT_DATE'
-            ? `📅 Hallo ${workerName}, Ihr Schichtplan für den ${periodLabel}:`
-            : `📅 Hallo ${workerName}, Ihre kommenden Schichtpläne:`;
+            ? `📅 Hallo ${workerName}, Dein Schichtplan für den ${periodLabel}:`
+            : `📅 Hallo ${workerName}, Deine kommenden Schichtpläne:`;
         return `${header}\n${lines.join('\n')}`;
       }
     }
@@ -1719,11 +1751,11 @@ export class WhatsappSelfServiceService {
           : `ℹ️ لا توجد مناوبات قادمة مخصصة لك حالياً.`;
       case 'uk':
         return mode === 'HISTORICAL'
-          ? `ℹ️ За ${periodLabel ? `період ${periodLabel}` : 'минулий період'} призначених для вас змін не знайдено.`
+          ? `ℹ️ За ${periodLabel ? `період ${periodLabel}` : 'минулий період'} призначених для тебе змін не знайдено.`
           : mode === 'MONTH'
-          ? `ℹ️ За ${periodLabel} призначених для вас змін немає.`
+          ? `ℹ️ За ${periodLabel} призначених для тебе змін немає.`
           : mode === 'EXACT_DATE'
-          ? `ℹ️ На дату ${periodLabel} призначених для вас змін немає.`
+          ? `ℹ️ На дату ${periodLabel} призначених для тебе змін немає.`
           : `ℹ️ Наразі у вас немає запланованих майбутніх змін.`;
       case 'de':
       default:
@@ -1732,22 +1764,22 @@ export class WhatsappSelfServiceService {
           : mode === 'MONTH'
           ? `ℹ️ Für ${periodLabel} wurden keine zugewiesenen Schichtpläne gefunden.`
           : mode === 'EXACT_DATE'
-          ? `ℹ️ Für den ${periodLabel} liegt keine Schichtzuteilung für Sie vor.`
-          : `ℹ️ Aktuell sind keine kommenden Schichtpläne für Sie eingetragen.`;
+          ? `ℹ️ Für den ${periodLabel} liegt keine Schichtzuteilung für dich vor.`
+          : `ℹ️ Aktuell sind keine kommenden Schichtpläne für dich eingetragen.`;
     }
   }
 
   private formatCrossWorkerDeniedReply(lang: SupportedLanguage): string {
     switch (lang) {
       case 'tr':
-        return `🔒 Güvenlik nedeniyle yalnızca kendi çalışma saatlerinize ve kendi vardiya planlarınıza erişebilirsiniz. Diğer çalışanların bilgileri paylaşılmaz.`;
+        return `🔒 Güvenlik nedeniyle yalnızca kendi çalışma saatlerine ve kendi vardiya planlarına erişebilirsin. Diğer çalışanların bilgileri paylaşılmaz.`;
       case 'ar':
         return `🔒 لأسباب أمنية، يمكنك الاطلاع فقط على ساعات عملك وجدول مناوباتك الخاص. لا يُسمح بالوصول إلى بيانات الموظفين الآخرين.`;
       case 'uk':
         return `🔒 З міркувань безпеки ви можете переглядати лише власні робочі години та власний графік змін. Доступ до даних інших працівників заборонено.`;
       case 'de':
       default:
-        return `🔒 Aus Datenschutz- und Sicherheitsgründen können Sie nur Ihre eigenen Arbeitsstunden und Schichtpläne abrufen. Daten anderer Mitarbeiter sind nicht einsehbar.`;
+        return `🔒 Aus Datenschutz- und Sicherheitsgründen kannst du nur Deine eigenen Arbeitsstunden und Schichtpläne abrufen. Daten anderer Mitarbeiter sind nicht einsehbar.`;
     }
   }
 
@@ -1772,35 +1804,35 @@ export class WhatsappSelfServiceService {
     switch (lang) {
       case 'tr':
         return reason === 'AMBIGUOUS'
-          ? `🔒 Telefon numaranız birden fazla kayıtla eşleştiği için kişisel veriler paylaşılamaz. Lütfen yönetiminizle iletişime geçin.`
-          : `🔒 Telefon numaranız sistemde kayıtlı bir çalışanla eşleşmedi. Kişisel veriler paylaşılamaz.`;
+          ? `🔒 Telefon numaran birden fazla kayıtla eşleştiği için kişisel veriler paylaşılamaz. Lütfen yönetiminle iletişime geç.`
+          : `🔒 Telefon numaran sistemde kayıtlı bir çalışanla eşleşmedi. Kişisel veriler paylaşılamaz.`;
       case 'ar':
         return reason === 'AMBIGUOUS'
           ? `🔒 رقم هاتفك غير مرتبط بحساب موظف واحد بشكل فريد، لذلك لا يمكن عرض أي بيانات شخصية.`
           : `🔒 رقم هاتفك غير مسجل في النظام. لا يمكن عرض أي بيانات شخصية.`;
       case 'uk':
         return reason === 'AMBIGUOUS'
-          ? `🔒 Ваш номер телефону не вдалося однозначно зіставити з одним профілем працівника. Персональні дані не надаються.`
-          : `🔒 Ваш номер телефону не зареєстровано в системі. Персональні дані не надаються.`;
+          ? `🔒 Твій номер телефону не вдалося однозначно зіставити з одним профілем працівника. Персональні дані не надаються.`
+          : `🔒 Твій номер телефону не зареєстровано в системі. Персональні дані не надаються.`;
       case 'de':
       default:
         return reason === 'AMBIGUOUS'
-          ? `🔒 Ihre Telefonnummer konnte keinem eindeutigen Mitarbeiterprofil zugeordnet werden. Es werden keine persönlichen Daten ausgegeben.`
-          : `🔒 Ihre Telefonnummer ist keinem aktiven Mitarbeiterprofil zugeordnet. Es werden keine persönlichen Daten ausgegeben.`;
+          ? `🔒 Deine Telefonnummer konnte keinem eindeutigen Mitarbeiterprofil zugeordnet werden. Es werden keine persönlichen Daten ausgegeben.`
+          : `🔒 Deine Telefonnummer ist keinem aktiven Mitarbeiterprofil zugeordnet. Es werden keine persönlichen Daten ausgegeben.`;
     }
   }
 
   formatHelpReply(lang: SupportedLanguage, workerName: string): string {
     switch (lang) {
       case 'tr':
-        return `Merhaba ${workerName}, mesajınızı anlayamadım. Kendi bilgileriniz için örnekler:\n• Bu ay kaç saat çalıştım?\n• Ekim 2026 kaç saat çalıştım?\n• Vardiyalarım Ekim 2026\nBir vardiyaya yanıt vermek için o plan mesajındaki düğmeleri kullanın.`;
+        return `Merhaba ${workerName}, mesajını anlayamadım. Kendi bilgilerin için örnekler:\n• Bu ay kaç saat çalıştım?\n• Ekim 2026 kaç saat çalıştım?\n• Vardiyalarım Ekim 2026\nBir vardiyaya yanıt vermek için o plan mesajındaki düğmeleri kullan.`;
       case 'ar':
         return `مرحباً ${workerName}، لم أفهم طلبك. للاستعلام عن بياناتك جرّب:\n• كم ساعة عملت هذا الشهر؟\n• ساعاتي في أكتوبر 2026\n• مناوباتي في أكتوبر 2026\nللرد على شفت استخدم أزرار رسالة خطته.`;
       case 'uk':
-        return `Вітаємо, ${workerName}! Не вдалося зрозуміти запит. Приклади для ваших даних:\n• Скільки годин я відпрацював цього місяця?\n• Мої години за жовтень 2026\n• Мої зміни жовтень 2026\nЩоб відповісти щодо зміни, скористайтеся кнопками в повідомленні з її планом.`;
+        return `Привіт, ${workerName}! Не вдалося зрозуміти запит. Приклади для твоїх даних:\n• Скільки годин я відпрацював цього місяця?\n• Мої години за жовтень 2026\n• Мої зміни жовтень 2026\nЩоб відповісти щодо зміни, скористайся кнопками в повідомленні з її планом.`;
       case 'de':
       default:
-        return `Hallo ${workerName}, ich habe Ihre Anfrage nicht verstanden. Beispiele für Ihre eigenen Daten:\n• Wie viele Stunden habe ich diesen Monat gearbeitet?\n• Wie viele Stunden habe ich im Oktober 2026 gearbeitet?\n• Meine Schichtpläne im Oktober 2026\nFür eine Schichtantwort nutzen Sie die Schaltflächen in der jeweiligen Plan-Nachricht.`;
+        return `Hallo ${workerName}, ich habe deine Anfrage nicht verstanden. Beispiele für deine eigenen Daten:\n• Wie viele Stunden habe ich diesen Monat gearbeitet?\n• Wie viele Stunden habe ich im Oktober 2026 gearbeitet?\n• Meine Schichtpläne im Oktober 2026\nFür eine Schichtantwort nutze bitte die Schaltflächen in der jeweiligen Plan-Nachricht.`;
     }
   }
 }
