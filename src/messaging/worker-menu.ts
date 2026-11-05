@@ -25,7 +25,7 @@ export class WorkerMenu {
   constructor(private readonly self: WhatsappSelfServiceService) {}
   private row(owner: string, lang: Lang, title: string, action: Action) {
     if (this.tokens.size >= 10000) this.tokens.delete(this.tokens.keys().next().value!);
-    const id = `MENU_${randomBytes(12).toString('hex')}`;
+    const id = `MENU_${lang}_${randomBytes(12).toString('hex')}`;
     this.tokens.set(id, { owner, at: Date.now(), language: lang, action });
     return { id, title: title.slice(0, 24) };
   }
@@ -57,9 +57,9 @@ export class WorkerMenu {
     // Do not absorb a shift choice or arbitrary follow-up note as date input.
     return null;
   }
-  async click(owner: string, phone: string, id: string, lang: Lang, now: Date): Promise<WorkerMenuReply> {
+  async click(owner: string, phone: string, id: string, lang: Lang, now: Date): Promise<WorkerMenuReply | null> {
     const token = this.tokens.get(id);
-    if (!token || token.owner!==owner || Date.now()-token.at>30*60*1000) return this.main(owner,lang,words[lang][17]);
+    if (!token || token.owner!==owner || Date.now()-token.at>30*60*1000) return null;
     lang = token.language;
     const a = token.action, w = words[lang];
     this.awaiting.delete(owner);

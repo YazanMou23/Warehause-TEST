@@ -145,6 +145,8 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
   // ─── 1. Webhook Signature Verification ──────────────────────────────────────
 
   describe('1. Meta Webhook Signature Verification', () => {
+    beforeEach(() => { jest.useFakeTimers({now:REFERENCE_DATE,doNotFake:['nextTick','setImmediate']}); });
+    afterEach(() => jest.useRealTimers());
     const sampleWebhookBody = {
       object: 'whatsapp_business_account',
       entry: [
