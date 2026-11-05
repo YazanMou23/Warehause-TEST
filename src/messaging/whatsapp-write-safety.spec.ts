@@ -353,6 +353,7 @@ describe('Phase-2 WhatsApp Reply Write Safety & Concurrency Guards', () => {
         where: {
           planId: 'plan-101',
           employeeId: workerAli.id,
+          confirmationStatus: { not: 'SICK' },
           OR: [{ respondedAt: null }, { respondedAt: { lt: new Date(BASE_TIMESTAMP_SEC * 1000) } }],
         },
         data: expect.objectContaining({

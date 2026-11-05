@@ -571,15 +571,12 @@ export class MessagingService implements OnModuleInit {
     'ich bin krank',
     '🤒 ich bin krank',
     'krank',
-    'nein',
     'hasta',
     'hastayım',
     'hastayim',
     'مريض',
-    'لا',
     'захворів',
     'хворий',
-    'ні',
   ]);
 
   private static readonly EXACT_CUSTOM_LABELS = new Set([
@@ -621,6 +618,22 @@ export class MessagingService implements OnModuleInit {
    * Commits PlanEmployee, required EmployeeAbsence sync (if SICK), and ActionLog together.
    * Required write failures are NOT swallowed.
    */
+  private isPlainRefusal(text: string): boolean {
+    return ['nein', 'لا', 'ні', 'hayır', 'hayir'].includes(text.trim().toLowerCase());
+  }
+
+  private refusalClarification(text: string): string {
+    const language = this.selfService?.detectLanguage(text) ?? 'de';
+    if (language === 'ar') return 'هل تقصد أنك مريض أم أنك لا تستطيع الحضور لسبب آخر؟ اختر زر المرض فقط إذا كنت مريضاً، أو اختر رسالة واكتب السبب. لم يتم تسجيل مرض.';
+    if (language === 'uk') return 'Ви захворіли чи не можете прийти з іншої причини? Оберіть кнопку хвороби лише у разі хвороби або кнопку повідомлення, щоб пояснити причину. Лікарняний не записано.';
+    if (language === 'tr' || /^hay[ıi]r$/i.test(text.trim())) return 'Hasta mısınız, yoksa başka bir nedenle mi gelemiyorsunuz? Yalnızca hastaysanız hastalık düğmesini, diğer nedenler için mesaj düğmesini kullanın. Hastalık kaydı oluşturulmadı.';
+    return 'Sind Sie krank oder können Sie aus einem anderen Grund nicht kommen? Nutzen Sie die Krank-Schaltfläche nur bei Krankheit oder die Nachrichten-Schaltfläche für einen anderen Grund. Es wurde keine Krankmeldung gespeichert.';
+  }
+
+  private async sendLockedSicknessReply(phone: string): Promise<void> {
+    await this.sendWhatsAppDirect(phone, 'Ihre Krankmeldung ist bereits gespeichert und kann hier nicht geändert werden. Bitte wenden Sie sich an die Schichtleitung.').catch(() => {});
+  }
+
   private async executeGuardedAssignmentUpdate(params: {
     planId: string;
     employeeId: string;
@@ -632,7 +645,7 @@ export class MessagingService implements OnModuleInit {
     actionDetails: string;
     requiredCurrentStatus?: string;
     requiredCurrentNote?: string;
-  }): Promise<{ accepted: boolean }> {
+  }): Promise<{ accepted: boolean; lockedSick?: boolean }> {
     return await this.prisma.$transaction(async (tx: any) => {
       const whereClause: any = {
         planId: params.planId,
@@ -642,6 +655,10 @@ export class MessagingService implements OnModuleInit {
           { respondedAt: { lt: params.eventDate } },
         ],
       };
+
+      // Worker sickness is final. This predicate is atomic with the write,
+      // including concurrent/reordered button replies. Never delete absence data.
+      whereClause.confirmationStatus = { not: 'SICK' };
 
       if (params.requiredCurrentStatus) {
         whereClause.confirmationStatus = params.requiredCurrentStatus;
@@ -661,7 +678,11 @@ export class MessagingService implements OnModuleInit {
       });
 
       if (updateRes.count === 0) {
-        return { accepted: false };
+        const current = await tx.planEmployee.findFirst({
+          where: { planId: params.planId, employeeId: params.employeeId },
+          select: { confirmationStatus: true },
+        });
+        return { accepted: false, lockedSick: current?.confirmationStatus === 'SICK' };
       }
 
       // If status is SICK, sync with EmployeeAbsence
@@ -781,6 +802,11 @@ export class MessagingService implements OnModuleInit {
           `[WhatsApp Webhook] 🔘 User clicked ${msg.type} button: "${buttonTitle}" (ID/Payload: "${buttonId}") from +${cleanFrom}`,
         );
 
+        if (this.isPlainRefusal(buttonId) || this.isPlainRefusal(buttonTitle)) {
+          await this.sendWhatsAppDirect(cleanFrom, this.refusalClarification(buttonTitle)).catch(() => {});
+          return;
+        }
+
         const parts = buttonId.split('_');
         const rawPrefix = parts[0]?.toUpperCase() || '';
         let targetPlanId = parts[1] || '';
@@ -797,6 +823,15 @@ export class MessagingService implements OnModuleInit {
         } else {
           // Exact full-string match only for legacy button IDs (never substring)
           actionFromId = this.resolveActionFromLabel(buttonId);
+        }
+
+        // Structured IDs must be complete and have a recognized action. Never
+        // reinterpret a broken plan/worker target as an unrelated pending shift.
+        const knownActionPrefix = ['CONFIRM', 'ACCEPT', 'SICK', 'DECLINE', 'CUSTOM'].includes(rawPrefix);
+        const structuredPayload = parts.length >= 3 || (knownActionPrefix && buttonId.includes('_'));
+        if (structuredPayload && (!knownActionPrefix || !targetPlanId || !targetEmpId)) {
+          this.logger.warn('[WhatsApp Webhook] Unknown button action ID or malformed structured button payload');
+          return;
         }
 
         // 2. Strict exact full-string match for button title
@@ -932,6 +967,7 @@ export class MessagingService implements OnModuleInit {
             this.logger.error(`[WhatsApp Webhook] Outbound acknowledgment delivery failed to +${cleanFrom}: ${err.message}`);
           });
         } else {
+          if (result.lockedSick) await this.sendLockedSicknessReply(cleanFrom);
           this.logger.warn(
             `[WhatsApp Webhook] Dropped stale/superseded button reply for plan ${targetPlanId}, employee ${targetEmpId} (event: ${eventDate.toISOString()})`,
           );
@@ -943,6 +979,11 @@ export class MessagingService implements OnModuleInit {
       if (msg.type === 'text' && msg.text?.body) {
         const incomingText = msg.text.body.trim();
         this.logger.log(`[WhatsApp Webhook] Received text from +${rawFrom}: "${incomingText}"`);
+
+        if (this.isPlainRefusal(incomingText)) {
+          await this.sendWhatsAppDirect(cleanFrom, this.refusalClarification(incomingText)).catch(() => {});
+          return;
+        }
 
         // 4a. Check if text is an explicit plan option reply: 1, 2, 3
         const lower = incomingText.toLowerCase();
@@ -968,12 +1009,10 @@ export class MessagingService implements OnModuleInit {
           lower === 'ich bin krank' ||
           lower === 'krank' ||
           lower === 'arzt' ||
-          lower === 'nein' ||
           lower === 'hasta' ||
           lower === 'hastayım' ||
           lower === 'hastayim' ||
           lower === 'مريض' ||
-          lower === 'لا' ||
           lower === 'захворів' ||
           lower === 'хворий' ||
           lower === 'ні'
@@ -1064,6 +1103,7 @@ export class MessagingService implements OnModuleInit {
               this.logger.error(`[WhatsApp Webhook] Outbound acknowledgment delivery failed to +${cleanFrom}: ${err.message}`);
             });
           } else {
+            if (result.lockedSick) await this.sendLockedSicknessReply(cleanFrom);
             this.logger.warn(
               `[WhatsApp Webhook] Dropped stale/superseded text reply for plan ${targetAssignment.planId}, employee ${resolvedSender.id} (event: ${eventDate.toISOString()})`,
             );
