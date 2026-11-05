@@ -430,6 +430,33 @@ export class WhatsappSelfServiceService {
   /**
    * Detects the worker's language: German (de), Turkish (tr), Arabic (ar), or Ukrainian (uk).
    */
+  // No language column exists in User. Explicit preferences are process-local,
+  // isolated by verified worker ID, expire after 24 hours and reset on restart.
+  private readonly languageSessions = new Map<string, { language: SupportedLanguage; at: number }>();
+
+  explicitLanguageRequest(text: string): SupportedLanguage | null {
+    const t = text.trim().replace(/[?!؟.!]+$/g, '').trim().toLowerCase();
+    if (/^(بالعربي|بالعربية|عربي|العربية|(?:auf|in)\s+arabisch|arabisch|arabic)$/.test(t)) return 'ar';
+    if (/^(türkçe|turkce|(?:auf|in)\s+türkisch|türkisch|بالتركي)$/.test(t)) return 'tr';
+    if (/^(українською|українська|(?:auf|in)\s+ukrainisch|ukrainisch|بالاوكراني|بالأوكراني)$/.test(t)) return 'uk';
+    if (/^(deutsch|(?:auf|in)\s+deutsch|بالألماني|بالالماني)$/.test(t)) return 'de';
+    return null;
+  }
+
+  replyLanguage(workerId: string, text: string, storedLanguage?: string): SupportedLanguage {
+    const explicit = this.explicitLanguageRequest(text);
+    if (explicit) {
+      if (this.languageSessions.size >= 10000) this.languageSessions.delete(this.languageSessions.keys().next().value!);
+      this.languageSessions.set(workerId, { language: explicit, at: Date.now() });
+      return explicit;
+    }
+    const session = this.languageSessions.get(workerId);
+    if (session && Date.now() - session.at < 24 * 60 * 60 * 1000) return session.language;
+    this.languageSessions.delete(workerId);
+    if (['de', 'tr', 'ar', 'uk'].includes(storedLanguage || '')) return storedLanguage as SupportedLanguage;
+    return this.detectLanguage(text);
+  }
+
   detectLanguage(text: string): SupportedLanguage {
     if (!text) return 'de';
 
@@ -1290,6 +1317,7 @@ export class WhatsappSelfServiceService {
     senderPhone: string,
     messageText: string,
     referenceDate: Date = new Date(),
+    replyLanguage?: SupportedLanguage,
   ): Promise<SelfServiceReplyResult> {
     const language = this.detectLanguage(messageText);
 
@@ -1331,6 +1359,8 @@ export class WhatsappSelfServiceService {
       verifiedWorker.name,
       otherNames,
     );
+
+    parsed.language = replyLanguage ?? this.replyLanguage(verifiedWorker.id, messageText);
 
     // 3. Reject cross-worker access attempts
     if (parsed.intent === 'CROSS_WORKER_ACCESS') {
