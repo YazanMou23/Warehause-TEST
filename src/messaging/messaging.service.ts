@@ -811,6 +811,13 @@ export class MessagingService implements OnModuleInit {
         return;
       }
 
+      // Delayed first delivery/new-ID replay must not cause a surprise reply or
+      // apply an old shift choice. Fail silently; a fresh worker message works.
+      if(serverNowMs-eventDate.getTime()>5*60*1000) {
+        this.logger.log('[WhatsApp Webhook] Stale inbound ignored');
+        return;
+      }
+
       // 2. Resolve sender to exactly one active, non-deleted worker
       const resolvedSender = await this.resolveWorkerSender(rawFrom);
       if (!resolvedSender) {
@@ -833,6 +840,9 @@ export class MessagingService implements OnModuleInit {
         return;
       }
 
+      const eventKind=msg.type==='text'?'text':msg.type==='interactive'?(msg.interactive?.list_reply?'list':msg.interactive?.button_reply?'button':'other-interactive'):msg.type==='button'?'template-button':'other';
+      this.logger.log(`[WhatsApp Webhook] Admitted event kind=${eventKind} key=${crypto.createHash('sha256').update(String(msg.id||'')).digest('hex').slice(0,16)} ageSeconds=${Math.floor((serverNowMs-eventDate.getTime())/1000)}`);
+
       const languageText = msg.text?.body || msg.interactive?.list_reply?.title || msg.interactive?.button_reply?.title || msg.button?.text || '';
       const replyLanguage = this.selfService?.replyLanguage(resolvedSender.id, languageText) ?? 'de';
 
@@ -840,7 +850,11 @@ export class MessagingService implements OnModuleInit {
       const menuId = msg.interactive?.list_reply?.id || msg.interactive?.button_reply?.id;
       if (msg.type === 'interactive' && (msg.interactive?.list_reply || String(menuId || '').startsWith('MENU_'))) {
         const menu = this.workerMenu();
-        if (menu) await this.sendWorkerMenu(cleanFrom, await menu.click(resolvedSender.id, rawFrom, String(menuId || ''), replyLanguage, referenceDate ?? new Date()));
+        if (menu) {
+          const menuReply=await menu.click(resolvedSender.id,rawFrom,String(menuId||''),replyLanguage,referenceDate??new Date());
+          if(menuReply) await this.sendWorkerMenu(cleanFrom,menuReply);
+          else this.logger.log('[WhatsApp Webhook] Unknown or expired menu ignored');
+        }
         return;
       }
       if (msg.type === 'text' && msg.text?.body && this.workerMenu()) {
