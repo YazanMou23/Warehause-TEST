@@ -636,18 +636,18 @@ export class MessagingService implements OnModuleInit {
 
   private refusalClarification(text: string, chosenLanguage?: SupportedLanguage): string {
     const language = chosenLanguage ?? this.selfService?.detectLanguage(text) ?? 'de';
-    if (language === 'ar') return 'هل تقصد أنك مريض أم أنك لا تستطيع الحضور لسبب آخر؟ اختر زر المرض فقط إذا كنت مريضاً، أو اختر رسالة واكتب السبب. لم يتم تسجيل مرض.';
-    if (language === 'uk') return 'Ти захворів чи не можеш прийти з іншої причини? Обери кнопку хвороби лише у разі хвороби або кнопку повідомлення, щоб пояснити причину. Лікарняний не записано.';
-    if (language === 'tr' || /^hay[ıi]r$/i.test(text.trim())) return 'Hasta mısın, yoksa başka bir nedenle mi gelemiyorsun? Yalnızca hastaysan hastalık düğmesini, diğer nedenler için mesaj düğmesini kullan. Hastalık kaydı oluşturulmadı.';
-    return 'Bist du krank oder kannst du aus einem anderen Grund nicht kommen? Nutze die Krank-Schaltfläche nur bei Krankheit oder die Nachrichten-Schaltfläche für einen anderen Grund. Es wurde keine Krankmeldung gespeichert.';
+    if (language === 'ar') return '❓ ما سبب عدم الحضور؟\n🤒 للمرض: اختر زر المرض.\n💬 لسبب آخر: اختر رسالة واكتب السبب.\nℹ️ لم يتم تسجيل مرض.';
+    if (language === 'uk') return '❓ Чому не можеш прийти?\n🤒 Хворієш: обери кнопку хвороби.\n💬 Інша причина: обери повідомлення й поясни.\nℹ️ Лікарняний не записано.';
+    if (language === 'tr' || /^hay[ıi]r$/i.test(text.trim())) return '❓ Neden gelemiyorsun?\n🤒 Hastaysan hastalık düğmesini seç.\n💬 Başka bir neden varsa mesajı seç ve yaz.\nℹ️ Hastalık kaydı oluşturulmadı.';
+    return '❓ Warum kannst du nicht kommen?\n🤒 Bei Krankheit: Krank-Schaltfläche wählen.\n💬 Anderer Grund: Nachricht wählen und den Grund schreiben.\nℹ️ Es wurde keine Krankmeldung gespeichert.';
   }
 
   private async sendLockedChoiceReply(phone: string, language: SupportedLanguage = 'de'): Promise<void> {
     const replies = {
-      de: 'Deine Auswahl ist bereits gespeichert und kann hier nicht geändert werden. Bitte wende dich an die Schichtleitung.',
-      ar: 'اختيارك محفوظ ولا يمكن تغييره هنا. تواصل مع مسؤول الشفت.',
-      tr: 'Seçimin kaydedildi ve burada değiştirilemez. Vardiya sorumlusu ile iletişime geç.',
-      uk: 'Твій вибір уже збережено і тут його змінити не можна. Звернися до керівника зміни.',
+      de: '🔒 Deine Auswahl ist bereits gespeichert und kann hier nicht geändert werden.\n👤 Für Änderungen: Schichtleitung kontaktieren.',
+      ar: '🔒 اختيارك محفوظ ولا يمكن تغييره هنا.\n👤 للتعديل: تواصل مع مسؤول الشفت.',
+      tr: '🔒 Seçimin kaydedildi ve burada değiştirilemez.\n👤 Değişiklik için vardiya sorumlusuna ulaş.',
+      uk: '🔒 Твій вибір уже збережено і тут його змінити не можна.\n👤 Для змін звернися до керівника зміни.',
     };
     await this.sendWhatsAppDirect(phone, replies[language]).catch(() => {});
   }
@@ -672,13 +672,12 @@ export class MessagingService implements OnModuleInit {
       this.logger.warn('[WhatsApp Webhook] Saved choice context unavailable; acknowledging without unavailable shift context');
     }
     const context = [siteLabel, dateLabel.trim().replace(/^am /, '')].filter(Boolean).join(' | ');
-    const shift = context ? ` (${context})` : '';
     const labels = { de: ['Ich bin da', 'Ich bin krank', 'Nachricht'], ar: ['تأكيد الحضور', 'مرض', 'رسالة'], tr: ['Geliyorum', 'Hastayım', 'Mesaj'], uk: ['Прийду', 'Хворію', 'Повідомлення'] };
     const label = labels[language][choice === 'CONFIRM' ? 0 : choice === 'SICK' ? 1 : 2];
-    if (language === 'ar') return `✅ تم تثبيت اختيارك للشفت${shift}: ${label}. الخيارات السابقة لم تعد صالحة. للتعديل تواصل مع مسؤول الشفت.` + (choice === 'CUSTOM' ? ' اكتب رسالتك الآن هنا في المحادثة. يمكنك إرسال نص واحد.' : '');
-    if (language === 'tr') return `✅ Vardiya${shift} seçimin kaydedildi: ${label}. Önceki seçenekler artık geçerli değil. Değişiklik için vardiya sorumlusu ile iletişime geç.` + (choice === 'CUSTOM' ? ' Mesajını şimdi buraya yaz. Bir mesaj gönderebilirsin.' : '');
-    if (language === 'uk') return `✅ Твій вибір для зміни${shift} збережено: ${label}. Попередні варіанти більше не діють. Для змін звернися до керівника зміни.` + (choice === 'CUSTOM' ? ' Напиши повідомлення тут зараз. Можна надіслати один текст.' : '');
-    return `✅ Deine Auswahl für die Schicht${shift} wurde gespeichert: ${label}. Die bisherigen Optionen sind nicht mehr gültig. Für Änderungen wende dich bitte an die Schichtleitung.` + (choice === 'CUSTOM' ? ' Bitte schreibe jetzt deine Nachricht hier im Chat. Du kannst einen Nachrichtentext senden.' : '');
+    if (language === 'ar') return `✅ تم تثبيت اختيارك: ${label}.` + (context ? `\n📅 الشفت: ${context}` : '') + `\n🔒 الخيارات السابقة لم تعد صالحة.\n👤 للتعديل: تواصل مع مسؤول الشفت.` + (choice === 'CUSTOM' ? '\n💬 اكتب رسالتك الآن هنا. يمكنك إرسال نص واحد.' : '');
+    if (language === 'tr') return `✅ Seçimin kaydedildi: ${label}.` + (context ? `\n📅 Vardiya: ${context}` : '') + `\n🔒 Önceki seçenekler artık geçerli değil.\n👤 Değişiklik için vardiya sorumlusuna ulaş.` + (choice === 'CUSTOM' ? '\n💬 Mesajını şimdi buraya yaz. Bir mesaj gönderebilirsin.' : '');
+    if (language === 'uk') return `✅ Твій вибір збережено: ${label}.` + (context ? `\n📅 Зміна: ${context}` : '') + `\n🔒 Попередні варіанти більше не діють.\n👤 Для змін звернися до керівника зміни.` + (choice === 'CUSTOM' ? '\n💬 Напиши повідомлення тут зараз. Можна надіслати один текст.' : '');
+    return `✅ Deine Auswahl wurde gespeichert: ${label}.` + (context ? `\n📅 Schicht: ${context}` : '') + `\n🔒 Die bisherigen Optionen sind nicht mehr gültig.\n👤 Für Änderungen: Schichtleitung kontaktieren.` + (choice === 'CUSTOM' ? '\n💬 Schreibe jetzt deine Nachricht hier. Du kannst einen Nachrichtentext senden.' : '');
   }
 
   private async executeGuardedAssignmentUpdate(params: {
