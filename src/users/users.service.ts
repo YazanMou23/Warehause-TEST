@@ -1,3 +1,4 @@
+import { WorkHoursService } from '../work-hours/work-hours.service';
 import { Injectable, ConflictException, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -14,6 +15,7 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
     private readonly settingsService: SettingsService,
+    private readonly hours: WorkHoursService = new WorkHoursService(prisma),
   ) {}
 
   async create(createUserDto: CreateUserDto, actorId?: string, actorRole?: Role) {
@@ -546,7 +548,7 @@ export class UsersService {
       throw new NotFoundException(`Employee with ID ${employeeId} not found`);
     }
 
-    const now = new Date();
+    const now = this.hours.workDate(new Date());
     
     // Check if work hours / timesheets are hidden globally or for this specific employee
     const isWorkHoursHidden = await this.settingsService.isWorkHoursHiddenForEmployee(employeeId);
@@ -570,68 +572,56 @@ export class UsersService {
 
     if (!isWorkHoursHidden) {
       // 2. Today's worked hours
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      const todayRecords = await this.prisma.attendance.findMany({
+      const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+      const todayEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
+      const todayRecords = await this.hours.list({
         where: {
           employeeId,
-          clockIn: { gte: todayStart, lte: todayEnd },
+          date: { gte: todayStart, lte: todayEnd },
         },
       });
       todayHours = todayRecords.reduce((sum, r) => sum + (r.totalHours || 0), 0);
-      if (activeShift) {
-        const activeDurationHours = (now.getTime() - activeShift.clockIn.getTime()) / 3600000;
-        todayHours += activeDurationHours;
-      }
+
       todayHours = Math.round(todayHours * 100) / 100;
 
       // 3. Weekly worked hours (current week starting Monday)
-      const currentDay = now.getDay();
+      const currentDay = now.getUTCDay();
       const distanceToMonday = currentDay === 0 ? 6 : currentDay - 1; // 0 is Sunday
-      const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - distanceToMonday);
-      const weekRecords = await this.prisma.attendance.findMany({
+      const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - distanceToMonday));
+      const weekRecords = await this.hours.list({
         where: {
           employeeId,
-          clockIn: { gte: weekStart },
+          date: { gte: weekStart, lt:new Date(weekStart.getTime()+7*86400000) },
         },
       });
       weeklyHours = weekRecords.reduce((sum, r) => sum + (r.totalHours || 0), 0);
-      if (activeShift && activeShift.clockIn >= weekStart) {
-        const activeDurationHours = (now.getTime() - activeShift.clockIn.getTime()) / 3600000;
-        weeklyHours += activeDurationHours;
-      }
+
       weeklyHours = Math.round(weeklyHours * 100) / 100;
 
       // 4. Monthly worked hours
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      const monthRecords = await this.prisma.attendance.findMany({
+      const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+      const monthRecords = await this.hours.list({
         where: {
           employeeId,
-          clockIn: { gte: monthStart },
+          date: { gte: monthStart, lt:new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth()+1,1)) },
         },
       });
       monthlyHours = monthRecords.reduce((sum, r) => sum + (r.totalHours || 0), 0);
-      if (activeShift && activeShift.clockIn >= monthStart) {
-        const activeDurationHours = (now.getTime() - activeShift.clockIn.getTime()) / 3600000;
-        monthlyHours += activeDurationHours;
-      }
+
       monthlyHours = Math.round(monthlyHours * 100) / 100;
 
       // 4.5. Total worked hours (overall all time)
-      const allRecords = await this.prisma.attendance.findMany({
+      const allRecords = await this.hours.list({
         where: {
           employeeId,
         },
       });
       totalOverallHours = allRecords.reduce((sum, r) => sum + (r.totalHours || 0), 0);
-      if (activeShift) {
-        const activeDurationHours = (now.getTime() - activeShift.clockIn.getTime()) / 3600000;
-        totalOverallHours += activeDurationHours;
-      }
+
       totalOverallHours = Math.round(totalOverallHours * 100) / 100;
     }
 
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
     // 5. Active & Upcoming plans (all plans today and in the future)
     const upcomingPlans = await this.prisma.plan.findMany({
@@ -737,7 +727,7 @@ export class UsersService {
     // 7. Work history (recent attendance logs - strictly excluded if hidden)
     let formattedAttendanceHistory: any[] = [];
     if (!isWorkHoursHidden) {
-      const attendanceHistory = await this.prisma.attendance.findMany({
+      const attendanceHistory = await this.hours.list({
         where: { employeeId },
         orderBy: { clockIn: 'desc' },
         take: 50,

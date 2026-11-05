@@ -1,11 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { WorkHoursService } from '../work-hours/work-hours.service';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 
 @Injectable()
 export class TimesheetExportService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly hours: WorkHoursService = new WorkHoursService(prisma)) {}
 
   // ─── PDF Export ────────────────────────────────────────────────────────────
 
@@ -37,7 +38,7 @@ export class TimesheetExportService {
       .text('LogiFlow', 40, 40)
       .fontSize(10)
       .fillColor('#64748b')
-      .text('Wöchentlicher Stundenzettel', 40, 65);
+      .text('Registrierte Wochenstunden', 40, 65);
 
     // ── Trennlinie ───────────────────────────────────────────────────────────
     doc
@@ -84,6 +85,7 @@ export class TimesheetExportService {
     let totalHours = 0;
 
     rows.forEach((entry: any, idx: number) => {
+      if(y>doc.page.height-85){doc.addPage();y=40;}
       const rowColor = idx % 2 === 0 ? '#ffffff' : lightGray;
       doc
         .rect(40, y, 515, 17)
@@ -186,7 +188,7 @@ export class TimesheetExportService {
     // ── Titel ────────────────────────────────────────────────────────────────
     sheet.mergeCells('A1:G1');
     const titleCell = sheet.getCell('A1');
-    titleCell.value = 'Wöchentlicher Stundenzettel';
+    titleCell.value = 'Registrierte Wochenstunden';
     titleCell.font = { bold: true, size: 16, color: { argb: 'FF1A56DB' } };
     titleCell.alignment = { horizontal: 'center' };
     sheet.getRow(1).height = 28;
@@ -317,7 +319,8 @@ export class TimesheetExportService {
       throw new NotFoundException(`Stundenzettel mit ID ${id} nicht gefunden`);
     }
 
-    return timesheet;
+    if(timesheet.status!=='CONFIRMED') throw new BadRequestException('Draft OCR is not a registered hours export');
+    return this.hours.projectTimesheet(timesheet);
   }
 
   private getKw(weekStart: Date | string): string {

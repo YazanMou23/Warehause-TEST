@@ -1,3 +1,4 @@
+import { WorkHoursModule } from './work-hours/work-hours.module';
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { ConfigModule } from '@nestjs/config';
@@ -21,6 +22,7 @@ import { ContainerListsModule } from './container-lists/container-lists.module';
 
 @Module({
   imports: [
+    WorkHoursModule,
     ConfigModule.forRoot({
       isGlobal: true,
     }),

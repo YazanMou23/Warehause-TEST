@@ -1,5 +1,6 @@
 "use client";
 
+import { registeredInstant, registeredEnd } from "@/lib/registered-hours";
 import React, { useState, useEffect, useMemo } from "react";
 import {
   X,
@@ -240,21 +241,18 @@ export default function EmployeeLogHoursModal({
     setSubmitting(true);
     try {
       // Build ISO strings for clockIn and clockOut
-      const clockInDate = new Date(`${selectedDate}T${startTime}:00`);
-      let clockOutDate = new Date(`${selectedDate}T${endTime}:00`);
-      if (isNightShift) {
-        clockOutDate.setDate(clockOutDate.getDate() + 1);
-      }
+      const clockInDate = new Date(registeredInstant(selectedDate,startTime));
+      const clockOutDate = new Date(registeredEnd(selectedDate,startTime,endTime));
 
       const payload = {
         employeeId,
+        date:selectedDate,
         warehouseId: selectedWarehouseId || null,
         hallId: selectedHallId || null,
         clockIn: clockInDate.toISOString(),
         clockOut: clockOutDate.toISOString(),
         breakMinutes: Number(breakMinutes) || 0,
         totalHours: Number(netHours),
-        date: clockInDate.toISOString(),
         source: "MANUAL",
         notes: [selectedActivity, notes].filter(Boolean).join(" — "),
       };

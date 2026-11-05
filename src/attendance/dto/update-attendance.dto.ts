@@ -8,10 +8,12 @@ export class UpdateAttendanceDto {
   @IsDateString()
   clockOut?: string;
 
+  @IsOptional()
   @IsNumber()
   @Min(0)
   breakMinutes: number;
 
+  @IsOptional()
   @IsNumber()
   @Min(0)
   totalHours: number;

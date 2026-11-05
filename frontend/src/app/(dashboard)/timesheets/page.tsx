@@ -1,5 +1,6 @@
 'use client';
 
+import { registeredClock, registeredInstant, registeredEnd } from '@/lib/registered-hours';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -338,9 +339,7 @@ function calculateHours(startTime: string, endTime: string, breakMinutes: number
   
   const startMin = startH * 60 + startM;
   const endMin = endH * 60 + endM;
-  if (endMin <= startMin) return 0;
-  
-  const netMin = endMin - startMin - (breakMinutes || 0);
+  const netMin = (endMin<startMin?endMin+1440:endMin) - startMin - (breakMinutes || 0);
   return Math.max(0, netMin / 60);
 }
 
@@ -2011,6 +2010,7 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
   useEffect(() => {
     loadList();
   }, [loadList, refreshTrigger]);
+  useEffect(()=>{const refresh=()=>{if(document.visibilityState==='visible')loadList();};window.addEventListener('focus',refresh);return ()=>window.removeEventListener('focus',refresh);},[loadList]);
 
   const saveEdit = async () => {
     if (!editingItem) return;
@@ -2090,6 +2090,7 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
 
   return (
     <div className="flex flex-col gap-4">
+      <p className="text-xs text-slate-600">Bestätigte Wochen: aktuelle registrierte Stunden inkl. manueller Einträge. Entwürfe: noch nicht registrierte OCR-Vorschau.</p>
       {/* Search Bar & Filters Header */}
       <div className="flex flex-wrap gap-3 items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-sm">
         
@@ -2187,7 +2188,7 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
                       </div>
                       <p className="text-slate-500 text-xs flex flex-wrap items-center gap-2">
                         <span>📅 {getWeekRange(item.weekStartDate)}</span>
-                        <span>⏱️ {item.entryCount} Tage ({item.totalHours.toFixed(2)} h)</span>
+                        <span>⏱️ {item.entryCount} Einträge ({item.totalHours.toFixed(2)} h)</span>
                       </p>
                     </div>
                   </div>
@@ -2203,8 +2204,8 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
                       {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     </button>
 
-                    {/* Edit Header / Employee Button */}
-                    <button
+                    {/* Posted headers stay fixed. */}
+                    {item.status === 'PENDING_REVIEW' && <button
                       onClick={() => {
                         setEditingItem(item);
                         setEditEmployeeName(item.employee?.name ?? item.employeeName);
@@ -2213,7 +2214,7 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
                       title="Name / Daten bearbeiten"
                     >
                       <Edit size={14} />
-                    </button>
+                    </button>}
 
                     {item.status === 'CONFIRMED' && (
                       <>
@@ -2418,6 +2419,7 @@ function DailyAttendanceView() {
   useEffect(() => {
     loadDailyAttendance();
   }, [loadDailyAttendance]);
+  useEffect(()=>{const refresh=()=>{if(document.visibilityState==='visible')loadDailyAttendance();};window.addEventListener('focus',refresh);return ()=>window.removeEventListener('focus',refresh);},[loadDailyAttendance]);
 
   useEffect(() => {
     const fetchMetadata = async () => {
@@ -2451,8 +2453,8 @@ function DailyAttendanceView() {
   const startEditing = (rec: DailyAttendanceRecord) => {
     setEditingId(rec.id);
     setEditDate(rec.date ? rec.date.split('T')[0] : selectedDate);
-    const cIn = rec.clockIn ? new Date(rec.clockIn).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '08:00';
-    const cOut = rec.clockOut ? new Date(rec.clockOut).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '16:30';
+    const cIn = rec.clockIn ? registeredClock(rec.clockIn,rec.source) : '08:00';
+    const cOut = rec.clockOut ? registeredClock(rec.clockOut,rec.source) : '16:30';
     setEditStartTime(cIn);
     setEditEndTime(cOut);
     setEditWarehouseId(rec.warehouseId || rec.warehouse?.id || (warehouses[0]?.id || ''));
@@ -2462,9 +2464,9 @@ function DailyAttendanceView() {
   const handleSaveEdit = async (rec: DailyAttendanceRecord) => {
     setSavingRecord(true);
     try {
-      const clockIn = `${editDate}T${editStartTime}:00.000Z`;
-      const clockOut = editEndTime ? `${editDate}T${editEndTime}:00.000Z` : null;
-      const hrs = editEndTime ? calculateHours(editStartTime, editEndTime, rec.breakMinutes || 30) : undefined;
+      const clockIn = registeredInstant(editDate,editStartTime,rec.source);
+      const clockOut = editEndTime ? registeredEnd(editDate,editStartTime,editEndTime,rec.source) : null;
+      const hrs = editEndTime ? calculateHours(editStartTime, editEndTime, rec.breakMinutes ?? 0) : undefined;
 
       const res = await fetch(`${API_URL}/attendance/${rec.id}`, {
         method: 'PATCH',
@@ -2510,8 +2512,8 @@ function DailyAttendanceView() {
     if (!manualEmpId) return;
     setSubmittingManual(true);
     try {
-      const clockInIso = `${selectedDate}T${manualStartTime}:00.000Z`;
-      const clockOutIso = `${selectedDate}T${manualEndTime}:00.000Z`;
+      const clockInIso = registeredInstant(selectedDate,manualStartTime);
+      const clockOutIso = registeredEnd(selectedDate,manualStartTime,manualEndTime);
       const hrs = calculateHours(manualStartTime, manualEndTime, manualBreak);
 
       const res = await fetch(`${API_URL}/attendance/manual`, {
@@ -2522,6 +2524,7 @@ function DailyAttendanceView() {
         },
         body: JSON.stringify({
           employeeId: manualEmpId,
+          date:selectedDate,
           clockIn: clockInIso,
           clockOut: clockOutIso,
           breakMinutes: manualBreak,
@@ -2650,8 +2653,8 @@ function DailyAttendanceView() {
             <tbody className="divide-y divide-slate-200 text-sm text-slate-800">
               {filteredRecords.map((rec, idx) => {
                 const isEditing = editingId === rec.id;
-                const clockInTime = rec.clockIn ? new Date(rec.clockIn).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '—';
-                const clockOutTime = rec.clockOut ? new Date(rec.clockOut).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '—';
+                const clockInTime = rec.clockIn ? registeredClock(rec.clockIn,rec.source) : '—';
+                const clockOutTime = rec.clockOut ? registeredClock(rec.clockOut,rec.source) : '—';
                 const isWorkingNow = !rec.clockOut;
                 const filteredHalls = editWarehouseId ? halls.filter(h => h.warehouseId === editWarehouseId) : halls;
 
@@ -2714,7 +2717,7 @@ function DailyAttendanceView() {
                         </div>
                       </td>
                       <td className="px-4 py-3 font-mono text-xs font-bold text-blue-700">
-                        {editEndTime ? `${calculateHours(editStartTime, editEndTime, rec.breakMinutes || 30).toFixed(2)} h` : '—'}
+                        {editEndTime ? `${calculateHours(editStartTime, editEndTime, rec.breakMinutes ?? 0).toFixed(2)} h` : '—'}
                       </td>
                       <td className="px-4 py-3">
                         <span className="text-xs text-amber-700 font-semibold">Bearbeiten...</span>
