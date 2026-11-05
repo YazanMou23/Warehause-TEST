@@ -5,7 +5,7 @@ import { MessagingService } from './messaging.service';
 describe('worker scenario matrix and menu security (synthetic data only)', () => {
  const now=new Date('2026-11-05T19:00:00Z');
  const worker={id:'worker-one',name:'Test Worker',phone:'+491701234567',role:'EMPLOYEE'};
- let db:any,self:WhatsappSelfServiceService,menu:WorkerMenu,timesheet:any;
+ let db:any,self:WhatsappSelfServiceService,menu:any,timesheet:any;
  beforeEach(()=>{
    timesheet={getWorkerTimesheetHoursForPeriod:jest.fn().mockResolvedValue({hasRecords:false,totalHours:null,daysCount:0,entries:[]})};
    db={user:{findMany:jest.fn().mockResolvedValue([worker])},plan:{findMany:jest.fn().mockResolvedValue([])}};
@@ -73,7 +73,7 @@ describe('worker scenario matrix and menu security (synthetic data only)', () =>
    const svc=new MessagingService(db,self);const send=jest.spyOn(svc,'sendWorkerMenu').mockResolvedValue();
    db.planEmployee={findMany:jest.fn(),updateMany:jest.fn()};
    await svc.processIncomingWebhookMessage({id:type,timestamp:String(now.getTime()/1000),from:worker.phone,type:'interactive',interactive:{[type]:{id:'MENU_stale',title:'Ich bin da'}}},now);
-   expect(send).toHaveBeenCalled();expect(db.planEmployee.findMany).not.toHaveBeenCalled();expect(db.planEmployee.updateMany).not.toHaveBeenCalled();
+   expect(send).not.toHaveBeenCalled();expect(db.planEmployee.findMany).not.toHaveBeenCalled();expect(db.planEmployee.updateMany).not.toHaveBeenCalled();
  });
  it('paginates plans by ten with a stable order and same identity/period',async()=>{
    db.plan.findMany.mockResolvedValue(Array.from({length:11},(_,i)=>({id:`fake-${i}`,date:new Date('2026-03-01Z'),locations:[],employeeSegments:[],assignedEmployees:[{employeeId:worker.id}]})));
