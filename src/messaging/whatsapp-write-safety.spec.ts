@@ -287,7 +287,7 @@ describe('Phase-2 WhatsApp Reply Write Safety & Concurrency Guards', () => {
 
   describe('3. Ambiguous Plan Replies', () => {
     it('does not write to plan when worker has multiple pending assignments (sends clarification)', async () => {
-      mockPrisma.planEmployee.findMany.mockResolvedValue([
+      mockPrisma.planEmployee.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
         { planId: 'plan-101', employeeId: workerAli.id, confirmationStatus: 'PENDING' },
         { planId: 'plan-102', employeeId: workerAli.id, confirmationStatus: 'PENDING' },
       ]);
@@ -353,7 +353,7 @@ describe('Phase-2 WhatsApp Reply Write Safety & Concurrency Guards', () => {
         where: {
           planId: 'plan-101',
           employeeId: workerAli.id,
-          confirmationStatus: { not: 'SICK' },
+          confirmationStatus: 'PENDING',
           OR: [{ respondedAt: null }, { respondedAt: { lt: new Date(BASE_TIMESTAMP_SEC * 1000) } }],
         },
         data: expect.objectContaining({
