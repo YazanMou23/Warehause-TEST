@@ -19,11 +19,11 @@ describe('delayed and stale inbound safety',()=>{
  it('valid Arabic menu token keeps Arabic despite a language-neutral incoming title',async()=>{
   const menu=new WorkerMenu(self);const root=menu.main(worker.id,'ar');
   const result=await menu.click(worker.id,worker.phone,root.rows[0].id,'de',now);
-  expect(result?.body).toBe('اختر من القائمة');expect(result?.rows[0].title).toBe('هذا الشهر');
+  expect(result?.body).toContain('📅 اختر الفترة');expect(result?.rows[0].title).toBe('هذا الشهر');
  });
  it('fresh explicit Arabic menu text still works after restart without prior session',async()=>{
   const menu=jest.spyOn(svc,'sendWorkerMenu').mockResolvedValue();
   await svc.processIncomingWebhookMessage({id:'fresh-ar',timestamp:String(now.getTime()/1000),from:worker.phone,type:'text',text:{body:'قائمة'}},now);
-  expect(menu).toHaveBeenCalledWith(expect.any(String),expect.objectContaining({body:'اختر من القائمة'}));
+  expect(menu).toHaveBeenCalledWith(expect.any(String),expect.objectContaining({body:expect.stringContaining('📋 قائمة العمل')}));
  });
 });
