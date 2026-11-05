@@ -573,7 +573,7 @@ describe('Phase-2 WhatsApp Reply Write Safety & Concurrency Guards', () => {
       expect(mockPrisma.planEmployee.updateMany).not.toHaveBeenCalled();
       expect(sendWhatsAppSpy).toHaveBeenCalledWith(
         '491701234567',
-        expect.stringContaining('Wenn Sie eine Schicht bestätigen oder sich krankmelden möchten'),
+        expect.stringContaining('ich habe Ihre Anfrage nicht verstanden'),
       );
     });
   });

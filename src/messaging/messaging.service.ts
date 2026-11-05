@@ -1214,7 +1214,8 @@ export class MessagingService implements OnModuleInit {
         // 4d. Ambiguous or unrecognized text: clarify without mutating records
         await this.sendWhatsAppDirect(
           cleanFrom,
-          'Vielen Dank für Ihre Nachricht. Wenn Sie eine Schicht bestätigen oder sich krankmelden möchten, nutzen Sie bitte die Schaltflächen in Ihrer Schichtplan-Nachricht. Für Auskünfte zu Ihren Arbeitszeiten oder Plänen fragen Sie z. B. „Wie viele Stunden habe ich diesen Monat?“',
+          this.selfService?.formatHelpReply(this.selfService.detectLanguage(incomingText), resolvedSender.name) ??
+          'Ich habe Ihre Anfrage nicht verstanden. Beispiele: Wie viele Stunden habe ich im Oktober 2026 gearbeitet? Meine Schichtpläne im Oktober 2026. Für eine Schichtantwort nutzen Sie die Schaltflächen in der Plan-Nachricht.',
         ).catch(() => {});
         return;
       }
