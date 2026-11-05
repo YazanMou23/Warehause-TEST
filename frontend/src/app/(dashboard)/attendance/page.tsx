@@ -1,5 +1,6 @@
 "use client";
 
+import { registeredClock, registeredInstant, registeredEnd, sumDay } from "@/lib/registered-hours";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -329,6 +330,11 @@ export default function AttendancePage() {
     }
   }, [timeframe, filterDate, filterWeek, filterMonth, filterYear, filterEmployeeId]);
 
+  useEffect(() => {
+    const refresh=()=>{if(document.visibilityState==='visible')fetchLogs();};
+    window.addEventListener('focus',refresh);return ()=>window.removeEventListener('focus',refresh);
+  },[timeframe,filterDate,filterWeek,filterMonth,filterYear,filterEmployeeId]);
+
   const filteredHallsForEdit = useMemo(() => {
     return halls.filter((h) => h.warehouseId === editWarehouseId);
   }, [editWarehouseId, halls]);
@@ -378,21 +384,23 @@ export default function AttendancePage() {
     filterEmployeeId !== "ALL";
 
   const getLogForCell = (empId: string, dateStr: string) => {
-    return displayLogs.find((l) => l.employeeId === empId && l.date === dateStr);
+    return sumDay(displayLogs,empId,dateStr);
   };
 
   const handleCellSelect = (empId: string, dateStr: string) => {
     setSelectedCell({ employeeId: empId, date: dateStr });
     setEditDate(dateStr);
 
-    const existing = getLogForCell(empId, dateStr);
+    const matches=displayLogs.filter(l=>l.employeeId===empId&&l.date===dateStr);
+    if(matches.length>1){setSelectedCell(null);setMessage({text:'Mehrere Schichten: Bitte einzelne Einträge in der Tagesansicht bearbeiten.',type:'error'});return;}
+    const existing = matches[0];
     if (existing) {
       const pad = (num: number) => num.toString().padStart(2, "0");
       const cIn = new Date(existing.clockIn);
-      setEditStartTime(`${pad(cIn.getUTCHours())}:${pad(cIn.getUTCMinutes())}`);
+      setEditStartTime(registeredClock(existing.clockIn,existing.source));
       if (existing.clockOut) {
         const cOut = new Date(existing.clockOut);
-        setEditEndTime(`${pad(cOut.getUTCHours())}:${pad(cOut.getUTCMinutes())}`);
+        setEditEndTime(registeredClock(existing.clockOut,existing.source));
       } else {
         setEditEndTime("16:30");
       }
@@ -422,7 +430,7 @@ export default function AttendancePage() {
     if (!isNaN(sh) && !isNaN(sm) && !isNaN(eh) && !isNaN(em)) {
       const sMin = sh * 60 + sm;
       const eMin = eh * 60 + em;
-      let diff = eMin - sMin - brkMin;
+      let diff = (eMin<sMin?eMin+1440:eMin) - sMin - brkMin;
       if (diff < 0) diff = 0;
       setEditTotalHours(Math.round((diff / 60) * 100) / 100);
     }
@@ -441,8 +449,8 @@ export default function AttendancePage() {
       const [eh, em] = editEndTime.split(":").map(Number);
 
       const [y, m, d] = selectedCell.date.split("-").map(Number);
-      const clockIn = new Date(Date.UTC(y, m - 1, d, sh, sm));
-      const clockOut = new Date(Date.UTC(y, m - 1, d, eh, em));
+      const clockIn = new Date(registeredInstant(selectedCell.date,editStartTime,existing?.source));
+      const clockOut = new Date(registeredEnd(selectedCell.date,editStartTime,editEndTime,existing?.source));
 
       const payload = {
         employeeId: selectedCell.employeeId,
@@ -996,7 +1004,7 @@ export default function AttendancePage() {
                               {formatDateLabel(record.date)} ({getGermanWeekdayLabel(record.date)})
                             </td>
                             <td className="px-4 py-4 font-mono text-xs">
-                              {record.clockIn.slice(11, 16)} – {record.clockOut ? record.clockOut.slice(11, 16) : "Offen"}
+                              {registeredClock(record.clockIn,record.source)} – {record.clockOut ? registeredClock(record.clockOut,record.source) : "Offen"}
                             </td>
                             <td className="px-4 py-4 font-mono text-xs text-slate-500">{record.breakMinutes} Min.</td>
                             <td className="px-4 py-4 font-mono font-bold text-secondary">
@@ -1503,7 +1511,7 @@ function WeeklyMatrixTable({
     return days;
   }, [week, year]);
 
-  const getLogForCell = (empId: string, dateStr: string) => logs.find((l: any) => l.employeeId === empId && l.date === dateStr);
+  const getLogForCell = (empId: string, dateStr: string) => sumDay(logs,empId,dateStr);
 
   return (
     <table className="w-full text-left border-collapse border rounded-xl overflow-hidden">
