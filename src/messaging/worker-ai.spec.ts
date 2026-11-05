@@ -92,3 +92,13 @@ describe('Single test sender allowlist', () => {
     expect(service('+491701234567').isAllowedSender(value)).toBe(false);
   });
 });
+
+describe('AI remains bounded for whole-year/all-month scenarios',()=>{
+ const s=new WorkerAiService({get:()=>undefined} as any);
+ it.each(['HOURS','PLANS'])('accepts %s YEAR/ALL only with consistent fields',intent=>{
+  expect(s.validate({...answer,intent,period:'YEAR',month:null})).not.toBeNull();
+  expect(s.validate({...answer,intent,period:'ALL',year:null,month:null})).not.toBeNull();
+  expect(s.validate({...answer,intent,period:'YEAR'})).toBeNull();
+  expect(s.validate({...answer,intent,period:'ALL',month:null})).toBeNull();
+ });
+});

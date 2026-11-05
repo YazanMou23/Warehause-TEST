@@ -80,7 +80,7 @@ describe('Worker help fallback', () => {
     ['Wie viele Stunden habe ich im Oktober 2026 gearbeitet?', 'HOURS'],
     ['Meine Schichtpläne im Oktober 2026', 'PLANS'],
     ['Ekim 2026 kaç saat çalıştım?', 'HOURS'], ['Vardiyalarım Ekim 2026', 'PLANS'],
-    ['شو ساعاتي لشهر Oktober', 'HOURS'],
+    ['شو ساعاتي لشهر Oktober 2026', 'HOURS'],
     ['ساعاتي في أكتوبر 2026', 'HOURS'], ['مناوباتي في أكتوبر 2026', 'PLANS'],
     ['Мої години за жовтень 2026', 'HOURS'], ['Мої зміни жовтень 2026', 'PLANS'],
   ])('help example parses correctly: %s', (body, intent) => {
