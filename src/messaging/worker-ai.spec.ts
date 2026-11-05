@@ -70,3 +70,12 @@ describe('Synthetic questions at privacy boundary (no paid API)', () => {
     expect(result === null || result.length <= 1000).toBe(true);
   });
 });
+
+describe('Safe diagnostic reasons', () => {
+  it('reports fixed reason without raw input',async()=>{
+    const diag=jest.fn(); const s=new WorkerAiService({get:()=>undefined} as any);
+    await s.classify('private-id','private worker text','de',[],new Date(),diag);
+    expect(diag).toHaveBeenCalledWith('DISABLED_OR_NO_LEDGER');
+    expect(JSON.stringify(diag.mock.calls)).not.toMatch(/private/);
+  });
+});
