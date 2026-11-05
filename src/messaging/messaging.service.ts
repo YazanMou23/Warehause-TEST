@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit, Optional, UnauthorizedException } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { WorkerAiService } from './worker-ai.service';
 import { workerReply } from './worker-replies';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupportedLanguage, WhatsappSelfServiceService } from './whatsapp-self-service.service';
@@ -15,6 +16,7 @@ export class MessagingService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly selfService?: WhatsappSelfServiceService,
+    @Optional() private readonly workerAi?: WorkerAiService,
   ) {}
 
   async onModuleInit() {
@@ -1013,7 +1015,7 @@ export class MessagingService implements OnModuleInit {
       // ─── 4. Text Messages ──────────────────────────────────────────────────
       if (msg.type === 'text' && msg.text?.body) {
         const incomingText = msg.text.body.trim();
-        this.logger.log(`[WhatsApp Webhook] Received text from +${rawFrom}: "${incomingText}"`);
+        this.logger.log('[WhatsApp Webhook] Text received');
 
         if (this.selfService?.explicitLanguageRequest(incomingText)) {
           await this.sendWhatsAppDirect(cleanFrom, this.selfService.formatHelpReply(replyLanguage, resolvedSender.name)).catch(() => {});
@@ -1025,6 +1027,7 @@ export class MessagingService implements OnModuleInit {
           return;
         }
 
+        let knownWorkerNames: string[] = [resolvedSender.name];
         // 4a. Check read-only self-service questions & cross-worker/mutation protections BEFORE follow-up note capture!
         if (this.selfService) {
           let otherNames: string[] = [];
@@ -1034,6 +1037,7 @@ export class MessagingService implements OnModuleInit {
               select: { name: true },
             });
             otherNames = (otherUsers || []).map((u: any) => u.name).filter(Boolean);
+            knownWorkerNames = [...knownWorkerNames, ...otherNames];
           } catch (_) {}
 
           const parsed = this.selfService.parseWorkerMessage(
@@ -1233,6 +1237,32 @@ export class MessagingService implements OnModuleInit {
             );
           }
           return;
+        }
+
+        // AI is last: never consume shift options or a pending CUSTOM note.
+        // The adapter is disabled by default and fails closed without a durable ledger.
+        if (this.workerAi && this.selfService) {
+          const ai = await this.workerAi.classify(resolvedSender.id, incomingText, replyLanguage, knownWorkerNames, referenceDate ?? new Date());
+          if (ai && !ai.needsClarification && ai.intent !== 'UNKNOWN') {
+            if (ai.intent === 'LANGUAGE') {
+              const requests = { de: 'Deutsch', ar: 'بالعربي', tr: 'Türkçe', uk: 'українською' };
+              const chosen = this.selfService.replyLanguage(resolvedSender.id, requests[ai.language]);
+              await this.sendWhatsAppDirect(cleanFrom, this.selfService.formatHelpReply(chosen, resolvedSender.name)).catch(() => {});
+              return;
+            }
+            let period = ai.period === 'MONTH' ? `${ai.month}.${ai.year}` : ai.period === 'EXACT_DATE' ? ai.date!.split('-').reverse().join('.') : '';
+            if (ai.period === 'CURRENT_MONTH') {
+              const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin', year:'numeric', month:'2-digit', day:'2-digit' }).format(referenceDate ?? new Date());
+              period = `${Number(day.slice(5,7))}.${day.slice(0,4)}`;
+            }
+            if (period || (ai.intent === 'PLANS' && ai.period === 'UPCOMING')) {
+              // Re-enter the read-only handler; identity and backend scoping are rechecked.
+              const canonical = `${ai.intent === 'HOURS' ? 'Meine Stunden' : 'Meine Schichtpläne'} ${period || 'kommende'}`;
+              const result = await this.selfService.handleIncomingConversation(rawFrom, canonical, referenceDate, replyLanguage);
+              await this.sendWhatsAppDirect(cleanFrom, result.replyText).catch(() => {});
+              return;
+            }
+          }
         }
 
         // 4d. Ambiguous or unrecognized text: clarify without mutating records
