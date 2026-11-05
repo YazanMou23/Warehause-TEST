@@ -1,3 +1,4 @@
+import { parseWorkerRange } from './worker-period-range';
 import {
   Injectable,
   Logger,
@@ -25,7 +26,8 @@ export type SelfServicePeriodType =
   | 'UPCOMING'
   | 'HISTORICAL'
   | 'YEAR'
-  | 'ALL';
+  | 'ALL'
+  | 'RANGE';
 
 export interface ParsedSelfServiceIntent {
   language: SupportedLanguage;
@@ -33,6 +35,8 @@ export interface ParsedSelfServiceIntent {
   periodType: SelfServicePeriodType;
   year?: number;
   month?: number; // 1..12
+  startDate?: string;
+  endDate?: string;
   date?: string; // YYYY-MM-DD
   isDateAmbiguous?: boolean;
   ambiguityReason?: string;
@@ -531,7 +535,7 @@ export class WhatsappSelfServiceService {
     }
 
     // 3. Determine whether the message asks about HOURS or PLANS
-    const isHours = this.matchesHoursIntent(text);
+    const isHours = this.matchesHoursIntent(text) || /\bKW\s*\d/iu.test(text) || (/(أسبوع|اسبوع|woche|hafta|тиж)/iu.test(text)&&/(شهر|monat|місяц|\bay\b)/iu.test(text));
     const isPlans = this.matchesPlansIntent(text);
 
     if (!isHours && !isPlans) {
@@ -557,6 +561,8 @@ export class WhatsappSelfServiceService {
       year: dateParse.year ?? refYear,
       month: dateParse.month ?? refMonth,
       date: dateParse.date,
+      startDate: dateParse.startDate,
+      endDate: dateParse.endDate,
       isDateAmbiguous: dateParse.isDateAmbiguous,
       ambiguityReason: dateParse.ambiguityReason,
     };
@@ -766,6 +772,8 @@ export class WhatsappSelfServiceService {
     year?: number;
     month?: number;
     date?: string;
+    startDate?: string;
+    endDate?: string;
     isDateAmbiguous?: boolean;
     ambiguityReason?: string;
   } {
@@ -778,6 +786,9 @@ export class WhatsappSelfServiceService {
     const normalizedText = text.replace(/[٠-٩۰-۹]/g, (d) =>
       String(d.charCodeAt(0) - (d >= '۰' ? '۰'.charCodeAt(0) : '٠'.charCodeAt(0))),
     );
+
+    const range=parseWorkerRange(normalizedText,referenceDate);
+    if(range)return range.invalid ? {periodType:'RANGE',isDateAmbiguous:true,ambiguityReason:'RANGE_REQUIRES_EXACT_DATES'} : {periodType:'RANGE',startDate:range.startDate,endDate:range.endDate};
 
     // Count full dates across formats before selecting one format. A mixed
     // format question or date range must not silently resolve to its first day.
@@ -1197,11 +1208,13 @@ export class WhatsappSelfServiceService {
   async getWorkerPlans(
     verifiedWorkerId: string,
     options: {
-      mode: 'UPCOMING' | 'HISTORICAL' | 'EXACT_DATE' | 'MONTH' | 'YEAR' | 'ALL';
+      mode: 'UPCOMING' | 'HISTORICAL' | 'EXACT_DATE' | 'MONTH' | 'YEAR' | 'ALL' | 'RANGE';
       referenceDate?: Date;
       year?: number;
       month?: number;
       date?: string;
+      startDate?: string;
+      endDate?: string;
       page?: number;
     },
   ): Promise<
@@ -1232,7 +1245,8 @@ export class WhatsappSelfServiceService {
     let dateFilter: any;
     let sortDirection: 'asc' | 'desc' = 'asc';
 
-    if (options.mode === 'EXACT_DATE' && options.date) {
+    if(options.mode==='RANGE' && options.startDate && options.endDate){dateFilter={gte:new Date(`${options.startDate}T00:00:00Z`),lte:new Date(`${options.endDate}T23:59:59.999Z`)};
+    } else if (options.mode === 'EXACT_DATE' && options.date) {
       const [y, m, d] = options.date.split('-').map(Number);
       const start = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
       const end = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
@@ -1457,7 +1471,7 @@ export class WhatsappSelfServiceService {
         status: 'CLARIFICATION_NEEDED',
         language: parsed.language,
         intent: parsed.intent,
-        replyText: this.formatAmbiguousDateReply(parsed.language, parsed.intent),
+        replyText: parsed.ambiguityReason==='RANGE_REQUIRES_EXACT_DATES' ? {de:'Bitte Anfang/Ende (01.10.2026 - 07.10.2026) oder Kalenderwoche mit Jahr (KW 44 2026) angeben. Woche im Monat braucht genaue Daten.',ar:'اكتب تاريخ البداية والنهاية (01.10.2026 - 07.10.2026)، أو رقم الأسبوع والسنة (KW 44 2026). أسبوع داخل الشهر يحتاج تاريخين.',tr:'Başlangıç/bitiş (01.10.2026 - 07.10.2026) veya hafta no. ve yıl (KW 44 2026) yaz. Ayın haftası için kesin tarihler gerekli.',uk:'Вкажи початок/кінець (01.10.2026 - 07.10.2026) або номер тижня з роком (KW 44 2026). Тиждень місяця потребує точних дат.'}[parsed.language] : this.formatAmbiguousDateReply(parsed.language, parsed.intent),
       };
     }
 
@@ -1480,7 +1494,10 @@ export class WhatsappSelfServiceService {
     let endDate: Date;
     let periodLabel: string;
 
-    if (parsed.periodType === 'EXACT_DATE' && parsed.date) {
+    if(parsed.periodType==='RANGE' && parsed.startDate && parsed.endDate){
+      startDate=new Date(`${parsed.startDate}T00:00:00Z`);endDate=new Date(`${parsed.endDate}T23:59:59.999Z`);
+      periodLabel=`${parsed.startDate.split('-').reverse().join('.')} - ${parsed.endDate.split('-').reverse().join('.')}`;
+    } else if (parsed.periodType === 'EXACT_DATE' && parsed.date) {
       const [y, m, d] = parsed.date.split('-').map(Number);
       startDate = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
       endDate = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
@@ -1527,6 +1544,12 @@ export class WhatsappSelfServiceService {
         replyText: `${this.formatHoursReply(lang, verifiedWorker.name, periodLabel, result.totalHours, result.daysCount, [], false)}\n${lines.join('\n')}` };
     }
 
+    if(parsed.periodType==='RANGE'){
+      const days=new Map<string,number>();for(const e of result.entries)days.set(e.date,(days.get(e.date)??0)+e.hours);
+      const entries=[...days].sort(([a],[b])=>a.localeCompare(b));const lines=entries.slice(page*10,page*10+10).map(([day,h])=>`${day.split('-').reverse().join('.')}: ${this.formatHoursNumber(h,lang)}`);
+      return {handled:true,status:'OK',language:lang,intent:'HOURS',periodLabel,totalHours:result.totalHours,nextPage:entries.length>(page+1)*10?page+1:undefined,replyText:`${this.formatHoursReply(lang,verifiedWorker.name,periodLabel,result.totalHours,result.daysCount,[],false)}\n${lines.join('\n')}`};
+    }
+
     return {
       handled: true,
       status: 'OK',
@@ -1554,10 +1577,10 @@ export class WhatsappSelfServiceService {
   ): Promise<SelfServiceReplyResult> {
     const lang = parsed.language;
 
-    let mode: 'UPCOMING' | 'HISTORICAL' | 'EXACT_DATE' | 'MONTH' | 'YEAR' | 'ALL' = 'UPCOMING';
+    let mode: 'UPCOMING' | 'HISTORICAL' | 'EXACT_DATE' | 'MONTH' | 'YEAR' | 'ALL' | 'RANGE' = 'UPCOMING';
     let periodLabel = '';
 
-    if (parsed.periodType === 'YEAR' || parsed.periodType === 'ALL') {
+    if(parsed.periodType==='RANGE'){mode='RANGE';periodLabel=`${parsed.startDate?.split('-').reverse().join('.')} - ${parsed.endDate?.split('-').reverse().join('.')}`;} else if (parsed.periodType === 'YEAR' || parsed.periodType === 'ALL') {
       mode = parsed.periodType;
       periodLabel = mode === 'YEAR' ? String(parsed.year) : { de: 'alle Monate', tr: 'tüm aylar', ar: 'جميع الأشهر', uk: 'усі місяці' }[lang];
     } else if (parsed.periodType === 'EXACT_DATE' && parsed.date) {
@@ -1585,6 +1608,7 @@ export class WhatsappSelfServiceService {
       year: parsed.year,
       month: parsed.month,
       date: parsed.date,
+      startDate:parsed.startDate,endDate:parsed.endDate,
       page,
     });
 
@@ -1723,7 +1747,7 @@ export class WhatsappSelfServiceService {
   private formatPlansReply(
     lang: SupportedLanguage,
     workerName: string,
-    mode: 'UPCOMING' | 'HISTORICAL' | 'EXACT_DATE' | 'MONTH' | 'YEAR' | 'ALL',
+    mode: 'UPCOMING' | 'HISTORICAL' | 'EXACT_DATE' | 'MONTH' | 'YEAR' | 'ALL' | 'RANGE',
     periodLabel: string,
     plans: Array<{
       date: string;
@@ -1760,7 +1784,7 @@ export class WhatsappSelfServiceService {
         const header =
           mode === 'HISTORICAL'
             ? `📅 Merhaba ${workerName}, geçmiş vardiya planların${periodLabel ? ` (${periodLabel})` : ''}:`
-            : (mode === 'MONTH' || mode === 'YEAR' || mode === 'ALL')
+            : (mode === 'MONTH' || mode === 'YEAR' || mode === 'ALL' || mode === 'RANGE')
             ? `📅 Merhaba ${workerName}, ${periodLabel} dönemi vardiya planların:`
             : mode === 'EXACT_DATE'
             ? `📅 Merhaba ${workerName}, ${periodLabel} tarihli vardiya planın:`
@@ -1771,7 +1795,7 @@ export class WhatsappSelfServiceService {
         const header =
           mode === 'HISTORICAL'
             ? `📅 مرحباً ${workerName}، جدول مناوباتك السابقة${periodLabel ? ` (${periodLabel})` : ''}:`
-            : (mode === 'MONTH' || mode === 'YEAR' || mode === 'ALL')
+            : (mode === 'MONTH' || mode === 'YEAR' || mode === 'ALL' || mode === 'RANGE')
             ? `📅 مرحباً ${workerName}، جدول مناوباتك في ${periodLabel}:`
             : mode === 'EXACT_DATE'
             ? `📅 مرحباً ${workerName}، جدول عملك ليوم ${periodLabel}:`
@@ -1782,7 +1806,7 @@ export class WhatsappSelfServiceService {
         const header =
           mode === 'HISTORICAL'
             ? `📅 Привіт, ${workerName}! Твої минулі зміни${periodLabel ? ` (${periodLabel})` : ''}:`
-            : (mode === 'MONTH' || mode === 'YEAR' || mode === 'ALL')
+            : (mode === 'MONTH' || mode === 'YEAR' || mode === 'ALL' || mode === 'RANGE')
             ? `📅 Привіт, ${workerName}! Твої зміни за ${periodLabel}:`
             : mode === 'EXACT_DATE'
             ? `📅 Привіт, ${workerName}! Твій графік роботи на ${periodLabel}:`
@@ -1794,7 +1818,7 @@ export class WhatsappSelfServiceService {
         const header =
           mode === 'HISTORICAL'
             ? `📅 Hallo ${workerName}, Deine bisherigen Schichtpläne${periodLabel ? ` (${periodLabel})` : ''}:`
-            : (mode === 'MONTH' || mode === 'YEAR' || mode === 'ALL')
+            : (mode === 'MONTH' || mode === 'YEAR' || mode === 'ALL' || mode === 'RANGE')
             ? `📅 Hallo ${workerName}, Deine Schichtpläne für ${periodLabel}:`
             : mode === 'EXACT_DATE'
             ? `📅 Hallo ${workerName}, Dein Schichtplan für den ${periodLabel}:`
@@ -1806,14 +1830,14 @@ export class WhatsappSelfServiceService {
 
   private formatNoPlansReply(
     lang: SupportedLanguage,
-    mode: 'UPCOMING' | 'HISTORICAL' | 'EXACT_DATE' | 'MONTH' | 'YEAR' | 'ALL',
+    mode: 'UPCOMING' | 'HISTORICAL' | 'EXACT_DATE' | 'MONTH' | 'YEAR' | 'ALL' | 'RANGE',
     periodLabel: string,
   ): string {
     switch (lang) {
       case 'tr':
         return mode === 'HISTORICAL'
           ? `ℹ️ ${periodLabel ? `${periodLabel} dönemi için ` : ''}geçmiş vardiya atamanız bulunmamaktadır.`
-          : (mode === 'MONTH' || mode === 'YEAR' || mode === 'ALL')
+          : (mode === 'MONTH' || mode === 'YEAR' || mode === 'ALL' || mode === 'RANGE')
           ? `ℹ️ ${periodLabel} dönemi için size atanmış bir vardiya planı bulunmamaktadır.`
           : mode === 'EXACT_DATE'
           ? `ℹ️ ${periodLabel} tarihi için size atanmış bir vardiya planı bulunmamaktadır.`
@@ -1821,7 +1845,7 @@ export class WhatsappSelfServiceService {
       case 'ar':
         return mode === 'HISTORICAL'
           ? `ℹ️ لا توجد مناوبات سابقة مسجلة لك${periodLabel ? ` في ${periodLabel}` : ''}.`
-          : (mode === 'MONTH' || mode === 'YEAR' || mode === 'ALL')
+          : (mode === 'MONTH' || mode === 'YEAR' || mode === 'ALL' || mode === 'RANGE')
           ? `ℹ️ لا توجد مناوبات مخصصة لك في ${periodLabel}.`
           : mode === 'EXACT_DATE'
           ? `ℹ️ لا يوجد جدول عمل مخصص لك بتاريخ ${periodLabel}.`
@@ -1829,7 +1853,7 @@ export class WhatsappSelfServiceService {
       case 'uk':
         return mode === 'HISTORICAL'
           ? `ℹ️ За ${periodLabel ? `період ${periodLabel}` : 'минулий період'} призначених для тебе змін не знайдено.`
-          : (mode === 'MONTH' || mode === 'YEAR' || mode === 'ALL')
+          : (mode === 'MONTH' || mode === 'YEAR' || mode === 'ALL' || mode === 'RANGE')
           ? `ℹ️ За ${periodLabel} призначених для тебе змін немає.`
           : mode === 'EXACT_DATE'
           ? `ℹ️ На дату ${periodLabel} призначених для тебе змін немає.`
@@ -1838,7 +1862,7 @@ export class WhatsappSelfServiceService {
       default:
         return mode === 'HISTORICAL'
           ? `ℹ️ Für ${periodLabel ? `den Zeitraum ${periodLabel}` : 'die Vergangenheit'} wurden keine zugewiesenen Schichtpläne gefunden.`
-          : (mode === 'MONTH' || mode === 'YEAR' || mode === 'ALL')
+          : (mode === 'MONTH' || mode === 'YEAR' || mode === 'ALL' || mode === 'RANGE')
           ? `ℹ️ Für ${periodLabel} wurden keine zugewiesenen Schichtpläne gefunden.`
           : mode === 'EXACT_DATE'
           ? `ℹ️ Für den ${periodLabel} liegt keine Schichtzuteilung für dich vor.`
