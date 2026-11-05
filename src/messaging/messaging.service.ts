@@ -799,6 +799,15 @@ export class MessagingService implements OnModuleInit {
           actionFromId = this.resolveActionFromLabel(buttonId);
         }
 
+        // Structured IDs must be complete and have a recognized action. Never
+        // reinterpret a broken plan/worker target as an unrelated pending shift.
+        const knownActionPrefix = ['CONFIRM', 'ACCEPT', 'SICK', 'DECLINE', 'CUSTOM'].includes(rawPrefix);
+        const structuredPayload = parts.length >= 3 || (knownActionPrefix && buttonId.includes('_'));
+        if (structuredPayload && (!knownActionPrefix || !targetPlanId || !targetEmpId)) {
+          this.logger.warn('[WhatsApp Webhook] Unknown button action ID or malformed structured button payload');
+          return;
+        }
+
         // 2. Strict exact full-string match for button title
         const actionFromTitle = this.resolveActionFromLabel(buttonTitle);
 
