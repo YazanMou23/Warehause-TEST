@@ -675,3 +675,15 @@ model ContainerListRow {
   @@index([containerNumber])
   @@index([rowOrder])
 }
+
+// AI accounting only. No relation/FK or changes to existing worker tables.
+model WorkerAiUsage {
+  id             String   @id @default(uuid())
+  workerId       String
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  reservedMicros Int
+  actualMicros   Int?
+
+  @@index([workerId, createdAt])
+  @@index([createdAt])
+}
