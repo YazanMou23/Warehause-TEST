@@ -69,14 +69,14 @@ describe('WhatsApp accuracy regressions', () => {
 
   it.each(['CONFIRM', 'CUSTOM', 'SICK'])('atomically blocks %s after sickness without touching absence data', async (action) => {
     db.planEmployee.findFirst.mockResolvedValue({ planId: 'plan-1', employeeId: worker.id, confirmationStatus: 'SICK' });
-    db.planEmployee.updateMany.mockImplementation(({ where }: any) => Promise.resolve({ count: where.confirmationStatus?.not === 'SICK' ? 0 : 1 }));
+    db.planEmployee.updateMany.mockImplementation(({ where }: any) => Promise.resolve({ count: where.confirmationStatus === 'PENDING' ? 0 : 1 }));
     const title = action === 'CONFIRM' ? 'Ich bin da' : action === 'SICK' ? 'Ich bin krank' : 'Custom Nachricht';
     await service.processIncomingWebhookMessage({
       id: `locked-${action}`, from: '491701234567', timestamp: String(now.getTime() / 1000),
       type: 'interactive', interactive: { button_reply: { id: `${action}_plan-1_worker-1`, title } },
     }, now);
     expect(db.planEmployee.updateMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ confirmationStatus: { not: 'SICK' } }),
+      where: expect.objectContaining({ confirmationStatus: 'PENDING' }),
     }));
     expect(db.actionLog.create).not.toHaveBeenCalled();
     expect(send).toHaveBeenCalledWith('491701234567', expect.stringContaining('kann hier nicht geändert werden'));

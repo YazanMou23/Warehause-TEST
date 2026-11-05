@@ -1066,7 +1066,7 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
         where: {
           planId: 'plan-22',
           employeeId: workerAli.id,
-          confirmationStatus: { not: 'SICK' },
+          confirmationStatus: 'PENDING',
           OR: [{ respondedAt: null }, { respondedAt: { lt: expect.any(Date) } }],
         },
         data: expect.objectContaining({
@@ -1076,7 +1076,7 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
       });
       expect(sendWhatsAppSpy).toHaveBeenCalledWith(
         '491701234567',
-        expect.stringContaining('Ihre Zusage („Ich bin da“) wurde erfolgreich gespeichert'),
+        expect.stringContaining('wurde gespeichert: Ich bin da'),
       );
     });
 
@@ -1103,7 +1103,7 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
         where: {
           planId: 'plan-22',
           employeeId: workerAli.id,
-          confirmationStatus: { not: 'SICK' },
+          confirmationStatus: 'PENDING',
           OR: [{ respondedAt: null }, { respondedAt: { lt: expect.any(Date) } }],
         },
         data: expect.objectContaining({
@@ -1125,7 +1125,7 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
       );
       expect(sendWhatsAppSpy).toHaveBeenCalledWith(
         '491701234567',
-        expect.stringContaining('Ihre Krankmeldung wurde erfasst'),
+        expect.stringContaining('wurde gespeichert: Ich bin krank'),
       );
     });
 
