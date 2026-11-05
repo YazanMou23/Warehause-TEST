@@ -45,10 +45,15 @@ export class MessagingController {
     @Query('hub.verify_token') token: string,
     @Query('hub.challenge') challenge: string,
   ) {
-    const verifyToken =
-      process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || 'logiflow_whatsapp_verify_2026';
+    const verifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
 
-    if (mode === 'subscribe' && token === verifyToken) {
+    if (!verifyToken || !verifyToken.trim()) {
+      throw new ForbiddenException(
+        'Webhook verification is not configured (WHATSAPP_WEBHOOK_VERIFY_TOKEN missing)',
+      );
+    }
+
+    if (mode === 'subscribe' && token === verifyToken.trim()) {
       return challenge;
     }
 

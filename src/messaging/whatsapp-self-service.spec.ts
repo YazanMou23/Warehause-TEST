@@ -73,6 +73,7 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
         findMany: jest.fn().mockResolvedValue([]),
         update: jest.fn(),
       },
+      $transaction: jest.fn((cb) => cb(mockPrisma)),
       attendance: {
         findMany: jest.fn().mockResolvedValue([
           // Intentionally different attendance total (e.g. 999h) to prove self-service NEVER uses attendance totals
@@ -87,11 +88,22 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
       },
       plan: {
         findMany: jest.fn().mockResolvedValue([]),
-        findUnique: jest.fn(),
+        findUnique: jest.fn().mockImplementation(({ where }) =>
+          Promise.resolve({ id: where?.id || 'plan-22', date: REFERENCE_DATE, deletedAt: null }),
+        ),
         update: jest.fn(),
       },
       planEmployee: {
-        findFirst: jest.fn(),
+        findFirst: jest.fn().mockImplementation(({ where }) =>
+          Promise.resolve({
+            planId: where?.planId || 'plan-22',
+            employeeId: where?.employeeId || workerAli.id,
+            confirmationStatus: 'PENDING',
+            respondedAt: null,
+            plan: { id: where?.planId || 'plan-22', date: REFERENCE_DATE, deletedAt: null },
+          }),
+        ),
+        findMany: jest.fn().mockResolvedValue([]),
         update: jest.fn(),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
@@ -148,6 +160,7 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
                   {
                     id: 'wamid.sig.test.1',
                     from: '491701234567',
+                    timestamp: '1792490400',
                     type: 'text',
                     text: { body: 'Wie viele Stunden habe ich diesen Monat gearbeitet?' },
                   },
@@ -392,6 +405,7 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
       const msg = {
         id: 'wamid.dedup.001',
         from: '491701234567',
+        timestamp: '1792490400',
         type: 'text',
         text: { body: 'Wie viele Stunden habe ich diesen Monat gearbeitet?' },
       };
@@ -415,6 +429,7 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
       const buttonMsg = {
         id: 'wamid.btn.dedup.001',
         from: '491701234567',
+        timestamp: '1792490400',
         type: 'interactive',
         interactive: {
           type: 'button_reply',
@@ -631,6 +646,7 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
           {
             id: `wamid.edit.${text.slice(0, 6)}`,
             from: '491701234567',
+            timestamp: '1792490400',
             type: 'text',
             text: { body: text },
           },
@@ -1033,6 +1049,7 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
       const confirmButtonMsg = {
         id: 'wamid.btn.confirm.1',
         from: '491701234567',
+        timestamp: '1792490400',
         type: 'interactive',
         interactive: {
           type: 'button_reply',
@@ -1046,7 +1063,11 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
       await messagingService.processIncomingWebhookMessage(confirmButtonMsg, REFERENCE_DATE);
 
       expect(mockPrisma.planEmployee.updateMany).toHaveBeenCalledWith({
-        where: { planId: 'plan-22', employeeId: workerAli.id },
+        where: {
+          planId: 'plan-22',
+          employeeId: workerAli.id,
+          OR: [{ respondedAt: null }, { respondedAt: { lt: expect.any(Date) } }],
+        },
         data: expect.objectContaining({
           confirmationStatus: 'CONFIRMED',
           responseChannel: 'WHATSAPP_BUTTON',
@@ -1067,6 +1088,7 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
       const sickButtonMsg = {
         id: 'wamid.btn.sick.1',
         from: '491701234567',
+        timestamp: '1792490400',
         type: 'button',
         button: {
           payload: `SICK_plan-22_${workerAli.id}`,
@@ -1077,7 +1099,11 @@ describe('Phase-1 Worker WhatsApp Self-Service', () => {
       await messagingService.processIncomingWebhookMessage(sickButtonMsg, REFERENCE_DATE);
 
       expect(mockPrisma.planEmployee.updateMany).toHaveBeenCalledWith({
-        where: { planId: 'plan-22', employeeId: workerAli.id },
+        where: {
+          planId: 'plan-22',
+          employeeId: workerAli.id,
+          OR: [{ respondedAt: null }, { respondedAt: { lt: expect.any(Date) } }],
+        },
         data: expect.objectContaining({
           confirmationStatus: 'SICK',
           responseChannel: 'WHATSAPP_BUTTON',
