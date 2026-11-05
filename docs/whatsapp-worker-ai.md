@@ -1,7 +1,7 @@
 # Bounded worker AI: disabled scaffold
 
 ## Status and approvals
-This PR is **not ready for activation**. No model calls, worker sends, DB/schema,
+This stack is **not ready for activation**. No model calls, worker sends, DB/schema,
 environment or production settings were changed by the implementation tests.
 User decided 5 AI requests per worker per day. Target configurable model:
 `gpt-4o-mini` (snapshot also allowlisted). Generic `OPENAI_API_KEY` is deliberately
@@ -11,10 +11,11 @@ not reused. Monthly cap: $5, approved by owner on 2026-11-05.
 - `WHATSAPP_WORKER_AI_ENABLED` must equal the string `true`, otherwise no call.
 - `WHATSAPP_WORKER_AI_MODEL` must be a reviewed allowlisted model, no silent fallback.
 - A separate `WHATSAPP_WORKER_AI_API_KEY` must be supplied with approval.
-- An injected shared **durable WorkerAiLedger is required**. No implementation is
-  registered. Even enabling the flag alone results in zero requests.
+- The separate ledger PR registers a Postgres advisory-lock implementation. The
+  owner must apply its one-table migration before activation; missing table/errors
+  fail closed. This does not enable the feature.
 - Never use a process-local counter for a hard cap: restarts and multiple instances
-  bypass it. Ledger persistence preparation was approved separately on 2026-11-05; production rollout still needs approval.
+  bypass it. One-table ledger/migration preparation was approved separately on 2026-11-05; owner runs migration, production rollout still needs approval.
 
 ## Ledger design for review, not a schema change
 Propose an atomic reservation ledger keyed by internal worker + UTC accounting
@@ -26,8 +27,10 @@ cost; reconcile conservatively later. Budget must not reset on restart. Reject o
 failure. Avoid full employee text or phone in the ledger. Retention, deletion, indexes,
 transaction isolation and migration will be proposed before any DB work.
 Alternative: approved shared Redis with persistence and atomic scripts, not volatile
-local memory. This PR only defines the interface, so durable quota/concurrency
-behavior is **not implemented or proven yet**.
+local memory. The separate ledger PR implements this with one additive table and one shared
+transaction-scoped advisory lock, using the DB clock and integer microdollars.
+Unit tests mock the transaction; real Postgres concurrency/restart behavior is
+**not yet integration-tested**. Do not activate before that check.
 
 ## Routing and privacy
 Existing deterministic read-only rules, denials, explicit language, refusal, CUSTOM
@@ -68,3 +71,19 @@ Merge order #12 -> #13 -> #14 -> this PR, retargeting to main after each precedi
 merge. User merges. Do not enable merely because these PRs are merged. Obtain approval
 for storage/migration and settings, then test caps with synthetic data. Notify owner
 before first paid synthetic request; never send real worker data during these tests.
+
+## Ledger migration handoff
+`20261105181000_add_worker_ai_usage/migration.sql` creates only `WorkerAiUsage`,
+its primary key, two indexes and nonnegative/bounded cost CHECK constraints.
+No ALTER/DROP, existing row changes, foreign keys or worker table modifications.
+Worker reference is internal ID only, not phone/name/text. Counters use UTC calendar
+day/month, with a rolling 60-second minute window. Tell the owner this accounting
+timezone before activation; change to Berlin boundaries if requested. No automatic
+cleanup: deleting current-period rows would reset quotas. A retention policy is
+still pending. Advisory lock ID 71052026 must be reserved for this ledger.
+
+No migration command was executed against Neon or any connected database.
+`prisma validate` and `prisma generate` operate on the local schema/client only.
+Owner applies migration after reviewing SQL, then tests concurrent reservations in
+a disposable DB before activation. Rollback: disable feature first; do not drop the
+ledger during an active accounting period.
