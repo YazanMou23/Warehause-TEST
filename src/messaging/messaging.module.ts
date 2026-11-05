@@ -1,3 +1,4 @@
+import { WorkerInboundLedger } from './worker-inbound-ledger.service';
 import { WorkerAiService, WorkerAiLedger } from './worker-ai.service';
 import { PrismaWorkerAiLedger } from './worker-ai-ledger.service';
 import { Module } from '@nestjs/common';
@@ -11,7 +12,7 @@ import { TimesheetModule } from '../timesheet/timesheet.module';
 @Module({
   imports: [PrismaModule, TimesheetModule, ConfigModule],
   controllers: [MessagingController],
-  providers: [MessagingService, WhatsappSelfServiceService, WorkerAiService, { provide: WorkerAiLedger, useClass: PrismaWorkerAiLedger }],
+  providers: [WorkerInboundLedger, MessagingService, WhatsappSelfServiceService, WorkerAiService, { provide: WorkerAiLedger, useClass: PrismaWorkerAiLedger }],
   exports: [MessagingService, WhatsappSelfServiceService],
 })
 export class MessagingModule {}
