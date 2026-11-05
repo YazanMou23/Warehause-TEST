@@ -305,7 +305,7 @@ describe('Phase-2 WhatsApp Reply Write Safety & Concurrency Guards', () => {
       expect(mockPrisma.planEmployee.updateMany).not.toHaveBeenCalled();
       expect(sendWhatsAppSpy).toHaveBeenCalledWith(
         '491701234567',
-        expect.stringContaining('mehrere offene Schichten'),
+        expect.stringContaining('Mehrere Schichten warten'),
       );
     });
 
@@ -463,7 +463,7 @@ describe('Phase-2 WhatsApp Reply Write Safety & Concurrency Guards', () => {
       });
       expect(sendWhatsAppSpy).toHaveBeenCalledWith(
         '491701234567',
-        expect.stringContaining('Ihre Nachricht wurde gespeichert'),
+        expect.stringContaining('Deine Nachricht wurde für die Schichtleitung gespeichert'),
       );
       expect(sendWhatsAppSpy).toHaveBeenCalledTimes(1);
     });
@@ -573,7 +573,7 @@ describe('Phase-2 WhatsApp Reply Write Safety & Concurrency Guards', () => {
       expect(mockPrisma.planEmployee.updateMany).not.toHaveBeenCalled();
       expect(sendWhatsAppSpy).toHaveBeenCalledWith(
         '491701234567',
-        expect.stringContaining('ich habe Ihre Anfrage nicht verstanden'),
+        expect.stringContaining('ich habe deine Anfrage nicht verstanden'),
       );
     });
   });
