@@ -34,6 +34,49 @@ describe('Worker help fallback', () => {
     expect(send.mock.calls[0][1]).not.toContain('أكتوبر 2026');
   });
   it.each([
+    ['بالعربي', 'أكتوبر'], ['Auf arabisch?', 'أكتوبر'], ['Türkçe', 'Ekim'], ['українською', 'жовтень'],
+  ])('honors explicit language %s and remembers it for neutral session messages', async (body, expected) => {
+    await service.processIncomingWebhookMessage(message(body), now);
+    expect(send.mock.calls[0][1]).toContain(expected);
+    await service.processIncomingWebhookMessage({ ...message('???'), id: 'neutral-next' }, now);
+    expect(send.mock.calls[1][1]).toContain(expected);
+    expect(db.planEmployee.updateMany).not.toHaveBeenCalled();
+  });
+  it('keeps language sessions isolated and allows explicit switching', () => {
+    expect(self.replyLanguage('one', 'بالعربي')).toBe('ar');
+    expect(self.replyLanguage('one', 'ja')).toBe('ar');
+    expect(self.replyLanguage('two', 'ja')).toBe('de');
+    expect(self.replyLanguage('one', 'Türkçe')).toBe('tr');
+    expect(self.replyLanguage('one', 'ja')).toBe('tr');
+    expect(self.replyLanguage('stored', 'ja', 'uk')).toBe('uk');
+  });
+  it('expires session preference and clears it after service restart', () => {
+    self.replyLanguage('one', 'بالعربي');
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(Date.now() + 24 * 60 * 60 * 1000 + 1);
+    expect(self.replyLanguage('one', 'ja')).toBe('de');
+    clock.mockRestore();
+    const restarted = new WhatsappSelfServiceService(db, {} as any, {} as any);
+    expect(restarted.replyLanguage('one', 'ja')).toBe('de');
+  });
+  it('language commands never consume the pending CUSTOM note', async () => {
+    db.planEmployee.findMany.mockResolvedValue([{ planId: 'plan-1', employeeId: 'worker-1', confirmationStatus: 'CUSTOM_RESPONSE', responseNote: 'Wartet auf individuelle Textnachricht' }]);
+    await service.processIncomingWebhookMessage(message('بالعربي'), now);
+    expect(db.planEmployee.updateMany).not.toHaveBeenCalled();
+    await service.processIncomingWebhookMessage({ ...message('أتأخر قليلاً'), id: 'actual-note' }, now);
+    expect(db.planEmployee.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ responseNote: 'أتأخر قليلاً' }) }));
+    expect(send.mock.calls[1][1]).toContain('تم حفظ رسالتك');
+  });
+  it('explicit preference overrides question language for read-only replies', async () => {
+    self.replyLanguage('worker-1', 'بالعربي');
+    const timesheets: any = { getWorkerTimesheetHoursForPeriod: jest.fn().mockResolvedValue({ hasRecords: false, totalHours: null }) };
+    const conversation = new WhatsappSelfServiceService(db, timesheets, {} as any);
+    conversation.replyLanguage('worker-1', 'بالعربي');
+    const result = await conversation.handleIncomingConversation('+491701234567', 'Meine Stunden im Oktober 2026', now);
+    expect(result.language).toBe('ar');
+    expect(result.replyText).toContain('أكتوبر');
+  });
+
+  it.each([
     ['Wie viele Stunden habe ich im Oktober 2026 gearbeitet?', 'HOURS'],
     ['Meine Schichtpläne im Oktober 2026', 'PLANS'],
     ['Ekim 2026 kaç saat çalıştım?', 'HOURS'], ['Vardiyalarım Ekim 2026', 'PLANS'],
@@ -42,5 +85,48 @@ describe('Worker help fallback', () => {
     ['Мої години за жовтень 2026', 'HOURS'], ['Мої зміни жовтень 2026', 'PLANS'],
   ])('help example parses correctly: %s', (body, intent) => {
     expect(self.parseWorkerMessage(body, now, 'Test Worker')).toMatchObject({ intent, year: 2026, month: 10, isDateAmbiguous: undefined });
+  });
+});
+
+describe('AI fallback routing (mocked synthetic worker)', () => {
+  const now = new Date('2026-11-05T16:00:00Z');
+  let db: any, self: WhatsappSelfServiceService, ai: any, service: MessagingService, send: jest.SpyInstance;
+  beforeEach(() => {
+    db = {
+      user: { findMany: jest.fn().mockResolvedValue([{ id:'worker-1',name:'Synthetic Worker',phone:'+491701234567',role:'EMPLOYEE' }]) },
+      planEmployee: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn().mockResolvedValue({count:1}) },
+      actionLog: { create:jest.fn().mockResolvedValue({}) },
+    };
+    db.$transaction=jest.fn(cb=>cb(db));
+    self = new WhatsappSelfServiceService(db, {} as any, {} as any);
+    ai = { classify:jest.fn().mockResolvedValue(null) };
+    service = new MessagingService(db,self,ai);
+    send=jest.spyOn(service,'sendWhatsAppDirect').mockResolvedValue({success:true});
+  });
+  const message = (body:string) => ({ id:'ai-routing',from:'491701234567',timestamp:String(now.getTime()/1000),type:'text',text:{body} });
+  it('routes validated month through verified read-only service and uses selected language', async () => {
+    self.replyLanguage('worker-1','بالعربي');
+    ai.classify.mockResolvedValue({intent:'HOURS',language:'de',period:'MONTH',year:2026,month:10,date:null,needsClarification:false});
+    const handle=jest.spyOn(self,'handleIncomingConversation').mockResolvedValue({replyText:'synthetic hours',handled:true,status:'OK',language:'ar'});
+    await service.processIncomingWebhookMessage(message('odd synthetic question'),now);
+    expect(handle).toHaveBeenCalledWith('491701234567','Meine Stunden 10.2026',now,'ar');
+    expect(db.planEmployee.updateMany).not.toHaveBeenCalled();
+  });
+  it('never sends a pending note to the AI', async () => {
+    db.planEmployee.findMany.mockResolvedValue([{ planId:'plan-1',employeeId:'worker-1',confirmationStatus:'CUSTOM_RESPONSE',responseNote:'Wartet auf individuelle Textnachricht' }]);
+    await service.processIncomingWebhookMessage(message('synthetic note'),now);
+    expect(ai.classify).not.toHaveBeenCalled();
+  });
+  it('keeps explicit language commands and plain no out of AI', async () => {
+    await service.processIncomingWebhookMessage(message('بالعربي'),now);
+    await service.processIncomingWebhookMessage({...message('لا'),id:'refusal'},now);
+    expect(ai.classify).not.toHaveBeenCalled(); expect(db.planEmployee.updateMany).not.toHaveBeenCalled();
+  });
+  it('returns one local help on unavailable or ambiguous AI, including duplicate webhook', async () => {
+    ai.classify.mockResolvedValue({intent:'HOURS',language:'de',period:'NONE',year:null,month:null,date:null,needsClarification:true});
+    await service.processIncomingWebhookMessage(message('odd synthetic question'),now);
+    await service.processIncomingWebhookMessage(message('odd synthetic question'),now);
+    expect(send).toHaveBeenCalledTimes(1); expect(ai.classify).toHaveBeenCalledTimes(1);
+    expect(db.planEmployee.updateMany).not.toHaveBeenCalled();
   });
 });

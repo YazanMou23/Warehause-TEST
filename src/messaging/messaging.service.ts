@@ -1,7 +1,9 @@
 import { Injectable, Logger, OnModuleInit, Optional, UnauthorizedException } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { WorkerAiService } from './worker-ai.service';
+import { workerReply } from './worker-replies';
 import { PrismaService } from '../prisma/prisma.service';
-import { WhatsappSelfServiceService } from './whatsapp-self-service.service';
+import { SupportedLanguage, WhatsappSelfServiceService } from './whatsapp-self-service.service';
 
 @Injectable()
 export class MessagingService implements OnModuleInit {
@@ -14,6 +16,7 @@ export class MessagingService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly selfService?: WhatsappSelfServiceService,
+    @Optional() private readonly workerAi?: WorkerAiService,
   ) {}
 
   async onModuleInit() {
@@ -622,37 +625,51 @@ export class MessagingService implements OnModuleInit {
     return ['nein', 'لا', 'ні', 'hayır', 'hayir'].includes(text.trim().toLowerCase());
   }
 
-  private refusalClarification(text: string): string {
-    const language = this.selfService?.detectLanguage(text) ?? 'de';
+  private refusalClarification(text: string, chosenLanguage?: SupportedLanguage): string {
+    const language = chosenLanguage ?? this.selfService?.detectLanguage(text) ?? 'de';
     if (language === 'ar') return 'هل تقصد أنك مريض أم أنك لا تستطيع الحضور لسبب آخر؟ اختر زر المرض فقط إذا كنت مريضاً، أو اختر رسالة واكتب السبب. لم يتم تسجيل مرض.';
-    if (language === 'uk') return 'Ви захворіли чи не можете прийти з іншої причини? Оберіть кнопку хвороби лише у разі хвороби або кнопку повідомлення, щоб пояснити причину. Лікарняний не записано.';
-    if (language === 'tr' || /^hay[ıi]r$/i.test(text.trim())) return 'Hasta mısınız, yoksa başka bir nedenle mi gelemiyorsunuz? Yalnızca hastaysanız hastalık düğmesini, diğer nedenler için mesaj düğmesini kullanın. Hastalık kaydı oluşturulmadı.';
-    return 'Sind Sie krank oder können Sie aus einem anderen Grund nicht kommen? Nutzen Sie die Krank-Schaltfläche nur bei Krankheit oder die Nachrichten-Schaltfläche für einen anderen Grund. Es wurde keine Krankmeldung gespeichert.';
+    if (language === 'uk') return 'Ти захворів чи не можеш прийти з іншої причини? Обери кнопку хвороби лише у разі хвороби або кнопку повідомлення, щоб пояснити причину. Лікарняний не записано.';
+    if (language === 'tr' || /^hay[ıi]r$/i.test(text.trim())) return 'Hasta mısın, yoksa başka bir nedenle mi gelemiyorsun? Yalnızca hastaysan hastalık düğmesini, diğer nedenler için mesaj düğmesini kullan. Hastalık kaydı oluşturulmadı.';
+    return 'Bist du krank oder kannst du aus einem anderen Grund nicht kommen? Nutze die Krank-Schaltfläche nur bei Krankheit oder die Nachrichten-Schaltfläche für einen anderen Grund. Es wurde keine Krankmeldung gespeichert.';
   }
 
-  private async sendLockedChoiceReply(phone: string): Promise<void> {
-    await this.sendWhatsAppDirect(phone, 'Ihre Auswahl ist bereits gespeichert und kann hier nicht geändert werden. Bitte wenden Sie sich an die Schichtleitung.').catch(() => {});
+  private async sendLockedChoiceReply(phone: string, language: SupportedLanguage = 'de'): Promise<void> {
+    const replies = {
+      de: 'Deine Auswahl ist bereits gespeichert und kann hier nicht geändert werden. Bitte wende dich an die Schichtleitung.',
+      ar: 'اختيارك محفوظ ولا يمكن تغييره هنا. تواصل مع مسؤول الشفت.',
+      tr: 'Seçimin kaydedildi ve burada değiştirilemez. Vardiya sorumlusu ile iletişime geç.',
+      uk: 'Твій вибір уже збережено і тут його змінити не можна. Звернися до керівника зміни.',
+    };
+    await this.sendWhatsAppDirect(phone, replies[language]).catch(() => {});
   }
 
   private async choiceLockedAcknowledgment(
     planId: string,
     choice: 'CONFIRM' | 'SICK' | 'CUSTOM',
+    language: SupportedLanguage = 'de',
   ): Promise<string> {
     // Read descriptive context only after the choice commits. A context lookup
     // failure must not undo the saved choice or claim delivery succeeded.
     let dateLabel = '';
+    let siteLabel = '';
     try {
-      const plan = await this.prisma.plan.findUnique({ where: { id: planId }, select: { date: true } });
+      const plan = await this.prisma.plan.findUnique({ where: { id: planId }, include: { locations: { include: { warehouse: { select: { name: true } }, hall: { select: { name: true } } } } } });
+      siteLabel = (plan?.locations || []).map((loc: any) => [loc.warehouse?.name, loc.hall?.name].filter(Boolean).join(' / ')).filter(Boolean).join(', ');
       const date = plan?.date ? new Date(plan.date) : null;
       if (date && !isNaN(date.getTime())) {
         dateLabel = ` am ${String(date.getUTCDate()).padStart(2, '0')}.${String(date.getUTCMonth() + 1).padStart(2, '0')}.${date.getUTCFullYear()}`;
       }
     } catch {
-      this.logger.warn('[WhatsApp Webhook] Saved choice context unavailable; acknowledging with plan ID');
+      this.logger.warn('[WhatsApp Webhook] Saved choice context unavailable; acknowledging without unavailable shift context');
     }
-    const label = choice === 'CONFIRM' ? 'Ich bin da' : choice === 'SICK' ? 'Ich bin krank' : 'Nachricht';
-    return `✅ Ihre Auswahl für die Schicht${dateLabel} (Plan ${planId}) wurde gespeichert: ${label}. Die bisherigen Optionen sind nicht mehr gültig. Für Änderungen wenden Sie sich bitte an die Schichtleitung.` +
-      (choice === 'CUSTOM' ? ' Bitte schreiben Sie jetzt Ihre Nachricht hier im Chat. Sie können einen Nachrichtentext senden.' : '');
+    const context = [siteLabel, dateLabel.trim().replace(/^am /, '')].filter(Boolean).join(' | ');
+    const shift = context ? ` (${context})` : '';
+    const labels = { de: ['Ich bin da', 'Ich bin krank', 'Nachricht'], ar: ['تأكيد الحضور', 'مرض', 'رسالة'], tr: ['Geliyorum', 'Hastayım', 'Mesaj'], uk: ['Прийду', 'Хворію', 'Повідомлення'] };
+    const label = labels[language][choice === 'CONFIRM' ? 0 : choice === 'SICK' ? 1 : 2];
+    if (language === 'ar') return `✅ تم تثبيت اختيارك للشفت${shift}: ${label}. الخيارات السابقة لم تعد صالحة. للتعديل تواصل مع مسؤول الشفت.` + (choice === 'CUSTOM' ? ' اكتب رسالتك الآن هنا في المحادثة. يمكنك إرسال نص واحد.' : '');
+    if (language === 'tr') return `✅ Vardiya${shift} seçimin kaydedildi: ${label}. Önceki seçenekler artık geçerli değil. Değişiklik için vardiya sorumlusu ile iletişime geç.` + (choice === 'CUSTOM' ? ' Mesajını şimdi buraya yaz. Bir mesaj gönderebilirsin.' : '');
+    if (language === 'uk') return `✅ Твій вибір для зміни${shift} збережено: ${label}. Попередні варіанти більше не діють. Для змін звернися до керівника зміни.` + (choice === 'CUSTOM' ? ' Напиши повідомлення тут зараз. Можна надіслати один текст.' : '');
+    return `✅ Deine Auswahl für die Schicht${shift} wurde gespeichert: ${label}. Die bisherigen Optionen sind nicht mehr gültig. Für Änderungen wende dich bitte an die Schichtleitung.` + (choice === 'CUSTOM' ? ' Bitte schreibe jetzt deine Nachricht hier im Chat. Du kannst einen Nachrichtentext senden.' : '');
   }
 
   private async executeGuardedAssignmentUpdate(params: {
@@ -800,6 +817,9 @@ export class MessagingService implements OnModuleInit {
         return;
       }
 
+      const languageText = msg.text?.body || msg.interactive?.button_reply?.title || msg.button?.text || '';
+      const replyLanguage = this.selfService?.replyLanguage(resolvedSender.id, languageText) ?? 'de';
+
       const isInteractive = msg.type === 'interactive' && Boolean(msg.interactive?.button_reply);
       const isTemplateButton = msg.type === 'button' && Boolean(msg.button?.text || msg.button?.payload);
 
@@ -824,7 +844,7 @@ export class MessagingService implements OnModuleInit {
         );
 
         if (this.isPlainRefusal(buttonId) || this.isPlainRefusal(buttonTitle)) {
-          await this.sendWhatsAppDirect(cleanFrom, this.refusalClarification(buttonTitle)).catch(() => {});
+          await this.sendWhatsAppDirect(cleanFrom, this.refusalClarification(buttonTitle, replyLanguage)).catch(() => {});
           return;
         }
 
@@ -931,7 +951,7 @@ export class MessagingService implements OnModuleInit {
             this.logger.warn(`[WhatsApp Webhook] No pending assignment found for worker ${resolvedSender.id}`);
             await this.sendWhatsAppDirect(
               cleanFrom,
-              'Für Ihre Rufnummer liegt derzeit keine offene Schicht zur Bestätigung vor.',
+              workerReply('NO_PENDING', replyLanguage),
             ).catch(() => {});
             return;
           }
@@ -940,7 +960,7 @@ export class MessagingService implements OnModuleInit {
             this.logger.warn(`[WhatsApp Webhook] Ambiguous plan: worker ${resolvedSender.id} has ${pendingAssignments.length} pending plans`);
             await this.sendWhatsAppDirect(
               cleanFrom,
-              'Wir haben mehrere offene Schichten für Sie gefunden. Bitte antworten Sie direkt über die Schaltflächen in der jeweiligen Schichtplan-Nachricht.',
+              workerReply('MULTIPLE_PENDING', replyLanguage),
             ).catch(() => {});
             return;
           }
@@ -980,11 +1000,11 @@ export class MessagingService implements OnModuleInit {
 
         if (result.accepted) {
           committed = true;
-          await this.sendWhatsAppDirect(cleanFrom, await this.choiceLockedAcknowledgment(targetPlanId, actionPrefix)).catch((err) => {
+          await this.sendWhatsAppDirect(cleanFrom, await this.choiceLockedAcknowledgment(targetPlanId, actionPrefix, replyLanguage)).catch((err) => {
             this.logger.error(`[WhatsApp Webhook] Outbound acknowledgment delivery failed to +${cleanFrom}: ${err.message}`);
           });
         } else {
-          if (result.lockedChoice) await this.sendLockedChoiceReply(cleanFrom);
+          if (result.lockedChoice) await this.sendLockedChoiceReply(cleanFrom, replyLanguage);
           this.logger.warn(
             `[WhatsApp Webhook] Dropped stale/superseded button reply for plan ${targetPlanId}, employee ${targetEmpId} (event: ${eventDate.toISOString()})`,
           );
@@ -995,13 +1015,19 @@ export class MessagingService implements OnModuleInit {
       // ─── 4. Text Messages ──────────────────────────────────────────────────
       if (msg.type === 'text' && msg.text?.body) {
         const incomingText = msg.text.body.trim();
-        this.logger.log(`[WhatsApp Webhook] Received text from +${rawFrom}: "${incomingText}"`);
+        this.logger.log('[WhatsApp Webhook] Text received');
 
-        if (this.isPlainRefusal(incomingText)) {
-          await this.sendWhatsAppDirect(cleanFrom, this.refusalClarification(incomingText)).catch(() => {});
+        if (this.selfService?.explicitLanguageRequest(incomingText)) {
+          await this.sendWhatsAppDirect(cleanFrom, this.selfService.formatHelpReply(replyLanguage, resolvedSender.name)).catch(() => {});
           return;
         }
 
+        if (this.isPlainRefusal(incomingText)) {
+          await this.sendWhatsAppDirect(cleanFrom, this.refusalClarification(incomingText, replyLanguage)).catch(() => {});
+          return;
+        }
+
+        let knownWorkerNames: string[] = [resolvedSender.name];
         // 4a. Check read-only self-service questions & cross-worker/mutation protections BEFORE follow-up note capture!
         if (this.selfService) {
           let otherNames: string[] = [];
@@ -1011,6 +1037,7 @@ export class MessagingService implements OnModuleInit {
               select: { name: true },
             });
             otherNames = (otherUsers || []).map((u: any) => u.name).filter(Boolean);
+            knownWorkerNames = [...knownWorkerNames, ...otherNames];
           } catch (_) {}
 
           const parsed = this.selfService.parseWorkerMessage(
@@ -1030,6 +1057,7 @@ export class MessagingService implements OnModuleInit {
               rawFrom,
               incomingText,
               referenceDate,
+              replyLanguage,
             );
             if (convResult.replyText) {
               await this.sendWhatsAppDirect(cleanFrom, convResult.replyText).catch(() => {});
@@ -1056,7 +1084,7 @@ export class MessagingService implements OnModuleInit {
         });
 
         if (awaitingAssignments.length > 1) {
-          await this.sendWhatsAppDirect(cleanFrom, 'Mehrere Schichten warten auf Ihre Nachricht. Bitte wenden Sie sich an die Schichtleitung, damit Ihre Nachricht richtig zugeordnet wird.').catch(() => {});
+          await this.sendWhatsAppDirect(cleanFrom, workerReply('MULTIPLE_NOTES', replyLanguage)).catch(() => {});
           return;
         }
 
@@ -1079,7 +1107,7 @@ export class MessagingService implements OnModuleInit {
             committed = true;
             await this.sendWhatsAppDirect(
               cleanFrom,
-              '✅ Vielen Dank für Ihre Rückmeldung! Ihre Nachricht wurde gespeichert und an die Schichtleitung weitergeleitet.',
+              workerReply('NOTE_SAVED', replyLanguage),
             ).catch(() => {});
           } else {
             this.logger.warn(
@@ -1154,7 +1182,7 @@ export class MessagingService implements OnModuleInit {
           if (pendingAssignments.length === 0) {
             await this.sendWhatsAppDirect(
               cleanFrom,
-              'Für Ihre Rufnummer liegt derzeit keine offene Schicht zur Bestätigung vor.',
+              workerReply('NO_PENDING', replyLanguage),
             ).catch(() => {});
             return;
           }
@@ -1162,7 +1190,7 @@ export class MessagingService implements OnModuleInit {
           if (pendingAssignments.length > 1) {
             await this.sendWhatsAppDirect(
               cleanFrom,
-              'Wir haben mehrere offene Schichten für Sie gefunden. Bitte antworten Sie direkt über die Schaltflächen in der jeweiligen Schichtplan-Nachricht.',
+              workerReply('MULTIPLE_PENDING', replyLanguage),
             ).catch(() => {});
             return;
           }
@@ -1199,11 +1227,11 @@ export class MessagingService implements OnModuleInit {
 
           if (result.accepted) {
             committed = true;
-            await this.sendWhatsAppDirect(cleanFrom, await this.choiceLockedAcknowledgment(targetAssignment.planId, explicitAction)).catch((err) => {
+            await this.sendWhatsAppDirect(cleanFrom, await this.choiceLockedAcknowledgment(targetAssignment.planId, explicitAction, replyLanguage)).catch((err) => {
               this.logger.error(`[WhatsApp Webhook] Outbound acknowledgment delivery failed to +${cleanFrom}: ${err.message}`);
             });
           } else {
-            if (result.lockedChoice) await this.sendLockedChoiceReply(cleanFrom);
+            if (result.lockedChoice) await this.sendLockedChoiceReply(cleanFrom, replyLanguage);
             this.logger.warn(
               `[WhatsApp Webhook] Dropped stale/superseded text reply for plan ${targetAssignment.planId}, employee ${resolvedSender.id} (event: ${eventDate.toISOString()})`,
             );
@@ -1211,10 +1239,36 @@ export class MessagingService implements OnModuleInit {
           return;
         }
 
+        // AI is last: never consume shift options or a pending CUSTOM note.
+        // The adapter is disabled by default and fails closed without a durable ledger.
+        if (this.workerAi && this.selfService) {
+          const ai = await this.workerAi.classify(resolvedSender.id, incomingText, replyLanguage, knownWorkerNames, referenceDate ?? new Date());
+          if (ai && !ai.needsClarification && ai.intent !== 'UNKNOWN') {
+            if (ai.intent === 'LANGUAGE') {
+              const requests = { de: 'Deutsch', ar: 'بالعربي', tr: 'Türkçe', uk: 'українською' };
+              const chosen = this.selfService.replyLanguage(resolvedSender.id, requests[ai.language]);
+              await this.sendWhatsAppDirect(cleanFrom, this.selfService.formatHelpReply(chosen, resolvedSender.name)).catch(() => {});
+              return;
+            }
+            let period = ai.period === 'MONTH' ? `${ai.month}.${ai.year}` : ai.period === 'EXACT_DATE' ? ai.date!.split('-').reverse().join('.') : '';
+            if (ai.period === 'CURRENT_MONTH') {
+              const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin', year:'numeric', month:'2-digit', day:'2-digit' }).format(referenceDate ?? new Date());
+              period = `${Number(day.slice(5,7))}.${day.slice(0,4)}`;
+            }
+            if (period || (ai.intent === 'PLANS' && ai.period === 'UPCOMING')) {
+              // Re-enter the read-only handler; identity and backend scoping are rechecked.
+              const canonical = `${ai.intent === 'HOURS' ? 'Meine Stunden' : 'Meine Schichtpläne'} ${period || 'kommende'}`;
+              const result = await this.selfService.handleIncomingConversation(rawFrom, canonical, referenceDate, replyLanguage);
+              await this.sendWhatsAppDirect(cleanFrom, result.replyText).catch(() => {});
+              return;
+            }
+          }
+        }
+
         // 4d. Ambiguous or unrecognized text: clarify without mutating records
         await this.sendWhatsAppDirect(
           cleanFrom,
-          this.selfService?.formatHelpReply(this.selfService.detectLanguage(incomingText), resolvedSender.name) ??
+          this.selfService?.formatHelpReply(replyLanguage, resolvedSender.name) ??
           'Ich habe Ihre Anfrage nicht verstanden. Beispiele: Wie viele Stunden habe ich im Oktober 2026 gearbeitet? Meine Schichtpläne im Oktober 2026. Für eine Schichtantwort nutzen Sie die Schaltflächen in der Plan-Nachricht.',
         ).catch(() => {});
         return;
