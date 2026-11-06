@@ -1879,7 +1879,7 @@ export default function ContainerListsPage() {
 
       {/* ─── MODAL: INSPECT & EDIT SAVED LIST ──────────────────────────── */}
       {selectedSavedList && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="responsive-modal fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl w-full max-w-6xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
             {/* Modal Header */}
             <div className="p-5 border-b border-gray-200 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3">

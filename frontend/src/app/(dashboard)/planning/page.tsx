@@ -1728,7 +1728,7 @@ function PlanningPageContent() {
           <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
             Manuelle Eingabe (Container-Nummer)
           </p>
-          <div className="flex gap-2 max-w-lg">
+          <div className="flex flex-col sm:flex-row gap-2 max-w-lg min-w-0">
             <input
               type="text"
               placeholder="z.B. MSCU1284920 (Containernummer)"
@@ -1744,7 +1744,7 @@ function PlanningPageContent() {
                   setTypedContainerNumber("");
                 }
               }}
-              className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-xs text-slate-700 outline-none focus:border-blue-500 transition-colors shadow-2xs"
+              className="flex-1 min-w-0 w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-xs text-slate-700 outline-none focus:border-blue-500 transition-colors shadow-2xs"
             />
             <button
               type="button"
@@ -2225,12 +2225,12 @@ function PlanningPageContent() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 min-w-0 w-full sm:w-auto">
             <span className="text-xs font-bold text-slate-500 shrink-0">Filter Lager:</span>
             <select
               value={filterWarehouseId}
               onChange={(e) => setFilterWarehouseId(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-2xs"
+              className="min-w-0 w-full sm:w-auto sm:max-w-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-2xs"
             >
               <option value="ALL">Alle Lager zeigen</option>
               {warehouses.map((w) => (
@@ -2563,7 +2563,7 @@ function PlanningPageContent() {
 
       {/* ── Modal for Setting Employee Absence / Status ── */}
       {absenceModalOpen && selectedEmployeeForAbsence && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+        <div className="responsive-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-5 animate-scaleUp">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
@@ -2737,7 +2737,7 @@ function PlanningPageContent() {
 
       {/* WhatsApp Delivery Report Modal with Direct 1-Click WhatsApp Links */}
       {whatsAppReportModalOpen && whatsAppReportData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+        <div className="responsive-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-scaleUp">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>

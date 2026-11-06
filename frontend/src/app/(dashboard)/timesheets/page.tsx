@@ -2312,7 +2312,7 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
 
       {/* Edit Employee Name Modal */}
       {editingItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div className="responsive-modal fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-md w-full shadow-2xl">
             <h3 className="text-slate-900 font-bold text-lg mb-4 flex items-center gap-2">
               <Edit size={18} className="text-blue-600" />
@@ -2806,7 +2806,7 @@ function DailyAttendanceView() {
 
       {/* Manual Shift Modal */}
       {showManualModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div className="responsive-modal fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
             <h3 className="text-slate-900 font-bold text-base flex items-center gap-2">
               <Plus size={16} className="text-blue-600" />

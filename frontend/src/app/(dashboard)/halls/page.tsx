@@ -591,7 +591,7 @@ function HallsPageContent() {
 
       {/* Modal - Create Hall */}
       {createModalOpen && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 animate-fadeIn">
+        <div className="responsive-modal fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white border border-outline-variant rounded-xl max-w-md w-full p-stack-md shadow-2xl relative animate-scaleIn">
             <button
               onClick={() => setCreateModalOpen(false)}
@@ -690,7 +690,7 @@ function HallsPageContent() {
 
       {/* Modal - Edit Hall */}
       {editModalOpen && editingHall && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 animate-fadeIn">
+        <div className="responsive-modal fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white border border-outline-variant rounded-xl max-w-md w-full p-stack-md shadow-2xl relative animate-scaleIn">
             <button
               onClick={() => {
@@ -795,7 +795,7 @@ function HallsPageContent() {
 
       {/* Modal - Confirm Delete Hall */}
       {confirmDeleteId && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 animate-fadeIn">
+        <div className="responsive-modal fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white border border-outline-variant rounded-xl max-w-sm w-full p-stack-md shadow-2xl relative">
             <h3 className="font-bold text-body-lg text-on-surface mb-2 flex items-center gap-2">
               <AlertTriangle className="w-6 h-6 text-red-600 shrink-0" />
@@ -827,7 +827,7 @@ function HallsPageContent() {
 
       {/* Quick Color Customizer Modal */}
       {quickColorModalOpen && quickColorHall && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 animate-fadeIn">
+        <div className="responsive-modal fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white border border-outline-variant rounded-xl max-w-md w-full p-stack-md shadow-2xl relative animate-scaleIn">
             <button
               onClick={() => {

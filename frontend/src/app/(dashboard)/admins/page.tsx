@@ -528,7 +528,7 @@ export default function AdminsPage() {
 
       {/* Add Admin Modal */}
       {addModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+        <div className="responsive-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
           <div className="bg-[#1e293b] border border-[#334155] rounded-xl max-w-lg w-full shadow-2xl overflow-hidden animate-scaleIn">
             <div className="px-6 py-4 bg-[#0f1117] border-b border-[#334155] flex justify-between items-center">
               <h4 className="font-bold text-body-lg text-white">{t("addAdmin")}</h4>
@@ -698,7 +698,7 @@ export default function AdminsPage() {
 
       {/* Edit Admin Modal */}
       {editModalOpen && selectedAdmin && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+        <div className="responsive-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
           <div className="bg-[#1e293b] border border-[#334155] rounded-xl max-w-lg w-full shadow-2xl overflow-hidden animate-scaleIn">
             <div className="px-6 py-4 bg-[#0f1117] border-b border-[#334155] flex justify-between items-center">
               <h4 className="font-bold text-body-lg text-white">{t("editAdmin")}</h4>

@@ -553,7 +553,7 @@ export default function WarehousesPage() {
 
       {/* Modal - Create Warehouse */}
       {createModalOpen && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 animate-fadeIn">
+        <div className="responsive-modal fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white border border-outline-variant rounded-xl max-w-md w-full p-stack-md shadow-2xl relative">
             <button
               onClick={() => setCreateModalOpen(false)}
@@ -646,7 +646,7 @@ export default function WarehousesPage() {
 
       {/* Modal - Confirm Deactivate */}
       {confirmDeleteId && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 animate-fadeIn">
+        <div className="responsive-modal fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white border border-outline-variant rounded-xl max-w-sm w-full p-stack-md shadow-2xl relative">
             <h3 className="font-bold text-body-lg text-on-surface mb-2 flex items-center gap-2">
               <AlertTriangle className="w-6 h-6 text-red-600 shrink-0" />
