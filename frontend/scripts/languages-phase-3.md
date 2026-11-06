@@ -6,7 +6,7 @@ Arabic sets `<html lang="ar" dir="rtl">`, mirrors the navigation drawer and desk
 
 Covered: shared navigation/catalog and dialogs, language selectors, login/reset, profile, worker dashboard/hours/QR scanner, Documents capture/queue copy, admin planning/shift responses, employees/admins, and work-hours visibility controls. User-provided names, notes, filenames and server-provided errors are not rewritten or translated. English OCR document-language selection remains available as an input-processing option, not an English interface.
 
-Not yet translated end-to-end: attendance, timesheets, warehouses/halls/containers/container lists, chat and reports. They use translated shared labels but retain page-specific hardcoded copy. Legal policy pages and exported CSV headers are not translated by this change. Do not describe this foundation as complete app translation.
+Not yet translated end-to-end: timesheets, warehouses/halls/containers/container lists, chat and reports. They use translated shared labels but retain page-specific hardcoded copy. Legal policy pages and exported CSV headers are not translated by this change. Do not describe this foundation as complete app translation.
 
 ## Verify
 
@@ -42,3 +42,7 @@ Run `scripts/staff-languages-phase-3.cjs` with the same environment settings. It
 ## Cooler shared background
 
 Shared canvas is now #F1F5F9, white cards and #F8FAFC pale surfaces. Login and the dashboard shell use the shared background token instead of their earlier hardcoded backgrounds. Navy/gold accents remain unchanged. Dashboard calendar labels and initials were darkened after the populated contrast check. Checked dashboard/planning/worker/Documents/login at 390 and 1440px with synthetic fixtures; sampled leaf text passes 4.5:1. This is not a full accessibility certification.
+
+## Attendance batch
+
+Attendance daily/weekly/monthly views, filters, month/weekday labels, edit dialog and result/error copy use four-language labels. Registered time calculations, source/status values, API payloads and download targets are unchanged. User-entered absence reasons and backend errors retain their original language. `attendance-languages-phase-3.cjs` checks 80 screenshots (five states, four languages, four widths), with synthetic records and blocked writes. It does not submit saves, deletes or exports. The time picker UI itself follows browser/OS conventions, while stored values remain HH:mm.

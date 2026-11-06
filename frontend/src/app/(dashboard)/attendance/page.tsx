@@ -1,4 +1,5 @@
 "use client";
+import { useTranslation } from "../../i18n/LanguageContext";
 
 import { registeredClock, registeredInstant, registeredEnd, sumDay } from "@/lib/registered-hours";
 import React, { useState, useEffect, useMemo, useRef } from "react";
@@ -92,6 +93,7 @@ interface AbsenceRecord {
 }
 
 export default function AttendancePage() {
+ const { t, locale } = useTranslation();
   const router = useRouter();
 
   // Framework states
@@ -207,13 +209,12 @@ export default function AttendancePage() {
   // Format Helper
   const formatDateLabel = (dateStr: string) => {
     const d = new Date(dateStr);
-    return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+    return d.toLocaleDateString(locale, { day: "2-digit", month: "2-digit" });
   };
 
   const getGermanWeekdayLabel = (dateStr: string) => {
     const d = new Date(dateStr);
-    const weekdaysDe = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
-    return weekdaysDe[d.getUTCDay()];
+    return d.toLocaleDateString(locale, {weekday: "short", timeZone: "UTC"});
   };
 
   // ─── DATA LOADING ──────────────────────────────────────────────────────────
@@ -265,7 +266,7 @@ export default function AttendancePage() {
       }
 
       const res = await fetch(`${API_URL}/attendance/report?${params}`, { headers });
-      if (!res.ok) throw new Error("Fehler beim Laden des Berichts");
+      if (!res.ok) throw new Error(t("attendance1052"));
 
       const json = await res.json();
       const rawLogs = json.logs ?? [];
@@ -274,12 +275,12 @@ export default function AttendancePage() {
       const parsedLogs = rawLogs.map((a: any) => ({
         id: a.id,
         employeeId: a.employeeId,
-        employeeName: a.employee?.name || "Unknown Staff",
+        employeeName: a.employee?.name || t("attendanceUnknownStaff"),
         employeePhone: a.employee?.phone || "",
         warehouseId: a.warehouseId,
-        warehouseName: a.warehouse?.name || "Global Hub",
+        warehouseName: a.warehouse?.name || t("attendanceNoWarehouse"),
         hallId: a.hallId,
-        hallName: a.hall?.name || "Main Staging",
+        hallName: a.hall?.name || t("attendance1061"),
         clockIn: a.clockIn,
         clockOut: a.clockOut,
         totalHours: a.totalHours,
@@ -292,7 +293,7 @@ export default function AttendancePage() {
       const parsedAbsences = rawAbsences.map((a: any) => ({
         id: a.id,
         employeeId: a.employeeId,
-        employeeName: a.employee?.name || "Unknown Staff",
+        employeeName: a.employee?.name || t("attendanceUnknownStaff"),
         employeePhone: a.employee?.phone || "",
         date: a.date ? a.date.split("T")[0] : "",
         status: a.status,
@@ -308,7 +309,7 @@ export default function AttendancePage() {
       setAbsences(parsedAbsences);
     } catch (err) {
       console.error("Failed to load report logs", err);
-      setMessage({ text: "Verbindung zum Server fehlgeschlagen.", type: "error" });
+      setMessage({ text: t("attendance1053"), type: "error" });
     } finally {
       setLoading(false);
     }
@@ -392,7 +393,7 @@ export default function AttendancePage() {
     setEditDate(dateStr);
 
     const matches=displayLogs.filter(l=>l.employeeId===empId&&l.date===dateStr);
-    if(matches.length>1){setSelectedCell(null);setMessage({text:'Mehrere Schichten: Bitte einzelne Einträge in der Tagesansicht bearbeiten.',type:'error'});return;}
+    if(matches.length>1){setSelectedCell(null);setMessage({text:t("attendance1054"),type:'error'});return;}
     const existing = matches[0];
     if (existing) {
       const pad = (num: number) => num.toString().padStart(2, "0");
@@ -481,11 +482,11 @@ export default function AttendancePage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || "Speichern fehlgeschlagen.");
 
-      setMessage({ text: "Zeiterfassung erfolgreich gespeichert!", type: "success" });
+      setMessage({ text: t("attendance1056"), type: "success" });
       setSelectedCell(null);
       fetchLogs();
     } catch (err: any) {
-      setMessage({ text: err.message || "Fehler beim Speichern.", type: "error" });
+      setMessage({ text: err.message || t("attendance1057"), type: "error" });
     } finally {
       setSubmitting(false);
     }
@@ -502,11 +503,11 @@ export default function AttendancePage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || "Löschen fehlgeschlagen.");
-      setMessage({ text: "Erfolgreich gelöscht!", type: "success" });
+      setMessage({ text: t("attendance1059"), type: "success" });
       setSelectedCell(null);
       fetchLogs();
     } catch (err: any) {
-      setMessage({ text: err.message || "Fehler beim Löschen.", type: "error" });
+      setMessage({ text: err.message || t("ui538"), type: "error" });
     } finally {
       setSubmitting(false);
     }
@@ -517,7 +518,7 @@ export default function AttendancePage() {
     try {
       const headers = getAuthHeaders();
       const res = await fetch(`${API_URL}/timesheets/export/${id}/${format}`, { headers });
-      if (!res.ok) throw new Error("Download fehlgeschlagen");
+      if (!res.ok) throw new Error(t("staff913"));
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -527,7 +528,7 @@ export default function AttendancePage() {
       URL.revokeObjectURL(url);
     } catch (e: any) {
       console.error(e);
-      setMessage({ text: "Dokumenten-Download fehlgeschlagen", type: "error" });
+      setMessage({ text: t("attendance1060"), type: "error" });
     } finally {
       setDownloadingTs(null);
     }
@@ -678,13 +679,12 @@ export default function AttendancePage() {
   }, [displayEmployees, displayLogs, displayAbsences, halls, monthlyOverallStats.totalHours]);
 
   return (
-    <div className="space-y-stack-lg animate-fadeIn text-slate-800">
+    <div className="space-y-stack-lg text-slate-800">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h3 className="font-headline-lg font-bold text-slate-900">Zeiterfassung Register</h3>
-          <p className="text-slate-500 font-body-sm">
-            Zeigt alle Arbeitszeiten (gescannte Stundenzettel und manuelle Buchungen) in einer einheitlichen Tabelle.
-          </p>
+          <h3 className="font-headline-lg font-bold text-slate-900"> {t("attendance1062")} </h3>
+          <p className="text-slate-600 font-body-sm">
+             {t("attendance1063")} </p>
         </div>
         <div className="flex items-center gap-3 print:hidden">
           <WorkHoursVisibilityToggle />
@@ -692,8 +692,7 @@ export default function AttendancePage() {
             onClick={() => window.print()}
             className="bg-secondary hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 cursor-pointer text-xs print:hidden"
           >
-            <Printer className="w-4 h-4" /> Drucken
-          </button>
+            <Printer className="w-4 h-4" />  {t("attendance1064")} </button>
         </div>
       </div>
 
@@ -711,10 +710,10 @@ export default function AttendancePage() {
               className={`flex-1 min-w-0 sm:flex-initial text-center py-2 px-2 sm:px-6 rounded-xl font-bold text-xs uppercase tracking-normal sm:tracking-wider transition-all cursor-pointer ${
                 timeframe === mode
                   ? "bg-secondary text-white shadow-md scale-[1.02]"
-                  : "text-slate-500 hover:text-slate-800"
+                  : "text-slate-600 hover:text-slate-800"
               }`}
             >
-              {mode === "daily" ? "Täglich" : mode === "weekly" ? "Wöchentlich" : "Monatlich"}
+              {mode === "daily" ? t("attendance1065") : mode === "weekly" ? t("ui302") : t("ui303")}
             </button>
           ))}
         </div>
@@ -723,16 +722,14 @@ export default function AttendancePage() {
       <div className="bg-white border border-outline-variant p-5 rounded-2xl shadow-sm space-y-4 print:hidden">
         <div className="flex items-center justify-between">
           <h5 className="font-semibold text-slate-800 flex items-center gap-2 text-sm">
-            <Filter className="w-4 h-4 text-secondary" /> Filteroptionen
-          </h5>
+            <Filter className="w-4 h-4 text-secondary" />  {t("attendance1066")} </h5>
           {hasActiveFilters && (
             <button
               type="button"
               onClick={resetAllFilters}
               className="text-xs font-semibold text-secondary hover:text-blue-700 flex items-center gap-1.5 px-2.5 py-1 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
             >
-              <RotateCcw className="w-3.5 h-3.5" /> Filter zurücksetzen
-            </button>
+              <RotateCcw className="w-3.5 h-3.5" />  {t("attendance1067")} </button>
           )}
         </div>
 
@@ -745,7 +742,7 @@ export default function AttendancePage() {
         >
           {timeframe === "daily" && (
             <div className="space-y-1">
-              <label className="block text-[11px] font-bold text-gray-800 uppercase tracking-wider">Datum</label>
+              <label className="block text-[11px] font-bold text-gray-800 uppercase tracking-wider"> {t("dateLabel")} </label>
               <input
                 type="date"
                 value={filterDate}
@@ -758,7 +755,7 @@ export default function AttendancePage() {
           {timeframe === "weekly" && (
             <>
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-gray-800 uppercase tracking-wider">Kalenderwoche (KW)</label>
+                <label className="block text-[11px] font-bold text-gray-800 uppercase tracking-wider"> {t("attendance1068")} </label>
                 <select
                   value={filterWeek}
                   onChange={(e) => setFilterWeek(Number(e.target.value))}
@@ -766,7 +763,7 @@ export default function AttendancePage() {
                 >
                   {Array.from({ length: 53 }).map((_, i) => (
                     <option key={i + 1} value={i + 1} className="bg-white text-slate-800">
-                      KW {i + 1}
+                       {t("attendance1069")} {i + 1}
                     </option>
                   ))}
                 </select>
@@ -777,7 +774,7 @@ export default function AttendancePage() {
           {timeframe === "monthly" && (
             <>
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-gray-800 uppercase tracking-wider">Monat</label>
+                <label className="block text-[11px] font-bold text-gray-800 uppercase tracking-wider">{t("attendanceMonth")}</label>
                 <select
                   value={filterMonth}
                   onChange={(e) => setFilterMonth(Number(e.target.value))}
@@ -785,7 +782,7 @@ export default function AttendancePage() {
                 >
                   {Array.from({ length: 12 }).map((_, i) => (
                     <option key={i + 1} value={i + 1} className="bg-white text-slate-800">
-                      {new Date(2000, i, 1).toLocaleDateString("de-DE", { month: "long" })}
+                      {new Date(2000, i, 1).toLocaleDateString(locale, { month: "long" })}
                     </option>
                   ))}
                 </select>
@@ -794,7 +791,7 @@ export default function AttendancePage() {
           )}
 
           <div className="space-y-1 relative" ref={hallDropdownRef}>
-            <label className="block text-[11px] font-bold text-gray-800 uppercase tracking-wider">Halle</label>
+            <label className="block text-[11px] font-bold text-gray-800 uppercase tracking-wider"> {t("planning716")} </label>
             <button
               type="button"
               onClick={() => setIsHallDropdownOpen((prev) => !prev)}
@@ -802,12 +799,12 @@ export default function AttendancePage() {
             >
               <span className="truncate">
                 {selectedHallIds.length === 0
-                  ? "Alle Hallen"
+                  ? t("attendance1070")
                   : selectedHallIds.length === 1
-                  ? halls.find((h) => h.id === selectedHallIds[0])?.name || "1 Halle ausgewählt"
-                  : `${selectedHallIds.length} Hallen ausgewählt`}
+                  ? halls.find((h) => h.id === selectedHallIds[0])?.name || t("attendance1071")
+                  : t("attendanceHallCount").replace("{count}", String(selectedHallIds.length))}
               </span>
-              <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${isHallDropdownOpen ? "rotate-180" : ""}`} />
+              <ChevronDown className={`w-4 h-4 text-slate-600 shrink-0 transition-transform ${isHallDropdownOpen ? "rotate-180" : ""}`} />
             </button>
 
             {isHallDropdownOpen && (
@@ -820,9 +817,8 @@ export default function AttendancePage() {
                   }`}
                 >
                   <span className="flex items-center gap-2">
-                    {selectedHallIds.length === 0 ? <CheckSquare className="w-4 h-4 text-blue-600" /> : <Square className="w-4 h-4 text-slate-400" />}
-                    Alle Hallen
-                  </span>
+                    {selectedHallIds.length === 0 ? <CheckSquare className="w-4 h-4 text-blue-600" /> : <Square className="w-4 h-4 text-slate-600" />}
+                     {t("attendance1070")} </span>
                 </button>
                 <div className="border-t border-slate-100 my-1" />
                 {halls.map((hall) => {
@@ -838,16 +834,15 @@ export default function AttendancePage() {
                       }`}
                     >
                       <div className="flex items-center gap-2 min-w-0">
-                        {isChecked ? <CheckSquare className="w-4 h-4 text-blue-600 shrink-0" /> : <Square className="w-4 h-4 text-slate-400 shrink-0" />}
+                        {isChecked ? <CheckSquare className="w-4 h-4 text-blue-600 shrink-0" /> : <Square className="w-4 h-4 text-slate-600 shrink-0" />}
                         <span
                           className="w-2.5 h-2.5 rounded-full shrink-0"
                           style={{ backgroundColor: hall.color || "#1d4ed8" }}
                         />
                         <span className="truncate">{hall.name}</span>
                       </div>
-                      <span className="text-[10px] text-slate-400 font-mono shrink-0 ml-2">
-                        {hallEmpCount} MA
-                      </span>
+                      <span className="text-[10px] text-slate-600 font-mono shrink-0 ml-2">
+                        {hallEmpCount}  {t("attendance1072")} </span>
                     </button>
                   );
                 })}
@@ -856,11 +851,11 @@ export default function AttendancePage() {
           </div>
 
           <div className="space-y-1 relative" ref={searchContainerRef}>
-            <label className="block text-[11px] font-bold text-gray-800 uppercase tracking-wider">Mitarbeiter</label>
+            <label className="block text-[11px] font-bold text-gray-800 uppercase tracking-wider"> {t("roleEmployee")} </label>
             <div className="relative">
               <input
                 type="text"
-                placeholder="Mitarbeiter suchen..."
+                placeholder={t("attendance1073")}
                 value={searchEmployee}
                 onFocus={() => setIsSearchOpen(true)}
                 onChange={(e) => {
@@ -868,9 +863,9 @@ export default function AttendancePage() {
                   if (filterEmployeeId !== "ALL") setFilterEmployeeId("ALL");
                   setIsSearchOpen(true);
                 }}
-                className="w-full bg-white border border-outline-variant rounded-xl pl-9 pr-7 py-2 text-sm text-slate-800 focus:outline-none focus:border-secondary outline-none placeholder:text-slate-400"
+                className="w-full bg-white border border-outline-variant rounded-xl ps-9 pe-7 py-2 text-sm text-slate-800 focus:outline-none focus:border-secondary outline-none placeholder:text-slate-600"
               />
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Search className="w-4 h-4 text-slate-600 absolute start-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               {(searchEmployee || filterEmployeeId !== "ALL") && (
                 <button
                   type="button"
@@ -879,7 +874,7 @@ export default function AttendancePage() {
                     setFilterEmployeeId("ALL");
                     setIsSearchOpen(false);
                   }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-600 p-0.5 cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -900,14 +895,12 @@ export default function AttendancePage() {
                   }`}
                 >
                   <span className="flex items-center gap-2">
-                    <Users className="w-3.5 h-3.5 text-slate-400" />
-                    Alle Mitarbeiter
-                  </span>
+                    <Users className="w-3.5 h-3.5 text-slate-600" />
+                     {t("attendance1074")} </span>
                 </button>
                 {searchMatchingEmployees.length === 0 ? (
-                  <div className="px-4 py-4 text-xs text-slate-500 text-center font-medium">
-                    Keine Mitarbeiter gefunden
-                  </div>
+                  <div className="px-4 py-4 text-xs text-slate-600 text-center font-medium">
+                     {t("staff999")} </div>
                 ) : (
                   searchMatchingEmployees.map((emp) => {
                     const isSelected = filterEmployeeId === emp.id;
@@ -932,7 +925,7 @@ export default function AttendancePage() {
                           <div className="truncate">
                             <span className="block truncate font-medium">{emp.name}</span>
                             {hall && (
-                              <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                              <span className="text-[10px] text-slate-600 flex items-center gap-1">
                                 <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: hall.color || "#1d4ed8" }} />
                                 {hall.name}
                               </span>
@@ -954,28 +947,27 @@ export default function AttendancePage() {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-24">
             <Loader2 className="w-10 h-10 animate-spin text-secondary mb-3" />
-            <p className="text-slate-500 text-sm">Lade Zeiterfassungsdaten aus der Datenbank...</p>
+            <p className="text-slate-600 text-sm"> {t("attendance1075")} </p>
           </div>
         ) : (
           <>
             {timeframe === "daily" && (
               <>
                 {displayLogs.length === 0 && displayAbsences.length === 0 ? (
-                  <div className="text-center py-20 text-slate-500 font-medium">
-                    Keine Zeiterfassungsdaten für die ausgewählten Filter gefunden.
-                  </div>
+                  <div className="text-center py-20 text-slate-600 font-medium">
+                     {t("attendance1076")} </div>
                 ) : (
                   <table className="w-full text-left border-collapse mobile-card-table">
                     <thead>
-                      <tr className="bg-slate-50 border-b border-outline-variant text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                        <th className="px-6 py-3.5">Mitarbeiter</th>
-                        <th className="px-4 py-3.5">Datum</th>
-                        <th className="px-4 py-3.5">Von - Bis</th>
-                        <th className="px-4 py-3.5">Pause</th>
-                        <th className="px-4 py-3.5">Gesamt</th>
-                        <th className="px-4 py-3.5">Einsatzort</th>
-                        <th className="px-4 py-3.5">Quelle</th>
-                        <th className="px-6 py-3.5 text-right print:hidden">Aktionen</th>
+                      <tr className="bg-slate-50 border-b border-outline-variant text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                        <th className="px-6 py-3.5"> {t("roleEmployee")} </th>
+                        <th className="px-4 py-3.5"> {t("dateLabel")} </th>
+                        <th className="px-4 py-3.5"> {t("attendance1077")} </th>
+                        <th className="px-4 py-3.5">{t("attendanceBreak")}</th>
+                        <th className="px-4 py-3.5"> {t("ui460")} </th>
+                        <th className="px-4 py-3.5">{t("attendanceLocation")}</th>
+                        <th className="px-4 py-3.5"> {t("ui294")} </th>
+                        <th className="px-6 py-3.5 text-right print:hidden"> {t("actionsColumn")} </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y border-t border-outline-variant text-sm text-slate-700">
@@ -989,29 +981,29 @@ export default function AttendancePage() {
                               isSelected ? "bg-blue-50/70" : ""
                             }`}
                           >
-                            <td data-label="Mitarbeiter" className="px-6 py-4 font-semibold text-slate-900">
+                            <td data-label={t("roleEmployee")} className="px-6 py-4 font-semibold text-slate-900">
                               <div className="flex items-center gap-3">
                                 <div className="w-7 h-7 rounded-full bg-blue-50 text-secondary flex items-center justify-center font-bold text-xs">
                                   {record.employeeName.split(" ").map((n) => n[0]).join("")}
                                 </div>
                                 <div>
                                   <span className="block font-bold">{record.employeeName}</span>
-                                  <span className="text-xs text-slate-400 font-mono">{record.employeePhone}</span>
+                                  <span className="text-xs text-slate-600 font-mono"><bdi dir="ltr">{record.employeePhone}</bdi></span>
                                 </div>
                               </div>
                             </td>
-                            <td data-label="Datum" className="px-4 py-4 font-mono text-xs text-slate-600">
+                            <td data-label={t("dateLabel")} className="px-4 py-4 font-mono text-xs text-slate-600">
                               {formatDateLabel(record.date)} ({getGermanWeekdayLabel(record.date)})
                             </td>
-                            <td data-label="Von - Bis" className="px-4 py-4 font-mono text-xs">
-                              {registeredClock(record.clockIn,record.source)} – {record.clockOut ? registeredClock(record.clockOut,record.source) : "Offen"}
+                            <td data-label={t("attendance1077")} className="px-4 py-4 font-mono text-xs">
+                              <bdi dir="ltr">{registeredClock(record.clockIn,record.source)} - {record.clockOut ? registeredClock(record.clockOut,record.source) : t("planning720")}</bdi>
                             </td>
-                            <td data-label="Pause" className="px-4 py-4 font-mono text-xs text-slate-500">{record.breakMinutes} Min.</td>
-                            <td data-label="Gesamt" className="px-4 py-4 font-mono font-bold text-secondary">
+                            <td data-label={t("attendanceBreak")} className="px-4 py-4 font-mono text-xs text-slate-600">{record.breakMinutes}  {t("attendance1078")} </td>
+                            <td data-column="total" data-label={t("ui460")} className="px-4 py-4 font-mono font-bold text-secondary">
                               {record.totalHours !== null ? `${record.totalHours.toFixed(2)} h` : "—"}
                             </td>
-                            <td data-label="Einsatzort" className="px-4 py-4 font-sans text-xs text-slate-500">{record.warehouseName} ({record.hallName})</td>
-                            <td data-label="Quelle" className="px-4 py-4 text-xs font-mono">
+                            <td data-label={t("attendanceLocation")} className="px-4 py-4 font-sans text-xs text-slate-600">{record.warehouseName} ({record.hallName})</td>
+                            <td data-label={t("ui294")} className="px-4 py-4 text-xs font-mono">
                               <span
                                 className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                                   record.source === "SCAN"
@@ -1019,26 +1011,26 @@ export default function AttendancePage() {
                                     : "bg-emerald-50 text-emerald-700 border-emerald-200"
                                 }`}
                               >
-                                {record.source === "SCAN" ? "SCAN" : "MANUELL"}
+                                {record.source === "SCAN" ? t("attendance1079") : t("attendance1080")}
                               </span>
                             </td>
-                            <td data-label="Aktionen" className="px-6 py-4 text-right print:hidden">
+                            <td data-column="actions" data-label={t("actionsColumn")} className="px-6 py-4 text-right print:hidden">
                               <div className="inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                                 {record.timesheetId && (
                                   <>
                                     <button
                                       onClick={() => downloadTsFile(record.timesheetId!, "pdf")}
                                       disabled={downloadingTs?.id === record.timesheetId}
-                                      className="p-1 text-slate-400 hover:text-red-600 transition-colors"
-                                      title="Original PDF laden"
+                                      className="p-1 text-slate-600 hover:text-red-600 transition-colors"
+                                      title={t("attendance1081")}
                                     >
                                       <FileText size={14} />
                                     </button>
                                     <button
                                       onClick={() => downloadTsFile(record.timesheetId!, "xlsx")}
                                       disabled={downloadingTs?.id === record.timesheetId}
-                                      className="p-1 text-slate-400 hover:text-emerald-600 transition-colors"
-                                      title="Original Excel laden"
+                                      className="p-1 text-slate-600 hover:text-emerald-600 transition-colors"
+                                      title={t("attendance1082")}
                                     >
                                       <FileSpreadsheet size={14} />
                                     </button>
@@ -1046,8 +1038,8 @@ export default function AttendancePage() {
                                 )}
                                 <button
                                   onClick={() => handleDeleteRecord(record.id)}
-                                  className="p-1 text-slate-400 hover:text-red-600 transition-colors"
-                                  title="Eintrag löschen"
+                                  className="p-1 text-slate-600 hover:text-red-600 transition-colors"
+                                  title={t("attendance1083")}
                                 >
                                   <Trash2 size={14} />
                                 </button>
@@ -1059,7 +1051,7 @@ export default function AttendancePage() {
 
                       {displayAbsences.map((abs) => (
                         <tr key={`abs-${abs.id}`} className="bg-slate-50/60 opacity-85">
-                          <td data-label="Mitarbeiter" className="px-6 py-3.5 font-semibold text-slate-700">
+                          <td data-label={t("roleEmployee")} className="px-6 py-3.5 font-semibold text-slate-700">
                             <div className="flex items-center gap-2">
                               <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-[10px]">
                                 {abs.employeeName.split(" ").map((n) => n[0]).join("")}
@@ -1067,8 +1059,8 @@ export default function AttendancePage() {
                               {abs.employeeName}
                             </div>
                           </td>
-                          <td data-label="Datum" className="px-4 py-3.5 font-mono text-xs">{formatDateLabel(abs.date)}</td>
-                          <td data-label="Status" className="px-4 py-3.5" colSpan={2}>
+                          <td data-label={t("dateLabel")} className="px-4 py-3.5 font-mono text-xs">{formatDateLabel(abs.date)}</td>
+                          <td data-label={t("statusColumn")} className="px-4 py-3.5" colSpan={2}>
                             <span
                               className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
                                 abs.status === "KRANK"
@@ -1079,16 +1071,15 @@ export default function AttendancePage() {
                               }`}
                             >
                               {abs.status === "KRANK"
-                                ? "🟡 Krank"
+                                ? t("planning758")
                                 : abs.status === "NICHT_GEARBEITET"
-                                ? "🔴 Nicht gearbeitet"
-                                : `🔵 Abwesend (${abs.reason || "Grund"})`}
+                                ? t("planning759")
+                                : t("attendanceAbsentReason").replace("{reason}", abs.reason || t("planning761"))}
                             </span>
                           </td>
-                          <td data-label="Gesamt" className="px-4 py-3.5 font-mono font-bold text-slate-400">0.00 h</td>
-                          <td data-label="Hinweis" className="px-4 py-3.5 text-xs text-slate-400 italic" colSpan={3}>
-                            Abwesend (0 Std. Arbeitszeit)
-                          </td>
+                          <td data-column="total" data-label={t("ui460")} className="px-4 py-3.5 font-mono font-bold text-slate-600">0.00 h</td>
+                          <td data-label={t("ui606")} className="px-4 py-3.5 text-xs text-slate-600 italic" colSpan={3}>
+                             {t("attendance1084")} </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1101,24 +1092,23 @@ export default function AttendancePage() {
               <div className="overflow-x-auto mobile-card-scroll">
                 <table className="w-full text-left border-collapse min-w-[800px] mobile-card-table weekly-card-table">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-outline-variant text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                      <th className="px-6 py-3.5">Mitarbeiter</th>
+                    <tr className="bg-slate-50 border-b border-outline-variant text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                      <th className="px-6 py-3.5"> {t("roleEmployee")} </th>
                       {daysOfWeekList.map((dayStr) => (
                         <th key={dayStr} className="px-4 py-3.5 text-center font-mono text-[11px] leading-tight">
                           <span className="block font-bold text-slate-800">{getGermanWeekdayLabel(dayStr)}</span>
-                          <span className="text-[10px] text-slate-500 font-normal">{formatDateLabel(dayStr)}</span>
+                          <span className="text-[10px] text-slate-600 font-normal">{formatDateLabel(dayStr)}</span>
                         </th>
                       ))}
-                      <th className="px-4 py-3.5 text-center">Gesamt</th>
-                      <th className="px-6 py-3.5 text-right print:hidden">Aktionen</th>
+                      <th className="px-4 py-3.5 text-center"> {t("ui460")} </th>
+                      <th className="px-6 py-3.5 text-right print:hidden"> {t("actionsColumn")} </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant text-sm text-slate-700">
                     {displayEmployees.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="text-center py-10 text-slate-500 font-medium">
-                          Keine Zeiterfassungsdaten für die ausgewählten Filter gefunden.
-                        </td>
+                        <td colSpan={10} className="text-center py-10 text-slate-600 font-medium">
+                           {t("attendance1076")} </td>
                       </tr>
                     ) : (
                       displayEmployees.map((emp) => {
@@ -1126,14 +1116,14 @@ export default function AttendancePage() {
                         let linkedTsId: string | null = null;
                         return (
                           <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
-                            <td data-label="Mitarbeiter" className="px-6 py-4 font-semibold text-slate-800">
+                            <td data-label={t("roleEmployee")} className="px-6 py-4 font-semibold text-slate-800">
                               <div className="flex items-center gap-2">
                                 <div className="w-6 h-6 rounded-full bg-blue-50 text-secondary flex items-center justify-center font-bold text-[10px]">
                                   {emp.name.split(" ").map((n) => n[0]).join("")}
                                 </div>
                                 <div>
                                   <span className="block">{emp.name}</span>
-                                  <span className="text-[10px] text-slate-500 font-mono leading-none">{emp.phone}</span>
+                                  <span className="text-[10px] text-slate-600 font-mono leading-none">{emp.phone}</span>
                                 </div>
                               </div>
                             </td>
@@ -1150,7 +1140,7 @@ export default function AttendancePage() {
                                   key={dayStr}
                                   tabIndex={0}
                                   role="button"
-                                  aria-label={`${emp.name}, ${formatDateLabel(dayStr)} bearbeiten`}
+                                  aria-label={t("attendanceEditCell").replace("{name}", emp.name).replace("{date}", formatDateLabel(dayStr))}
                                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleCellSelect(emp.id, dayStr); } }}
                                   onClick={() => handleCellSelect(emp.id, dayStr)}
                                   className={`px-2 py-4 text-center font-mono text-xs cursor-pointer select-none transition-all ${
@@ -1161,9 +1151,9 @@ export default function AttendancePage() {
                                 >
                                   {cellRecord ? (
                                     <div className="flex flex-col items-center">
-                                      <span className="font-semibold">{cellRecord.totalHours?.toFixed(1)} h</span>
-                                      <span className="text-[9px] text-slate-500 font-sans tracking-wide leading-none">
-                                        {cellRecord.source === "SCAN" ? "Scan" : "Man."}
+                                      <span className="font-semibold">{cellRecord.totalHours?.toFixed(1)}  {t("ui277")} </span>
+                                      <span className="text-[9px] text-slate-600 font-sans tracking-wide leading-none">
+                                        {cellRecord.source === "SCAN" ? t("attendance1085") : t("attendance1086")}
                                       </span>
                                     </div>
                                   ) : absRecord ? (
@@ -1176,18 +1166,18 @@ export default function AttendancePage() {
                                           : "bg-blue-100 text-blue-900 border border-blue-300"
                                       }`}
                                     >
-                                      {absRecord.status === "KRANK" ? "🟡 Krank" : absRecord.status === "NICHT_GEARBEITET" ? "🔴 Nicht g." : "🔵 Abwesend"}
+                                      {absRecord.status === "KRANK" ? t("planning758") : absRecord.status === "NICHT_GEARBEITET" ? t("attendance1087") : t("attendance1088")}
                                     </span>
                                   ) : (
-                                    <span className="text-slate-400 font-normal">—</span>
+                                    <span className="text-slate-600 font-normal">—</span>
                                   )}
                                 </td>
                               );
                             })}
-                            <td data-label="Gesamt" className="px-4 py-4 text-center font-mono font-bold text-secondary">
+                            <td data-column="total" data-label={t("ui460")} className="px-4 py-4 text-center font-mono font-bold text-secondary">
                               {weeklySum > 0 ? `${weeklySum.toFixed(1)} h` : "—"}
                             </td>
-                            <td data-label="Aktionen" className="px-6 py-4 text-right print:hidden" onClick={(e) => e.stopPropagation()}>
+                            <td data-column="actions" data-label={t("actionsColumn")} className="px-6 py-4 text-right print:hidden" onClick={(e) => e.stopPropagation()}>
                               {linkedTsId ? (
                                 <div className="inline-flex gap-2">
                                   <button
@@ -1204,7 +1194,7 @@ export default function AttendancePage() {
                                   </button>
                                 </div>
                               ) : (
-                                <span className="text-[10px] text-slate-400 font-mono">Manuell</span>
+                                <span className="text-[10px] text-slate-600 font-mono"> {t("ui290")} </span>
                               )}
                             </td>
                           </tr>
@@ -1224,8 +1214,8 @@ export default function AttendancePage() {
                       <Clock className="w-5 h-5" />
                     </div>
                     <div>
-                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Gesamtstunden Monat</span>
-                      <span className="text-xl font-bold font-mono text-slate-900">{monthlyOverallStats.totalHours.toFixed(1)} h</span>
+                      <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block"> {t("attendance1089")} </span>
+                      <span className="text-xl font-bold font-mono text-slate-900">{monthlyOverallStats.totalHours.toFixed(1)}  {t("ui277")} </span>
                     </div>
                   </div>
                   <div className="bg-slate-50 border border-outline-variant p-4 rounded-xl flex items-center gap-3.5 shadow-2xs">
@@ -1233,7 +1223,7 @@ export default function AttendancePage() {
                       <Users className="w-5 h-5" />
                     </div>
                     <div>
-                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Aktive Mitarbeiter</span>
+                      <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block"> {t("ui308")} </span>
                       <span className="text-xl font-bold font-mono text-slate-900">{monthlyOverallStats.activeEmployeesCount}</span>
                     </div>
                   </div>
@@ -1242,8 +1232,8 @@ export default function AttendancePage() {
                       <Calendar className="w-5 h-5" />
                     </div>
                     <div>
-                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Arbeitstage im Monat</span>
-                      <span className="text-xl font-bold font-mono text-slate-900">{monthlyOverallStats.activeDaysCount} Tage</span>
+                      <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block"> {t("attendance1090")} </span>
+                      <span className="text-xl font-bold font-mono text-slate-900">{monthlyOverallStats.activeDaysCount}  {t("attendance1091")} </span>
                     </div>
                   </div>
                   <div className="bg-slate-50 border border-outline-variant p-4 rounded-xl flex items-center gap-3.5 shadow-2xs">
@@ -1251,8 +1241,8 @@ export default function AttendancePage() {
                       <BarChart3 className="w-5 h-5" />
                     </div>
                     <div>
-                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Durchschnitt / Tag</span>
-                      <span className="text-xl font-bold font-mono text-slate-900">{monthlyOverallStats.avgHoursPerDay.toFixed(1)} h</span>
+                      <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block"> {t("attendance1092")} </span>
+                      <span className="text-xl font-bold font-mono text-slate-900">{monthlyOverallStats.avgHoursPerDay.toFixed(1)}  {t("ui277")} </span>
                     </div>
                   </div>
                 </div>
@@ -1261,10 +1251,10 @@ export default function AttendancePage() {
                   <div className="bg-slate-50/50 border border-outline-variant rounded-xl p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
-                        <Building2 className="w-4 h-4 text-secondary" /> Hallen-Übersicht ({monthlyHalleBreakdown.length})
+                        <Building2 className="w-4 h-4 text-secondary" />  {t("attendance1093")} {monthlyHalleBreakdown.length})
                       </span>
-                      <span className="text-xs text-slate-500 font-mono">
-                        Summe: <strong className="text-slate-800">{monthlyOverallStats.totalHours.toFixed(1)} h</strong>
+                      <span className="text-xs text-slate-600 font-mono">
+                         {t("attendance1094")} <strong className="text-slate-800">{monthlyOverallStats.totalHours.toFixed(1)}  {t("ui277")} </strong>
                       </span>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -1276,8 +1266,7 @@ export default function AttendancePage() {
                               <span className="font-bold text-xs text-slate-800 truncate">{hall.name}</span>
                             </div>
                             <span className="text-xs font-mono font-bold text-secondary shrink-0">
-                              {hall.hours.toFixed(1)} h
-                            </span>
+                              {hall.hours.toFixed(1)}  {t("ui277")} </span>
                           </div>
                           <div className="space-y-1">
                             <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
@@ -1286,8 +1275,8 @@ export default function AttendancePage() {
                                 style={{ width: `${Math.min(hall.percentage, 100)}%`, backgroundColor: hall.color }}
                               />
                             </div>
-                            <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                              <span>{hall.empCount} MA aktiv</span>
+                            <div className="flex items-center justify-between text-[10px] text-slate-600 font-mono">
+                              <span>{hall.empCount}  {t("attendance1095")} </span>
                               <span className="font-bold">{hall.percentage.toFixed(1)}%</span>
                             </div>
                           </div>
@@ -1301,18 +1290,15 @@ export default function AttendancePage() {
                   <div className="bg-slate-50 px-4 py-3 border-b border-outline-variant flex items-center justify-between">
                     <div>
                       <h6 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2">
-                        <UserCheck className="w-4 h-4 text-secondary" /> Mitarbeiter-Arbeitszeiten & Anteile
-                      </h6>
-                      <p className="text-[11px] text-slate-500">Berechnet aus den aktiven Filterkriterien</p>
+                        <UserCheck className="w-4 h-4 text-secondary" />  {t("attendance1096")} </h6>
+                      <p className="text-[11px] text-slate-600"> {t("attendance1097")} </p>
                     </div>
-                    <span className="text-xs text-slate-500 font-mono">
-                      {monthlyEmployeeBreakdown.length} Mitarbeiter
-                    </span>
+                    <span className="text-xs text-slate-600 font-mono">
+                      {monthlyEmployeeBreakdown.length}  {t("roleEmployee")} </span>
                   </div>
                   {monthlyEmployeeBreakdown.length === 0 ? (
-                    <div className="text-center py-12 text-slate-500 font-medium text-xs">
-                      Keine Zeiterfassungsdaten gefunden.
-                    </div>
+                    <div className="text-center py-12 text-slate-600 font-medium text-xs">
+                       {t("attendance1098")} </div>
                   ) : (
                     <div className="divide-y divide-outline-variant">
                       {monthlyEmployeeBreakdown.map((row) => {
@@ -1329,7 +1315,7 @@ export default function AttendancePage() {
                                 </div>
                                 <div className="truncate">
                                   <span className="font-bold text-slate-900 text-sm block truncate">{row.employee.name}</span>
-                                  <span className="text-xs text-slate-400 font-mono block truncate">{row.employee.phone}</span>
+                                  <span className="text-xs text-slate-600 font-mono block truncate">{row.employee.phone}</span>
                                 </div>
                               </div>
                               <div className="w-32 shrink-0">
@@ -1347,8 +1333,8 @@ export default function AttendancePage() {
                               </div>
                               <div className="flex-1 max-w-xs space-y-1">
                                 <div className="flex items-center justify-between text-xs">
-                                  <span className="font-mono font-bold text-slate-900 text-sm">{row.totalHours.toFixed(1)} h</span>
-                                  <span className="font-mono text-secondary font-bold text-xs">{row.percentage.toFixed(1)} % Anteil</span>
+                                  <span className="font-mono font-bold text-slate-900 text-sm">{row.totalHours.toFixed(1)}  {t("ui277")} </span>
+                                  <span className="font-mono text-secondary font-bold text-xs">{row.percentage.toFixed(1)}  {t("attendance1099")} </span>
                                 </div>
                                 <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                                   <div
@@ -1358,9 +1344,8 @@ export default function AttendancePage() {
                                 </div>
                               </div>
                               <div className="flex items-center gap-2 shrink-0">
-                                <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1">
-                                  {row.logsCount} Einträge
-                                  {row.absencesCount > 0 && <span className="text-amber-600">({row.absencesCount} Abwesenheiten)</span>}
+                                <span className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                                  {row.logsCount}  {t("ui289")} {row.absencesCount > 0 && <span className="text-amber-600">({row.absencesCount}  {t("attendance1100")} </span>}
                                 </span>
                                 <div className={`p-1 rounded-lg transition-transform ${isExpanded ? "bg-secondary text-white" : "bg-slate-100 text-slate-600"}`}>
                                   {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -1371,11 +1356,10 @@ export default function AttendancePage() {
                               <div className="bg-slate-50 border-t border-outline-variant p-4 space-y-3 animate-fadeIn">
                                 <div className="flex items-center justify-between">
                                   <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                                    <Clock className="w-3.5 h-3.5 text-secondary" /> Tägliche Zeiteinträge
-                                  </span>
+                                    <Clock className="w-3.5 h-3.5 text-secondary" />  {t("attendance1101")} </span>
                                 </div>
                                 {row.dailyRecords.length === 0 && row.absences.length === 0 ? (
-                                  <div className="text-xs text-slate-400 py-3 italic">Keine Daten.</div>
+                                  <div className="text-xs text-slate-600 py-3 italic"> {t("attendance1102")} </div>
                                 ) : (
                                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
                                     {row.dailyRecords.map((rec) => (
@@ -1386,7 +1370,7 @@ export default function AttendancePage() {
                                       >
                                         <div className="flex items-center justify-between text-xs">
                                           <strong className="font-mono text-slate-900">{formatDateLabel(rec.date)}</strong>
-                                          <span className="font-mono font-bold text-secondary">{rec.totalHours?.toFixed(1)} h</span>
+                                          <span className="font-mono font-bold text-secondary">{rec.totalHours?.toFixed(1)}  {t("ui277")} </span>
                                         </div>
                                       </div>
                                     ))}
@@ -1396,8 +1380,7 @@ export default function AttendancePage() {
                                           <strong className="font-mono text-amber-950">{formatDateLabel(abs.date)}</strong>
                                         </div>
                                         <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold border border-amber-300 bg-amber-100 text-amber-900">
-                                          Abwesend
-                                        </span>
+                                           {t("planning648")} </span>
                                       </div>
                                     ))}
                                   </div>
@@ -1414,8 +1397,7 @@ export default function AttendancePage() {
                 <div className="border border-outline-variant rounded-xl overflow-hidden">
                   <div className="bg-slate-50 px-4 py-3 border-b border-outline-variant flex items-center justify-between">
                     <h6 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-secondary" /> Kalenderwochen im Detail
-                    </h6>
+                      <Calendar className="w-4 h-4 text-secondary" />  {t("attendance1103")} </h6>
                   </div>
                   <div className="divide-y divide-outline-variant">
                     {weeksOfMonthList.map((weekNo) => {
@@ -1426,7 +1408,7 @@ export default function AttendancePage() {
                             onClick={() => setExpandedWeek(isExpanded ? null : weekNo)}
                             className="flex items-center justify-between p-4 cursor-pointer"
                           >
-                            <span className="text-sm font-bold text-slate-800">Kalenderwoche {weekNo}</span>
+                            <span className="text-sm font-bold text-slate-800"> {t("attendance1104")} {weekNo}</span>
                             {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                           </div>
                           {isExpanded && (
@@ -1462,7 +1444,7 @@ export default function AttendancePage() {
         >
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/80 flex items-center justify-between">
-              <h4 className="font-bold text-slate-900">Zeiterfassung bearbeiten</h4>
+              <h4 className="font-bold text-slate-900"> {t("attendance1105")} </h4>
               <button onClick={() => setSelectedCell(null)}><X size={18} /></button>
             </div>
             <div className="p-6">
@@ -1471,7 +1453,7 @@ export default function AttendancePage() {
                   <input type="time" required value={editStartTime} onChange={(e) => handleEditTimeChange(e.target.value, editEndTime, editBreakMinutes)} className="w-full border rounded-xl p-2" />
                   <input type="time" required value={editEndTime} onChange={(e) => handleEditTimeChange(editStartTime, e.target.value, editBreakMinutes)} className="w-full border rounded-xl p-2" />
                 </div>
-                <button type="submit" className="w-full bg-secondary text-white py-2 rounded-xl">Speichern</button>
+                <button type="submit" className="w-full bg-secondary text-white py-2 rounded-xl">{t("attendanceSave")}</button>
               </form>
             </div>
           </div>
@@ -1479,7 +1461,7 @@ export default function AttendancePage() {
       )}
 
       {message.text && (
-        <div className={`fixed bottom-6 right-6 z-50 p-4 rounded-xl shadow-xl border ${message.type === "success" ? "bg-emerald-50 text-emerald-900" : "bg-red-50 text-red-900"}`}>
+        <div className={`fixed bottom-6 end-6 z-50 p-4 rounded-xl shadow-xl border ${message.type === "success" ? "bg-emerald-50 text-emerald-900" : "bg-red-50 text-red-900"}`}>
           {message.text}
         </div>
       )}
@@ -1498,6 +1480,7 @@ function WeeklyMatrixTable({
   downloadTsFile,
   downloadingTs,
 }: any) {
+  const { t, locale } = useTranslation();
   const daysOfWeekList = useMemo(() => {
     const jan1 = new Date(Date.UTC(year, 0, 1));
     const day = jan1.getUTCDay();
@@ -1521,17 +1504,16 @@ function WeeklyMatrixTable({
     <table className="w-full text-left border-collapse border rounded-xl overflow-hidden">
       <thead className="bg-slate-100 text-[9px] uppercase">
         <tr>
-          <th className="px-4 py-2">Mitarbeiter</th>
+          <th className="px-4 py-2"> {t("roleEmployee")} </th>
           {daysOfWeekList.map((d) => <th key={d} className="px-2 py-2 text-center">{d.slice(5)}</th>)}
-          <th className="px-2 py-2">Gesamt</th>
+          <th className="px-2 py-2"> {t("ui460")} </th>
         </tr>
       </thead>
       <tbody className="divide-y text-xs">
         {displayEmployees.length === 0 ? (
           <tr>
-            <td colSpan={daysOfWeekList.length + 2} className="text-center py-6 text-slate-400 font-medium">
-              Keine Mitarbeiter für diesen Filter gefunden.
-            </td>
+            <td colSpan={daysOfWeekList.length + 2} className="text-center py-6 text-slate-600 font-medium">
+               {t("attendance1106")} </td>
           </tr>
         ) : (
           displayEmployees.map((emp: any) => {
@@ -1567,13 +1549,13 @@ function WeeklyMatrixTable({
                           }`}
                         >
                           {absRecord.status === "KRANK"
-                            ? "Krank"
+                            ? t("planning646")
                             : absRecord.status === "NICHT_GEARBEITET"
-                            ? "Nicht g."
-                            : "Abwesend"}
+                            ? t("attendance1107")
+                            : t("planning648")}
                         </span>
                       ) : (
-                        <span className="text-slate-350">—</span>
+                        <span className="text-slate-600">—</span>
                       )}
                     </td>
                   );
