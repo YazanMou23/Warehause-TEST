@@ -1,4 +1,5 @@
 "use client";
+import { useTranslation } from "../../i18n/LanguageContext";
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -18,7 +19,7 @@ import {
   ArrowLeft,
   ArrowRight,
 } from "lucide-react";
-import { useTimeFormat, useDateTimeFormat } from "../../i18n/useDateFormat";
+
 
 interface Employee {
   id: string;
@@ -47,6 +48,7 @@ interface ReportData {
 }
 
 export default function ReportsPage() {
+ const { t, locale } = useTranslation();
   const [activeTab, setActiveTab] = useState<"timesheets" | "activity">("timesheets");
   
   // Timesheet state
@@ -105,7 +107,7 @@ export default function ReportsPage() {
     const now = new Date();
     setMonth(now.getMonth() + 1);
     setYear(now.getFullYear());
-    setGeneratedOn(now.toLocaleDateString());
+    setGeneratedOn(now.toISOString());
     loadEmployees();
   }, [router]);
 
@@ -126,12 +128,12 @@ export default function ReportsPage() {
       );
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.message || "Failed to generate report.");
+        throw new Error(data.message || t("inventory1656"));
       }
 
       setReport(data);
     } catch (err: any) {
-      setMessage({ text: err.message || "Could not retrieve monthly timesheet.", type: "error" });
+      setMessage({ text: err.message || t("inventory1657"), type: "error" });
     } finally {
       setFetchingReport(false);
     }
@@ -177,6 +179,8 @@ export default function ReportsPage() {
     window.print();
   };
 
+  const actionLabels: Record<string, string> = { "CREATE_PLAN": t("inventory1638"), "UPDATE_PLAN": t("inventory1639"), "DEACTIVATE_PLAN": t("inventory1640"), "CREATE_USER": t("inventory1641"), "UPDATE_USER": t("inventory1642"), "DEACTIVATE_USER": t("inventory1643"), "CLOCK_IN": t("inventory1644"), "CLOCK_OUT": t("inventory1645") };
+
   const getActionBadgeClass = (action: string) => {
     if (action.startsWith("CREATE_")) return "bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400";
     if (action.startsWith("UPDATE_")) return "bg-blue-100 text-blue-800 dark:bg-blue-950/30 dark:text-blue-400";
@@ -192,20 +196,17 @@ export default function ReportsPage() {
     );
   }
 
-  const months = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
-  ];
+  const months = Array.from({ length: 12 }, (_, month) => new Date(2026, month, 1).toLocaleDateString(locale, { month: "long" }));
+
 
   return (
     <div className="space-y-stack-lg animate-fadeIn print:space-y-0 print:p-0 text-on-background">
       {/* Title & Actions Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 print:hidden">
         <div>
-          <h3 className="font-headline-lg font-bold text-on-surface">Warehouse Reports</h3>
+          <h3 className="font-headline-lg font-bold text-on-surface"> {t("inventory1607")} </h3>
           <p className="text-on-surface-variant font-body-sm">
-            Generate printable employee timesheets or view the system activity audit log.
-          </p>
+             {t("inventory1608")} </p>
         </div>
         
         {activeTab === "timesheets" && report && (
@@ -214,7 +215,7 @@ export default function ReportsPage() {
             className="bg-secondary hover:bg-secondary/90 text-white font-bold px-4 py-2.5 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer self-start sm:self-auto"
           >
             <Printer className="w-5 h-5" />
-            <span>Print Timesheet</span>
+            <span> {t("inventory1609")} </span>
           </button>
         )}
       </div>
@@ -228,11 +229,10 @@ export default function ReportsPage() {
           className={`px-5 py-3 font-label-md uppercase tracking-wider font-bold border-b-2 transition-colors ${
             activeTab === "timesheets"
               ? "border-secondary text-secondary"
-              : "border-transparent text-outline hover:text-on-surface"
+              : "border-transparent text-on-surface-variant hover:text-on-surface"
           }`}
         >
-          Employee Timesheets
-        </button>
+           {t("inventory1610")} </button>
         <button
           onClick={() => {
             setActiveTab("activity");
@@ -241,11 +241,10 @@ export default function ReportsPage() {
           className={`px-5 py-3 font-label-md uppercase tracking-wider font-bold border-b-2 transition-colors ${
             activeTab === "activity"
               ? "border-secondary text-secondary"
-              : "border-transparent text-outline hover:text-on-surface"
+              : "border-transparent text-on-surface-variant hover:text-on-surface"
           }`}
         >
-          Activity Audit Log
-        </button>
+           {t("inventory1611")} </button>
       </div>
 
       {/* TAB 1: Timesheets */}
@@ -256,19 +255,18 @@ export default function ReportsPage() {
             <form onSubmit={handleFetchReport} className="grid grid-cols-1 md:grid-cols-4 gap-stack-md items-end">
               {/* Employee */}
               <div className="space-y-1.5 col-span-1 md:col-span-2">
-                <label className="block text-[11px] font-bold text-outline uppercase tracking-wider">
-                  Staff Member
-                </label>
+                <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
+                   {t("inventory1612")} </label>
                 <div className="relative">
-                  <Users className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+                  <Users className="w-4 h-4 absolute start-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                   <select
                     value={selectedEmployeeId}
                     onChange={(e) => setSelectedEmployeeId(e.target.value)}
-                    className="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-3 py-2 text-body-sm text-on-surface outline-none appearance-none"
+                    className="w-full bg-surface-container-low border border-outline-variant rounded-lg ps-10 pe-3 py-2 text-body-sm text-on-surface outline-none appearance-none"
                   >
                     {employees.map((emp) => (
                       <option key={emp.id} value={emp.id}>
-                        {emp.name} ({emp.role.replace("_", " ")})
+                        {emp.name} ({emp.role === "MANAGER" ? t("roleManager") : emp.role === "ADMIN" ? t("staff924") : t("roleEmployee")})
                       </option>
                     ))}
                   </select>
@@ -277,15 +275,14 @@ export default function ReportsPage() {
 
               {/* Month */}
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-outline uppercase tracking-wider">
-                  Select Month
-                </label>
+                <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
+                   {t("inventory1613")} </label>
                 <div className="relative">
-                  <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+                  <Calendar className="w-4 h-4 absolute start-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                   <select
                     value={month}
                     onChange={(e) => setMonth(Number(e.target.value))}
-                    className="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-3 py-2 text-body-sm text-on-surface outline-none appearance-none"
+                    className="w-full bg-surface-container-low border border-outline-variant rounded-lg ps-10 pe-3 py-2 text-body-sm text-on-surface outline-none appearance-none"
                   >
                     {months.map((name, i) => (
                       <option key={i + 1} value={i + 1}>
@@ -298,15 +295,14 @@ export default function ReportsPage() {
 
               {/* Year */}
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-outline uppercase tracking-wider">
-                  Select Year
-                </label>
+                <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
+                   {t("inventory1614")} </label>
                 <div className="relative">
-                  <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+                  <Calendar className="w-4 h-4 absolute start-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                   <select
                     value={year}
                     onChange={(e) => setYear(Number(e.target.value))}
-                    className="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-3 py-2 text-body-sm text-on-surface outline-none appearance-none"
+                    className="w-full bg-surface-container-low border border-outline-variant rounded-lg ps-10 pe-3 py-2 text-body-sm text-on-surface outline-none appearance-none"
                   >
                     <option value={2026}>2026</option>
                     <option value={2025}>2025</option>
@@ -320,7 +316,7 @@ export default function ReportsPage() {
           {fetchingReport ? (
             <div className="flex flex-col items-center justify-center py-20 print:hidden">
               <Clock className="w-10 h-10 animate-spin text-secondary mb-3" />
-              <p className="text-outline text-body-sm">Calculating database records and totals...</p>
+              <p className="text-on-surface-variant text-body-sm"> {t("inventory1615")} </p>
             </div>
           ) : report ? (
             <div className="space-y-stack-md print:space-y-4">
@@ -328,14 +324,14 @@ export default function ReportsPage() {
               {/* Printable Report Header */}
               <div className="hidden print:flex justify-between items-center border-b-2 border-primary pb-4">
                 <div>
-                  <h1 className="text-2xl font-bold tracking-tight text-black">LogiFlow Timesheet Report</h1>
-                  <p className="text-xs text-neutral-500 uppercase tracking-widest font-semibold mt-1">
-                    Month: {months[report.month - 1]} {report.year}
+                  <h1 className="text-2xl font-bold tracking-tight text-black"> {t("inventory1616")} </h1>
+                  <p className="text-xs text-neutral-600 uppercase tracking-widest font-semibold mt-1">
+                     {t("inventory1617")} {months[report.month - 1]} {report.year}
                   </p>
                 </div>
-                <div className="text-right">
-                  <span className="text-lg font-black text-secondary">LogiFlow</span>
-                  <p className="text-[10px] text-neutral-500 mt-1">Verified Digital Shift Log</p>
+                <div className="text-end">
+                  <span className="text-lg font-black text-secondary"> {t("appName")} </span>
+                  <p className="text-[10px] text-neutral-600 mt-1"> {t("inventory1618")} </p>
                 </div>
               </div>
 
@@ -349,21 +345,21 @@ export default function ReportsPage() {
                     <h4 className="font-bold text-body-lg text-on-surface">{report.employee.name}</h4>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-[13px] text-on-surface-variant font-medium">
                       <span className="flex items-center gap-1">
-                        <Briefcase className="w-4 h-4 text-outline" /> {report.employee.role.replace("_", " ")}
+                        <Briefcase className="w-4 h-4 text-on-surface-variant" /> {report.employee.role === "MANAGER" ? t("roleManager") : report.employee.role === "ADMIN" ? t("staff924") : t("roleEmployee")}
                       </span>
-                      <span className="text-outline-variant hidden sm:inline">|</span>
-                      <span className="font-mono text-outline">{report.employee.phone}</span>
+                      <span className="text-on-surface-variant hidden sm:inline">|</span>
+                      <span dir="ltr" className="font-mono text-on-surface-variant">{report.employee.phone}</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="flex gap-4 self-stretch md:self-auto border-t border-outline-variant md:border-t-0 pt-3 md:pt-0 print:border-none print:pt-0">
-                  <div className="flex-1 text-center md:text-right md:border-r border-outline-variant pr-4 print:pr-2">
-                    <span className="block text-[11px] font-bold text-outline uppercase tracking-wider">Total Worked</span>
-                    <span className="font-mono text-2xl font-black text-secondary print:text-black">{report.totalHours} hrs</span>
+                  <div className="flex-1 text-center md:text-end md:border-e border-outline-variant pe-4 print:pr-2">
+                    <span className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider"> {t("inventory1619")} </span>
+                    <span className="font-mono text-2xl font-black text-secondary print:text-black">{report.totalHours}  {t("inventory1620")} </span>
                   </div>
-                  <div className="flex-1 text-center md:text-right">
-                    <span className="block text-[11px] font-bold text-outline uppercase tracking-wider">Completed Shifts</span>
+                  <div className="flex-1 text-center md:text-end">
+                    <span className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider"> {t("inventory1621")} </span>
                     <span className="font-mono text-2xl font-black text-on-surface">{report.recordCount}</span>
                   </div>
                 </div>
@@ -376,11 +372,11 @@ export default function ReportsPage() {
                     <Clock className="w-5 h-5" />
                   </div>
                   <div>
-                    <span className="block text-[11px] font-bold text-outline uppercase tracking-wider">Avg Shift Length</span>
+                    <span className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider"> {t("inventory1622")} </span>
                     <span className="font-mono text-body-lg font-bold text-on-surface">
                       {report.recordCount > 0
-                        ? `${(report.totalHours / report.recordCount).toFixed(2)} hrs`
-                        : "0 hrs"}
+                        ? `${(report.totalHours / report.recordCount).toFixed(2)} ${t("inventory1620")}`
+                        : `0 ${t("inventory1620")}`}
                     </span>
                   </div>
                 </div>
@@ -390,8 +386,8 @@ export default function ReportsPage() {
                     <FileText className="w-5 h-5" />
                   </div>
                   <div>
-                    <span className="block text-[11px] font-bold text-outline uppercase tracking-wider">Target Hours</span>
-                    <span className="font-mono text-body-lg font-bold text-on-surface">160 hrs</span>
+                    <span className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider"> {t("inventory1623")} </span>
+                    <span className="font-mono text-body-lg font-bold text-on-surface">160 {t("inventory1620")}</span>
                   </div>
                 </div>
 
@@ -400,7 +396,7 @@ export default function ReportsPage() {
                     <TrendingUp className="w-5 h-5" />
                   </div>
                   <div>
-                    <span className="block text-[11px] font-bold text-outline uppercase tracking-wider">Monthly Progress</span>
+                    <span className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider"> {t("inventory1624")} </span>
                     <span className="font-mono text-body-lg font-bold text-emerald-700">
                       {Math.min(Math.round((report.totalHours / 160) * 100), 100)}%
                     </span>
@@ -409,54 +405,53 @@ export default function ReportsPage() {
               </div>
 
               {/* Timesheet List Table */}
-              <div className="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden shadow-sm print:border-none print:shadow-none">
-                <table className="w-full text-left border-collapse">
+              <div className="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-x-auto shadow-sm print:border-none print:shadow-none">
+                <table className="w-full min-w-[650px] print:min-w-0 text-start border-collapse">
                   <thead>
-                    <tr className="bg-surface-container-low border-b border-outline-variant text-[11px] font-bold text-outline uppercase tracking-wider print:bg-neutral-100 print:text-black">
-                      <th className="px-container-margin py-3">Work Date</th>
-                      <th className="px-4 py-3">Depot Location</th>
-                      <th className="px-4 py-3">Clock In</th>
-                      <th className="px-4 py-3">Clock Out</th>
-                      <th className="px-container-margin py-3 text-right">Hours</th>
+                    <tr className="bg-surface-container-low border-b border-outline-variant text-[11px] font-bold text-on-surface-variant uppercase tracking-wider print:bg-neutral-100 print:text-black">
+                      <th className="px-container-margin py-3"> {t("inventory1625")} </th>
+                      <th className="px-4 py-3"> {t("inventory1626")} </th>
+                      <th className="px-4 py-3"> {t("inventory1627")} </th>
+                      <th className="px-4 py-3"> {t("inventory1628")} </th>
+                      <th className="px-container-margin py-3 text-end"> {t("inventory1629")} </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant text-body-sm text-on-surface print:text-xs">
                     {report.records.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="text-center py-12 text-outline font-medium">
-                          No shift records registered for this monthly slot.
-                        </td>
+                        <td colSpan={5} className="text-center py-12 text-on-surface-variant font-medium">
+                           {t("inventory1630")} </td>
                       </tr>
                     ) : (
                       report.records.map((record) => (
                         <tr key={record.id} className="hover:bg-surface-bright transition-colors">
                           <td className="px-container-margin py-3.5 font-bold font-mono">
-                            {record.date}
+                            {new Date(record.date).toLocaleDateString(locale)}
                           </td>
                           <td className="px-4 py-3.5">
                             <div className="font-medium text-on-surface">{record.warehouseName}</div>
-                            <div className="text-[12px] text-outline print:text-[10px]">{record.hallName}</div>
+                            <div className="text-[12px] text-on-surface-variant print:text-[10px]">{record.hallName}</div>
                           </td>
                           <td suppressHydrationWarning className="px-4 py-3.5 font-mono text-on-surface">
-                            {new Date(record.clockIn).toLocaleTimeString([], {
+                            {new Date(record.clockIn).toLocaleTimeString(locale, {
                               hour: "2-digit",
                               minute: "2-digit",
                             })}
                           </td>
                           <td suppressHydrationWarning className="px-4 py-3.5 font-mono">
                             {record.clockOut ? (
-                              new Date(record.clockOut).toLocaleTimeString([], {
+                              new Date(record.clockOut).toLocaleTimeString(locale, {
                                 hour: "2-digit",
                                 minute: "2-digit",
                               })
                             ) : (
-                              <span className="text-amber-600 font-semibold uppercase tracking-wider text-[10px] bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 print:border-none print:p-0">
-                                Active
+                              <span className="text-amber-800 font-semibold uppercase tracking-wider text-[10px] bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 print:border-none print:p-0">
+                                {t("active")}
                               </span>
                             )}
                           </td>
-                          <td className="px-container-margin py-3.5 text-right font-mono font-bold text-secondary print:text-black">
-                            {record.totalHours !== null ? `${record.totalHours.toFixed(2)} hrs` : "-"}
+                          <td className="px-container-margin py-3.5 text-end font-mono font-bold text-secondary print:text-black">
+                            {record.totalHours !== null ? `${record.totalHours.toFixed(2)} ${t("inventory1620")}` : "-"}
                           </td>
                         </tr>
                       ))
@@ -468,18 +463,17 @@ export default function ReportsPage() {
               {/* Printable Signature Line */}
               <div className="hidden print:flex justify-between items-end mt-16 pt-8 border-t border-dashed border-neutral-300">
                 <div>
-                  <p className="text-[11px] text-neutral-400 font-mono">Report generated on: {generatedOn}</p>
+                  <p className="text-[11px] text-neutral-600 font-mono"> {t("inventory1631")} {generatedOn ? new Date(generatedOn).toLocaleDateString(locale) : ""}</p>
                 </div>
                 <div className="text-center w-64 border-t border-neutral-400 pt-2">
-                  <span className="text-xs font-semibold text-neutral-600">Supervisor Signature / Date</span>
+                  <span className="text-xs font-semibold text-neutral-600"> {t("inventory1632")} </span>
                 </div>
               </div>
 
             </div>
           ) : (
-            <div className="bg-white border border-outline-variant p-stack-lg rounded-lg text-center text-outline text-body-sm print:hidden">
-              Please select a staff member to display timesheet report.
-            </div>
+            <div className="bg-white border border-outline-variant p-stack-lg rounded-lg text-center text-on-surface-variant text-body-sm print:hidden">
+               {t("inventory1633")} </div>
           )}
         </div>
       )}
@@ -492,20 +486,19 @@ export default function ReportsPage() {
             
             {/* User Filter */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-outline uppercase tracking-wider">
-                Filter by User
-              </label>
+              <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
+                 {t("inventory1634")} </label>
               <div className="relative">
-                <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+                <User className="w-4 h-4 absolute start-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                 <select
                   value={filterUserId}
                   onChange={(e) => {
                     setFilterUserId(e.target.value);
                     setLogsPage(1);
                   }}
-                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-3 py-2 text-body-sm text-on-surface outline-none appearance-none font-bold"
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg ps-10 pe-3 py-2 text-body-sm text-on-surface outline-none appearance-none font-bold"
                 >
-                  <option value="">All Users</option>
+                  <option value=""> {t("inventory1635")} </option>
                   {employees.map((emp) => (
                     <option key={emp.id} value={emp.id}>{emp.name}</option>
                   ))}
@@ -515,39 +508,37 @@ export default function ReportsPage() {
 
             {/* Action Type Filter */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-outline uppercase tracking-wider">
-                Filter by Action
-              </label>
+              <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
+                 {t("inventory1636")} </label>
               <div className="relative">
-                <Activity className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+                <Activity className="w-4 h-4 absolute start-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                 <select
                   value={filterAction}
                   onChange={(e) => {
                     setFilterAction(e.target.value);
                     setLogsPage(1);
                   }}
-                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-3 py-2 text-body-sm text-on-surface outline-none appearance-none font-bold"
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg ps-10 pe-3 py-2 text-body-sm text-on-surface outline-none appearance-none font-bold"
                 >
-                  <option value="">All Actions</option>
-                  <option value="CREATE_PLAN">Create Shift Plan</option>
-                  <option value="UPDATE_PLAN">Update Shift Plan</option>
-                  <option value="DEACTIVATE_PLAN">Delete Shift Plan</option>
-                  <option value="CREATE_USER">Create Employee</option>
-                  <option value="UPDATE_USER">Update Employee</option>
-                  <option value="DEACTIVATE_USER">Delete Employee</option>
-                  <option value="CLOCK_IN">Clock In Attendance</option>
-                  <option value="CLOCK_OUT">Clock Out Attendance</option>
+                  <option value=""> {t("inventory1637")} </option>
+                  <option value="CREATE_PLAN"> {t("inventory1638")} </option>
+                  <option value="UPDATE_PLAN"> {t("inventory1639")} </option>
+                  <option value="DEACTIVATE_PLAN"> {t("inventory1640")} </option>
+                  <option value="CREATE_USER"> {t("inventory1641")} </option>
+                  <option value="UPDATE_USER"> {t("inventory1642")} </option>
+                  <option value="DEACTIVATE_USER"> {t("inventory1643")} </option>
+                  <option value="CLOCK_IN"> {t("inventory1644")} </option>
+                  <option value="CLOCK_OUT"> {t("inventory1645")} </option>
                 </select>
               </div>
             </div>
 
             {/* Start Date */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-outline uppercase tracking-wider">
-                Start Date
-              </label>
+              <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
+                 {t("inventory1646")} </label>
               <div className="relative">
-                <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+                <Calendar className="w-4 h-4 absolute start-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                 <input
                   type="date"
                   value={filterStartDate}
@@ -555,18 +546,17 @@ export default function ReportsPage() {
                     setFilterStartDate(e.target.value);
                     setLogsPage(1);
                   }}
-                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-3 py-2 text-body-sm text-on-surface outline-none font-bold"
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg ps-10 pe-3 py-2 text-body-sm text-on-surface outline-none font-bold"
                 />
               </div>
             </div>
 
             {/* End Date */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-outline uppercase tracking-wider">
-                End Date
-              </label>
+              <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
+                 {t("inventory1647")} </label>
               <div className="relative">
-                <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+                <Calendar className="w-4 h-4 absolute start-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                 <input
                   type="date"
                   value={filterEndDate}
@@ -574,7 +564,7 @@ export default function ReportsPage() {
                     setFilterEndDate(e.target.value);
                     setLogsPage(1);
                   }}
-                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-3 py-2 text-body-sm text-on-surface outline-none font-bold"
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg ps-10 pe-3 py-2 text-body-sm text-on-surface outline-none font-bold"
                 />
               </div>
             </div>
@@ -585,39 +575,38 @@ export default function ReportsPage() {
           {logsLoading ? (
             <div className="flex flex-col items-center justify-center py-20">
               <Clock className="w-10 h-10 animate-spin text-secondary mb-3" />
-              <p className="text-outline text-body-sm">Loading activity logs...</p>
+              <p className="text-on-surface-variant text-body-sm"> {t("inventory1648")} </p>
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden shadow-sm">
-                <table className="w-full text-left border-collapse">
+              <div className="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-x-auto shadow-sm">
+                <table className="w-full min-w-[650px] print:min-w-0 text-start border-collapse">
                   <thead>
-                    <tr className="bg-surface-container-low border-b border-outline-variant text-[11px] font-bold text-outline uppercase tracking-wider">
-                      <th className="px-container-margin py-3">Timestamp</th>
-                      <th className="px-4 py-3">User Account</th>
-                      <th className="px-4 py-3">Action Type</th>
-                      <th className="px-container-margin py-3">Details / Changes</th>
+                    <tr className="bg-surface-container-low border-b border-outline-variant text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
+                      <th className="px-container-margin py-3"> {t("inventory1649")} </th>
+                      <th className="px-4 py-3"> {t("inventory1650")} </th>
+                      <th className="px-4 py-3"> {t("inventory1651")} </th>
+                      <th className="px-container-margin py-3"> {t("inventory1652")} </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant text-body-sm text-on-surface">
                     {logs.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="text-center py-12 text-outline font-medium">
-                          No audit events matching criteria registered.
-                        </td>
+                        <td colSpan={4} className="text-center py-12 text-on-surface-variant font-medium">
+                           {t("inventory1653")} </td>
                       </tr>
                     ) : (
                       logs.map((log) => (
                         <tr key={log.id} className="hover:bg-surface-bright transition-colors">
-                          <td suppressHydrationWarning className="px-container-margin py-3.5 font-mono text-[12px] text-outline">
-                            {new Date(log.timestamp).toLocaleString('en-CA')}
+                          <td suppressHydrationWarning className="px-container-margin py-3.5 font-mono text-[12px] text-on-surface-variant">
+                            {new Date(log.timestamp).toLocaleString(locale)}
                           </td>
                           <td className="px-4 py-3.5 font-semibold text-on-surface">
-                            {log.user?.name || "System Automated"}
+                            {log.user?.name || t("inventory1654")}
                           </td>
                           <td className="px-4 py-3.5">
                             <span className={`px-2.5 py-0.5 rounded font-mono text-[10px] font-bold uppercase tracking-wider ${getActionBadgeClass(log.action)}`}>
-                              {log.action.replace("_", " ")}
+                              {actionLabels[log.action] || log.action.replaceAll("_", " ")}
                             </span>
                           </td>
                           <td className="px-container-margin py-3.5 text-on-surface-variant max-w-md break-words">
@@ -638,17 +627,16 @@ export default function ReportsPage() {
                     onClick={() => setLogsPage(prev => Math.max(prev - 1, 1))}
                     className="flex items-center gap-1 text-label-md font-bold uppercase tracking-wider text-secondary disabled:opacity-30 transition-opacity"
                   >
-                    <ArrowLeft className="w-4 h-4" /> Previous
-                  </button>
-                  <span className="text-body-sm font-semibold text-outline font-mono">
-                    Page {logsPage} of {logsTotalPages}
+                    <ArrowLeft className="w-4 h-4" />  {t("staff1085")} </button>
+                  <span className="text-body-sm font-semibold text-on-surface-variant font-mono">
+                     {t("ui402")} {logsPage} {t("ui435")} {logsTotalPages}
                   </span>
                   <button
                     disabled={logsPage === logsTotalPages}
                     onClick={() => setLogsPage(prev => Math.min(prev + 1, logsTotalPages))}
                     className="flex items-center gap-1 text-label-md font-bold uppercase tracking-wider text-secondary disabled:opacity-30 transition-opacity"
                   >
-                    Next <ArrowRight className="w-4 h-4" />
+                     {t("staff1086")} <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
               )}
@@ -672,7 +660,7 @@ export default function ReportsPage() {
             <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-error" />
           )}
           <div>
-            <p className="font-bold">{message.type === "success" ? "Success" : "Error Occurred"}</p>
+            <p className="font-bold">{message.type === "success" ? t("success") : t("inventory1655")}</p>
             <p className="text-[13px] opacity-90">{message.text}</p>
           </div>
         </div>
