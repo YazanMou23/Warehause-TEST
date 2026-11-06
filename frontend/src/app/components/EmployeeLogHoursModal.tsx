@@ -51,6 +51,7 @@ export default function EmployeeLogHoursModal({
   warehouses,
   halls,
 }: EmployeeLogHoursModalProps) {
+  const { t: tx, locale: uiLocale } = useTranslation();
   const { t, language } = useTranslation();
 
   // Date State
@@ -193,7 +194,7 @@ export default function EmployeeLogHoursModal({
     try {
       const parts = selectedDate.split("-");
       const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-      return d.toLocaleDateString(language === "de" ? "de-DE" : "en-US", {
+      return d.toLocaleDateString(uiLocale, {
         weekday: "short",
         day: "numeric",
         month: "short",
@@ -202,7 +203,7 @@ export default function EmployeeLogHoursModal({
     } catch {
       return selectedDate;
     }
-  }, [selectedDate, language]);
+  }, [selectedDate, uiLocale]);
 
   // Keyboard accessibility
   useEffect(() => {
@@ -220,21 +221,19 @@ export default function EmployeeLogHoursModal({
     setErrorMessage("");
 
     if (!selectedDate) {
-      setErrorMessage(language === "de" ? "Bitte ein Datum auswählen." : "Please select a date.");
+      setErrorMessage(tx("ui353"));
       return;
     }
     if (netHours <= 0) {
       setErrorMessage(
-        language === "de"
-          ? "Die berechnete Arbeitszeit muss größer als 0 sein."
-          : "Calculated work hours must be greater than 0."
+        tx("ui354")
       );
       return;
     }
 
     const token = localStorage.getItem("accessToken");
     if (!token) {
-      setErrorMessage("Sitzung abgelaufen. Bitte neu anmelden.");
+      setErrorMessage(tx("sessionExpired"));
       return;
     }
 
@@ -271,13 +270,13 @@ export default function EmployeeLogHoursModal({
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.message || "Fehler beim Speichern der Arbeitszeit.");
+        throw new Error(data.message || tx("hoursSaveError"));
       }
 
       onSuccess();
       onClose();
     } catch (err: any) {
-      setErrorMessage(err.message || "Unerwarteter Fehler beim Speichern.");
+      setErrorMessage(err.message || tx("unexpectedSaveError"));
     } finally {
       setSubmitting(false);
     }
@@ -320,7 +319,7 @@ export default function EmployeeLogHoursModal({
           </div>
           <button
             onClick={onClose}
-            aria-label="Schließen"
+            aria-label={tx("close")}
             className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -392,7 +391,7 @@ export default function EmployeeLogHoursModal({
                 type="button"
                 onClick={() => stepDate(-1)}
                 className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
-                title="Vorheriger Tag"
+                title={tx("previousDay")}
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -406,7 +405,7 @@ export default function EmployeeLogHoursModal({
                 type="button"
                 onClick={() => stepDate(1)}
                 className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
-                title="Nächster Tag"
+                title={tx("nextDay")}
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -435,8 +434,8 @@ export default function EmployeeLogHoursModal({
                     {t("earlyShift")}
                   </span>
                 </div>
-                <span className="text-[11px] font-mono text-slate-600">06:00 – 14:30</span>
-                <span className="text-[10px] font-semibold text-emerald-700 mt-1">8,0h (30m P.)</span>
+                <span dir="ltr" className="text-[11px] font-mono text-slate-600">06:00 – 14:30</span>
+                <span className="text-[10px] font-semibold text-emerald-700 mt-1">{tx("ui355")}</span>
               </button>
 
               <button
@@ -454,8 +453,8 @@ export default function EmployeeLogHoursModal({
                     {t("lateShift")}
                   </span>
                 </div>
-                <span className="text-[11px] font-mono text-slate-600">14:00 – 22:30</span>
-                <span className="text-[10px] font-semibold text-emerald-700 mt-1">8,0h (30m P.)</span>
+                <span dir="ltr" className="text-[11px] font-mono text-slate-600">14:00 – 22:30</span>
+                <span className="text-[10px] font-semibold text-emerald-700 mt-1">{tx("ui355")}</span>
               </button>
 
               <button
@@ -473,8 +472,8 @@ export default function EmployeeLogHoursModal({
                     {t("nightShift")}
                   </span>
                 </div>
-                <span className="text-[11px] font-mono text-slate-600">22:00 – 06:30</span>
-                <span className="text-[10px] font-semibold text-emerald-700 mt-1">8,0h (30m P.)</span>
+                <span dir="ltr" className="text-[11px] font-mono text-slate-600">22:00 – 06:30</span>
+                <span className="text-[10px] font-semibold text-emerald-700 mt-1">{tx("ui355")}</span>
               </button>
 
               <button
@@ -492,8 +491,8 @@ export default function EmployeeLogHoursModal({
                     {t("customShift")}
                   </span>
                 </div>
-                <span className="text-[11px] font-mono text-slate-600">Manuell</span>
-                <span className="text-[10px] font-semibold text-blue-600 mt-1">Freie Zeit</span>
+                <span dir="ltr" className="text-[11px] font-mono text-slate-600">{tx("ui290")}</span>
+                <span className="text-[10px] font-semibold text-blue-600 mt-1">{tx("ui356")}</span>
               </button>
             </div>
           </div>
@@ -579,8 +578,7 @@ export default function EmployeeLogHoursModal({
                 <span>{t("breakDuration")}</span>
               </label>
               <span className="text-xs font-mono font-bold text-slate-700">
-                {breakMinutes} Min
-              </span>
+                {breakMinutes} {tx("ui357")}</span>
             </div>
             <div className="grid grid-cols-5 gap-2">
               {[0, 15, 30, 45, 60].map((mins) => (
@@ -594,7 +592,7 @@ export default function EmployeeLogHoursModal({
                       : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
                   }`}
                 >
-                  {mins === 0 ? "0m" : `${mins}m`}
+                  {mins} {tx("ui360")}
                 </button>
               ))}
             </div>
@@ -609,7 +607,7 @@ export default function EmployeeLogHoursModal({
                 </span>
                 <p className="text-2xl font-black font-mono tracking-tight text-white">
                   {netHours.toFixed(2)}{" "}
-                  <span className="text-sm font-normal text-blue-200">Std.</span>
+                  <span className="text-sm font-normal text-blue-200">{tx("ui358")}</span>
                 </p>
               </div>
 
@@ -628,21 +626,18 @@ export default function EmployeeLogHoursModal({
                 ) : (
                   <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-red-500/20 text-red-300 border border-red-500/40 px-2.5 py-1 rounded-full">
                     <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
-                    &gt; 10h Max
-                  </span>
+                    {tx("ui359")}</span>
                 )}
               </div>
             </div>
 
             <div className="flex items-center justify-between text-xs text-blue-200/80 font-mono">
               <span>
-                {t("grossHours")}: {Math.floor(grossMinutes / 60)}h {grossMinutes % 60}m
-              </span>
+                {t("grossHours")}: {Math.floor(grossMinutes / 60)}{tx("ui277")}{grossMinutes % 60}{tx("ui360")}</span>
               <span>
-                {t("breakDuration")}: {breakMinutes}m
-              </span>
+                {t("breakDuration")}: {breakMinutes}{tx("ui360")}</span>
               <span>
-                Zeitraum: {startTime} – {endTime}
+                {tx("ui361")} <bdi dir="ltr">{startTime} – {endTime}</bdi>
               </span>
             </div>
 
@@ -733,7 +728,7 @@ export default function EmployeeLogHoursModal({
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="z.B. Container MSKU1234567 entladen..."
+              placeholder={tx("ui551")}
               className="w-full py-2 px-3 text-xs bg-white border border-slate-200 rounded-xl text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             />
           </div>
@@ -764,8 +759,7 @@ export default function EmployeeLogHoursModal({
               <>
                 <CheckCircle2 className="w-4 h-4" />
                 <span>
-                  {t("saveHours")} ({netHours.toFixed(1)}h)
-                </span>
+                  {t("saveHours")} ({netHours.toFixed(1)}{tx("ui362")}</span>
               </>
             )}
           </button>

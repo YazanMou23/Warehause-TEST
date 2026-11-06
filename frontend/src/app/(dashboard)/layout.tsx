@@ -24,6 +24,7 @@ import {
   MessageSquare,
   BookOpen,
 } from "lucide-react";
+import LanguageSelector from "../components/LanguageSelector";
 import { useTranslation } from "../i18n/LanguageContext";
 import { getAuthToken, clearAuthToken } from "../utils/auth";
 
@@ -51,6 +52,7 @@ const sidebarLinks: SidebarLink[] = [
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const { t: tx, locale: uiLocale } = useTranslation();
   const { t } = useTranslation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
@@ -185,6 +187,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       Dashboard: "dashboard",
       Planning: "planning",
       Chat: "chat",
+      "Container-Listen": "containerLists",
       Employees: "employees",
       Admins: "admins",
       Warehouses: "warehouses",
@@ -206,11 +209,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     });
 
     const sections = [
-      { id: "main", title: "Overview" },
-      { id: "ops", title: "Operations" },
-      { id: "resources", title: "Inventory & Assets" },
-      { id: "people", title: "Users & Staff" },
-      { id: "system", title: "System" },
+      { id: "main", title: tx("ui363") },
+      { id: "ops", title: tx("ui364") },
+      { id: "resources", title: tx("ui365") },
+      { id: "people", title: tx("ui366") },
+      { id: "system", title: tx("ui367") },
     ];
 
     return (
@@ -223,8 +226,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <img src="/icon.png" alt="LogiFlow" className="w-8 h-8 object-cover rounded-lg" />
           </div>
           <div>
-            <h1 className="font-extrabold text-white tracking-tight leading-none text-sm">LogiFlow</h1>
-            <p className="text-[#b6c4d8] text-[10px] uppercase font-bold tracking-wider mt-1">WMS Portal</p>
+            <h1 className="font-extrabold text-white tracking-tight leading-none text-sm">{tx("appName")}</h1>
+            <p className="text-[#b6c4d8] text-[10px] uppercase font-bold tracking-wider mt-1">{tx("ui266")}</p>
           </div>
         </div>
 
@@ -295,10 +298,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             target="_blank"
             rel="noopener noreferrer"
             className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-slate-300 bg-blue-950/40 hover:bg-blue-900/50 hover:text-white rounded-lg transition-colors cursor-pointer border border-blue-800/40"
-            title="Kunden-Präsentation & Handbuch öffnen"
+            title={tx("ui267")}
           >
             <BookOpen className="w-4 h-4 shrink-0 text-slate-300" />
-            <span>Kunden-Handbuch</span>
+            <span>{tx("ui267")}</span>
           </a>
           <button
             onClick={handleLogout}
@@ -332,20 +335,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const breadcrumbs = getBreadcrumbs();
 
   return (
-    <div className="flex h-screen bg-[#f2efe9] text-[#0f172a]" suppressHydrationWarning>
+    <div className="flex h-screen print:h-auto print:bg-white bg-background text-[#0f172a]" suppressHydrationWarning>
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex lg:w-[260px] lg:flex-col fixed inset-y-0 z-40 print:hidden">
         <SidebarContent />
       </aside>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col lg:pl-[260px] min-h-screen min-w-0">
+      <div className="flex-1 flex flex-col lg:ps-[260px] print:ps-0 min-h-screen print:min-h-0 min-w-0">
 
         {/* Top Header */}
         <header className="h-14 flex items-center justify-between px-6 border-b border-[#e2e8f0] bg-white print:hidden shrink-0 shadow-sm shadow-slate-100/50">
           {/* Left side: Breadcrumbs or mobile menu button */}
           <div className="flex items-center gap-3">
             <button
+              aria-label={tx("openMenu")}
               onClick={() => setMobileMenuOpen(true)}
               className="lg:hidden p-2 text-[#64748b] hover:bg-[#f1f5f9] rounded-lg transition-colors"
             >
@@ -370,10 +374,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
 
           {/* Right side controls */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <LanguageSelector />
             {/* Notifications */}
             <div className="relative">
               <button
+                aria-label={tx("ui268")}
                 onClick={() => setShowNotifications(!showNotifications)}
                 className="w-8 h-8 flex items-center justify-center hover:bg-[#f1f5f9] rounded-lg relative transition-colors cursor-pointer"
               >
@@ -386,23 +392,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </button>
 
               {showNotifications && (
-                <div className="absolute right-0 mt-2 w-[min(20rem,calc(100vw-1rem))] bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="absolute end-0 mt-2 w-[min(20rem,calc(100vw-1rem))] bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                    <span className="font-bold text-slate-800 text-xs">Benachrichtigungen</span>
+                    <span className="font-bold text-slate-800 text-xs">{tx("ui268")}</span>
                     {unreadCount > 0 && (
                       <button
                         onClick={markAllRead}
                         className="text-[10px] text-blue-600 hover:text-blue-700 font-bold transition-colors cursor-pointer"
                       >
-                        Alle lesen
-                      </button>
+                        {tx("ui269")}</button>
                     )}
                   </div>
                   <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
                     {notifications.length === 0 ? (
                       <div className="p-8 text-center text-xs text-slate-400">
-                        Keine Benachrichtigungen
-                      </div>
+                        {tx("ui270")}</div>
                     ) : (
                       notifications.map((n) => (
                         <div
@@ -421,15 +425,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                   onClick={() => markRead(n.id)}
                                   className="text-[9px] text-slate-400 hover:text-blue-600 font-medium shrink-0 transition-colors cursor-pointer"
                                 >
-                                  Gelesen
-                                </button>
+                                  {tx("ui271")}</button>
                               )}
                             </div>
                             <p className="text-[11px] text-slate-500 mt-0.5 whitespace-pre-wrap leading-relaxed">
                               {n.message}
                             </p>
                             <p className="text-[9px] text-slate-400 mt-1">
-                              {new Date(n.createdAt).toLocaleDateString("de-DE", {
+                              {new Date(n.createdAt).toLocaleDateString(uiLocale, {
                                 hour: "2-digit",
                                 minute: "2-digit",
                               })}
@@ -472,7 +475,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-3 sm:p-6 print:p-0" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+        <main className="flex-1 overflow-y-auto print:overflow-visible p-3 sm:p-6 print:p-0" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
           {children}
         </main>
       </div>
@@ -487,14 +490,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Mobile Drawer */}
       <div
-        className={`fixed inset-y-0 left-0 w-[260px] z-50 lg:hidden transform transition-transform duration-300 ${
-          mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+        className={`fixed inset-y-0 start-0 w-[260px] z-50 lg:hidden transform transition-transform duration-300 ${
+          mobileMenuOpen ? "translate-x-0" : "-translate-x-full rtl:translate-x-full"
         }`}
       >
         <SidebarContent />
         <button
+          aria-label={tx("close")}
           onClick={() => setMobileMenuOpen(false)}
-          className="absolute top-4 right-4 p-1.5 text-white hover:bg-[#1e293b] rounded-lg"
+          className="absolute top-4 end-4 p-1.5 text-white hover:bg-[#1e293b] rounded-lg"
         >
           <X className="w-5 h-5" />
         </button>

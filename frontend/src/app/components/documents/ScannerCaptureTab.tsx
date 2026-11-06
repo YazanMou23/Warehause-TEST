@@ -1,4 +1,5 @@
 "use client";
+import { useTranslation } from "../../i18n/LanguageContext";
 
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -42,6 +43,7 @@ interface ScannerCaptureTabProps {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ScannerCaptureTab({ onScanCompleted }: ScannerCaptureTabProps) {
+  const { t: tx, locale: uiLocale } = useTranslation();
   const [selectedDevice, setSelectedDevice] = useState<SavedDevice | null>(null);
   const [isModalOpen, setIsModalOpen]       = useState(false);
   const [scanning, setScanning]             = useState(false);
@@ -90,7 +92,7 @@ export default function ScannerCaptureTab({ onScanCompleted }: ScannerCaptureTab
 
   const handleStartScan = async () => {
     if (!selectedDevice) {
-      setErrorMsg("Bitte wähle zuerst einen Scanner aus.");
+      setErrorMsg(tx("ui577"));
       return;
     }
 
@@ -127,7 +129,7 @@ export default function ScannerCaptureTab({ onScanCompleted }: ScannerCaptureTab
       setScanJobId(data.jobId || null);
 
       if (!data.pages || data.pages.length === 0) {
-        throw new Error("Keine Seiten vom Scanner empfangen.");
+        throw new Error(tx("ui578"));
       }
 
       setSuccessMsg(`✓ ${data.pages.length} Seite(n) erfolgreich gescannt!`);
@@ -139,7 +141,7 @@ export default function ScannerCaptureTab({ onScanCompleted }: ScannerCaptureTab
         pages:            data.pages,
       });
     } catch (e: any) {
-      setErrorMsg(e.message || "Scanvorgang fehlgeschlagen.");
+      setErrorMsg(e.message || tx("ui579"));
     } finally {
       setScanning(false);
     }
@@ -156,8 +158,7 @@ export default function ScannerCaptureTab({ onScanCompleted }: ScannerCaptureTab
             </div>
             <div>
               <h3 className="font-semibold text-slate-900 text-sm flex flex-wrap items-center gap-2">
-                Hardware-Scanner
-                <span className="text-xs px-2 py-0.5 bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 rounded-full">
+                {tx("ui465")}<span className="text-xs px-2 py-0.5 bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 rounded-full">
                   eSCL / WIA
                 </span>
               </h3>
@@ -169,8 +170,7 @@ export default function ScannerCaptureTab({ onScanCompleted }: ScannerCaptureTab
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-200 rounded-xl transition-colors"
           >
             <Settings2 className="w-4 h-4" />
-            Geräte verwalten
-          </button>
+            {tx("ui466")}</button>
         </div>
 
         {/* Selected device */}
@@ -213,8 +213,7 @@ export default function ScannerCaptureTab({ onScanCompleted }: ScannerCaptureTab
                   onClick={() => setIsModalOpen(true)}
                   className="text-xs text-slate-600 hover:text-slate-900 transition-colors underline"
                 >
-                  Ändern
-                </button>
+                  {tx("ui467")}</button>
               </div>
             </motion.div>
           ) : (
@@ -225,12 +224,10 @@ export default function ScannerCaptureTab({ onScanCompleted }: ScannerCaptureTab
               className="mt-4 w-full flex items-center justify-between p-3.5 rounded-xl border border-dashed border-slate-200 hover:border-blue-500/50 hover:bg-blue-500/5 transition-all group"
             >
               <span className="text-sm text-slate-600 group-hover:text-slate-900">
-                Keinen Scanner ausgewählt
-              </span>
+                {tx("ui468")}</span>
               <div className="flex items-center gap-1.5 text-blue-700 text-sm font-medium">
                 <Search className="w-4 h-4" />
-                Gerät auswählen
-                <ChevronRight className="w-4 h-4" />
+                {tx("ui469")}<ChevronRight className="w-4 h-4" />
               </div>
             </motion.button>
           )}
@@ -246,28 +243,27 @@ export default function ScannerCaptureTab({ onScanCompleted }: ScannerCaptureTab
         >
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
             <Sliders className="w-4 h-4 text-blue-700" />
-            Scan-Einstellungen
-          </div>
+            {tx("ui470")}</div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {/* Input Source */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">Papiereinzug</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">{tx("ui471")}</label>
               <select
                 value={inputSource}
                 onChange={(e) => setInputSource(e.target.value as "Platen" | "Feeder")}
                 className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition-colors"
               >
                 {selectedDevice.hasFlatbed && (
-                  <option value="Platen">Flachbett (Einzelblatt)</option>
+                  <option value="Platen">{tx("ui472")}</option>
                 )}
                 {selectedDevice.hasAdf && (
-                  <option value="Feeder">Automatik-Einzug (ADF)</option>
+                  <option value="Feeder">{tx("ui473")}</option>
                 )}
                 {!selectedDevice.hasAdf && !selectedDevice.hasFlatbed && (
                   <>
-                    <option value="Platen">Flachbett</option>
-                    <option value="Feeder">ADF-Einzug</option>
+                    <option value="Platen"> {tx("inventory1717")} </option>
+                    <option value="Feeder">{tx("ui474")}</option>
                   </>
                 )}
               </select>
@@ -275,29 +271,29 @@ export default function ScannerCaptureTab({ onScanCompleted }: ScannerCaptureTab
 
             {/* Color Mode */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">Farbmodus</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">{tx("ui475")}</label>
               <select
                 value={colorMode}
                 onChange={(e) => setColorMode(e.target.value as any)}
                 className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition-colors"
               >
-                <option value="Color">Vollfarbe (RGB)</option>
-                <option value="Grayscale">Graustufen (Schneller)</option>
-                <option value="BlackAndWhite">Schwarz/Weiß (Text)</option>
+                <option value="Color">{tx("ui476")}</option>
+                <option value="Grayscale">{tx("ui477")}</option>
+                <option value="BlackAndWhite">{tx("ui478")}</option>
               </select>
             </div>
 
             {/* Resolution */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">Auflösung (DPI)</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">{tx("ui479")}</label>
               <select
                 value={dpi}
                 onChange={(e) => setDpi(Number(e.target.value))}
                 className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition-colors"
               >
-                <option value={150}>150 DPI (Schnell)</option>
-                <option value={300}>300 DPI (Empfohlen für OCR)</option>
-                <option value={600}>600 DPI (Hohe Qualität)</option>
+                <option value={150}>{tx("ui480")}</option>
+                <option value={300}>{tx("ui481")}</option>
+                <option value={600}>{tx("ui482")}</option>
               </select>
             </div>
           </div>
@@ -317,8 +313,7 @@ export default function ScannerCaptureTab({ onScanCompleted }: ScannerCaptureTab
               />
               <div className="flex items-center gap-1.5">
                 <Layers className="w-3.5 h-3.5 text-blue-700" />
-                Stapel-Modus: Alle Seiten aus dem ADF nacheinander einziehen
-              </div>
+                {tx("ui483")}</div>
             </motion.label>
           )}
         </motion.div>
@@ -357,8 +352,7 @@ export default function ScannerCaptureTab({ onScanCompleted }: ScannerCaptureTab
           className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-900 transition-colors"
         >
           <HelpCircle className="w-4 h-4" />
-          Scanner nicht erreichbar?
-        </button>
+          {tx("ui484")}</button>
 
         <button
           onClick={handleStartScan}
@@ -368,13 +362,11 @@ export default function ScannerCaptureTab({ onScanCompleted }: ScannerCaptureTab
           {scanning ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              Scan läuft…
-            </>
+              {tx("ui485")}</>
           ) : (
             <>
               <ScanLine className="w-4 h-4" />
-              Scannen starten
-            </>
+              {tx("ui486")}</>
           )}
         </button>
       </div>
@@ -391,19 +383,18 @@ export default function ScannerCaptureTab({ onScanCompleted }: ScannerCaptureTab
             <div className="bg-white border border-slate-200 rounded-xl p-4 text-xs text-slate-600 space-y-2">
               <p className="font-semibold text-slate-900 flex items-center gap-1.5">
                 <ZapOff className="w-3.5 h-3.5 text-amber-700" />
-                Hinweise zur Scanner-Einrichtung:
-              </p>
+                {tx("ui487")}</p>
               <ul className="list-disc pl-4 space-y-1.5">
-                <li>Stelle sicher, dass <strong>AirScan / eSCL</strong> am Drucker im Browser-Menü aktiviert ist.</li>
-                <li>Scanner und dieser PC müssen im <strong>gleichen WLAN</strong> sein.</li>
+                <li>{tx("ui488")}<strong>AirScan / eSCL</strong> {tx("ui489")}</li>
+                <li>{tx("ui490")}<strong>{tx("ui491")}</strong> {tx("ui492")}</li>
                 <li>
-                  Für automatische LAN-Erkennung: Verwende den{" "}
+                  {tx("ui493")}{" "}
                   <strong className="text-slate-900">LogiFlow Connector</strong>.
                 </li>
                 <li>
                   <strong>HP</strong>: Port 8080 &nbsp;|&nbsp;
                   <strong>Brother/Canon/Epson</strong>: Port 80 &nbsp;|&nbsp;
-                  <strong>Verschlüsselt</strong>: Port 443
+                  <strong>{tx("ui494")}</strong>: Port 443
                 </li>
               </ul>
             </div>
@@ -424,6 +415,7 @@ export default function ScannerCaptureTab({ onScanCompleted }: ScannerCaptureTab
 
 // Needed since we reference it in JSX without import
 function Search({ className }: { className?: string }) {
+  const { t: tx, locale: uiLocale } = useTranslation();
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <circle cx={11} cy={11} r={8} />

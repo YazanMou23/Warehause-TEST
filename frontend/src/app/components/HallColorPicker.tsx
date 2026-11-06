@@ -1,4 +1,6 @@
 "use client";
+import type { TranslationKey } from "../i18n/translations";
+import { useTranslation } from "../i18n/LanguageContext";
 
 import React, { useState, useEffect } from "react";
 import {
@@ -21,39 +23,39 @@ interface HallColorPickerProps {
 
 export const PRESET_PALETTES = [
   {
-    name: "Classic Corporate",
+    name: "inventory1532",
     colors: [
-      { hex: "#1d4ed8", label: "Royal Blue" },
-      { hex: "#0284c7", label: "Sky Blue" },
-      { hex: "#0f766e", label: "Teal Green" },
-      { hex: "#334155", label: "Slate Navy" },
+      { hex: "#1d4ed8", label: "inventory1536" },
+      { hex: "#0284c7", label: "inventory1537" },
+      { hex: "#0f766e", label: "inventory1538" },
+      { hex: "#334155", label: "inventory1539" },
     ],
   },
   {
-    name: "Vibrant & Alert",
+    name: "inventory1533",
     colors: [
-      { hex: "#dc2626", label: "Crimson Red" },
-      { hex: "#ea580c", label: "Safety Orange" },
-      { hex: "#d97706", label: "Amber Yellow" },
-      { hex: "#db2777", label: "Rose Magenta" },
+      { hex: "#dc2626", label: "inventory1540" },
+      { hex: "#ea580c", label: "inventory1541" },
+      { hex: "#d97706", label: "inventory1542" },
+      { hex: "#db2777", label: "inventory1543" },
     ],
   },
   {
-    name: "Fresh & Logistic",
+    name: "inventory1534",
     colors: [
-      { hex: "#059669", label: "Emerald Green" },
-      { hex: "#16a34a", label: "Traffic Green" },
-      { hex: "#65a30d", label: "Lime Olive" },
-      { hex: "#0891b2", label: "Cyan Sector" },
+      { hex: "#059669", label: "inventory1544" },
+      { hex: "#16a34a", label: "inventory1545" },
+      { hex: "#65a30d", label: "inventory1546" },
+      { hex: "#0891b2", label: "inventory1547" },
     ],
   },
   {
-    name: "Modern & Creative",
+    name: "inventory1535",
     colors: [
-      { hex: "#7c3aed", label: "Violet Iris" },
-      { hex: "#9333ea", label: "Amethyst Purple" },
-      { hex: "#4f46e5", label: "Indigo Deep" },
-      { hex: "#b45309", label: "Bronze Gold" },
+      { hex: "#7c3aed", label: "inventory1548" },
+      { hex: "#9333ea", label: "inventory1549" },
+      { hex: "#4f46e5", label: "inventory1550" },
+      { hex: "#b45309", label: "inventory1551" },
     ],
   },
 ];
@@ -76,9 +78,10 @@ export function getContrastTextColor(hexColor: string): "text-white" | "text-sla
 export default function HallColorPicker({
   color,
   onChange,
-  label = "Hallen-Farbsystem (Sector Color)",
+  label,
   showPreview = true,
 }: HallColorPickerProps) {
+ const { t } = useTranslation();
   const [customColors, setCustomColors] = useState<string[]>([]);
   const [hexInput, setHexInput] = useState(color || "#1d4ed8");
   const [copied, setCopied] = useState(false);
@@ -162,11 +165,10 @@ export default function HallColorPicker({
       <div className="flex items-center justify-between">
         <label className="text-xs font-bold uppercase text-slate-700 tracking-wider flex items-center gap-1.5">
           <Palette className="w-3.5 h-3.5 text-blue-600" />
-          {label}
+          {label || t("inventory1518")}
         </label>
         <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-slate-200/70 text-slate-700">
-          HEX Code
-        </span>
+           {t("inventory1519")} </span>
       </div>
 
       {/* Main Color Picker Input Row */}
@@ -177,15 +179,15 @@ export default function HallColorPicker({
             value={activeColor.length === 7 ? activeColor : "#1d4ed8"}
             onChange={(e) => handleSelectColor(e.target.value)}
             className="w-12 h-12 rounded-xl border-2 border-white shadow-md cursor-pointer p-0 bg-transparent transition-transform hover:scale-105"
-            title="Klicken für Farbauswahl"
+            title={t("inventory1520")}
           />
           <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow pointer-events-none">
             <Sparkles className="w-3 h-3 text-amber-500" />
           </div>
         </div>
 
-        <div className="flex-1 flex gap-2">
-          <div className="relative flex-1">
+        <div className="min-w-0 flex-1 flex flex-wrap gap-2">
+          <div className="relative min-w-[110px] flex-1">
             <input
               type="text"
               maxLength={7}
@@ -197,8 +199,8 @@ export default function HallColorPicker({
             <button
               type="button"
               onClick={handleCopyHex}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1 transition-colors"
-              title="Farbcode kopieren"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-700 p-1 transition-colors"
+              title={t("inventory1521")}
             >
               {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
             </button>
@@ -208,10 +210,10 @@ export default function HallColorPicker({
             type="button"
             onClick={handleSaveToCustomPalette}
             className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer shrink-0"
-            title="Aktuelle Farbe zur eigenen Farbpalette hinzufügen"
+            title={t("inventory1522")}
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Farbe merken</span>
+            <span> {t("inventory1523")} </span>
           </button>
         </div>
       </div>
@@ -220,11 +222,11 @@ export default function HallColorPicker({
       {customColors.length > 0 && (
         <div className="space-y-1.5 pt-1">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-blue-500" />
-              Meine benutzerdefinierten Farben ({customColors.length})
+               {t("inventory1524")} {customColors.length})
             </span>
-            <span className="text-[9px] text-slate-400">Klick zum Anwenden</span>
+            <span className="text-[9px] text-slate-600"> {t("inventory1525")} </span>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -250,8 +252,8 @@ export default function HallColorPicker({
                   <button
                     type="button"
                     onClick={(e) => handleRemoveCustomColor(hex, e)}
-                    className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-600 transition-opacity ml-0.5 p-0.5 rounded hover:bg-slate-100"
-                    title="Aus gemerkten Farben entfernen"
+                    className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-600 transition-opacity ml-0.5 p-0.5 rounded hover:bg-slate-100"
+                    title={t("inventory1526")}
                   >
                     <Trash2 className="w-3 h-3" />
                   </button>
@@ -264,16 +266,15 @@ export default function HallColorPicker({
 
       {/* Preset Curated Palettes */}
       <div className="space-y-2 pt-1 border-t border-slate-200">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-          Standard-Farbpaletten
-        </span>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 block">
+           {t("inventory1527")} </span>
+        <div className="grid grid-cols-1 min-[360px]:grid-cols-2 sm:grid-cols-4 gap-2">
           {PRESET_PALETTES.map((palette) => (
             <div key={palette.name} className="bg-white p-2 rounded-lg border border-slate-200 space-y-1.5 shadow-2xs">
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight block truncate">
-                {palette.name}
+              <span className="text-[9px] font-bold text-slate-600 uppercase tracking-tight block truncate">
+                {t(palette.name as TranslationKey)}
               </span>
-              <div className="flex gap-1.5">
+              <div className="flex flex-wrap gap-1.5">
                 {palette.colors.map((pColor) => {
                   const isSelected = activeColor.toLowerCase() === pColor.hex.toLowerCase();
                   return (
@@ -287,7 +288,7 @@ export default function HallColorPicker({
                           : "border-transparent hover:scale-110"
                       }`}
                       style={{ backgroundColor: pColor.hex }}
-                      title={`${pColor.label} (${pColor.hex})`}
+                      title={`${t(pColor.label as TranslationKey)} (${pColor.hex})`}
                     />
                   );
                 })}
@@ -301,10 +302,9 @@ export default function HallColorPicker({
       {showPreview && (
         <div className="pt-2 border-t border-slate-200">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-              <Layers className="w-3 h-3 text-slate-400" />
-              Live-Vorschau (Design Integration)
-            </span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1">
+              <Layers className="w-3 h-3 text-slate-600" />
+               {t("inventory1528")} </span>
           </div>
 
           <div
@@ -323,15 +323,14 @@ export default function HallColorPicker({
               </div>
               <div>
                 <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                  <span>Halle / Sector Vorschau</span>
+                  <span> {t("inventory1529")} </span>
                   <span
                     className={`text-[9px] font-mono px-2 py-0.5 rounded-full font-bold shadow-2xs ${contrastText}`}
                     style={{ backgroundColor: activeColor }}
                   >
-                    Aktiv
-                  </span>
+                     {t("active")} </span>
                 </p>
-                <p className="text-[10px] text-slate-400 font-mono">Farbcode: {activeColor}</p>
+                <p className="text-[10px] text-slate-600 font-mono"> {t("inventory1530")} {activeColor}</p>
               </div>
             </div>
 
@@ -344,8 +343,7 @@ export default function HallColorPicker({
               }}
             >
               <CheckCircle2 className="w-3 h-3" />
-              Harmonisch
-            </span>
+               {t("inventory1531")} </span>
           </div>
         </div>
       )}

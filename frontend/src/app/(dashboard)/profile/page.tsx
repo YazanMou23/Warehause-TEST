@@ -35,6 +35,7 @@ interface UserProfile {
 }
 
 export default function ProfilePage() {
+  const { t: tx, locale: uiLocale } = useTranslation();
   const { t, language } = useTranslation();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -79,7 +80,7 @@ export default function ProfilePage() {
         setEmail(data.email || "");
         setTelegramId(data.telegramId || "");
       } else {
-        throw new Error("Failed to load profile");
+        throw new Error(tx("ui546"));
       }
     } catch (err) {
       console.error("Failed to load profile:", err);
@@ -137,17 +138,17 @@ export default function ProfilePage() {
 
       if (res.ok) {
         const updatedUser = await res.json();
-        setUpdateSuccess(language === "de" ? "Profildaten erfolgreich aktualisiert." : "Profile details updated successfully.");
+        setUpdateSuccess(tx("ui348"));
         
         updateDecodedTokenName(updatedUser.name);
         window.dispatchEvent(new Event("profile-updated"));
         fetchProfile(profile.id, token);
       } else {
         const errJson = await res.json();
-        throw new Error(errJson.message || "Failed to update profile");
+        throw new Error(errJson.message || tx("ui547"));
       }
     } catch (err: any) {
-      setUpdateError(err.message || "Network error occurred.");
+      setUpdateError(err.message || tx("ui548"));
     } finally {
       setUpdateLoading(false);
     }
@@ -160,7 +161,7 @@ export default function ProfilePage() {
     setPasswordError("");
 
     if (!currentPassword) {
-      setPasswordError(language === "de" ? "Bitte geben Sie Ihr aktuelles Passwort ein." : "Please enter your current password.");
+      setPasswordError(tx("ui349"));
       setPasswordLoading(false);
       return;
     }
@@ -204,10 +205,10 @@ export default function ProfilePage() {
         setNewPassword("");
         setConfirmPassword("");
       } else {
-        throw new Error(data.message || (language === "de" ? "Passwortänderung fehlgeschlagen." : "Failed to change password."));
+        throw new Error(data.message || (tx("ui350")));
       }
     } catch (err: any) {
-      setPasswordError(err.message || "Network error occurred.");
+      setPasswordError(err.message || tx("ui548"));
     } finally {
       setPasswordLoading(false);
     }
@@ -247,10 +248,10 @@ export default function ProfilePage() {
         fetchProfile(profile.id, token);
       } else {
         const errJson = await res.json();
-        throw new Error(errJson.message || "Failed to upload photo");
+        throw new Error(errJson.message || tx("ui549"));
       }
     } catch (err: any) {
-      setPhotoError(err.message || "Error uploading file.");
+      setPhotoError(err.message || tx("ui550"));
     } finally {
       setPhotoLoading(false);
     }
@@ -292,7 +293,7 @@ export default function ProfilePage() {
 
 
       {userRole === "EMPLOYEE" && (
-        <div className="bg-blue-500/10 text-blue-300 border border-blue-500/20 px-4 py-3 rounded-lg flex items-start gap-2.5 text-xs">
+        <div className="bg-blue-500/10 text-blue-800 border border-blue-500/20 px-4 py-3 rounded-lg flex items-start gap-2.5 text-xs">
           <AlertTriangle className="w-4.5 h-4.5 shrink-0 mt-0.5 text-blue-400" />
           <span>{t("cannotChangeTip")}</span>
         </div>
@@ -316,7 +317,7 @@ export default function ProfilePage() {
                   e.currentTarget.style.display = "none";
                 }}
               />
-              <span className="w-full h-full flex items-center justify-center bg-secondary-container text-white text-3xl font-bold">
+              <span className="w-full h-full flex items-center justify-center bg-secondary-container text-on-secondary-container text-3xl font-bold">
                 {initials}
               </span>
             </div>
@@ -342,7 +343,7 @@ export default function ProfilePage() {
           />
 
           <h3 className="font-bold text-body-lg text-on-surface">{profile.name}</h3>
-          <span className="mt-1 px-3 py-0.5 rounded-full bg-secondary-container/10 text-secondary-container font-mono text-[10px] uppercase font-bold tracking-wider">
+          <span className="mt-1 px-3 py-0.5 rounded-full bg-secondary-container text-on-secondary-container font-mono text-[10px] uppercase font-bold tracking-wider">
             {getTranslatedRole(profile.role)}
           </span>
 
@@ -359,13 +360,13 @@ export default function ProfilePage() {
             <div className="flex items-center gap-2.5">
               <Warehouse className="w-4 h-4 text-outline" />
               <span>
-                <strong>{t("warehouse")}:</strong> {profile.warehouseId || (language === "de" ? "Nicht zugewiesen" : "Not Assigned")}
+                <strong>{t("warehouse")}:</strong> {profile.warehouseId || (tx("ui351"))}
               </span>
             </div>
             <div className="flex items-center gap-2.5">
               <Grid className="w-4 h-4 text-outline" />
               <span>
-                <strong>{t("stagingHall")}:</strong> {profile.hallId || (language === "de" ? "Nicht zugewiesen" : "Not Assigned")}
+                <strong>{t("stagingHall")}:</strong> {profile.hallId || (tx("ui351"))}
               </span>
             </div>
             <div className="flex items-center gap-2.5">
@@ -373,7 +374,7 @@ export default function ProfilePage() {
               <span>
                 <strong>{t("employmentStart")}:</strong>{" "}
                   <span suppressHydrationWarning>
-                    {profile.createdAt ? new Date(profile.createdAt).toLocaleDateString(language === "de" ? "de-DE" : "en-CA") : "—"}
+                    {profile.createdAt ? new Date(profile.createdAt).toLocaleDateString(uiLocale) : "—"}
                   </span>
               </span>
             </div>
@@ -411,6 +412,7 @@ export default function ProfilePage() {
                     <Phone className="w-4 h-4 text-outline absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
+                      dir="ltr"
                       value={profile.phone}
                       className="w-full pl-9 pr-3.5 py-2 border border-outline-variant rounded-lg text-body-sm bg-surface-container-high text-outline outline-none cursor-not-allowed"
                       disabled
@@ -431,7 +433,7 @@ export default function ProfilePage() {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="e.g. name@logiflow.com"
+                      placeholder="name@example.com"
                       className="w-full pl-9 pr-3.5 py-2 border border-outline-variant rounded-lg text-body-sm focus:ring-1 focus:ring-secondary focus:border-secondary outline-none bg-surface-container-low text-on-surface"
                     />
                   </div>
@@ -473,7 +475,7 @@ export default function ProfilePage() {
                   disabled={updateLoading}
                   className="bg-secondary text-white hover:bg-secondary-container px-5 py-2 rounded-lg text-label-md transition-colors font-bold disabled:opacity-50 cursor-pointer"
                 >
-                  {updateLoading ? (language === "de" ? "Wird gespeichert..." : "Saving...") : t("saveProfile")}
+                  {updateLoading ? (tx("saving")) : t("saveProfile")}
                 </button>
               </div>
             </form>
@@ -546,7 +548,7 @@ export default function ProfilePage() {
                   disabled={passwordLoading}
                   className="bg-primary text-on-primary hover:bg-neutral-800 px-5 py-2 rounded-lg text-label-md transition-colors font-bold uppercase tracking-wider text-xs disabled:opacity-50 cursor-pointer"
                 >
-                  {passwordLoading ? (language === "de" ? "Wird aktualisiert..." : "Updating...") : t("updatePassword")}
+                  {passwordLoading ? (tx("ui352")) : t("updatePassword")}
                 </button>
               </div>
             </form>

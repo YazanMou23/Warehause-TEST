@@ -1,4 +1,5 @@
 "use client";
+import { useTranslation } from "../../i18n/LanguageContext";
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
@@ -55,6 +56,7 @@ interface ChatMessage {
 }
 
 export default function ChatPage() {
+ const { t, locale } = useTranslation();
   const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(null);
@@ -73,7 +75,7 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
 
   const [errorMsg, setErrorMsg] = useState("");
-  
+
   // Actor info from JWT
   const [actorId, setActorId] = useState("");
   const [actorRole, setActorRole] = useState("");
@@ -112,7 +114,7 @@ export default function ChatPage() {
       if (!res.ok) throw new Error("Fehler beim Laden");
       const data = await res.json();
       setConversations(data);
-      
+
       // If we are an employee, find if we are blocked
       if (actorRole === "EMPLOYEE") {
         const empRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${actorId}`, {
@@ -138,10 +140,10 @@ export default function ChatPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (!res.ok) throw new Error("Fehler");
+      if (!res.ok) throw new Error(t("ui526"));
       const data = await res.json();
       setMessages(data);
-      
+
       // Update unread count locally for smooth UI
       setConversations(prev =>
         prev.map(c => c.id === partnerId ? { ...c, unreadCount: 0 } : c)
@@ -201,27 +203,27 @@ export default function ChatPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.message || "Senden fehlgeschlagen.");
+        throw new Error(data.message || t("inventory1596"));
       }
 
       setNewMessage("");
       fetchHistory(selectedPartnerId, true);
       fetchConversations(true);
     } catch (err: any) {
-      setErrorMsg(err.message || "Fehler beim Senden.");
+      setErrorMsg(err.message || t("inventory1597"));
     } finally {
       setSending(false);
     }
   };
 
   const handleBlockToggle = (employeeId: string, currentBlockStatus: boolean) => {
-    const actionLabel = currentBlockStatus ? "entsperren" : "blockieren";
+
     showAlert({
-      title: currentBlockStatus ? "Mitarbeiter entsperren" : "Mitarbeiter blockieren",
-      message: `Möchten Sie diesen Mitarbeiter wirklich ${actionLabel}?`,
+      title: currentBlockStatus ? t("inventory1582") : t("inventory1583"),
+      message: currentBlockStatus ? t("inventory1600") : t("inventory1599"),
       type: "warning",
-      confirmText: currentBlockStatus ? "Entsperren" : "Blockieren",
-      cancelText: "Abbrechen",
+      confirmText: currentBlockStatus ? t("inventory1587") : t("inventory1588"),
+      cancelText: t("ui336"),
       onConfirm: async () => {
         const token = localStorage.getItem("accessToken");
         const nextBlockStatus = !currentBlockStatus;
@@ -239,16 +241,16 @@ export default function ChatPage() {
           if (res.ok) {
             setConversations(prev => prev.map(c => c.id === employeeId ? { ...c, isChatBlocked: nextBlockStatus } : c));
             showAlert({
-              title: nextBlockStatus ? "Mitarbeiter blockiert" : "Mitarbeiter entsperrt",
-              message: `Mitarbeiter wurde erfolgreich ${nextBlockStatus ? "blockiert" : "entsperrt"}.`,
+              title: nextBlockStatus ? t("inventory1585") : t("inventory1586"),
+              message: nextBlockStatus ? t("inventory1601") : t("inventory1602"),
               type: "success"
             });
           } else {
-            showAlert({ title: "Fehler", message: `Aktion "${actionLabel}" fehlgeschlagen.`, type: "error" });
+            showAlert({ title: t("ui526"), message: t("inventory1603"), type: "error" });
           }
         } catch (err: any) {
           console.error(err);
-          showAlert({ title: "Fehler", message: "Fehler beim Ausführen der Aktion.", type: "error" });
+          showAlert({ title: t("ui526"), message: t("inventory1598"), type: "error" });
         }
       },
     });
@@ -270,7 +272,7 @@ export default function ChatPage() {
   const isSendDisabled = useMemo(() => {
     if (actorRole !== "EMPLOYEE") return false;
     if (isActorBlocked) return true;
-    
+
     // Check if the last message in history was sent by this employee (self)
     if (messages.length > 0) {
       const lastMsg = messages[messages.length - 1];
@@ -282,7 +284,7 @@ export default function ChatPage() {
   const formatMessageTime = (isoString: string) => {
     try {
       const d = new Date(isoString);
-      return d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+      return d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
     } catch {
       return "";
     }
@@ -299,24 +301,23 @@ export default function ChatPage() {
 
   return (
     <div className="h-[calc(100vh-8rem)] sm:h-[80vh] flex bg-white border border-outline-variant rounded-2xl overflow-hidden shadow-sm">
-      
+
       {/* 1. LEFT SIDEBAR: Conversation list — hidden on mobile when a chat is open */}
-      <div className={`${selectedPartnerId ? "hidden sm:flex" : "flex"} w-full sm:w-1/3 border-r border-outline-variant flex-col bg-slate-50/30 shrink-0`}>
-        
+      <div className={`${selectedPartnerId ? "hidden sm:flex" : "flex"} w-full sm:w-1/3 border-e border-outline-variant flex-col bg-slate-50/30 shrink-0`}>
+
         {/* Search */}
         <div className="p-4 border-b border-outline-variant bg-white">
           <h4 className="font-bold text-slate-800 text-body-lg flex items-center gap-2 mb-3">
             <MessageSquare className="w-5 h-5 text-secondary" />
-            Chat-Kommunikation
-          </h4>
+             {t("inventory1576")} </h4>
           <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search className="w-4 h-4 absolute start-3 top-1/2 -translate-y-1/2 text-slate-600" />
             <input
               type="text"
-              placeholder="Partner suchen..."
+              placeholder={t("inventory1577")}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-50 border border-outline-variant rounded-xl pl-9 pr-4 py-2 text-xs text-slate-800 focus:outline-none focus:border-secondary"
+              className="w-full bg-slate-50 border border-outline-variant rounded-xl ps-9 pe-4 py-2 text-xs text-slate-800 focus:outline-none focus:border-secondary"
             />
           </div>
         </div>
@@ -324,15 +325,15 @@ export default function ChatPage() {
         {/* List */}
         <div className="flex-1 overflow-y-auto divide-y divide-outline-variant">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-2 text-slate-400">
+            <div className="flex flex-col items-center justify-center py-12 gap-2 text-slate-600">
               <Loader2 className="w-6 h-6 animate-spin text-secondary" />
-              <span className="text-xs">Lade Kontakte...</span>
+              <span className="text-xs"> {t("inventory1578")} </span>
             </div>
           ) : filteredConversations.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-1.5 px-4 text-center">
+            <div className="flex flex-col items-center justify-center py-16 text-slate-600 gap-1.5 px-4 text-center">
               <Inbox className="w-7 h-7 opacity-50" />
-              <p className="text-xs font-semibold">Keine Chatpartner gefunden</p>
-              <p className="text-[10px] opacity-75">Vergewissern Sie sich, dass aktive Mitarbeiter/Manager registriert sind.</p>
+              <p className="text-xs font-semibold"> {t("inventory1579")} </p>
+              <p className="text-[10px] "> {t("inventory1580")} </p>
             </div>
           ) : (
             filteredConversations.map(conv => {
@@ -344,7 +345,7 @@ export default function ChatPage() {
                   setSelectedPartnerId(conv.id);
                 }}
                   className={`p-3.5 flex justify-between items-start cursor-pointer transition-colors ${
-                    isSelected ? "bg-secondary-container/10 border-l-4 border-secondary" : "hover:bg-slate-50/50"
+                    isSelected ? "bg-secondary-container/10 border-s-4 border-secondary" : "hover:bg-slate-50/50"
                   } ${conv.isChatBlocked ? "opacity-60" : ""}`}
                 >
                   <div className="flex gap-3 min-w-0 flex-1">
@@ -362,26 +363,26 @@ export default function ChatPage() {
                       <div className="flex items-baseline gap-1.5">
                         <span className="font-bold text-xs text-slate-900 truncate">{conv.name}</span>
                         <span className="text-[9px] uppercase tracking-wider bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold shrink-0">
-                          {conv.role}
+                          {conv.role === "ADMIN" ? t("staff924") : conv.role === "MANAGER" ? t("roleManager") : t("roleEmployee")}
                         </span>
                       </div>
-                      <p className="text-[10px] text-slate-500 truncate mt-0.5">
-                        {conv.lastMessage ? conv.lastMessage.content : "Keine Nachrichten vorhanden"}
+                      <p className="text-[10px] text-slate-600 truncate mt-0.5">
+                        {conv.lastMessage ? conv.lastMessage.content : t("inventory1581")}
                       </p>
                     </div>
                   </div>
 
                   {/* Actions for Manager/Admin */}
                   {(actorRole === "MANAGER" || actorRole === "ADMIN") && (
-                    <div onClick={e => e.stopPropagation()} className="pl-2 shrink-0">
+                    <div onClick={e => e.stopPropagation()} className="ps-2 shrink-0">
                       <button
                         onClick={() => handleBlockToggle(conv.id, conv.isChatBlocked)}
                         className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
                           conv.isChatBlocked
                             ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100"
-                            : "bg-slate-50 text-slate-400 border-outline-variant hover:text-red-500 hover:border-red-200 hover:bg-red-50"
+                            : "bg-slate-50 text-slate-600 border-outline-variant hover:text-red-500 hover:border-red-200 hover:bg-red-50"
                         }`}
-                        title={conv.isChatBlocked ? "Mitarbeiter freigeben" : "Mitarbeiter blockieren"}
+                        title={conv.isChatBlocked ? t("inventory1584") : t("inventory1583")}
                       >
                         {conv.isChatBlocked ? <Lock size={12} /> : <Unlock size={12} />}
                       </button>
@@ -403,25 +404,24 @@ export default function ChatPage() {
               <div className="flex items-center gap-3">
                 {/* Back button — only on mobile */}
                 <button
-                  className="sm:hidden p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors mr-1"
+                  className="sm:hidden p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors me-1"
                   onClick={() => setSelectedPartnerId(null)}
-                  aria-label="Back to conversations"
+                  aria-label={t("inventory1589")}
                 >
-                  <ChevronRight className="w-4 h-4 rotate-180" />
+                  <ChevronRight className="w-4 h-4 ltr:rotate-180" />
                 </button>
                 <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-200 text-secondary font-bold text-xs flex items-center justify-center shrink-0">
                   {getInitials(selectedPartner.name)}
                 </div>
                 <div className="min-w-0">
                   <h5 className="font-bold text-xs text-slate-900 leading-none truncate">{selectedPartner.name}</h5>
-                  <span className="text-[9px] text-slate-500 mt-1 block truncate">@{selectedPartner.username} • {selectedPartner.role}</span>
+                  <span className="text-[9px] text-slate-600 mt-1 block truncate">@{selectedPartner.username} • {selectedPartner.role === "ADMIN" ? t("staff924") : selectedPartner.role === "MANAGER" ? t("roleManager") : t("roleEmployee")}</span>
                 </div>
               </div>
 
               {selectedPartner.isChatBlocked && (
                 <span className="text-[10px] bg-red-50 text-red-800 border border-red-200 px-2 py-0.5 rounded font-bold uppercase tracking-wider flex items-center gap-1.5">
-                  <Lock className="w-3 h-3 text-red-600" /> Blockiert
-                </span>
+                  <Lock className="w-3 h-3 text-red-600" />  {t("inventory1590")} </span>
               )}
             </div>
 
@@ -438,13 +438,13 @@ export default function ChatPage() {
                       <div
                         className={`px-4 py-2.5 rounded-2xl text-xs shadow-sm ${
                           isSelf
-                            ? "bg-secondary text-white rounded-tr-none font-medium"
-                            : "bg-white text-slate-800 border border-outline-variant rounded-tl-none"
+                            ? "bg-secondary text-white rounded-se-none font-medium"
+                            : "bg-white text-slate-800 border border-outline-variant rounded-ss-none"
                         }`}
                       >
                         <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                       </div>
-                      <span className={`text-[9px] text-slate-400 font-mono self-end px-1 mt-0.5`}>
+                      <span className={`text-[9px] text-slate-600 font-mono self-end px-1 mt-0.5`}>
                         {formatMessageTime(msg.createdAt)}
                       </span>
                     </div>
@@ -466,24 +466,23 @@ export default function ChatPage() {
               {actorRole === "EMPLOYEE" && isActorBlocked ? (
                 <div className="bg-red-50 border border-red-200 text-red-800 p-3 rounded-xl flex items-center gap-2.5 text-xs font-bold uppercase tracking-wide">
                   <Lock className="w-4 h-4 text-red-600 shrink-0" />
-                  Absenden gesperrt. Sie wurden von einem Manager blockiert.
-                </div>
+                   {t("inventory1591")} </div>
               ) : actorRole === "EMPLOYEE" && isSendDisabled ? (
                 <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl flex items-center gap-2.5 text-xs font-bold tracking-wide">
                   <Clock className="w-4 h-4 text-amber-600 shrink-0" />
-                  Warten auf Antwort... (Sie können erst nach einer Antwort des Managers wieder schreiben).
-                </div>
+                   {t("inventory1592")} </div>
               ) : (
                 <form onSubmit={handleSendMessage} className="flex gap-2">
                   <input
                     type="text"
-                    placeholder="Nachricht eingeben..."
+                    placeholder={t("inventory1593")}
                     value={newMessage}
                     onChange={e => setNewMessage(e.target.value)}
-                    className="flex-1 bg-slate-50 border border-outline-variant rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-secondary focus:bg-white transition-all outline-none"
+                    className="min-w-0 flex-1 bg-slate-50 border border-outline-variant rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-secondary focus:bg-white transition-all outline-none"
                     disabled={sending}
                   />
                   <button
+                    aria-label={t("inventory1604")}
                     type="submit"
                     disabled={sending || !newMessage.trim()}
                     className="bg-secondary hover:bg-blue-700 disabled:opacity-40 text-white p-2.5 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center shrink-0 cursor-pointer"
@@ -495,12 +494,11 @@ export default function ChatPage() {
             </div>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-2">
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-600 gap-2">
             <MessageSquare className="w-12 h-12 opacity-30 text-secondary" />
-            <h5 className="font-bold text-sm text-slate-700">Willkommen beim LogiFlow-Chat</h5>
-            <p className="text-xs text-slate-500 max-w-xs text-center">
-              Wählen Sie einen Mitarbeiter oder Manager aus der linken Spalte aus, um eine Unterhaltung zu beginnen.
-            </p>
+            <h5 className="font-bold text-sm text-slate-700"> {t("inventory1594")} </h5>
+            <p className="text-xs text-slate-600 max-w-xs text-center">
+               {t("inventory1595")} </p>
           </div>
         )}
       </div>

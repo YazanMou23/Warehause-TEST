@@ -1,4 +1,5 @@
 "use client";
+import { useTranslation } from "../../i18n/LanguageContext";
 
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -112,19 +113,19 @@ function getStatusColor(status: string) {
   }
 }
 
-function getStatusLabel(status: string) {
+function getStatusLabel(status: string, tx: (key: import("../../i18n/translations").TranslationKey) => string) {
   const s = (status || "").toUpperCase();
   const labels: Record<string, string> = {
-    READY:      "Bereit",
-    AVAILABLE:  "Bereit",
-    BUSY:       "Beschäftigt",
-    SCANNING:   "Scannt",
-    PAPER_JAM:  "Papierstau",
-    NO_PAPER:   "Kein Papier",
-    COVER_OPEN: "Abdeckung offen",
-    ERROR:      "Fehler",
-    OFFLINE:    "Offline",
-    UNKNOWN:    "Bereit",
+    READY:      tx("ready"),
+    AVAILABLE:  tx("ready"),
+    BUSY:       tx("busy"),
+    SCANNING:   tx("scanning"),
+    PAPER_JAM:  tx("paperJam"),
+    NO_PAPER:   tx("ui560"),
+    COVER_OPEN: tx("ui561"),
+    ERROR:      tx("ui526"),
+    OFFLINE:    tx("offline"),
+    UNKNOWN:    tx("ready"),
   };
   return labels[s] ?? status;
 }
@@ -138,6 +139,7 @@ function getProtocolIcon(protocol?: string, connectionType?: string) {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function CapabilityBadge({ label, active }: { label: string; active: boolean }) {
+  const { t: tx, locale: uiLocale } = useTranslation();
   return (
     <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border font-medium ${
       active
@@ -161,6 +163,7 @@ function DiscoveredDeviceCard({
   isConnecting: boolean;
   onConnect: (device: ScannerDeviceRaw) => void;
 }) {
+  const { t: tx, locale: uiLocale } = useTranslation();
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -194,8 +197,7 @@ function DiscoveredDeviceCard({
                 </span>
                 {device.isAgentDevice && (
                   <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-700 border border-blue-500/20 font-bold">
-                    LOCAL AGENT
-                  </span>
+                    {tx("ui405")}</span>
                 )}
               </div>
               <div className="flex items-center gap-2 mt-0.5">
@@ -219,13 +221,12 @@ function DiscoveredDeviceCard({
           {/* Status + Action */}
           <div className="flex items-center gap-2 flex-shrink-0">
             <span className={`text-[11px] px-2.5 py-1 rounded-full border font-medium ${getStatusColor(device.status)}`}>
-              {getStatusLabel(device.status)}
+              {getStatusLabel(device.status, tx)}
             </span>
             {isSaved ? (
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-700 border border-emerald-500/25 text-xs font-semibold">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                Verbunden
-              </div>
+                {tx("ui406")}</div>
             ) : (
               <button
                 onClick={() => onConnect(device)}
@@ -237,8 +238,7 @@ function DiscoveredDeviceCard({
                 ) : (
                   <Plug className="w-3.5 h-3.5" />
                 )}
-                Verbinden
-              </button>
+                {tx("ui407")}</button>
             )}
           </div>
         </div>
@@ -252,7 +252,7 @@ function DiscoveredDeviceCard({
             <CapabilityBadge label="Farbe"      active={Boolean(device.capabilities.color ?? device.capabilities.colorModes?.some(m => /rgb|color/i.test(m)) ?? true)} />
             {(device.capabilities.supportedDpi?.length ?? 0) > 0 && (
               <span className="text-[10px] px-2 py-0.5 rounded-full border border-slate-600/40 bg-slate-700/30 text-slate-600">
-                bis {Math.max(...(device.capabilities.supportedDpi || [300]))} DPI
+                {tx("ui408")}{Math.max(...(device.capabilities.supportedDpi || [300]))} DPI
               </span>
             )}
           </div>
@@ -265,8 +265,7 @@ function DiscoveredDeviceCard({
             className="mt-2 flex items-center gap-1 text-[11px] text-slate-600 hover:text-slate-600 transition-colors"
           >
             {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            Details
-          </button>
+            {tx("details")}</button>
         )}
         <AnimatePresence>
           {expanded && device.statusDetails && (
@@ -298,6 +297,7 @@ function SavedDeviceCard({
   onSelect: (device: SavedDevice) => void;
   onDisconnect: (id: string) => void;
 }) {
+  const { t: tx, locale: uiLocale } = useTranslation();
   return (
     <motion.div
       layout
@@ -325,19 +325,19 @@ function SavedDeviceCard({
               </span>
               <div className="flex items-center gap-1 text-[10px] text-slate-600">
                 {device.hasAdf && <span className="px-1.5 py-0.5 rounded bg-slate-700/50 border border-slate-600/30">ADF</span>}
-                {device.hasFlatbed && <span className="px-1.5 py-0.5 rounded bg-slate-700/50 border border-slate-600/30">Flachbett</span>}
+                {device.hasFlatbed && <span className="px-1.5 py-0.5 rounded bg-slate-700/50 border border-slate-600/30">{tx("flatbed")}</span>}
               </div>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <span className={`text-[11px] px-2.5 py-1 rounded-full border font-medium ${getStatusColor(device.status)}`}>
-            {getStatusLabel(device.status)}
+            {getStatusLabel(device.status, tx)}
           </span>
           <button
             onClick={(e) => { e.stopPropagation(); onDisconnect(device.id); }}
             className="p-1.5 rounded-lg text-slate-600 hover:text-red-700 hover:bg-red-500/10 transition-colors"
-            title="Gerät entfernen"
+            title={tx("ui562")}
           >
             <X className="w-4 h-4" />
           </button>
@@ -355,6 +355,7 @@ export default function DeviceManagerModal({
   onDeviceSelected,
   selectedDeviceId,
 }: DeviceManagerModalProps) {
+  const { t: tx, locale: uiLocale } = useTranslation();
   const [activeTab, setActiveTab]               = useState<"myDevices" | "discover">("myDevices");
   const [discoveryState, setDiscoveryState]     = useState<DiscoveryState>("idle");
   const [discoveredDevices, setDiscoveredDevices] = useState<ScannerDeviceRaw[]>([]);
@@ -449,7 +450,7 @@ export default function DeviceManagerModal({
       setDiscoveredDevices(allDevices);
       setDiscoveryState(allDevices.length > 0 ? "found" : "empty");
     } catch (e: any) {
-      setErrorMsg(e.message || "Suche fehlgeschlagen.");
+      setErrorMsg(e.message || tx("ui563"));
       setDiscoveryState("error");
     }
   };
@@ -519,7 +520,7 @@ export default function DeviceManagerModal({
       }
       await handleConnect(fakeDevice);
     } catch (e: any) {
-      setErrorMsg("Manuelle IP konnte nicht getestet werden: " + e.message);
+      setErrorMsg(tx("ui564") + e.message);
     } finally {
       setTestingManual(false);
     }
@@ -566,8 +567,8 @@ export default function DeviceManagerModal({
                   <Printer className="w-5 h-5 text-blue-700" />
                 </div>
                 <div>
-                  <h2 className="font-bold text-slate-900 text-lg">Drucker & Scanner</h2>
-                  <p className="text-xs text-slate-600">Geräte im Netzwerk suchen und verbinden</p>
+                  <h2 className="font-bold text-slate-900 text-lg">{tx("ui409")}</h2>
+                  <p className="text-xs text-slate-600">{tx("ui410")}</p>
                 </div>
               </div>
               <button
@@ -586,9 +587,9 @@ export default function DeviceManagerModal({
                   : "bg-amber-500/8 border-amber-500/20 text-amber-700"
               }`}>
                 {agentAvailable ? (
-                  <><ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" /> LogiFlow Connector aktiv — LAN-Scanner werden automatisch erkannt</>
+                  <><ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" /> {tx("ui411")}</>
                 ) : (
-                  <><Activity className="w-3.5 h-3.5 flex-shrink-0" /> LogiFlow Connector nicht aktiv — bitte Connector starten oder herunterladen</>
+                  <><Activity className="w-3.5 h-3.5 flex-shrink-0" /> {tx("ui412")}</>
                 )}
               </div>
             )}
@@ -605,7 +606,7 @@ export default function DeviceManagerModal({
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  {tab === "myDevices" ? `Meine Geräte (${savedDevices.length})` : "Suche im Netzwerk"}
+                  {tab === "myDevices" ? `Meine Geräte (${savedDevices.length})` : tx("ui565")}
                 </button>
               ))}
             </div>
@@ -627,17 +628,15 @@ export default function DeviceManagerModal({
                         <div className="p-4 rounded-2xl bg-slate-100 border border-slate-200 mb-4">
                           <Printer className="w-10 h-10 text-slate-600" />
                         </div>
-                        <p className="text-slate-900 font-semibold mb-1">Noch keine Geräte verbunden</p>
+                        <p className="text-slate-900 font-semibold mb-1">{tx("ui413")}</p>
                         <p className="text-xs text-slate-600 max-w-xs">
-                          Klicke auf „Suche im Netzwerk" um Drucker und Scanner automatisch zu finden.
-                        </p>
+                          {tx("ui414")}</p>
                         <button
                           onClick={() => setActiveTab("discover")}
                           className="mt-4 flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-all"
                         >
                           <Search className="w-4 h-4" />
-                          Geräte suchen
-                        </button>
+                          {tx("ui415")}</button>
                       </div>
                     ) : (
                       <>
@@ -655,8 +654,7 @@ export default function DeviceManagerModal({
                           className="w-full py-3 rounded-xl border border-dashed border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-600 text-sm transition-colors flex items-center justify-center gap-2"
                         >
                           <Search className="w-4 h-4" />
-                          Weiteres Gerät hinzufügen
-                        </button>
+                          {tx("ui416")}</button>
                       </>
                     )}
                   </motion.div>
@@ -680,18 +678,16 @@ export default function DeviceManagerModal({
                           </div>
                         </div>
                         <div className="text-center">
-                          <p className="text-slate-900 font-semibold text-lg">Gerät im Netzwerk suchen</p>
+                          <p className="text-slate-900 font-semibold text-lg">{tx("ui417")}</p>
                           <p className="text-slate-600 text-sm mt-1 max-w-xs">
-                            Findet Drucker und Scanner automatisch im lokalen WLAN.
-                          </p>
+                            {tx("ui418")}</p>
                         </div>
                         <button
                           onClick={handleDiscover}
                           className="flex items-center gap-2.5 px-8 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-all shadow-sm  "
                         >
                           <Search className="w-5 h-5" />
-                          Geräte suchen
-                        </button>
+                          {tx("ui415")}</button>
                       </div>
                     )}
 
@@ -714,8 +710,8 @@ export default function DeviceManagerModal({
                           </div>
                         </div>
                         <div className="text-center">
-                          <p className="text-slate-900 font-semibold">Suche im Netzwerk…</p>
-                          <p className="text-xs text-slate-600 mt-1">Scannt mDNS, ARP-Tabelle und /24 Subnetz</p>
+                          <p className="text-slate-900 font-semibold">{tx("ui419")}</p>
+                          <p className="text-xs text-slate-600 mt-1">{tx("ui420")}</p>
                         </div>
                         <div className="w-48 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                           <motion.div
@@ -734,15 +730,14 @@ export default function DeviceManagerModal({
                           <span className="text-sm font-semibold text-slate-900">
                             {discoveryState === "found"
                               ? `${discoveredDevices.length} Gerät(e) gefunden`
-                              : "Keine Geräte gefunden"}
+                              : tx("ui566")}
                           </span>
                           <button
                             onClick={handleDiscover}
                             className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-900 transition-colors"
                           >
                             <RefreshCw className="w-3.5 h-3.5" />
-                            Erneut suchen
-                          </button>
+                            {tx("ui421")}</button>
                         </div>
 
                         {discoveryState === "found" ? (
@@ -758,10 +753,9 @@ export default function DeviceManagerModal({
                         ) : (
                           <div className="py-8 text-center rounded-2xl border border-dashed border-slate-200 bg-slate-100">
                             <AlertCircle className="w-8 h-8 text-slate-600 mx-auto mb-3" />
-                            <p className="text-slate-900 font-medium mb-1">Kein Scanner gefunden</p>
+                            <p className="text-slate-900 font-medium mb-1">{tx("ui422")}</p>
                             <p className="text-xs text-slate-600 max-w-sm mx-auto">
-                              Prüfe: Scanner eingeschaltet? Gleiches WLAN? AirScan/eSCL aktiviert?
-                            </p>
+                              {tx("ui423")}</p>
                           </div>
                         )}
                       </div>
@@ -783,8 +777,7 @@ export default function DeviceManagerModal({
                       >
                         <span className="flex items-center gap-1.5">
                           <Hash className="w-3.5 h-3.5" />
-                          Gerät per IP-Adresse verbinden
-                        </span>
+                          {tx("ui424")}</span>
                         {showManualIp ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                       </button>
 
@@ -798,8 +791,7 @@ export default function DeviceManagerModal({
                           >
                             <div className="mt-3 p-4 rounded-xl border border-slate-200 bg-slate-100 space-y-3">
                               <p className="text-xs text-slate-600">
-                                Falls der Scanner nicht automatisch gefunden wird, gib die IP-Adresse manuell ein.
-                              </p>
+                                {tx("ui425")}</p>
                               <div className="flex gap-2">
                                 <input
                                   type="text"
@@ -825,12 +817,10 @@ export default function DeviceManagerModal({
                                   ) : (
                                     <PlugZap className="w-4 h-4" />
                                   )}
-                                  Verbinden
-                                </button>
+                                  {tx("ui407")}</button>
                               </div>
                               <p className="text-[11px] text-slate-600">
-                                HP-Drucker: Port 8080 • Brother/Canon/Epson: Port 80 • Verschlüsselt: Port 443
-                              </p>
+                                {tx("ui426")}</p>
                             </div>
                           </motion.div>
                         )}
@@ -844,14 +834,12 @@ export default function DeviceManagerModal({
             {/* Footer */}
             <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 flex-shrink-0">
               <p className="text-xs text-slate-600">
-                Unterstützt: Brother, HP, Canon, Epson, Lexmark • eSCL / AirScan • USB (WIA)
-              </p>
+                {tx("ui427")}</p>
               <button
                 onClick={onClose}
                 className="px-4 py-2 rounded-xl text-slate-600 hover:text-slate-900 text-sm transition-colors"
               >
-                Schließen
-              </button>
+                {tx("close")}</button>
             </div>
           </motion.div>
         </motion.div>

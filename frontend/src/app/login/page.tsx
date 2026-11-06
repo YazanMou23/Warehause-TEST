@@ -17,6 +17,7 @@ import {
   Loader2,
   ArrowRight,
 } from "lucide-react";
+import LanguageSelector from "../components/LanguageSelector";
 import { useTranslation } from "../i18n/LanguageContext";
 import {
   getAuthToken,
@@ -28,6 +29,7 @@ import {
 type View = "login" | "forgot" | "forgot-sent";
 
 export default function LoginPage() {
+  const { t: tx } = useTranslation();
   const { t, language, changeLanguage } = useTranslation();
   const [view, setView] = useState<View>("login");
 
@@ -103,11 +105,11 @@ export default function LoginPage() {
       );
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.message || "Something went wrong.");
+        throw new Error(data.message || tx("ui520"));
       }
       setView("forgot-sent");
     } catch (err: any) {
-      setForgotError(err.message || "Failed to send reset email.");
+      setForgotError(err.message || tx("ui521"));
     } finally {
       setForgotLoading(false);
     }
@@ -115,7 +117,7 @@ export default function LoginPage() {
 
   return (
     <div
-      className="min-h-screen bg-[#f8fafc] flex"
+      className="min-h-screen bg-background flex"
       suppressHydrationWarning
     >
       {/* ── Left Panel — Branding ── */}
@@ -131,17 +133,15 @@ export default function LoginPage() {
             <div className="w-10 h-10 bg-[#1d4ed8] rounded-xl flex items-center justify-center shadow-lg">
               <Warehouse className="w-6 h-6 text-white" />
             </div>
-            <span className="text-white font-black text-xl tracking-tight">LogiFlow</span>
+            <span className="text-white font-black text-xl tracking-tight">{tx("appName")}</span>
           </div>
 
           <div className="space-y-6">
             <h2 className="text-4xl font-black text-white leading-tight tracking-tight">
-              {(!mounted || language === "de") ? "Lagerverwaltung\nder Zukunft." : "Warehouse\nManagement\nReimagined."}
+              {tx("ui239")}
             </h2>
             <p className="text-[#64748b] text-base leading-relaxed max-w-sm">
-              {(!mounted || language === "de")
-                ? "Verwalten Sie Schichtpläne, Container und Teams von einem einzigen, leistungsstarken Dashboard aus."
-                : "Manage shift plans, containers, and teams from a single, powerful dashboard."}
+              {tx("ui240")}
             </p>
           </div>
         </div>
@@ -149,9 +149,9 @@ export default function LoginPage() {
         {/* Feature pills */}
         <div className="relative z-10 space-y-3">
           {[
-            { icon: "⚡", text: (!mounted || language === "de") ? "Echtzeit-Planung" : "Real-time Planning" },
-            { icon: "👥", text: (!mounted || language === "de") ? "Team-Management" : "Team Management" },
-            { icon: "📊", text: (!mounted || language === "de") ? "Berichte & Analytics" : "Reports & Analytics" },
+            { icon: "⚡", text: tx("ui241") },
+            { icon: "👥", text: tx("ui242") },
+            { icon: "📊", text: tx("ui243") },
           ].map((f) => (
             <div key={f.text} className="flex items-center gap-3 text-sm text-[#94a3b8]">
               <span className="text-base">{f.icon}</span>
@@ -166,14 +166,7 @@ export default function LoginPage() {
         {/* Language switcher */}
         <div className="absolute top-5 right-5 flex items-center gap-2 bg-white border border-[#e2e8f0] px-3 py-1.5 rounded-lg shadow-sm">
           <Globe className="w-3.5 h-3.5 text-[#64748b]" />
-          <select
-            value={language}
-            onChange={(e) => changeLanguage(e.target.value as any)}
-            className="bg-transparent text-xs font-semibold text-[#64748b] outline-none cursor-pointer"
-          >
-            <option value="de">DE</option>
-            <option value="en">EN</option>
-          </select>
+          <LanguageSelector />
         </div>
 
         {/* ── LOGIN VIEW ── */}
@@ -184,12 +177,12 @@ export default function LoginPage() {
               <div className="w-8 h-8 bg-[#1d4ed8] rounded-lg flex items-center justify-center">
                 <Warehouse className="w-5 h-5 text-white" />
               </div>
-              <span className="font-black text-[#0f172a] text-lg">LogiFlow</span>
+              <span className="font-black text-[#0f172a] text-lg">{tx("appName")}</span>
             </div>
 
             <div className="mb-8">
               <h1 className="text-2xl font-black text-[#0f172a] tracking-tight">
-                {(!mounted || language === "de") ? "Willkommen zurück" : "Welcome back"}
+                {tx("welcomeBack")}
               </h1>
               <p className="text-[#64748b] text-sm mt-1">{t("loginSubtitle")}</p>
             </div>
@@ -279,21 +272,20 @@ export default function LoginPage() {
 
             <div className="text-center mt-8 space-y-1.5">
               <p className="text-[11px] text-[#94a3b8]">
-                LogiFlow Warehouse Management System · MDL
-              </p>
+                {tx("ui244")}</p>
               <div className="flex items-center justify-center gap-3 text-[11px] text-[#64748b]">
                 <Link
                   href="/datenschutz"
                   className="hover:text-[#1d4ed8] underline transition-colors"
                 >
-                  {language === "de" ? "Datenschutz" : "Privacy Policy"}
+                  {tx("ui246")}
                 </Link>
                 <span>•</span>
                 <Link
                   href="/datenloeschung"
                   className="hover:text-[#1d4ed8] underline transition-colors"
                 >
-                  {language === "de" ? "Datenlöschung" : "Data Deletion"}
+                  {tx("ui247")}
                 </Link>
               </div>
             </div>
@@ -308,12 +300,10 @@ export default function LoginPage() {
                 <Mail className="w-5 h-5 text-[#1d4ed8]" />
               </div>
               <h1 className="text-2xl font-black text-[#0f172a] tracking-tight">
-                {(!mounted || language === "de") ? "Passwort zurücksetzen" : "Reset Password"}
+                {tx("ui248")}
               </h1>
               <p className="text-[#64748b] text-sm mt-1">
-                {(!mounted || language === "de")
-                  ? "Wir senden einen sicheren Link an Ihre E-Mail."
-                  : "We'll send a secure reset link to your email."}
+                {tx("ui249")}
               </p>
             </div>
 
@@ -327,7 +317,7 @@ export default function LoginPage() {
             <form onSubmit={handleForgotPassword} className="space-y-5">
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-[#374151] uppercase tracking-wider">
-                  {language === "de" ? "E-Mail-Adresse" : "Email Address"}
+                  {tx("ui250")}
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9ca3af]" />
@@ -337,14 +327,12 @@ export default function LoginPage() {
                     autoComplete="email"
                     value={resetEmail}
                     onChange={(e) => setResetEmail(e.target.value)}
-                    placeholder={language === "de" ? "ihre@email.de" : "your@email.com"}
+                    placeholder="name@example.com"
                     className="w-full bg-white border border-[#e5e7eb] focus:border-[#1d4ed8] focus:ring-2 focus:ring-[#1d4ed8]/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-[#0f172a] outline-none transition-all placeholder:text-[#9ca3af]"
                   />
                 </div>
                 <p className="text-[11px] text-[#94a3b8]">
-                  {language === "de"
-                    ? "Nur für Admin- und Manager-Konten verfügbar."
-                    : "Available for Admin and Manager accounts only."}
+                  {tx("ui251")}
                 </p>
               </div>
 
@@ -354,9 +342,9 @@ export default function LoginPage() {
                 className="w-full bg-[#1d4ed8] hover:bg-[#1d4ed8] disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-blue-200 transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 {forgotLoading ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> {language === "de" ? "Senden..." : "Sending..."}</>
+                  <><Loader2 className="w-4 h-4 animate-spin" /> {tx("ui252")}</>
                 ) : (
-                  language === "de" ? "Reset-Link senden" : "Send Reset Link"
+                  tx("ui253")
                 )}
               </button>
 
@@ -366,7 +354,7 @@ export default function LoginPage() {
                 className="w-full flex items-center justify-center gap-1.5 text-xs text-[#64748b] hover:text-[#374151] transition-colors cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                {language === "de" ? "Zurück zum Login" : "Back to Login"}
+                {tx("ui254")}
               </button>
             </form>
           </div>
@@ -380,30 +368,28 @@ export default function LoginPage() {
                 <CheckCircle className="w-7 h-7 text-green-600" />
               </div>
               <h1 className="text-2xl font-black text-[#0f172a] tracking-tight">
-                {language === "de" ? "E-Mail gesendet" : "Email Sent"}
+                {tx("ui255")}
               </h1>
               <p className="text-[#64748b] text-sm mt-1">
-                {language === "de" ? "Überprüfen Sie Ihren Posteingang." : "Check your inbox."}
+                {tx("ui256")}
               </p>
             </div>
 
             <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-sm space-y-4">
               <div className="bg-green-50 border border-green-200 rounded-xl p-4">
                 <p className="text-green-800 text-sm leading-relaxed">
-                  {language === "de"
-                    ? `Falls ein Konto mit „${resetEmail}" existiert, haben wir einen Reset-Link gesendet. Prüfen Sie Posteingang und Spam-Ordner.`
-                    : `If an account with "${resetEmail}" exists, we've sent a reset link. Check your inbox and spam folder.`}
+                  {tx("forgotSentNotice")}
                 </p>
               </div>
               <p className="text-xs text-[#94a3b8] text-center">
-                {language === "de" ? "Der Link ist 1 Stunde gültig." : "The link is valid for 1 hour."}
+                {tx("ui257")}
               </p>
               <button
                 onClick={() => { setView("login"); setUsername(""); setPassword(""); }}
                 className="w-full flex items-center justify-center gap-1.5 text-sm font-semibold text-[#1d4ed8] hover:text-[#1d4ed8] hover:underline transition-colors cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                {language === "de" ? "Zurück zum Login" : "Back to Login"}
+                {tx("ui254")}
               </button>
             </div>
           </div>

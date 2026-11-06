@@ -1,4 +1,5 @@
-'use client';
+"use client";
+import { useTranslation } from "../i18n/LanguageContext";
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Camera, Upload, X, QrCode, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
@@ -18,9 +19,10 @@ export default function QRScannerCameraModal({
   onClose,
   onScanSuccess,
   isLoading = false,
-  title = 'Hallen QR-Code scannen',
-  subtitle = 'Halten Sie Ihre Kamera auf den QR-Code am Halleneingang oder laden Sie ein QR-Foto hoch.',
+  title,
+  subtitle,
 }: QRScannerCameraModalProps) {
+  const { t: tx } = useTranslation();
   const [activeTab, setActiveTab] = useState<'camera' | 'upload'>('camera');
   const [cameraError, setCameraError] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
@@ -80,7 +82,7 @@ export default function QRScannerCameraModal({
       }
 
       if (!warehouseId || !hallId) {
-        setScanError('Ungültiger QR-Code. Bitte scannen Sie den offiziellen Hallen-QR-Code.');
+        setScanError(tx("ui589"));
         handledRef.current = false;
         // Resume scanning after 2 seconds
         setTimeout(() => {
@@ -97,11 +99,11 @@ export default function QRScannerCameraModal({
       setSuccessResult(`✅ Halle erkannt: ${hallName || hallId.slice(0, 12)}… Verbinde…`);
       onScanSuccess({ warehouseId, hallId, hallName });
     } catch {
-      setScanError('QR-Code konnte nicht gelesen werden.');
+      setScanError(tx("ui590"));
       handledRef.current = false;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onScanSuccess, onClose, stopCamera]);
+  }, [onScanSuccess, onClose, stopCamera, tx]);
 
   // ─── rAF tick loop ─────────────────────────────────────────────────────────
   const tick = useCallback(() => {
@@ -135,7 +137,7 @@ export default function QRScannerCameraModal({
 
     animFrameIdRef.current = requestAnimationFrame(tick);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handleQrPayload]);
+  }, [handleQrPayload, tx]);
 
   // ─── Start camera ──────────────────────────────────────────────────────────
   const startCamera = useCallback(async () => {
@@ -145,7 +147,7 @@ export default function QRScannerCameraModal({
     handledRef.current = false;
 
     if (!navigator?.mediaDevices?.getUserMedia) {
-      setCameraError('Kamera-Zugriff wird von Ihrem Browser nicht unterstützt. Bitte nutzen Sie den Datei-Upload-Tab.');
+      setCameraError(tx("ui591"));
       return;
     }
 
@@ -169,7 +171,7 @@ export default function QRScannerCameraModal({
 
       const videoEl = videoRef.current;
       if (!videoEl) {
-        throw new Error('Video-Element konnte nicht initialisiert werden. Bitte seite neu laden.');
+        throw new Error(tx("ui592"));
       }
 
       videoEl.srcObject = stream;
@@ -184,17 +186,17 @@ export default function QRScannerCameraModal({
       console.error('[QRScanner] Camera error:', err);
       const message =
         err.name === 'NotAllowedError'
-          ? 'Kamera-Zugriff verweigert. Bitte erlauben Sie den Kamera-Zugriff in Ihren Browser-Einstellungen und versuchen Sie es erneut.'
+          ? tx("ui593")
           : err.name === 'NotFoundError'
-          ? 'Keine Kamera gefunden. Bitte nutzen Sie den Datei-Upload-Tab.'
+          ? tx("ui594")
           : err.name === 'NotReadableError'
-          ? 'Kamera wird bereits von einer anderen Anwendung verwendet.'
-          : err.message || 'Kamera konnte nicht gestartet werden.';
+          ? tx("ui595")
+          : err.message || tx("ui596");
 
       setCameraError(message);
       setIsStreaming(false);
     }
-  }, [tick]);
+  }, [tick, tx]);
 
   // ─── Handle file upload QR scan ────────────────────────────────────────────
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -226,18 +228,18 @@ export default function QRScannerCameraModal({
         if (code?.data) {
           handleQrPayload(code.data);
         } else {
-          setScanError('Kein gültiger QR-Code im Bild gefunden. Bitte deutliches, gut belichtetes Foto wählen.');
+          setScanError(tx("qrImageInvalid"));
         }
       };
       img.onerror = () => {
         setIsProcessing(false);
-        setScanError('Bild konnte nicht geladen werden.');
+        setScanError(tx("imageLoadError"));
       };
       img.src = event.target?.result as string;
     };
     reader.readAsDataURL(file);
     e.target.value = '';
-  }, [handleQrPayload]);
+  }, [handleQrPayload, tx]);
 
   // ─── Lifecycle: open/close/tab change ─────────────────────────────────────
   useEffect(() => {
@@ -260,7 +262,7 @@ export default function QRScannerCameraModal({
         {/* Close */}
         <button
           onClick={() => { stopCamera(); onClose(); }}
-          className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-red-500/30 text-slate-300 hover:text-white transition-colors cursor-pointer z-10"
+          className="absolute top-4 end-4 p-2 rounded-full bg-white/10 hover:bg-red-500/30 text-slate-300 hover:text-white transition-colors cursor-pointer z-10"
         >
           <X size={18} />
         </button>
@@ -268,9 +270,9 @@ export default function QRScannerCameraModal({
         {/* Title */}
         <div className="text-center space-y-1 pt-2">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 text-xs font-bold uppercase tracking-wider">
-            <QrCode size={13} /> {title}
+            <QrCode size={13} /> {title || tx("ui587")}
           </div>
-          <p className="text-[11px] text-slate-400 leading-relaxed px-4 pt-1">{subtitle}</p>
+          <p className="text-[11px] text-slate-400 leading-relaxed px-4 pt-1">{subtitle || tx("ui588")}</p>
         </div>
 
         {/* Tab switcher */}
@@ -281,7 +283,7 @@ export default function QRScannerCameraModal({
               activeTab === 'camera' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Camera size={14} /> Kamera-Scanner
+            <Camera size={14} /> {tx("ui597")}
           </button>
           <button
             onClick={() => setActiveTab('upload')}
@@ -289,7 +291,7 @@ export default function QRScannerCameraModal({
               activeTab === 'upload' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Upload size={14} /> Foto hochladen
+            <Upload size={14} /> {tx("ui598")}
           </button>
         </div>
 
@@ -321,7 +323,7 @@ export default function QRScannerCameraModal({
                   />
                 </div>
                 <p className="absolute bottom-3 text-[11px] text-blue-300 font-semibold tracking-wide">
-                  QR-Code im Rahmen positionieren…
+                  {tx("ui599")}
                 </p>
               </div>
             )}
@@ -330,7 +332,7 @@ export default function QRScannerCameraModal({
             {!isStreaming && !cameraError && !isLoading && (
               <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
                 <div className="w-10 h-10 rounded-full border-2 border-blue-400 border-t-transparent animate-spin" />
-                <p className="text-xs text-slate-400">Kamera wird gestartet…</p>
+                <p className="text-xs text-slate-400">{tx("ui600")}</p>
               </div>
             )}
 
@@ -338,7 +340,7 @@ export default function QRScannerCameraModal({
             {isLoading && (
               <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
                 <div className="w-10 h-10 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
-                <p className="text-xs text-emerald-300 font-semibold">Zeiterfassung wird gespeichert…</p>
+                <p className="text-xs text-emerald-300 font-semibold">{tx("ui601")}</p>
               </div>
             )}
 
@@ -351,7 +353,7 @@ export default function QRScannerCameraModal({
                   onClick={startCamera}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
                 >
-                  <RefreshCw size={13} /> Erneut versuchen
+                  <RefreshCw size={13} /> {tx("ui429")}
                 </button>
               </div>
             )}
@@ -373,14 +375,14 @@ export default function QRScannerCameraModal({
               )}
             </div>
             <p className="font-bold text-sm text-white mb-1">
-              {isProcessing ? 'QR-Code wird analysiert…' : 'QR-Code Bild auswählen'}
+              {isProcessing ? tx("ui602") : tx("ui603")}
             </p>
             <p className="text-xs text-slate-400 mb-4 max-w-xs">
-              Foto aus der Galerie wählen — Smartphone, Tablet oder Desktop.
+              {tx("ui604")}
             </p>
             {!isProcessing && (
               <div className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all">
-                Datei durchsuchen
+                {tx("ui605")}
               </div>
             )}
             <input
