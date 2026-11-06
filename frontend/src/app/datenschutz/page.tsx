@@ -41,7 +41,7 @@ export default function DatenschutzPage() {
                 <span className="font-bold text-slate-900 text-sm leading-tight block">
                   LogiFlow
                 </span>
-                <span className="text-[10px] text-slate-500 block">MDL Lagerverwaltung</span>
+                <span className="text-[10px] text-slate-500 block">Warehouse Management</span>
               </div>
             </div>
           </div>
@@ -87,7 +87,7 @@ export default function DatenschutzPage() {
               </span>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
                 <Clock className="w-3.5 h-3.5" />
-                {lang === "de" ? "Stand: März 2025" : "Effective: March 2025"}
+                {lang === "de" ? "Stand: November 2026 (Entwurf)" : "Effective: November 2026 (draft)"}
               </span>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
                 Meta App & WhatsApp Cloud API
@@ -109,23 +109,18 @@ export default function DatenschutzPage() {
                 <Building2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                 <div>
                   <div className="font-semibold text-slate-900">
-                    {lang === "de" ? "Verantwortliche Stelle" : "Data Controller"}
+                    {lang === "de" ? "Verantwortlicher" : "Data Controller"}
                   </div>
-                  <div className="text-slate-600 font-medium">MDL</div>
+                  <div className="text-slate-600 font-medium">{lang === "de" ? "Ihr Arbeitgeber / Auftraggeber (Kunde)" : "Your employer / client (customer)"}</div>
                 </div>
               </div>
               <div className="flex items-start gap-2.5">
                 <Phone className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                 <div>
                   <div className="font-semibold text-slate-900">
-                    {lang === "de" ? "Telefonkontakt" : "Telephone"}
+                    {lang === "de" ? "Anbieter" : "Provider"}
                   </div>
-                  <a
-                    href="tel:017663477268"
-                    className="text-blue-600 hover:underline font-medium"
-                  >
-                    017663477268
-                  </a>
+                  <Link href="/impressum" className="text-blue-600 hover:underline font-medium">Impressum</Link>
                 </div>
               </div>
               <div className="flex items-start gap-2.5">
@@ -159,25 +154,46 @@ export default function DatenschutzPage() {
                     Verantwortliche Stelle
                   </h2>
                   <p className="text-slate-700">
-                    Verantwortlich für die Datenverarbeitung auf dieser Plattform und den
-                    angeschlossenen Schnittstellen im Sinne der Datenschutz-Grundverordnung
-                    (DSGVO) ist:
+                    <strong>Rolle des Anbieters:</strong> Diese Plattform (LogiFlow / Warehause) wird als
+                    Software-as-a-Service von <strong>Yazan Moussa</strong> (Einzelunternehmer),
+                    Friedrich-Alfred-Str. 158, 47226 Duisburg, bereitgestellt (siehe{" "}
+                    <Link href="/impressum" className="text-blue-600 hover:underline">Impressum</Link>).
+                    Der Anbieter verarbeitet personenbezogene Daten in der Regel im Auftrag des jeweiligen
+                    Kunden (Art. 28 DSGVO) und nach dessen Weisungen.
                   </p>
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm space-y-1">
-                    <p className="font-bold text-slate-900">MDL</p>
-                    <p className="text-slate-700">
-                      Telefon:{" "}
-                      <a href="tel:017663477268" className="text-blue-600 hover:underline font-medium">
-                        017663477268 (+49 176 63477268)
-                      </a>
-                    </p>
-                    <p className="text-slate-700">
-                      E-Mail:{" "}
-                      <span className="text-slate-600 italic">
-                        datenschutz@mdl-lager.de (oder direkt telefonisch erreichbar)
-                      </span>
-                    </p>
-                  </div>
+                  <p className="text-slate-700">
+                    <strong>Verantwortlicher</strong> im Sinne von Art. 4 Nr. 7 DSGVO für die Daten der
+                    Mitarbeitenden, Einsatzplanung, Stundennachweise und Dokumente ist das jeweilige
+                    Unternehmen, das die Plattform einsetzt (Ihr Arbeitgeber bzw. Auftraggeber). Dessen
+                    Angaben und Datenschutzkontakt stellt Ihnen dieses Unternehmen zur Verfügung.
+                    Anfragen zu Ihren Daten richten Sie bitte zuerst an dieses Unternehmen.
+                  </p>
+                  <p className="text-slate-700">
+                    Für Daten, die der Anbieter in eigener Verantwortung verarbeitet (Betrieb, Sicherheit,
+                    Abrechnung mit dem Kunden), ist Verantwortlicher Yazan Moussa. Kontakt:{" "}
+                    <a href="mailto:info@yazan-tech.com" className="text-blue-600 hover:underline">info@yazan-tech.com</a>.
+                  </p>
+                </section>
+
+                <section className="space-y-3">
+                  <h2 className="text-lg font-bold text-slate-900">1a. Eingesetzte Dienstleister (Unterauftragsverarbeiter)</h2>
+                  <p className="text-slate-700">
+                    Der Anbieter setzt folgende Dienstleister ein. Welche davon bei einem Kunden aktiv sind,
+                    hängt von der Konfiguration ab:
+                  </p>
+                  <ul className="list-disc pl-5 space-y-1.5 text-slate-700">
+                    <li><strong>Vercel</strong> (Hosting der Weboberfläche)</li>
+                    <li><strong>Render</strong> (Hosting der Server-Anwendung, Dateiablage für hochgeladene Dokumente)</li>
+                    <li><strong>Neon</strong> (PostgreSQL-Datenbank)</li>
+                    <li><strong>Meta Platforms Ireland Limited</strong> (WhatsApp Business Cloud API: Versand und Empfang von Nachrichten)</li>
+                    <li><strong>Resend</strong> (Versand von System-E-Mails, z. B. Schichtzuweisung, Passwort-Zurücksetzen)</li>
+                    <li><strong>OpenAI</strong> (Texterkennung und Auswertung hochgeladener Stundenzettel, Dokumente und Containerlisten; Bilder und Dokumentinhalte werden dafür an die API übermittelt)</li>
+                  </ul>
+                  <p className="text-slate-700 text-sm">
+                    Einige dieser Dienstleister können Daten in Drittländern (z. B. USA) verarbeiten.
+                    Grundlage sind Angemessenheitsbeschlüsse bzw. Standardvertragsklauseln nach
+                    Art. 44 ff. DSGVO. Die aktuelle Liste stellt der Anbieter Kunden auf Anfrage zur Verfügung.
+                  </p>
                 </section>
 
                 {/* 2. Geltungsbereich & Verarbeitungszweck */}
@@ -190,7 +206,7 @@ export default function DatenschutzPage() {
                   </h2>
                   <p className="text-slate-700">
                     Die Plattform <strong>LogiFlow Warehouse Management</strong> dient der
-                    betriebsinternen Steuerung logistischer Abläufe bei MDL, darunter:
+                    betrieblichen Steuerung logistischer Abläufe des jeweiligen Kunden, darunter:
                   </p>
                   <ul className="list-disc pl-5 space-y-1.5 text-slate-700">
                     <li>
@@ -409,24 +425,45 @@ export default function DatenschutzPage() {
                     Data Controller
                   </h2>
                   <p className="text-slate-700">
-                    The party responsible for data processing on this platform and its connected
-                    APIs pursuant to the General Data Protection Regulation (GDPR) is:
+                    <strong>Role of the provider:</strong> This platform (LogiFlow / Warehause) is provided
+                    as software-as-a-service by <strong>Yazan Moussa</strong> (sole proprietor),
+                    Friedrich-Alfred-Str. 158, 47226 Duisburg, Germany (see{" "}
+                    <Link href="/impressum" className="text-blue-600 hover:underline">Legal notice</Link>).
+                    The provider generally processes personal data on behalf of the respective customer
+                    (Art. 28 GDPR) and on its instructions.
                   </p>
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm space-y-1">
-                    <p className="font-bold text-slate-900">MDL</p>
-                    <p className="text-slate-700">
-                      Telephone:{" "}
-                      <a href="tel:017663477268" className="text-blue-600 hover:underline font-medium">
-                        017663477268 (+49 176 63477268)
-                      </a>
-                    </p>
-                    <p className="text-slate-700">
-                      Email:{" "}
-                      <span className="text-slate-600 italic">
-                        datenschutz@mdl-lager.de (or reachable via telephone above)
-                      </span>
-                    </p>
-                  </div>
+                  <p className="text-slate-700">
+                    The <strong>controller</strong> (Art. 4(7) GDPR) for employee data, shift planning, timesheets
+                    and documents is the company that uses the platform (your employer or client). That company
+                    provides its own details and privacy contact. Please send requests about your data to that
+                    company first.
+                  </p>
+                  <p className="text-slate-700">
+                    For data the provider processes under its own responsibility (operation, security, billing
+                    of the customer), the controller is Yazan Moussa. Contact:{" "}
+                    <a href="mailto:info@yazan-tech.com" className="text-blue-600 hover:underline">info@yazan-tech.com</a>.
+                  </p>
+                </section>
+
+                <section className="space-y-3">
+                  <h2 className="text-lg font-bold text-slate-900">1a. Service providers (sub-processors)</h2>
+                  <p className="text-slate-700">
+                    The provider uses the following service providers. Which of them are active for a customer
+                    depends on its configuration:
+                  </p>
+                  <ul className="list-disc pl-5 space-y-1.5 text-slate-700">
+                    <li><strong>Vercel</strong> (hosting of the web interface)</li>
+                    <li><strong>Render</strong> (hosting of the server application, storage of uploaded documents)</li>
+                    <li><strong>Neon</strong> (PostgreSQL database)</li>
+                    <li><strong>Meta Platforms Ireland Limited</strong> (WhatsApp Business Cloud API: sending and receiving messages)</li>
+                    <li><strong>Resend</strong> (system emails, e.g. shift assignment, password reset)</li>
+                    <li><strong>OpenAI</strong> (text recognition and analysis of uploaded timesheets, documents and container lists; images and document content are sent to the API for this)</li>
+                  </ul>
+                  <p className="text-slate-700 text-sm">
+                    Some of these providers may process data in third countries (e.g. USA), based on adequacy
+                    decisions or standard contractual clauses (Art. 44 et seq. GDPR). The provider supplies the
+                    current list to customers on request.
+                  </p>
                 </section>
 
                 <section className="space-y-3">
@@ -438,7 +475,7 @@ export default function DatenschutzPage() {
                   </h2>
                   <p className="text-slate-700">
                     The <strong>LogiFlow Warehouse Management</strong> platform is used for
-                    internal operations and logistics management at MDL, including:
+                    operational management of logistics processes of the respective customer, including:
                   </p>
                   <ul className="list-disc pl-5 space-y-1.5 text-slate-700">
                     <li>Employee data management, attendance, and timesheets.</li>
@@ -542,7 +579,7 @@ export default function DatenschutzPage() {
 
             {/* Footer Note */}
             <div className="border-t border-slate-200 pt-6 text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <p>© {new Date().getFullYear()} MDL · LogiFlow Warehouse Management</p>
+              <p>© {new Date().getFullYear()} Yazan Moussa · LogiFlow Warehouse Management</p>
               <div className="flex items-center gap-4">
                 <Link href="/datenloeschung" className="hover:text-blue-600 underline">
                   {lang === "de" ? "Anleitung zur Datenlöschung" : "Data Deletion Instructions"}
