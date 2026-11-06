@@ -1,4 +1,5 @@
 "use client";
+import { useTranslation } from "../../i18n/LanguageContext";
 
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -46,6 +47,7 @@ interface WarehouseItem {
 }
 
 export default function WarehousesPage() {
+ const { t, locale } = useTranslation();
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>([]);
 
   const [loading, setLoading] = useState(true);
@@ -132,7 +134,7 @@ export default function WarehousesPage() {
 
       if (!res.ok) {
         const errJson = await res.json();
-        throw new Error(errJson.message || "Failed to create warehouse");
+        throw new Error(errJson.message || t("inventory1338"));
       }
 
       const whData = await res.json();
@@ -159,7 +161,7 @@ export default function WarehousesPage() {
       setCreateModalOpen(false);
       await fetchData();
     } catch (err: any) {
-      setCreateError(err.message || "Network error occurred.");
+      setCreateError(err.message || t("inventory1339"));
     } finally {
       setCreateLoading(false);
     }
@@ -218,11 +220,9 @@ export default function WarehousesPage() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-stack-md">
         <div>
           <h2 className="font-headline-lg font-bold tracking-tight text-on-surface">
-            Warehouse Infrastructure
-          </h2>
+             {t("inventory1295")} </h2>
           <p className="text-on-surface-variant font-body-sm">
-            Monitoring real-time performance and hall configurations across active depots.
-          </p>
+             {t("inventory1296")} </p>
         </div>
         
         <div className="flex items-center gap-2">
@@ -232,8 +232,7 @@ export default function WarehousesPage() {
               className="bg-primary text-on-primary px-5 py-2.5 rounded-lg font-label-md uppercase tracking-wider flex items-center gap-2 hover:bg-neutral-800 transition-colors shadow-sm"
             >
               <Plus className="w-4 h-4" />
-              Add New Depot
-            </button>
+               {t("inventory1297")} </button>
           )}
         </div>
       </div>
@@ -247,7 +246,7 @@ export default function WarehousesPage() {
             <WarehouseIcon className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[10px] text-outline uppercase tracking-wider font-semibold">Total Depots</p>
+            <p className="text-[10px] text-on-surface-variant uppercase tracking-wider font-semibold"> {t("inventory1298")} </p>
             <h4 className="text-body-lg font-black font-mono">{warehouses.length}</h4>
           </div>
         </div>
@@ -256,7 +255,7 @@ export default function WarehousesPage() {
             <Grid className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[10px] text-outline uppercase tracking-wider font-semibold">Total Hall Zones</p>
+            <p className="text-[10px] text-on-surface-variant uppercase tracking-wider font-semibold"> {t("inventory1299")} </p>
             <h4 className="text-body-lg font-black font-mono">{totalHallsCount}</h4>
           </div>
         </div>
@@ -265,7 +264,7 @@ export default function WarehousesPage() {
             <Users className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[10px] text-outline uppercase tracking-wider font-semibold">Active Floor Staff</p>
+            <p className="text-[10px] text-on-surface-variant uppercase tracking-wider font-semibold"> {t("ui308")} </p>
             <h4 className="text-body-lg font-black font-mono">{totalStaffCount}</h4>
           </div>
         </div>
@@ -283,14 +282,14 @@ export default function WarehousesPage() {
           const utilization = totalCapacity > 0 ? Math.round((containers.length / totalCapacity) * 100) : 0;
           
           // Determine status badge
-          let statusLabel = "Optimal";
+          let statusLabel = t("inventory1300");
           let badgeColor = "bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400";
           
           if (utilization > 80) {
-            statusLabel = "Heavy Load";
+            statusLabel = t("inventory1301");
             badgeColor = "bg-amber-100 text-amber-800 dark:bg-amber-950/30 dark:text-amber-400";
           } else if (users.length < 2 && halls.length > 0) {
-            statusLabel = "Understaffed";
+            statusLabel = t("inventory1302");
             badgeColor = "bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400";
           }
 
@@ -322,7 +321,7 @@ export default function WarehousesPage() {
                           setConfirmDeleteId(wh.id);
                         }}
                         className="p-1 text-on-surface-variant hover:text-error hover:bg-error-container/20 rounded transition-colors"
-                        title="Deactivate Depot"
+                        title={t("inventory1303")}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -333,26 +332,25 @@ export default function WarehousesPage() {
                 <h4 className="font-bold text-body-lg text-on-surface group-hover:text-secondary transition-colors mb-1 flex items-center gap-1.5">
                   {wh.name}
                 </h4>
-                <p className="text-outline text-[12px] flex items-center gap-1 mb-4">
-                  <MapPin className="w-3.5 h-3.5" /> Duisburg, Germany
-                </p>
+                <p className="text-on-surface-variant text-[12px] flex items-center gap-1 mb-4">
+                  <MapPin className="w-3.5 h-3.5" />  {t("inventory1304")} </p>
 
                 {/* Stat Breakdown Grid */}
                 <div className="grid grid-cols-2 gap-stack-md py-3 border-y border-outline-variant mb-4">
                   <div>
-                    <span className="text-[10px] text-outline uppercase tracking-wider block">Halls</span>
+                    <span className="text-[10px] text-on-surface-variant uppercase tracking-wider block"> {t("halls")} </span>
                     <span className="font-mono text-body-lg font-bold text-on-surface">{halls.length}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-outline uppercase tracking-wider block">Containers</span>
+                    <span className="text-[10px] text-on-surface-variant uppercase tracking-wider block"> {t("containers")} </span>
                     <span className="font-mono text-body-lg font-bold text-on-surface">{containers.length}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-outline uppercase tracking-wider block">Active Staff</span>
+                    <span className="text-[10px] text-on-surface-variant uppercase tracking-wider block"> {t("ui308")} </span>
                     <span className="font-mono text-body-lg font-bold text-on-surface">{users.length}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-outline uppercase tracking-wider block">Utilization</span>
+                    <span className="text-[10px] text-on-surface-variant uppercase tracking-wider block"> {t("inventory1305")} </span>
                     <span className="font-mono text-body-lg font-bold text-secondary">{utilization}%</span>
                   </div>
                 </div>
@@ -362,8 +360,8 @@ export default function WarehousesPage() {
               <div className="space-y-3 mt-2">
                 <div className="space-y-1">
                   <div className="flex justify-between items-center text-[11px] font-semibold text-on-surface-variant">
-                    <span>Floor Capacity</span>
-                    <span className="font-mono">{containers.length} / {totalCapacity} Units</span>
+                    <span> {t("inventory1306")} </span>
+                    <span className="font-mono">{containers.length} / {totalCapacity}  {t("inventory1307")} </span>
                   </div>
                   <div className="h-2 w-full bg-surface-container-high rounded-full overflow-hidden">
                     <div
@@ -386,8 +384,7 @@ export default function WarehousesPage() {
                   }}
                   className="w-full py-2 text-secondary font-label-md uppercase tracking-wider border border-secondary rounded-lg hover:bg-secondary hover:text-white transition-colors flex items-center justify-center gap-1.5"
                 >
-                  Configure Halls
-                  <ArrowRight className="w-4 h-4" />
+                   {t("inventory1308")} <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -406,17 +403,15 @@ export default function WarehousesPage() {
               <button
                 onClick={() => setSelectedWh(null)}
                 className="p-2 text-on-surface hover:bg-surface-container-high rounded-full transition-all"
-                title="Back to Grid"
+                title={t("inventory1309")}
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
                 <h3 className="font-bold text-body-lg text-on-surface">
-                  {selectedWh.name} Zone Layout
-                </h3>
+                  {selectedWh.name}  {t("inventory1310")} </h3>
                 <p className="text-on-surface-variant text-[12px]">
-                  Real-time occupancy status and floor staff allocation per hall.
-                </p>
+                   {t("inventory1311")} </p>
               </div>
             </div>
 
@@ -431,28 +426,27 @@ export default function WarehousesPage() {
           {/* Table Container */}
           <div className="overflow-x-auto">
             {!selectedWh.halls || selectedWh.halls.length === 0 ? (
-              <div className="py-stack-lg text-center text-outline">
+              <div className="py-stack-lg text-center text-on-surface-variant">
                 <Grid className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                <p className="text-body-sm">No active halls configured for this facility.</p>
+                <p className="text-body-sm"> {t("inventory1312")} </p>
                 {userRole === "ADMIN" && (
                   <button
                     onClick={() => router.push("/halls")}
                     className="mt-3 px-4 py-2 bg-secondary text-white rounded-lg text-label-md hover:bg-secondary-container transition-colors"
                   >
-                    Configure Halls page
-                  </button>
+                     {t("inventory1313")} </button>
                 )}
               </div>
             ) : (
-              <table className="w-full text-left border-collapse min-w-[600px]">
+              <table className="w-full text-start border-collapse min-w-[600px]">
                 <thead>
                   <tr className="bg-surface-container-low border-b border-outline-variant text-on-surface-variant font-label-md text-[11px] uppercase tracking-wider">
-                    <th className="p-4">Hall ID / Name</th>
-                    <th className="p-4">Status</th>
-                    <th className="p-4">Staff Count</th>
-                    <th className="p-4">Shift Supervisor</th>
-                    <th className="p-4">Occupancy</th>
-                    <th className="p-4 text-right">Actions</th>
+                    <th className="p-4"> {t("inventory1314")} </th>
+                    <th className="p-4"> {t("statusColumn")} </th>
+                    <th className="p-4"> {t("inventory1315")} </th>
+                    <th className="p-4"> {t("inventory1316")} </th>
+                    <th className="p-4"> {t("inventory1317")} </th>
+                    <th className="p-4 text-end"> {t("actionsColumn")} </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant text-body-sm">
@@ -462,10 +456,10 @@ export default function WarehousesPage() {
                       : 0;
 
                     let statusDot = "bg-green-500";
-                    let statusLabel = "Active";
+                    let statusLabel = t("active");
                     if (occupancyPct > 80) {
                       statusDot = "bg-amber-500";
-                      statusLabel = "Busy";
+                      statusLabel = t("inventory1319");
                     } else if (hall.containers.length === 0) {
                       statusDot = "bg-outline";
                       statusLabel = "Idle";
@@ -505,18 +499,16 @@ export default function WarehousesPage() {
                                 style={{ width: `${Math.min(occupancyPct, 100)}%` }}
                               ></div>
                             </div>
-                            <span className="text-[10px] text-outline font-mono">
-                              ({hall.containers.length} / {hall.capacity || 100} units)
-                            </span>
+                            <span className="text-[10px] text-on-surface-variant font-mono">
+                              ({hall.containers.length} / {hall.capacity || 100}  {t("inventory1321")} </span>
                           </div>
                         </td>
-                        <td className="p-4 text-right">
+                        <td className="p-4 text-end">
                           <button
                             onClick={() => router.push(`/halls?warehouseId=${selectedWh.id}`)}
                             className="text-secondary hover:underline font-bold text-[12px] uppercase tracking-wider"
                           >
-                            Manage
-                          </button>
+                             {t("inventory1322")} </button>
                         </td>
                       </tr>
                     );
@@ -534,19 +526,16 @@ export default function WarehousesPage() {
         <div className="relative z-10 max-w-3xl space-y-3">
           <span className="bg-secondary text-[10px] px-2.5 py-1 rounded font-bold uppercase tracking-widest text-white inline-flex items-center gap-1">
             <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
-            System Optimization Intelligence
-          </span>
-          <h4 className="font-bold text-headline-md tracking-tight">Duisburg Port Container Flow Optimization</h4>
+             {t("inventory1323")} </span>
+          <h4 className="font-bold text-headline-md tracking-tight"> {t("inventory1324")} </h4>
           <p className="text-neutral-400 font-body-sm leading-relaxed">
-            Historical data patterns suggest a 22% increase in container throughput for the Duisburg facility over the next 48 hours. We recommend routing non-urgent cargo shipments directly to the Wesel NRW-North facility.
-          </p>
+             {t("inventory1325")} </p>
           <div className="pt-2">
             <button
               onClick={() => router.push("/planning")}
               className="bg-white text-primary px-5 py-2.5 rounded-lg font-label-md uppercase tracking-wider hover:bg-secondary-fixed transition-colors text-xs font-bold"
             >
-              Review Shift Plans
-            </button>
+               {t("inventory1326")} </button>
           </div>
         </div>
       </div>
@@ -562,19 +551,17 @@ export default function WarehousesPage() {
               <X className="w-5 h-5" />
             </button>
 
-            <h3 className="font-bold text-body-lg text-on-surface mb-1">Add New Logistics Depot</h3>
+            <h3 className="font-bold text-body-lg text-on-surface mb-1"> {t("inventory1327")} </h3>
             <p className="text-on-surface-variant text-xs mb-4">
-              Register a new warehouse hub location inside LogiFlow.
-            </p>
+               {t("inventory1328")} </p>
 
             <form onSubmit={handleCreateWarehouse} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-1">
-                  Depot Name / Location
-                </label>
+                   {t("inventory1329")} </label>
                 <input
                   type="text"
-                  placeholder="e.g. Düsseldorf Center"
+                  placeholder={t("inventory1330")}
                   value={newWhName}
                   onChange={(e) => setNewWhName(e.target.value)}
                   className="w-full px-3.5 py-2 border border-outline-variant rounded-lg text-body-sm focus:ring-1 focus:ring-secondary focus:border-secondary outline-none bg-surface-container-low"
@@ -584,17 +571,15 @@ export default function WarehousesPage() {
 
               {/* Initial default hall config */}
               <div className="p-4 bg-surface-container-low border border-outline-variant rounded-lg space-y-3">
-                <span className="text-[10px] text-outline font-bold uppercase tracking-wider block">
-                  Optional Initial Hall Configuration
-                </span>
+                <span className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider block">
+                   {t("inventory1331")} </span>
                 
                 <div className="space-y-1">
                   <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
-                    Hall Name
-                  </label>
+                     {t("inventory1332")} </label>
                   <input
                     type="text"
-                    placeholder="e.g. Hall A"
+                    placeholder={t("inventory1333")}
                     value={initialHallName}
                     onChange={(e) => setInitialHallName(e.target.value)}
                     className="w-full bg-white border border-outline-variant focus:border-secondary rounded-lg px-3 py-1.5 text-body-sm text-on-surface outline-none"
@@ -603,8 +588,7 @@ export default function WarehousesPage() {
 
                 <div className="space-y-1">
                   <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
-                    Hall Capacity
-                  </label>
+                     {t("inventory1334")} </label>
                   <input
                     type="number"
                     placeholder="100"
@@ -629,14 +613,13 @@ export default function WarehousesPage() {
                   onClick={() => setCreateModalOpen(false)}
                   className="px-4 py-2 border border-outline-variant hover:bg-surface-container-high rounded-lg text-label-md transition-colors"
                 >
-                  Cancel
-                </button>
+                   {t("ui336")} </button>
                 <button
                   type="submit"
                   disabled={createLoading}
                   className="px-4 py-2 bg-secondary text-white hover:bg-secondary-container rounded-lg text-label-md transition-colors font-bold disabled:opacity-50"
                 >
-                  {createLoading ? "Saving..." : "Create Depot"}
+                  {createLoading ? "Saving..." : t("inventory1335")}
                 </button>
               </div>
             </form>
@@ -650,11 +633,9 @@ export default function WarehousesPage() {
           <div className="bg-white border border-outline-variant rounded-xl max-w-sm w-full p-stack-md shadow-2xl relative">
             <h3 className="font-bold text-body-lg text-on-surface mb-2 flex items-center gap-2">
               <AlertTriangle className="w-6 h-6 text-red-600 shrink-0" />
-              Deactivate Depot?
-            </h3>
+               {t("inventory1336")} </h3>
             <p className="text-on-surface-variant text-xs mb-4">
-              This action soft-deactivates the warehouse depot and deactivates all halls associated with it. Staff members will be unassigned.
-            </p>
+               {t("inventory1337")} </p>
 
             <div className="flex justify-end gap-2">
               <button
@@ -662,8 +643,7 @@ export default function WarehousesPage() {
                 onClick={() => setConfirmDeleteId(null)}
                 className="px-4 py-2 border border-outline-variant hover:bg-surface-container-high rounded-lg text-label-md transition-colors"
               >
-                Cancel
-              </button>
+                 {t("ui336")} </button>
               <button
                 onClick={handleDeactivateWarehouse}
                 disabled={deleteLoading}
