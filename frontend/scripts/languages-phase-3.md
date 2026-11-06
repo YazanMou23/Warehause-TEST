@@ -6,7 +6,7 @@ Arabic sets `<html lang="ar" dir="rtl">`, mirrors the navigation drawer and desk
 
 Covered: shared navigation/catalog and dialogs, language selectors, login/reset, profile, worker dashboard/hours/QR scanner, Documents capture/queue copy, admin planning/shift responses, employees/admins, and work-hours visibility controls. User-provided names, notes, filenames and server-provided errors are not rewritten or translated. English OCR document-language selection remains available as an input-processing option, not an English interface.
 
-Not yet translated end-to-end: timesheets, warehouses/halls/containers/container lists, chat and reports. They use translated shared labels but retain page-specific hardcoded copy. Legal policy pages and exported CSV headers are not translated by this change. Do not describe this foundation as complete app translation.
+Not yet translated end-to-end: warehouses/halls/containers/container lists, chat and reports. They use translated shared labels but retain page-specific hardcoded copy. Legal policy pages and exported CSV headers are not translated by this change. Do not describe this foundation as complete app translation.
 
 ## Verify
 
@@ -46,3 +46,9 @@ Shared canvas is now #F1F5F9, white cards and #F8FAFC pale surfaces. Login and t
 ## Attendance batch
 
 Attendance daily/weekly/monthly views, filters, month/weekday labels, edit dialog and result/error copy use four-language labels. Registered time calculations, source/status values, API payloads and download targets are unchanged. User-entered absence reasons and backend errors retain their original language. `attendance-languages-phase-3.cjs` checks 80 screenshots (five states, four languages, four widths), with synthetic records and blocked writes. It does not submit saves, deletes or exports. The time picker UI itself follows browser/OS conventions, while stored values remain HH:mm.
+
+## Timesheets batch
+
+Timesheet scanner/upload, OCR review labels, list/daily views, manual-entry dialog, progress/result labels and error fallbacks use the four-language catalog. Display weekday/month/week labels are localized independently from canonical German weekday values used for editable entry state/API compatibility. Timesheets now lets the shared cool background show through. User-entered names, locations, OCR warnings and raw backend diagnostics remain as received.
+
+`timesheets-languages-phase-3.cjs` captures seven states at four widths in four languages (112 screenshots). The OCR call is intercepted and supplied synthetic data; it never reaches a service. All other non-GET calls are blocked. Real uploads, confirmation, edits, employee creation and exports are not exercised. Wide review/list details retain horizontal scrolling; native date/time input formatting follows browser/OS settings. Completion/progress wording is localized in source but not every queue/error branch is visually exercised.

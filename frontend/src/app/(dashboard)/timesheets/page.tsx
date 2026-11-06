@@ -1,4 +1,6 @@
 'use client';
+import type { TranslationKey } from '../../i18n/translations';
+import { useTranslation } from '../../i18n/LanguageContext';
 
 import { registeredClock, registeredInstant, registeredEnd } from '@/lib/registered-hours';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
@@ -110,7 +112,7 @@ async function getRotatedFile(file: File, rotationDeg: number): Promise<File> {
  * swallow the error (doing so would fall back to sending raw PDF bytes to the
  * backend, which causes an image_parse_error from OpenAI).
  */
-async function convertPdfToPageImageFiles(file: File): Promise<File[]> {
+async function convertPdfToPageImageFiles(file: File, t: (key: TranslationKey) => string): Promise<File[]> {
   const pdfjs = await import('pdfjs-dist');
   const pdfjsLib: any = (pdfjs as any).default || pdfjs;
 
@@ -136,7 +138,7 @@ async function convertPdfToPageImageFiles(file: File): Promise<File[]> {
   try {
     pdf = await loadingTask.promise;
   } catch {
-    throw new Error('Das PDF ist beschädigt oder konnte nicht gelesen werden.');
+    throw new Error(t("sheetPdfBroken"));
   }
 
   const scale = 2; // high quality for OCR
@@ -149,7 +151,7 @@ async function convertPdfToPageImageFiles(file: File): Promise<File[]> {
       try {
         page = await pdf.getPage(pageNum);
       } catch {
-        throw new Error(`Seite ${pageNum} des PDFs konnte nicht verarbeitet werden.`);
+        throw new Error(t("sheetPdfPageError").replace("{page}", String(pageNum)));
       }
 
       const viewport = page.getViewport({ scale });
@@ -158,7 +160,7 @@ async function convertPdfToPageImageFiles(file: File): Promise<File[]> {
       canvas.height = Math.floor(viewport.height);
       const context = canvas.getContext('2d');
       if (!context) {
-        throw new Error('Canvas-Rendering wird nicht unterstützt. Bitte einen aktuellen Browser verwenden.');
+        throw new Error(t("sheetCanvasUnsupported"));
       }
       context.fillStyle = '#ffffff';
       context.fillRect(0, 0, canvas.width, canvas.height);
@@ -166,7 +168,7 @@ async function convertPdfToPageImageFiles(file: File): Promise<File[]> {
       try {
         await page.render({ canvas, canvasContext: context, viewport }).promise;
       } catch {
-        throw new Error(`Seite ${pageNum} des PDFs konnte nicht als Bild gerendert werden.`);
+        throw new Error(t("sheetPdfImageError").replace("{page}", String(pageNum)));
       }
 
       const blob = await new Promise<Blob | null>((resolve) =>
@@ -175,7 +177,7 @@ async function convertPdfToPageImageFiles(file: File): Promise<File[]> {
       page.cleanup();
 
       if (!blob) {
-        throw new Error(`Seite ${pageNum} des PDFs konnte nicht als Bild gespeichert werden.`);
+        throw new Error(t("sheetPdfImageError").replace("{page}", String(pageNum)));
       }
 
       pages.push(
@@ -187,7 +189,7 @@ async function convertPdfToPageImageFiles(file: File): Promise<File[]> {
   }
 
   if (pages.length === 0) {
-    throw new Error('Das PDF enthält keine lesbaren Seiten.');
+    throw new Error(t("sheetPdfEmpty"));
   }
 
   return pages;
@@ -313,9 +315,9 @@ function getAuthHeaders(): HeadersInit {
   return { Authorization: `Bearer ${token}` };
 }
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, locale = "de-DE"): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('de-DE', {
+  return new Date(iso).toLocaleDateString(locale, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -343,21 +345,21 @@ function calculateHours(startTime: string, endTime: string, breakMinutes: number
   return Math.max(0, netMin / 60);
 }
 
-function getWeekRange(weekStart: string): string {
+function getWeekRange(weekStart: string, locale = "de-DE"): string {
   if (!weekStart) return '—';
   const start = new Date(weekStart);
   const end = new Date(start);
   end.setDate(start.getDate() + 6);
-  return `${formatDate(start.toISOString())} – ${formatDate(end.toISOString())}`;
+  return `${formatDate(start.toISOString(), locale)} – ${formatDate(end.toISOString(), locale)}`;
 }
 
-function getKw(weekStart: string): string {
+function getKw(weekStart: string, label = "KW {week} / {year}"): string {
   if (!weekStart) return '—';
   const d = new Date(weekStart);
   const startOfYear = new Date(d.getFullYear(), 0, 1);
   const diff = (d.getTime() - startOfYear.getTime()) / 86400000;
   const week = Math.ceil((diff + startOfYear.getDay() + 1) / 7);
-  return `KW ${week} / ${d.getFullYear()}`;
+  return label.replace("{week}", String(week)).replace("{year}", String(d.getFullYear()));
 }
 
 // ─── Smart Employee Fuzzy Matcher for Review ─────────────────────────────────
@@ -478,39 +480,36 @@ function findBestEmployeeMatch(
 // ─── Sub-Components ───────────────────────────────────────────────────────────
 
 function ConfidenceBadge({ confidence }: { confidence: 'exact' | 'fuzzy' | 'none' }) {
+ const { t, locale } = useTranslation();
   if (confidence === 'exact') {
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-xs">
-        <CheckCircle size={12} className="text-emerald-700" /> Exakter Treffer
-      </span>
+        <CheckCircle size={12} className="text-emerald-700" />  {t("timesheet1117")} </span>
     );
   }
   if (confidence === 'fuzzy') {
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 transition-colors shadow-xs">
-        <Search size={12} className="text-amber-800" /> Ähnlicher Treffer
-      </span>
+        <Search size={12} className="text-amber-800" />  {t("timesheet1118")} </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-300 shadow-xs">
-      <UserPlus size={12} className="text-red-700" /> Nicht gefunden
-    </span>
+      <UserPlus size={12} className="text-red-700" />  {t("timesheet1119")} </span>
   );
 }
 
 function StatusBadge({ status }: { status: string }) {
+ const { t, locale } = useTranslation();
   if (status === 'CONFIRMED') {
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-xs">
-        <CheckCircle size={11} className="text-emerald-700" /> Bestätigt
-      </span>
+        <CheckCircle size={11} className="text-emerald-700" />  {t("timesheet1195")} </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-xs">
-      <Clock size={11} className="text-amber-800" /> Ausstehend
-    </span>
+      <Clock size={11} className="text-amber-800" />  {t("timesheet1311")} </span>
   );
 }
 
@@ -525,6 +524,7 @@ function UploadZone({
   onFilesSelect: (files: File[]) => void;
   isLoading: boolean;
 }) {
+ const { t, locale } = useTranslation();
   const [isDragOver, setIsDragOver] = useState(false);
   const cameraRef = useRef<HTMLInputElement>(null);
   const inputRef  = useRef<HTMLInputElement>(null);
@@ -574,7 +574,7 @@ function UploadZone({
         >
           <div className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-200 text-slate-900 text-xs font-bold border border-slate-300 shadow-xs">
             <Upload size={12} className="text-slate-800" />
-            <span>Datei-Upload</span>
+            <span> {t("timesheet1120")} </span>
           </div>
 
           <div className={`p-4 rounded-2xl border-2 transition-colors mt-8 mb-4 shadow-xs ${isDragOver ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-slate-200 border-slate-300 text-slate-800'}`}>
@@ -583,19 +583,18 @@ function UploadZone({
 
           <div>
             <h3 className="text-slate-900 font-bold text-lg mb-1">
-              {isDragOver ? 'Datei hier ablegen' : 'Datei / Dokument hochladen'}
+              {isDragOver ? t("timesheet1121") : t("sheetUploadDocument")}
             </h3>
             <p className="text-slate-700 text-xs font-medium max-w-xs mb-4">
-              PNG, JPG, JPEG oder PDF per Drag & Drop ziehen oder Durchsuchen klicken.
-            </p>
+               {t("timesheet1122")} </p>
           </div>
 
           <div className="w-full">
             <div className="px-4 py-2.5 rounded-2xl bg-white hover:bg-slate-100 text-slate-900 font-bold text-sm border-2 border-slate-300 shadow-xs transition-all flex items-center justify-center gap-2">
               <Upload size={16} className="text-slate-800" />
-              <span>Datei auswählen</span>
+              <span> {t("ui605")} </span>
             </div>
-            <p className="text-slate-600 text-[11px] font-semibold mt-2">Max. 15 MB (PNG, JPG, JPEG, PDF)</p>
+            <p className="text-slate-600 text-[11px] font-semibold mt-2"> {t("timesheet1123")} </p>
           </div>
 
            <input
@@ -624,7 +623,7 @@ function UploadZone({
         >
           <div className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-900 text-xs font-bold border border-emerald-300 shadow-xs">
             <Camera size={12} className="text-emerald-800" />
-            <span>Kamera</span>
+            <span> {t("timesheet1312")} </span>
           </div>
 
           <div className="p-4 rounded-2xl bg-emerald-100 text-emerald-800 border-2 border-emerald-300 mt-8 mb-4 group-hover:scale-105 transition-transform shadow-xs">
@@ -632,18 +631,17 @@ function UploadZone({
           </div>
 
           <div>
-            <h3 className="text-slate-900 font-bold text-lg mb-1">Kamera aufnehmen</h3>
+            <h3 className="text-slate-900 font-bold text-lg mb-1"> {t("timesheet1124")} </h3>
             <p className="text-slate-700 text-xs font-medium leading-relaxed max-w-xs mb-4">
-              Stundenzettel direkt mit der Handy- oder Laptop-Kamera fotografieren und sofort scannen.
-            </p>
+               {t("timesheet1125")} </p>
           </div>
 
           <div className="w-full">
             <div className="px-4 py-2.5 rounded-2xl bg-white hover:bg-emerald-100 text-emerald-900 font-bold text-sm border-2 border-emerald-300 shadow-xs transition-all flex items-center justify-center gap-2">
               {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} className="text-emerald-800" />}
-              <span>Kamera öffnen</span>
+              <span> {t("timesheet1126")} </span>
             </div>
-            <p className="text-slate-600 text-[11px] font-semibold mt-2">Foto, Handy oder Webcam</p>
+            <p className="text-slate-600 text-[11px] font-semibold mt-2"> {t("timesheet1127")} </p>
           </div>
 
           <input
@@ -705,6 +703,7 @@ function SinglePhotoViewer({
   onSkip?: () => void;
   onManualEntry?: () => void;
 }) {
+ const { t, locale } = useTranslation();
   const currentNum = currentIndex + 1;
   const total = totalCount > 0 ? totalCount : 1;
   const size = photoSize || 'md';
@@ -728,8 +727,8 @@ function SinglePhotoViewer({
             <p className="text-slate-900 font-bold text-sm sm:text-base truncate" title={fileName}>
               {fileName || `Stundenzettel_${String(currentNum).padStart(2, '0')}.jpg`}
             </p>
-            <p className="text-slate-500 text-xs font-mono">
-              Foto <strong className="text-blue-700 font-bold">{currentNum}</strong> von <strong className="text-slate-700">{total}</strong>
+            <p className="text-slate-600 text-xs font-mono">
+               {t("timesheet1313")} <strong className="text-blue-700 font-bold">{currentNum}</strong>  {t("ui435")} <strong className="text-slate-700">{total}</strong>
             </p>
           </div>
         </div>
@@ -743,10 +742,10 @@ function SinglePhotoViewer({
               onClick={onRotate}
               disabled={isReanalyzing || status === 'scanning'}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold border-2 border-slate-300 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
-              title="Bild um 90° im Uhrzeigersinn drehen"
+              title={t("timesheet1128")}
             >
               <RotateCw size={13} className="text-blue-600" />
-              <span>Drehen</span>
+              <span> {t("timesheet1129")} </span>
               {rotation ? <span className="text-[11px] text-blue-700 font-mono">({rotation}°)</span> : null}
             </button>
           )}
@@ -758,24 +757,24 @@ function SinglePhotoViewer({
               onClick={onReanalyze}
               disabled={isReanalyzing || status === 'scanning'}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-900 text-xs font-bold border-2 border-blue-300 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
-              title="Dokument mit OCR & KI erneut analysieren"
+              title={t("timesheet1130")}
             >
               {isReanalyzing ? (
                 <Loader2 size={13} className="animate-spin text-blue-600" />
               ) : (
                 <RefreshCw size={13} className="text-blue-600" />
               )}
-              <span>{isReanalyzing ? 'Analysiere...' : 'Neu analysieren'}</span>
+              <span>{isReanalyzing ? t("timesheet1131") : t("timesheet1132")}</span>
             </button>
           )}
 
           <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-800 text-xs font-bold border border-blue-200">
-            Foto {currentNum} / {total}
+             {t("timesheet1313")} {currentNum} / {total}
           </span>
 
           {onSizeChange && (
             <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-300 text-xs font-semibold">
-              <span className="text-[11px] text-slate-500 px-2 hidden sm:inline">Vorschau:</span>
+              <span className="text-[11px] text-slate-600 px-2 hidden sm:inline"> {t("timesheet1133")} </span>
               {(['sm', 'md', 'lg'] as const).map((s) => (
                 <button
                   key={s}
@@ -786,9 +785,9 @@ function SinglePhotoViewer({
                       ? 'bg-white text-blue-700 shadow-xs font-bold border border-slate-200'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
-                  title={s === 'sm' ? 'Kleine Vorschau' : s === 'md' ? 'Mittlere Vorschau' : 'Große Vorschau'}
+                  title={s === 'sm' ? t("timesheet1134") : s === 'md' ? t("timesheet1135") : t("timesheet1136")}
                 >
-                  {s === 'sm' ? 'Klein' : s === 'md' ? 'Mittel' : 'Groß'}
+                  {s === 'sm' ? t("timesheet1137") : s === 'md' ? t("timesheet1138") : t("timesheet1139")}
                 </button>
               ))}
             </div>
@@ -807,12 +806,11 @@ function SinglePhotoViewer({
             className="w-full h-full object-contain p-2 rounded-2xl select-none transition-transform duration-300 ease-out"
           />
         ) : (
-          <div className="flex flex-col items-center justify-center gap-2 text-slate-400 p-6 text-center">
+          <div className="flex flex-col items-center justify-center gap-2 text-slate-600 p-6 text-center">
             <FileText size={44} className="text-blue-500/60" />
             <p className="text-slate-700 font-bold text-sm">{fileName}</p>
-            <p className="text-xs text-slate-500 font-mono">
-              Dokument wird verarbeitet
-            </p>
+            <p className="text-xs text-slate-600 font-mono">
+               {t("timesheet1140")} </p>
           </div>
         )}
 
@@ -828,8 +826,8 @@ function SinglePhotoViewer({
             <div className="bg-white/95 px-4 py-3 rounded-2xl shadow-lg border border-blue-200 flex items-center gap-3 z-10">
               <Loader2 size={20} className="animate-spin text-blue-600 shrink-0" />
               <div>
-                <p className="text-slate-900 font-bold text-sm">Dokument wird analysiert...</p>
-                <p className="text-slate-500 text-xs font-mono">Foto {currentNum} von {total} • Bitte warten</p>
+                <p className="text-slate-900 font-bold text-sm"> {t("timesheet1141")} </p>
+                <p className="text-slate-600 text-xs font-mono"> {t("timesheet1313")} {currentNum}  {t("ui435")} {total}  {t("timesheet1142")} </p>
               </div>
             </div>
           </div>
@@ -843,9 +841,9 @@ function SinglePhotoViewer({
                 <AlertCircle size={24} />
               </div>
               <div>
-                <h4 className="text-slate-900 font-bold text-base">Analyse fehlgeschlagen</h4>
+                <h4 className="text-slate-900 font-bold text-base"> {t("timesheet1143")} </h4>
                 <p className="text-slate-600 text-xs mt-1">
-                  {statusMessage || 'Dieses Dokument konnte nicht automatisch analysiert werden.'}
+                  {statusMessage || t("timesheet1144")}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2 pt-2">
@@ -856,8 +854,7 @@ function SinglePhotoViewer({
                     className="flex-1 min-w-[120px] py-2 px-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                   >
                     <RefreshCw size={13} />
-                    Wiederholen
-                  </button>
+                     {t("ui463")} </button>
                 )}
                 {onSkip && (
                   <button
@@ -866,8 +863,7 @@ function SinglePhotoViewer({
                     className="flex-1 min-w-[120px] py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer border border-slate-300"
                   >
                     <SkipForward size={13} />
-                    Foto überspringen
-                  </button>
+                     {t("timesheet1145")} </button>
                 )}
                 {onManualEntry && (
                   <button
@@ -876,8 +872,7 @@ function SinglePhotoViewer({
                     className="w-full py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer border border-amber-300"
                   >
                     <Edit size={13} />
-                    Manuell für dieses Foto ausfüllen
-                  </button>
+                     {t("timesheet1146")} </button>
                 )}
               </div>
             </div>
@@ -907,6 +902,7 @@ function ScanningView({
   onSizeChange?: (size: 'sm' | 'md' | 'lg') => void;
   rotation?: number;
 }) {
+ const { t, locale } = useTranslation();
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.98 }}
@@ -928,9 +924,9 @@ function ScanningView({
       {/* 2. Scanning Steps Box */}
       <div className="flex flex-col gap-2.5 w-full max-w-md mx-auto bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-xs">
         {[
-          'Bild wird verarbeitet & optimiert',
-          'Handschrift & Zeiten werden per KI erkannt',
-          'Mitarbeiter wird in Datenbank gesucht',
+          t("timesheet1147"),
+          t("timesheet1148"),
+          t("timesheet1149"),
         ].map((step, i) => (
           <motion.div
             key={step}
@@ -987,6 +983,7 @@ function ReviewView({
   onReanalyze?: () => void;
   isReanalyzing?: boolean;
 }) {
+ const { t, locale } = useTranslation();
   const allWeekdays = useMemo(() => ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'], []);
   const [employeeName, setEmployeeName] = useState(scanResult.employeeName);
   const [weekStartDate, setWeekStartDate] = useState(scanResult.weekStartDate);
@@ -1332,7 +1329,7 @@ function ReviewView({
 
     if (createNew) {
       if (!employeeName || !newEmployee.username || !newEmployee.phone) {
-        setErrors({ general: 'Bitte alle Pflichtfelder für den neuen Mitarbeiter ausfüllen' });
+        setErrors({ general: t("timesheet1152") });
         return;
       }
       payload.createNewEmployee = {
@@ -1342,7 +1339,7 @@ function ReviewView({
       delete payload.employeeId;
     } else {
       if (!employeeId) {
-        setErrors({ general: 'Bitte einen Mitarbeiter aus der Datenbank auswählen oder einen neuen anlegen.' });
+        setErrors({ general: t("timesheet1153") });
         return;
       }
       payload.employeeId = employeeId;
@@ -1386,8 +1383,7 @@ function ReviewView({
         <div className="flex items-start gap-3 p-4 rounded-2xl bg-blue-50 border-2 border-blue-300 text-blue-900 shadow-xs">
           <AlertCircle size={20} className="text-blue-700 flex-shrink-0 mt-0.5" />
           <p className="text-blue-900 text-sm">
-            <strong>Demo-Modus:</strong> Diese Daten sind Beispieldaten.
-          </p>
+            <strong> {t("timesheet1154")} </strong>  {t("timesheet1155")} </p>
         </div>
       )}
 
@@ -1395,17 +1391,16 @@ function ReviewView({
       <div className="bg-white border-2 border-slate-300 rounded-3xl p-4 sm:p-6 shadow-sm">
         <h3 className="text-slate-900 font-bold text-base mb-4 flex items-center gap-2">
           <User size={18} className="text-blue-600" />
-          Mitarbeiter-Zuordnung
-        </h3>
+           {t("timesheet1156")} </h3>
 
         <div className="flex flex-wrap items-start gap-3 mb-4">
           <div className="flex-1 min-w-0 px-3.5 py-2.5 bg-slate-50 rounded-xl border-2 border-slate-300 focus-within:border-blue-600 focus-within:bg-white transition-colors shadow-xs">
-            <p className="text-xs text-slate-600 font-semibold mb-0.5">Erkannter Name auf Stundenzettel (bearbeitbar)</p>
+            <p className="text-xs text-slate-600 font-semibold mb-0.5"> {t("timesheet1157")} </p>
             <input
               type="text"
               value={employeeName}
               onChange={(e) => handleEmployeeNameChange(e.target.value)}
-              placeholder="Name des Mitarbeiters..."
+              placeholder={t("timesheet1158")}
               className="w-full bg-transparent text-slate-900 font-bold text-base focus:outline-none border-b-2 border-transparent focus:border-blue-600 py-0.5"
             />
           </div>
@@ -1418,7 +1413,7 @@ function ReviewView({
             <div className="flex items-center gap-2.5 min-w-0">
               <CheckCircle size={18} className="text-emerald-700 shrink-0" />
               <div className="min-w-0">
-                <p className="text-[11px] text-emerald-800 font-semibold uppercase tracking-wider">Zugeordneter Datenbank-Mitarbeiter</p>
+                <p className="text-[11px] text-emerald-800 font-semibold uppercase tracking-wider"> {t("timesheet1159")} </p>
                 <span className="text-emerald-950 text-sm font-bold truncate flex items-center gap-2">
                   {selectedEmployeeObj.name}
                   {selectedEmployeeObj.username && (
@@ -1432,8 +1427,7 @@ function ReviewView({
               onClick={() => { setShowEmployeeSelector(true); setCreateNew(false); }}
               className="text-xs text-emerald-800 hover:text-emerald-950 font-bold underline transition-colors cursor-pointer shrink-0"
             >
-              Anderen wählen
-            </button>
+               {t("timesheet1160")} </button>
           </div>
         ) : (
           <div className="space-y-3">
@@ -1443,7 +1437,7 @@ function ReviewView({
                 <div className="flex items-center gap-2 min-w-0">
                   <User size={14} className="text-blue-600 shrink-0" />
                   <span className="truncate">
-                    Datenbank-Vorschlag: <strong className="font-bold">{suggestedMatch.emp.name}</strong> (@{suggestedMatch.emp.username})
+                     {t("timesheet1161")} <strong className="font-bold">{suggestedMatch.emp.name}</strong> (@{suggestedMatch.emp.username})
                   </span>
                 </div>
                 <button
@@ -1456,8 +1450,7 @@ function ReviewView({
                   }}
                   className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shrink-0 cursor-pointer shadow-xs transition-colors"
                 >
-                  Übernehmen
-                </button>
+                   {t("apply")} </button>
               </div>
             )}
 
@@ -1473,8 +1466,7 @@ function ReviewView({
                 }`}
               >
                 <User size={14} className="inline mr-1" />
-                Bestehender Mitarbeiter
-              </button>
+                 {t("timesheet1162")} </button>
               <button
                 type="button"
                 onClick={() => setCreateNew(true)}
@@ -1485,8 +1477,7 @@ function ReviewView({
                 }`}
               >
                 <UserPlus size={14} className="inline mr-1" />
-                Neuen Mitarbeiter anlegen
-              </button>
+                 {t("timesheet1163")} </button>
             </div>
 
             {!createNew ? (
@@ -1505,28 +1496,28 @@ function ReviewView({
                       <span className="font-bold text-slate-900 truncate">{selectedEmployeeObj.name}</span>
                     </span>
                   ) : (
-                    <span className="text-slate-500 font-medium">Mitarbeiter suchen oder wählen...</span>
+                    <span className="text-slate-600 font-medium"> {t("timesheet1164")} </span>
                   )}
-                  <ChevronDown size={16} className="text-slate-500 shrink-0" />
+                  <ChevronDown size={16} className="text-slate-600 shrink-0" />
                 </button>
 
                 {isDropdownOpen && (
                   <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border-2 border-slate-300 rounded-2xl shadow-2xl overflow-hidden p-2">
                     <div className="relative mb-2">
-                      <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <Search size={14} className="absolute start-2.5 top-1/2 -translate-y-1/2 text-slate-600" />
                       <input
                         type="text"
-                        placeholder="Name suchen..."
+                        placeholder={t("timesheet1165")}
                         value={employeeSearch}
                         onChange={(e) => setEmployeeSearch(e.target.value)}
-                        className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600"
+                        className="w-full ps-8 pe-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600"
                         autoFocus
                       />
                     </div>
 
                     <div className="max-h-48 overflow-y-auto space-y-1">
                       {filteredEmployees.length === 0 ? (
-                        <p className="text-xs text-slate-500 text-center py-3">Kein Mitarbeiter gefunden</p>
+                        <p className="text-xs text-slate-600 text-center py-3"> {t("timesheet1166")} </p>
                       ) : (
                         filteredEmployees.map((emp, index) => (
                           <button
@@ -1550,7 +1541,7 @@ function ReviewView({
                               </span>
                               <span className="font-semibold truncate">{emp.name}</span>
                             </span>
-                            <span className={`text-[10px] shrink-0 ${employeeId === emp.id ? 'text-blue-100' : 'text-slate-400'}`}>@{emp.username}</span>
+                            <span className={`text-[10px] shrink-0 ${employeeId === emp.id ? 'text-blue-100' : 'text-slate-600'}`}>@{emp.username}</span>
                           </button>
                         ))
                       )}
@@ -1561,10 +1552,10 @@ function ReviewView({
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
-                  { key: 'name', label: 'Vollständiger Name', placeholder: scanResult.employeeName },
-                  { key: 'username', label: 'Benutzername', placeholder: 'max.mustermann' },
-                  { key: 'phone', label: 'Telefonnummer', placeholder: '+49 123 456789' },
-                  { key: 'password', label: 'Passwort', placeholder: 'Temporäres Passwort' },
+                  { key: 'name', label: t("timesheet1167"), placeholder: scanResult.employeeName },
+                  { key: 'username', label: t("usernameLabel"), placeholder: 'max.mustermann' },
+                  { key: 'phone', label: t("sheetPhoneNumber"), placeholder: '+49 123 456789' },
+                  { key: 'password', label: t("staff961"), placeholder: t("timesheet1168") },
                 ].map(({ key, label, placeholder }) => (
                   <div key={key}>
                     <label className="text-xs text-slate-700 font-bold mb-1 block">{label}</label>
@@ -1589,23 +1580,20 @@ function ReviewView({
           <div className="flex flex-wrap items-center gap-3">
             <h3 className="text-slate-900 font-bold flex items-center gap-2 text-base">
               <Calendar size={18} className="text-blue-600" />
-              Wochenzeitraum (7 Tage):
-            </h3>
+               {t("timesheet1169")} </h3>
             <input
               type="date"
               value={weekStartDate ? weekStartDate.split('T')[0] : ''}
               onChange={(e) => handleWeekStartDateChange(e.target.value)}
               className="px-3 py-1.5 bg-white border-2 border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-600 font-mono font-bold shadow-xs"
             />
-            <span className="text-xs text-slate-600 font-bold font-mono">({getKw(weekStartDate)})</span>
+            <span className="text-xs text-slate-600 font-bold font-mono">({getKw(weekStartDate, t("sheetWeek"))})</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-600 font-medium hidden sm:inline">
-              {activeDaysCount} von 7 Tagen aktiv
-            </span>
+              {activeDaysCount}  {t("timesheet1170")} </span>
             <div className="text-sm font-mono font-bold text-blue-900 bg-blue-100 px-3.5 py-1.5 rounded-xl border border-blue-300 shadow-xs">
-              Gesamt: {totalHours.toFixed(2)} h
-            </div>
+               {t("planning782")} {totalHours.toFixed(2)}  {t("ui277")} </div>
           </div>
         </div>
 
@@ -1615,14 +1603,14 @@ function ReviewView({
             {/* Table Header */}
             <div className="grid grid-cols-[32px_95px_95px_120px_80px_80px_65px_70px_1fr] gap-1.5 px-3 py-3 bg-slate-100 border-b-2 border-slate-300 text-xs font-bold text-slate-700 uppercase tracking-wider items-center">
               <div className="font-mono text-center">#</div>
-              <div className="text-center">Status</div>
-              <div className="flex items-center gap-1"><Clock size={11} />Wochentag</div>
-              <div>Datum</div>
-              <div>Von</div>
-              <div>Bis</div>
-              <div className="text-center"><Coffee size={11} className="inline mr-0.5" />Pause</div>
-              <div className="text-center">Gesamt</div>
-              <div className="flex items-center gap-1"><MapPin size={11} className="inline mr-0.5" />Halle(n)</div>
+              <div className="text-center"> {t("statusColumn")} </div>
+              <div className="flex items-center gap-1"><Clock size={11} /> {t("timesheet1171")} </div>
+              <div> {t("dateLabel")} </div>
+              <div> {t("timesheet1314")} </div>
+              <div> {t("timesheet1315")} </div>
+              <div className="text-center"><Coffee size={11} className="inline mr-0.5" /> {t("attendanceBreak")} </div>
+              <div className="text-center"> {t("ui460")} </div>
+              <div className="flex items-center gap-1"><MapPin size={11} className="inline mr-0.5" /> {t("timesheet1172")} </div>
             </div>
 
             {/* Table Rows: 7 Calendar Days */}
@@ -1632,7 +1620,7 @@ function ReviewView({
 
               return (
                 <div
-                  key={entry.weekday}
+                  key={entry.date ? new Date(entry.date).toLocaleDateString(locale,{weekday:"long",timeZone:"UTC"}) : entry.weekday}
                   className={`grid grid-cols-[32px_95px_95px_120px_80px_80px_65px_70px_1fr] gap-1.5 px-3 py-2.5 border-b border-slate-200 transition-colors items-center ${
                     !isEntryActive
                       ? 'bg-slate-100/60 opacity-60'
@@ -1656,17 +1644,17 @@ function ReviewView({
                           ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100 shadow-2xs'
                           : 'bg-slate-200 text-slate-600 border-slate-300 hover:bg-slate-300'
                       }`}
-                      title={isEntryActive ? 'Tag ist AKTIV (Klicken zum Deaktivieren)' : 'Tag ist INAKTIV (Klicken zum Aktivieren)'}
+                      title={isEntryActive ? t("timesheet1173") : t("timesheet1174")}
                     >
                       {isEntryActive ? (
                         <>
                           <CheckCircle2 size={12} className="text-emerald-700" />
-                          <span>Aktiv</span>
+                          <span> {t("active")} </span>
                         </>
                       ) : (
                         <>
-                          <PowerOff size={11} className="text-slate-500" />
-                          <span>Inaktiv</span>
+                          <PowerOff size={11} className="text-slate-600" />
+                          <span> {t("timesheet1316")} </span>
                         </>
                       )}
                     </button>
@@ -1675,8 +1663,8 @@ function ReviewView({
                   {/* Weekday */}
                   <div className="flex items-center gap-1.5 min-w-0">
                     <span className={`w-2 h-2 rounded-full shrink-0 ${isEntryActive ? 'bg-blue-600' : 'bg-slate-300'}`} />
-                    <span className={`text-xs font-bold truncate ${isEntryActive ? 'text-slate-900' : 'text-slate-500'}`}>
-                      {entry.weekday}
+                    <span className={`text-xs font-bold truncate ${isEntryActive ? 'text-slate-900' : 'text-slate-600'}`}>
+                      {entry.date ? new Date(entry.date).toLocaleDateString(locale,{weekday:"long",timeZone:"UTC"}) : entry.weekday}
                     </span>
                   </div>
 
@@ -1686,7 +1674,7 @@ function ReviewView({
                     disabled={!isEntryActive}
                     value={entry.date ? entry.date.split('T')[0] : ''}
                     onChange={(e) => updateEntry(idx, 'date', e.target.value)}
-                    className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-600 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200 disabled:cursor-not-allowed w-full shadow-xs"
+                    className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-600 disabled:bg-slate-100 disabled:text-slate-600 disabled:border-slate-200 disabled:cursor-not-allowed w-full shadow-xs"
                   />
 
                   {/* Start Time */}
@@ -1695,7 +1683,7 @@ function ReviewView({
                     disabled={!isEntryActive}
                     value={entry.startTime}
                     onChange={(e) => updateEntry(idx, 'startTime', e.target.value)}
-                    className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-600 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200 disabled:cursor-not-allowed w-full shadow-xs"
+                    className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-600 disabled:bg-slate-100 disabled:text-slate-600 disabled:border-slate-200 disabled:cursor-not-allowed w-full shadow-xs"
                   />
 
                   {/* End Time */}
@@ -1704,7 +1692,7 @@ function ReviewView({
                     disabled={!isEntryActive}
                     value={entry.endTime || ''}
                     onChange={(e) => updateEntry(idx, 'endTime', e.target.value)}
-                    className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-600 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200 disabled:cursor-not-allowed w-full shadow-xs"
+                    className="px-2 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-600 disabled:bg-slate-100 disabled:text-slate-600 disabled:border-slate-200 disabled:cursor-not-allowed w-full shadow-xs"
                   />
 
                   {/* Break */}
@@ -1715,11 +1703,11 @@ function ReviewView({
                     value={entry.breakMinutes ?? ''}
                     placeholder="0"
                     onChange={(e) => updateEntry(idx, 'breakMinutes', parseInt(e.target.value) || 0)}
-                    className="px-1.5 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-600 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200 disabled:cursor-not-allowed w-full text-center shadow-xs"
+                    className="px-1.5 py-1.5 bg-white border-2 border-slate-300 rounded-lg text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-600 disabled:bg-slate-100 disabled:text-slate-600 disabled:border-slate-200 disabled:cursor-not-allowed w-full text-center shadow-xs"
                   />
 
                   {/* Total Hours */}
-                  <div className={`text-xs font-mono font-bold text-center ${isEntryActive ? 'text-blue-900' : 'text-slate-400'}`}>
+                  <div className={`text-xs font-mono font-bold text-center ${isEntryActive ? 'text-blue-900' : 'text-slate-600'}`}>
                     {isEntryActive ? `${(entry.totalHours || 0).toFixed(2)}h` : '—'}
                   </div>
 
@@ -1759,16 +1747,16 @@ function ReviewView({
                               )}
                             </span>
                           ))
-                        : <span className="text-slate-400 text-[10px] font-medium self-center">{isEntryActive ? 'Halle(n) wählen...' : '—'}</span>
+                        : <span className="text-slate-600 text-[10px] font-medium self-center">{isEntryActive ? t("timesheet1175") : '—'}</span>
                       }
-                      {isEntryActive && <span className="ml-auto text-slate-500 self-center"><ChevronDown size={12} /></span>}
+                      {isEntryActive && <span className="ml-auto text-slate-600 self-center"><ChevronDown size={12} /></span>}
                     </button>
 
                     {/* Hall dropdown */}
                     {openHallDropdown === idx && isEntryActive && (
                       <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border-2 border-slate-300 rounded-2xl shadow-2xl overflow-hidden p-2 max-h-48 overflow-y-auto">
                         {availableHalls.length === 0 ? (
-                          <p className="text-xs text-slate-500 text-center py-2">Keine Hallen gefunden</p>
+                          <p className="text-xs text-slate-600 text-center py-2"> {t("timesheet1176")} </p>
                         ) : (
                           availableHalls.map((hall) => {
                             const selectedNames = entry.location ? entry.location.split(',').map(h => h.trim()).filter(Boolean) : [];
@@ -1800,7 +1788,7 @@ function ReviewView({
                         <div className="pt-1.5 border-t border-slate-200">
                           <input
                             type="text"
-                            placeholder="Oder Freitext (z.B. Außenbereich)..."
+                            placeholder={t("timesheet1177")}
                             value={entry.location || ''}
                             onChange={(e) => updateEntry(idx, 'location', e.target.value)}
                             className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600"
@@ -1831,7 +1819,7 @@ function ReviewView({
           className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 border-2 border-slate-300 text-slate-700 hover:bg-slate-200 hover:text-slate-900 font-bold transition-all text-sm shadow-xs cursor-pointer"
         >
           <X size={16} />
-          {totalQueueCount > 1 && !isLastInQueue ? 'Foto überspringen' : 'Verwerfen'}
+          {totalQueueCount > 1 && !isLastInQueue ? t("timesheet1145") : t("timesheet1178")}
         </button>
         <button
           type="button"
@@ -1846,10 +1834,10 @@ function ReviewView({
           )}
           <span>
             {isLoading
-              ? 'Wird gespeichert...'
+              ? t("planning886")
               : totalQueueCount > 1 && !isLastInQueue
-              ? `Bestätigen & Weiter zu Foto ${queueIndex + 2}`
-              : 'Bestätigen & Speichern'}
+              ? t("sheetConfirmNext").replace("{page}", String(queueIndex + 2))
+              : t("timesheet1179")}
           </span>
         </button>
       </div>
@@ -1878,6 +1866,7 @@ function SavedView({
   totalCount?: number;
   onContinueNext?: () => void;
 }) {
+ const { t, locale } = useTranslation();
   const [downloading, setDownloading] = useState<'pdf' | 'xlsx' | null>(null);
 
   const downloadFile = async (format: 'pdf' | 'xlsx') => {
@@ -1915,12 +1904,11 @@ function SavedView({
       <div className="text-center">
         <h3 className="text-slate-900 text-2xl font-bold mb-1">
           {hasQueue && !isLastInQueue
-            ? `Foto ${queueIndex + 1} von ${totalCount} gespeichert!`
-            : 'Stundenzettel gespeichert!'}
+            ? t("sheetPhotoSaved").replace("{page}", String(queueIndex+1)).replace("{total}", String(totalCount))
+            : t("timesheet1180")}
         </h3>
         <p className="text-slate-600 text-sm">
-          Die Arbeitszeiten für <strong className="text-slate-900 font-bold">{employeeName}</strong> wurden erfolgreich übernommen.
-        </p>
+           {t("timesheet1181")} <strong className="text-slate-900 font-bold">{employeeName}</strong>  {t("timesheet1182")} </p>
       </div>
 
       <div className="flex flex-wrap justify-center gap-3">
@@ -1930,16 +1918,14 @@ function SavedView({
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-50 border-2 border-red-200 text-red-700 hover:bg-red-100 font-bold transition-all text-sm shadow-xs cursor-pointer"
         >
           {downloading === 'pdf' ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
-          PDF herunterladen
-        </button>
+           {t("timesheet1317")} </button>
         <button
           onClick={() => downloadFile('xlsx')}
           disabled={!!downloading}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 border-2 border-emerald-200 text-emerald-700 hover:bg-emerald-100 font-bold transition-all text-sm shadow-xs cursor-pointer"
         >
           {downloading === 'xlsx' ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />}
-          Excel herunterladen
-        </button>
+           {t("timesheet1318")} </button>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3 pt-2">
@@ -1949,7 +1935,7 @@ function SavedView({
             onClick={() => onContinueNext()}
             className="flex items-center justify-center gap-2 px-7 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all text-sm shadow-md cursor-pointer"
           >
-            <span>Weiter zu Seite/Foto {queueIndex + 2} von {totalCount}</span>
+            <span> {t("timesheet1183")} {queueIndex + 2}  {t("ui435")} {totalCount}</span>
             <ChevronRight size={16} />
           </button>
         ) : (
@@ -1958,8 +1944,7 @@ function SavedView({
             className="flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all text-sm shadow-md cursor-pointer"
           >
             <ScanLine size={16} />
-            Weiteren Stundenzettel scannen
-          </button>
+             {t("timesheet1184")} </button>
         )}
       </div>
     </motion.div>
@@ -1969,6 +1954,7 @@ function SavedView({
 // ─── Timesheet List (With Expandable Daily Entries & Edit Modal) ───────────────
 
 function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
+ const { t, locale } = useTranslation();
   const [items, setItems] = useState<TimesheetListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('');
@@ -2026,12 +2012,12 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
       });
 
       if (res.ok) {
-        showAlert({ title: "Erfolg", message: "Stundenzettel-Mitarbeiter wurde aktualisiert.", type: "success" });
+        showAlert({ title: t("success"), message: t("timesheet1186"), type: "success" });
         setEditingItem(null);
         loadList();
       } else {
         const err = await res.json();
-        showAlert({ title: "Fehler", message: err.message || "Aktualisierung fehlgeschlagen", type: "error" });
+        showAlert({ title: t("ui526"), message: err.message || t("timesheet1187"), type: "error" });
       }
     } finally {
       setSavingEdit(false);
@@ -2058,11 +2044,11 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
 
   const deleteItem = (id: string) => {
     showAlert({
-      title: "Stundenzettel löschen",
-      message: "Diesen Stundenzettel wirklich löschen?",
+      title: t("timesheet1188"),
+      message: t("timesheet1189"),
       type: "warning",
-      confirmText: "Löschen",
-      cancelText: "Abbrechen",
+      confirmText: t("deleteEntry"),
+      cancelText: t("ui336"),
       onConfirm: async () => {
         setDeleting(id);
         try {
@@ -2071,7 +2057,7 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
             headers: getAuthHeaders(),
           });
           setItems((prev) => prev.filter((i) => i.id !== id));
-          showAlert({ title: "Erfolg", message: "Stundenzettel wurde gelöscht.", type: "success" });
+          showAlert({ title: t("success"), message: t("timesheet1190"), type: "success" });
         } finally {
           setDeleting(null);
         }
@@ -2090,24 +2076,24 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-xs text-slate-600">Bestätigte Wochen: aktuelle registrierte Stunden inkl. manueller Einträge. Entwürfe: noch nicht registrierte OCR-Vorschau.</p>
+      <p className="text-xs text-slate-600"> {t("timesheet1191")} </p>
       {/* Search Bar & Filters Header */}
       <div className="flex flex-wrap gap-3 items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-sm">
         
         {/* Mitarbeiter Search Bar without border */}
         <div className="relative flex-1 min-w-[240px]">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-blue-500" />
+          <Search size={16} className="absolute start-3.5 top-1/2 -translate-y-1/2 text-blue-500" />
           <input
             type="text"
-            placeholder="Mitarbeiter-Name in Stundenzetteln suchen..."
+            placeholder={t("timesheet1192")}
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white border-0 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-0 shadow-sm"
+            className="w-full ps-10 pe-4 py-2.5 bg-white border-0 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-0 shadow-sm"
           />
           {filter && (
             <button
               onClick={() => setFilter('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-600 cursor-pointer"
             >
               <X size={14} />
             </button>
@@ -2121,9 +2107,9 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="flex-1 sm:flex-none px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 text-sm focus:outline-none focus:border-blue-400 shadow-sm"
           >
-            <option value="">Alle Status (Gesamt)</option>
-            <option value="PENDING_REVIEW">Ausstehend (PENDING_REVIEW)</option>
-            <option value="CONFIRMED">Bestätigt (CONFIRMED)</option>
+            <option value=""> {t("timesheet1193")} </option>
+            <option value="PENDING_REVIEW"> {t("timesheet1194")} </option>
+            <option value="CONFIRMED"> {t("timesheet1195")} </option>
           </select>
 
           {/* Aktualisieren button with NO hover color change */}
@@ -2131,33 +2117,33 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
             onClick={loadList}
             disabled={loading}
             className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 text-sm font-medium shadow-sm cursor-pointer disabled:opacity-50"
-            title="Liste neu laden"
+            title={t("timesheet1196")}
           >
-            <RefreshCw size={14} className={loading ? 'animate-spin text-blue-500' : 'text-slate-500'} />
-            <span className="hidden sm:inline">Aktualisieren</span>
+            <RefreshCw size={14} className={loading ? 'animate-spin text-blue-500' : 'text-slate-600'} />
+            <span className="hidden sm:inline"> {t("planning827")} </span>
           </button>
         </div>
       </div>
 
       {/* List Content */}
       {loading && items.length === 0 ? (
-        <div className="flex items-center justify-center py-16 gap-3 text-slate-500">
+        <div className="flex items-center justify-center py-16 gap-3 text-slate-600">
           <Loader2 size={24} className="animate-spin text-blue-500" />
-          <span>Stundenzettel werden geladen...</span>
+          <span> {t("timesheet1197")} </span>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16 text-slate-500 bg-slate-50 border border-slate-200 rounded-2xl shadow-sm">
+        <div className="text-center py-16 text-slate-600 bg-slate-50 border border-slate-200 rounded-2xl shadow-sm">
           <FileText size={36} className="mx-auto mb-3 opacity-40 text-blue-500" />
-          <p className="text-slate-800 font-semibold mb-1">Keine Stundenzettel gefunden</p>
-          <p className="text-slate-500 text-xs">
-            {filter ? `Keine Ergebnisse für "${filter}"` : 'Lade einen Stundenzettel per Scanner oder Foto hoch.'}
+          <p className="text-slate-800 font-semibold mb-1"> {t("timesheet1198")} </p>
+          <p className="text-slate-600 text-xs">
+            {filter ? t("sheetNoResults").replace("{query}", filter) : t("timesheet1199")}
           </p>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          <div className="text-xs text-slate-500 px-1 font-mono flex items-center justify-between">
-            <span>{filtered.length} Stundenzettel gefunden</span>
-            <span className="hidden sm:inline">Klicke auf den Pfeil zum Aufklappen der Tagesstunden</span>
+          <div className="text-xs text-slate-600 px-1 font-mono flex items-center justify-between">
+            <span>{filtered.length}  {t("timesheet1200")} </span>
+            <span className="hidden sm:inline"> {t("timesheet1201")} </span>
           </div>
 
           {filtered.map((item, index) => {
@@ -2186,9 +2172,9 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
                         </p>
                         <StatusBadge status={item.status} />
                       </div>
-                      <p className="text-slate-500 text-xs flex flex-wrap items-center gap-2">
-                        <span>📅 {getWeekRange(item.weekStartDate)}</span>
-                        <span>⏱️ {item.entryCount} Einträge ({item.totalHours.toFixed(2)} h)</span>
+                      <p className="text-slate-600 text-xs flex flex-wrap items-center gap-2">
+                        <span>📅 {getWeekRange(item.weekStartDate, locale)}</span>
+                        <span>⏱️ {item.entryCount}  {t("timesheet1202")} {item.totalHours.toFixed(2)}  {t("ui362")} </span>
                       </p>
                     </div>
                   </div>
@@ -2200,7 +2186,7 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
                       onClick={() => setExpandedId(isExpanded ? null : item.id)}
                       className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors text-xs font-medium cursor-pointer"
                     >
-                      <span className="hidden sm:inline">Tageszeiten</span>
+                      <span className="hidden sm:inline"> {t("timesheet1203")} </span>
                       {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     </button>
 
@@ -2211,7 +2197,7 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
                         setEditEmployeeName(item.employee?.name ?? item.employeeName);
                       }}
                       className="p-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors cursor-pointer"
-                      title="Name / Daten bearbeiten"
+                      title={t("sheetEditDetails")}
                     >
                       <Edit size={14} />
                     </button>}
@@ -2222,23 +2208,23 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
                           onClick={() => downloadFile(item.id, 'pdf')}
                           disabled={downloading?.id === item.id}
                           className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 transition-colors text-xs cursor-pointer"
-                          title="PDF Herunterladen"
+                          title={t("timesheet1317")}
                         >
                           {downloading?.id === item.id && downloading.fmt === 'pdf'
                             ? <Loader2 size={13} className="animate-spin" />
                             : <FileText size={13} />}
-                          <span className="hidden sm:inline">PDF</span>
+                          <span className="hidden sm:inline"> {t("timesheet1319")} </span>
                         </button>
                         <button
                           onClick={() => downloadFile(item.id, 'xlsx')}
                           disabled={downloading?.id === item.id}
                           className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors text-xs cursor-pointer"
-                          title="Excel Herunterladen"
+                          title={t("timesheet1318")}
                         >
                           {downloading?.id === item.id && downloading.fmt === 'xlsx'
                             ? <Loader2 size={13} className="animate-spin" />
                             : <FileSpreadsheet size={13} />}
-                          <span className="hidden sm:inline">Excel</span>
+                          <span className="hidden sm:inline"> {t("timesheet1320")} </span>
                         </button>
                       </>
                     )}
@@ -2248,7 +2234,7 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
                         onClick={() => deleteItem(item.id)}
                         disabled={deleting === item.id}
                         className="p-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 transition-colors cursor-pointer"
-                        title="Löschen"
+                        title={t("deleteEntry")}
                       >
                         {deleting === item.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                       </button>
@@ -2266,20 +2252,20 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
                       className="bg-slate-50 border-t border-slate-200 p-3 sm:p-4"
                     >
                       <h4 className="text-xs font-bold text-blue-700 mb-2 flex items-center gap-1.5">
-                        <Clock size={12} /> Detaillierte Tagesstunden für {item.employee?.name ?? item.employeeName}:
+                        <Clock size={12} />  {t("timesheet1204")} {item.employee?.name ?? item.employeeName}:
                       </h4>
 
                       <div className="overflow-x-auto w-full">
                         <div className="min-w-[600px]">
                           <div className="grid grid-cols-[40px_100px_90px_70px_70px_70px_70px_1fr] gap-2 py-1.5 px-3 bg-slate-200/70 rounded-lg text-xs font-semibold text-slate-700">
                             <div>#</div>
-                            <div>Tag</div>
-                            <div>Datum</div>
-                            <div>Von</div>
-                            <div>Bis</div>
-                            <div>Pause</div>
-                            <div>Stunden</div>
-                            <div>Ort</div>
+                            <div> {t("timesheet1321")} </div>
+                            <div> {t("dateLabel")} </div>
+                            <div> {t("timesheet1314")} </div>
+                            <div> {t("timesheet1315")} </div>
+                            <div> {t("attendanceBreak")} </div>
+                            <div> {t("timesheet1322")} </div>
+                            <div> {t("timesheet1205")} </div>
                           </div>
 
                           <div className="divide-y divide-slate-200">
@@ -2289,13 +2275,13 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
                                 className="grid grid-cols-[40px_100px_90px_70px_70px_70px_70px_1fr] gap-2 py-2 px-3 text-xs items-center text-slate-800 hover:bg-slate-100 transition-colors font-mono"
                               >
                                 <div className="font-bold text-blue-600">#{eIdx + 1}</div>
-                                <div className="font-sans font-medium text-slate-900">{entry.weekday}</div>
-                                <div>{formatDate(entry.date)}</div>
+                                <div className="font-sans font-medium text-slate-900">{entry.date ? new Date(entry.date).toLocaleDateString(locale,{weekday:"long",timeZone:"UTC"}) : entry.weekday}</div>
+                                <div>{formatDate(entry.date, locale)}</div>
                                 <div className="text-emerald-700 font-semibold">{entry.startTime || '—'}</div>
                                 <div className="text-slate-700">{entry.endTime || '—'}</div>
                                 <div>{entry.breakMinutes ? `${entry.breakMinutes}m` : '0m'}</div>
                                 <div className="font-bold text-blue-700">{entry.totalHours ? `${entry.totalHours.toFixed(2)}h` : '0h'}</div>
-                                <div className="font-sans text-slate-600 truncate">{entry.location || 'Standard-Lager'}</div>
+                                <div className="font-sans text-slate-600 truncate">{entry.location || t("sheetDefaultWarehouse")}</div>
                               </div>
                             ))}
                           </div>
@@ -2316,12 +2302,11 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
           <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-md w-full shadow-2xl">
             <h3 className="text-slate-900 font-bold text-lg mb-4 flex items-center gap-2">
               <Edit size={18} className="text-blue-600" />
-              Mitarbeiter-Name im Stundenzettel bearbeiten
-            </h3>
+               {t("timesheet1206")} </h3>
 
             <div className="space-y-4 mb-6">
               <div>
-                <label className="text-xs text-slate-600 font-medium block mb-1">Mitarbeiter Name</label>
+                <label className="text-xs text-slate-600 font-medium block mb-1"> {t("staff944")} </label>
                 <input
                   type="text"
                   value={editEmployeeName}
@@ -2331,8 +2316,8 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
               </div>
 
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600">
-                <p><strong>Stundenzettel KW:</strong> {getKw(editingItem.weekStartDate)}</p>
-                <p><strong>Status:</strong> {editingItem.status}</p>
+                <p><strong> {t("timesheet1207")} </strong> {getKw(editingItem.weekStartDate, t("sheetWeek"))}</p>
+                <p><strong> {t("timesheet1208")} </strong> {editingItem.status}</p>
               </div>
             </div>
 
@@ -2341,15 +2326,14 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
                 onClick={() => setEditingItem(null)}
                 className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm cursor-pointer"
               >
-                Abbrechen
-              </button>
+                 {t("ui336")} </button>
               <button
                 onClick={saveEdit}
                 disabled={savingEdit}
                 className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm cursor-pointer"
               >
                 {savingEdit ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
-                <span>Speichern</span>
+                <span> {t("attendanceSave")} </span>
               </button>
             </div>
           </div>
@@ -2367,6 +2351,7 @@ function TimesheetList({ refreshTrigger }: { refreshTrigger?: number }) {
 // ─── Daily Attendance View (With Manual Shift Add Modal) ──────────────────────
 
 function DailyAttendanceView() {
+ const { t, locale } = useTranslation();
   const dialog = useDialog();
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [records, setRecords] = useState<DailyAttendanceRecord[]>([]);
@@ -2490,16 +2475,16 @@ function DailyAttendanceView() {
       } else {
         const err = await res.json().catch(() => ({}));
         dialog.alert({
-          title: 'Fehler beim Speichern',
-          message: err.message || 'Unbekannter Fehler beim Speichern des Zeiteintrags.',
+          title: t("planning670"),
+          message: err.message || t("timesheet1211"),
           type: 'error',
         });
       }
     } catch (err: any) {
       console.error('Fehler beim Aktualisieren:', err);
       dialog.alert({
-        title: 'Fehler beim Speichern',
-        message: err?.message || 'Fehler beim Aktualisieren des Eintrags.',
+        title: t("planning670"),
+        message: err?.message || t("timesheet1213"),
         type: 'error',
       });
     } finally {
@@ -2538,16 +2523,16 @@ function DailyAttendanceView() {
       } else {
         const err = await res.json().catch(() => ({}));
         dialog.alert({
-          title: 'Fehler beim Erstellen',
-          message: err.message || 'Schicht konnte nicht manuell erstellt werden.',
+          title: t("timesheet1214"),
+          message: err.message || t("timesheet1215"),
           type: 'error',
         });
       }
     } catch (err: any) {
       console.error('Fehler beim Erstellen:', err);
       dialog.alert({
-        title: 'Fehler beim Erstellen',
-        message: err?.message || 'Ein unerwarteter Fehler ist aufgetreten.',
+        title: t("timesheet1214"),
+        message: err?.message || t("timesheet1217"),
         type: 'error',
       });
     } finally {
@@ -2572,7 +2557,7 @@ function DailyAttendanceView() {
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-2">
             <Calendar size={18} className="text-blue-600" />
-            <span className="text-slate-900 font-semibold text-sm">Datum:</span>
+            <span className="text-slate-900 font-semibold text-sm"> {t("ui339")} </span>
           </div>
           <input
             type="date"
@@ -2584,9 +2569,9 @@ function DailyAttendanceView() {
             onClick={loadDailyAttendance}
             disabled={loading}
             className="p-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-sm transition-colors cursor-pointer"
-            title="Aktualisieren"
+            title={t("planning827")}
           >
-            <RefreshCw size={14} className={loading ? 'animate-spin text-blue-500' : 'text-slate-500'} />
+            <RefreshCw size={14} className={loading ? 'animate-spin text-blue-500' : 'text-slate-600'} />
           </button>
         </div>
 
@@ -2594,11 +2579,11 @@ function DailyAttendanceView() {
           <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs font-mono">
             <div className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 font-semibold">
               <Users size={12} className="inline mr-1.5" />
-              Mitarbeiter: <strong className="text-blue-900">{records.length}</strong>
+               {t("timesheet1218")} <strong className="text-blue-900">{records.length}</strong>
             </div>
             <div className="px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold">
               <Clock size={12} className="inline mr-1.5" />
-              Schichtstunden: <strong className="text-emerald-900">{totalShiftHours.toFixed(2)} h</strong>
+               {t("timesheet1219")} <strong className="text-emerald-900">{totalShiftHours.toFixed(2)}  {t("ui277")} </strong>
             </div>
           </div>
 
@@ -2607,34 +2592,34 @@ function DailyAttendanceView() {
             className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-sm transition-colors cursor-pointer w-full sm:w-auto"
           >
             <Plus size={14} />
-            <span>Manuelle Schicht eintragen</span>
+            <span> {t("timesheet1220")} </span>
           </button>
         </div>
       </div>
 
       {/* Filter search bar for daily workers */}
       <div className="relative">
-        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+        <Search size={16} className="absolute start-3.5 top-1/2 -translate-y-1/2 text-slate-600" />
         <input
           type="text"
-          placeholder="Mitarbeiter oder Lager an diesem Tag filtern..."
+          placeholder={t("timesheet1221")}
           value={searchFilter}
           onChange={(e) => setSearchFilter(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 bg-white border-0 shadow-sm rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-0"
+          className="w-full ps-10 pe-4 py-2.5 bg-white border-0 shadow-sm rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-0"
         />
       </div>
 
       {/* Daily Shift Table */}
       {loading ? (
-        <div className="flex items-center justify-center py-16 gap-3 text-slate-500">
+        <div className="flex items-center justify-center py-16 gap-3 text-slate-600">
           <Loader2 size={24} className="animate-spin text-blue-500" />
-          <span>Tages-Anwesenheiten werden geladen...</span>
+          <span> {t("timesheet1222")} </span>
         </div>
       ) : filteredRecords.length === 0 ? (
-        <div className="text-center py-16 text-slate-500 bg-slate-50 border border-slate-200 rounded-2xl shadow-sm">
+        <div className="text-center py-16 text-slate-600 bg-slate-50 border border-slate-200 rounded-2xl shadow-sm">
           <Users size={36} className="mx-auto mb-3 opacity-40 text-blue-500" />
-          <p className="text-slate-900 font-semibold mb-1">Keine Arbeitszeiten für den {formatDate(selectedDate)} eingetragen</p>
-          <p className="text-slate-500 text-xs">Wähle ein anderes Datum oder erstelle/bestätige Stundenzettel für diesen Tag.</p>
+          <p className="text-slate-900 font-semibold mb-1"> {t("timesheet1223")} {formatDate(selectedDate, locale)}  {t("timesheet1224")} </p>
+          <p className="text-slate-600 text-xs"> {t("timesheet1225")} </p>
         </div>
       ) : (
         <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm overflow-x-auto">
@@ -2642,12 +2627,12 @@ function DailyAttendanceView() {
             <thead>
               <tr className="bg-slate-100 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 <th className="w-12 px-4 py-3 text-center">#</th>
-                <th className="px-4 py-3">Mitarbeiter Name</th>
-                <th className="px-4 py-3">Einsatzort (Lager / Halle)</th>
-                <th className="px-4 py-3">Datum & Zeiten</th>
-                <th className="px-4 py-3">Stunden</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Aktion</th>
+                <th className="px-4 py-3"> {t("staff944")} </th>
+                <th className="px-4 py-3"> {t("timesheet1226")} </th>
+                <th className="px-4 py-3"> {t("timesheet1227")} </th>
+                <th className="px-4 py-3"> {t("timesheet1322")} </th>
+                <th className="px-4 py-3"> {t("statusColumn")} </th>
+                <th className="px-4 py-3 text-right"> {t("ui295")} </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-sm text-slate-800">
@@ -2665,7 +2650,7 @@ function DailyAttendanceView() {
                         #{idx + 1}
                       </td>
                       <td className="px-4 py-3 font-semibold text-slate-900">
-                        {rec.employee?.name || 'Mitarbeiter'}
+                        {rec.employee?.name || t("roleEmployee")}
                       </td>
                       <td className="px-4 py-3 space-y-1.5">
                         <select
@@ -2677,7 +2662,7 @@ function DailyAttendanceView() {
                           }}
                           className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs text-slate-900 outline-none shadow-sm"
                         >
-                          <option value="" disabled>Lager wählen...</option>
+                          <option value="" disabled> {t("chooseWarehousePlaceholder")} </option>
                           {warehouses.map(w => (
                             <option key={w.id} value={w.id}>{w.name}</option>
                           ))}
@@ -2687,7 +2672,7 @@ function DailyAttendanceView() {
                           onChange={(e) => setEditHallId(e.target.value)}
                           className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs text-slate-900 outline-none shadow-sm"
                         >
-                          <option value="" disabled>Halle wählen...</option>
+                          <option value="" disabled> {t("chooseHallPlaceholder")} </option>
                           {filteredHalls.map(h => (
                             <option key={h.id} value={h.id}>{h.name}</option>
                           ))}
@@ -2707,7 +2692,7 @@ function DailyAttendanceView() {
                             onChange={(e) => setEditStartTime(e.target.value)}
                             className="w-20 px-1.5 py-1 bg-white border border-slate-300 rounded text-xs text-emerald-700 outline-none shadow-sm font-semibold"
                           />
-                          <span className="text-slate-500">-</span>
+                          <span className="text-slate-600">-</span>
                           <input
                             type="time"
                             value={editEndTime}
@@ -2720,22 +2705,22 @@ function DailyAttendanceView() {
                         {editEndTime ? `${calculateHours(editStartTime, editEndTime, rec.breakMinutes ?? 0).toFixed(2)} h` : '—'}
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-xs text-amber-700 font-semibold">Bearbeiten...</span>
+                        <span className="text-xs text-amber-700 font-semibold"> {t("timesheet1228")} </span>
                       </td>
                       <td className="px-4 py-3 text-right space-x-1">
                         <button
                           onClick={() => handleSaveEdit(rec)}
                           disabled={savingRecord}
                           className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded text-xs inline-flex items-center gap-1 cursor-pointer"
-                          title="Speichern"
+                          title={t("attendanceSave")}
                         >
                           {savingRecord ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle size={12} />}
-                          <span>Save</span>
+                          <span> {t("attendanceSave")} </span>
                         </button>
                         <button
                           onClick={() => setEditingId(null)}
                           className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-xs cursor-pointer"
-                          title="Abbrechen"
+                          title={t("ui336")}
                         >
                           <X size={12} />
                         </button>
@@ -2751,20 +2736,20 @@ function DailyAttendanceView() {
                     </td>
 
                     <td className="px-4 py-3 font-semibold text-slate-900">
-                      {rec.employee?.name || 'Mitarbeiter'}
+                      {rec.employee?.name || t("roleEmployee")}
                     </td>
 
                     <td className="px-4 py-3 text-xs text-slate-600">
                       <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-100 border border-slate-200 font-medium">
                         <MapPin size={11} className="text-blue-600" />
-                        {rec.warehouse?.name || 'Lager'} — {rec.hall?.name || 'Halle'}
+                        {rec.warehouse?.name || t("warehouse")} — {rec.hall?.name || t("planning716")}
                       </span>
                     </td>
 
                     <td className="px-4 py-3 font-mono text-xs text-slate-700">
-                      <span className="block font-sans text-slate-500 text-[11px] mb-0.5">{formatDate(rec.date || selectedDate)}</span>
-                      <span className="text-emerald-700 font-semibold">{clockInTime} Uhr</span> — {isWorkingNow ? (
-                        <span className="text-amber-700 font-medium">Aktiv</span>
+                      <span className="block font-sans text-slate-600 text-[11px] mb-0.5">{formatDate(rec.date || selectedDate, locale)}</span>
+                      <span className="text-emerald-700 font-semibold">{clockInTime}  {t("ui274")} </span> — {isWorkingNow ? (
+                        <span className="text-amber-700 font-medium"> {t("active")} </span>
                       ) : (
                         `${clockOutTime} Uhr`
                       )}
@@ -2777,12 +2762,10 @@ function DailyAttendanceView() {
                     <td className="px-4 py-3">
                       {isWorkingNow ? (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
-                          <Clock size={10} /> Aktiv
-                        </span>
+                          <Clock size={10} />  {t("active")} </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                          <CheckCircle size={10} /> Beendet
-                        </span>
+                          <CheckCircle size={10} />  {t("timesheet1230")} </span>
                       )}
                     </td>
 
@@ -2790,10 +2773,10 @@ function DailyAttendanceView() {
                       <button
                         onClick={() => startEditing(rec)}
                         className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-blue-700 transition-colors inline-flex items-center gap-1 text-xs font-medium cursor-pointer"
-                        title="Bearbeiten (Lager, Halle, Datum, Zeiten)"
+                        title={t("timesheet1231")}
                       >
                         <Edit size={13} />
-                        <span>Bearbeiten</span>
+                        <span> {t("ui320")} </span>
                       </button>
                     </td>
                   </tr>
@@ -2810,18 +2793,18 @@ function DailyAttendanceView() {
           <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
             <h3 className="text-slate-900 font-bold text-base flex items-center gap-2">
               <Plus size={16} className="text-blue-600" />
-              Manuelle Schicht eintragen ({formatDate(selectedDate)})
+               {t("timesheet1232")} {formatDate(selectedDate, locale)})
             </h3>
 
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-slate-600 font-medium block mb-1">Mitarbeiter wählen</label>
+                <label className="text-xs text-slate-600 font-medium block mb-1"> {t("timesheet1233")} </label>
                 <select
                   value={manualEmpId}
                   onChange={(e) => setManualEmpId(e.target.value)}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs outline-none shadow-sm"
                 >
-                  <option value="">Mitarbeiter wählen...</option>
+                  <option value=""> {t("timesheet1234")} </option>
                   {dbEmployees.map((e, idx) => (
                     <option key={e.id} value={e.id}>
                       #{idx + 1} {e.name}
@@ -2832,7 +2815,7 @@ function DailyAttendanceView() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-slate-600 font-medium block mb-1">Von (Uhrzeit)</label>
+                  <label className="text-xs text-slate-600 font-medium block mb-1"> {t("timesheet1235")} </label>
                   <input
                     type="time"
                     value={manualStartTime}
@@ -2841,7 +2824,7 @@ function DailyAttendanceView() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-slate-600 font-medium block mb-1">Bis (Uhrzeit)</label>
+                  <label className="text-xs text-slate-600 font-medium block mb-1"> {t("timesheet1236")} </label>
                   <input
                     type="time"
                     value={manualEndTime}
@@ -2852,7 +2835,7 @@ function DailyAttendanceView() {
               </div>
 
               <div>
-                <label className="text-xs text-slate-600 font-medium block mb-1">Pause (Minuten)</label>
+                <label className="text-xs text-slate-600 font-medium block mb-1"> {t("timesheet1237")} </label>
                 <input
                   type="number"
                   value={manualBreak}
@@ -2867,16 +2850,14 @@ function DailyAttendanceView() {
                 onClick={() => setShowManualModal(false)}
                 className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs cursor-pointer"
               >
-                Abbrechen
-              </button>
+                 {t("ui336")} </button>
               <button
                 onClick={handleCreateManualShift}
                 disabled={submittingManual || !manualEmpId}
                 className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-sm"
               >
                 {submittingManual ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />}
-                Eintragen
-              </button>
+                 {t("timesheet1238")} </button>
             </div>
           </div>
         </div>
@@ -2916,6 +2897,7 @@ function PdfJobProgress({
   job: PdfJob;
   currentIndex: number;
 }) {
+ const { t, locale } = useTranslation();
   const total = job.totalPages;
   const finished = job.pages.filter(
     (p) => p.status === 'accepted' || p.status === 'failed' || p.status === 'needs_review'
@@ -2924,7 +2906,7 @@ function PdfJobProgress({
   const current = job.pages[currentIndex];
 
   const chipStyle: Record<PageStatus, string> = {
-    pending: 'bg-slate-100 text-slate-500 border-slate-300',
+    pending: 'bg-slate-100 text-slate-600 border-slate-300',
     processing: 'bg-blue-50 text-blue-700 border-blue-400',
     extracted: 'bg-blue-50 text-blue-700 border-blue-400',
     validated: 'bg-emerald-50 text-emerald-700 border-emerald-400',
@@ -2952,7 +2934,7 @@ function PdfJobProgress({
           </p>
         </div>
         <p className="text-slate-600 text-xs font-bold shrink-0">
-          {current ? `Verarbeite Seite ${current.pageNumber} von ${total}` : `${total} Seiten`}
+          {current ? t("sheetProcessingPage").replace("{page}", String(current.pageNumber)).replace("{total}", String(total)) : t("sheetPageCount").replace("{total}", String(total))}
         </p>
       </div>
 
@@ -2962,7 +2944,7 @@ function PdfJobProgress({
           style={{ width: `${percent}%` }}
         />
       </div>
-      <p className="text-[11px] text-slate-500 font-semibold mb-3">{percent}%</p>
+      <p className="text-[11px] text-slate-600 font-semibold mb-3">{percent}%</p>
 
       <div className="flex flex-wrap gap-1.5">
         {job.pages.map((p, i) => {
@@ -2991,18 +2973,19 @@ function PdfJobProgress({
  * presented as fully successful while pages still need attention.
  */
 function JobSummary({ job, onNewUpload }: { job: PdfJob; onNewUpload: () => void }) {
+ const { t, locale } = useTranslation();
   const accepted = job.pages.filter((p) => p.status === 'accepted').length;
   const failed = job.pages.filter((p) => p.status === 'failed' || p.status === 'needs_review').length;
   const allOk = failed === 0;
 
   const statusLabel: Record<PageStatus, string> = {
-    pending: 'Ausstehend',
-    processing: 'Wird verarbeitet…',
-    extracted: 'Ermittelt',
-    validated: 'Geprüft',
-    accepted: 'Akzeptiert',
-    failed: 'Fehlgeschlagen',
-    needs_review: 'Prüfung nötig',
+    pending: t("timesheet1311"),
+    processing: t("ui523"),
+    extracted: t("timesheet1240"),
+    validated: t("timesheet1241"),
+    accepted: t("timesheet1242"),
+    failed: t("failed"),
+    needs_review: t("timesheet1243"),
   };
 
   return (
@@ -3013,23 +2996,21 @@ function JobSummary({ job, onNewUpload }: { job: PdfJob; onNewUpload: () => void
             ? <CheckCircle size={20} className="text-emerald-600" />
             : <AlertCircle size={20} className="text-amber-600" />}
           <h3 className="text-slate-900 font-bold text-lg">
-            {allOk ? 'Alle Seiten verarbeitet' : 'Verarbeitung abgeschlossen — einige Seiten benötigen Aufmerksamkeit'}
+            {allOk ? t("timesheet1244") : t("timesheet1245")}
           </h3>
         </div>
         <p className="text-slate-600 text-sm mb-3">{job.fileName}</p>
         <p className="text-slate-800 text-sm font-bold">
-          {accepted} von {job.totalPages} Seiten akzeptiert
-          {failed > 0 ? ` · ${failed} Seite(n) nicht akzeptiert` : ''}
+          {accepted}  {t("ui435")} {job.totalPages}  {t("timesheet1246")} {failed > 0 ? " · " + t("sheetPagesNotAccepted").replace("{count}", String(failed)) : ''}
         </p>
         {!allOk && (
           <p className="text-amber-800 text-xs mt-1">
-            Diese Seiten wurden übersprungen, konnten nicht gelesen werden oder müssen manuell geprüft werden. Sie wurden nicht stillschweigend als erfolgreich markiert.
-          </p>
+             {t("timesheet1247")} </p>
         )}
       </div>
 
       <div className="rounded-2xl border-2 border-slate-200 bg-slate-50 p-4 shadow-xs">
-        <p className="text-slate-800 font-bold text-sm mb-3">Ergebnisse je Seite</p>
+        <p className="text-slate-800 font-bold text-sm mb-3"> {t("timesheet1248")} </p>
         <div className="flex flex-col divide-y divide-slate-200">
           {job.pages.map((p) => (
             <div key={p.pageNumber} className="flex items-center justify-between gap-3 py-2">
@@ -3039,7 +3020,7 @@ function JobSummary({ job, onNewUpload }: { job: PdfJob; onNewUpload: () => void
                   : p.status === 'failed'
                     ? <AlertCircle size={15} className="text-red-600 shrink-0" />
                     : <AlertCircle size={15} className="text-amber-600 shrink-0" />}
-                <span className="text-slate-600 text-xs font-bold w-14 shrink-0">Seite {p.pageNumber}</span>
+                <span className="text-slate-600 text-xs font-bold w-14 shrink-0"> {t("ui402")} {p.pageNumber}</span>
                 <span className="text-slate-800 text-sm font-medium truncate">
                   {p.scanResult?.employeeName || '—'}
                 </span>
@@ -3065,14 +3046,14 @@ function JobSummary({ job, onNewUpload }: { job: PdfJob; onNewUpload: () => void
           className="px-6 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md flex items-center gap-2 cursor-pointer"
         >
           <Upload size={15} />
-          Neues Dokument scannen
-        </button>
+           {t("timesheet1249")} </button>
       </div>
     </div>
   );
 }
 
 export default function TimesheetsPage() {
+ const { t, locale } = useTranslation();
   const [activeTab, setActiveTab] = useState<ActiveTab>('scanner');
   const [viewMode, setViewMode] = useState<ViewMode>('upload');
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
@@ -3139,7 +3120,7 @@ export default function TimesheetsPage() {
         // Convert every PDF page to a JPEG image before sending to the OCR backend.
         // If this throws, let the error propagate — startJob() will catch it and
         // display a specific German error message to the user.
-        const pages = await convertPdfToPageImageFiles(f);
+        const pages = await convertPdfToPageImageFiles(f, t);
         for (const pageFile of pages) {
           expanded.push({ file: pageFile, pageNumber: pageCounter++ });
         }
@@ -3177,7 +3158,7 @@ export default function TimesheetsPage() {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.message ?? 'Fehler beim Scannen der Seite');
+      throw new Error(err.message ?? t("timesheet1250"));
     }
     return res.json();
   };
@@ -3220,8 +3201,8 @@ export default function TimesheetsPage() {
       setScanResult(result);
       setViewMode('review');
     } catch (e: any) {
-      patchPage(pageIdx, { status: 'failed', error: e.message ?? 'Seite konnte nicht analysiert werden.' });
-      setError(e.message ?? 'Seite konnte nicht analysiert werden.');
+      patchPage(pageIdx, { status: 'failed', error: e.message ?? t("timesheet1251") });
+      setError(e.message ?? t("timesheet1251"));
       setViewMode('error');
     }
   };
@@ -3237,7 +3218,7 @@ export default function TimesheetsPage() {
       // to the user with a specific message. Never silently swallow these errors
       // — the old behaviour was to fall back to sending raw PDF bytes which
       // caused an image_parse_error from OpenAI.
-      const msg: string = e?.message ?? 'Das PDF konnte nicht geöffnet werden.';
+      const msg: string = e?.message ?? t("timesheet1252");
       setError(msg);
       // Stay on 'upload' view so the user can select a different file.
       return;
@@ -3259,9 +3240,9 @@ export default function TimesheetsPage() {
   // Skip the current page (mark it failed/skipped) and advance.
   const skipCurrent = () => {
     if (currentPageJob && !currentPageJob.scanResult) {
-      patchPage(currentPage, { status: 'failed', error: 'Übersprungen' });
+      patchPage(currentPage, { status: 'failed', error: t("skipped") });
     } else {
-      patchPage(currentPage, { status: 'failed', error: 'Vom Benutzer übersprungen' });
+      patchPage(currentPage, { status: 'failed', error: t("timesheet1253") });
     }
     advanceToNext();
   };
@@ -3294,7 +3275,7 @@ export default function TimesheetsPage() {
       patchPage(currentPage, { status: nextStatus, scanResult: result, error: null });
       setScanResult(result);
     } catch (e: any) {
-      setError(e.message ?? 'Neu-Analyse fehlgeschlagen');
+      setError(e.message ?? t("timesheet1254"));
     } finally {
       setIsReanalyzing(false);
     }
@@ -3348,15 +3329,15 @@ export default function TimesheetsPage() {
 
   // Translate raw API error messages to user-friendly German
   const translateApiError = (raw: string): string => {
-    if (!raw) return 'Unbekannter Fehler beim Speichern.';
+    if (!raw) return t("timesheet1255");
     const dupMatch = raw.match(/DUPLICATE_DATE:(\d{4}-\d{2}-\d{2})/);
     if (dupMatch) {
       const d = new Date(dupMatch[1]);
-      const formatted = d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      return `Für diesen Mitarbeiter existiert bereits ein Stundenzettel für dieses Datum (${formatted}).`;
+      const formatted = d.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' });
+      return t("timesheet1256").replace(/\.$/, "") + " (" + formatted + ").";
     }
     if (raw.toLowerCase().includes('duplicate') || raw.toLowerCase().includes('exists')) {
-      return 'Für diesen Mitarbeiter existiert bereits ein Stundenzettel für dieses Datum.';
+      return t("timesheet1256");
     }
     return raw;
   };
@@ -3415,7 +3396,7 @@ export default function TimesheetsPage() {
         }, 1600);
       }
     } catch (e: any) {
-      setError(e.message ?? 'Unbekannter Fehler');
+      setError(e.message ?? t("sheetUnknownError"));
     } finally {
       setIsLoading(false);
     }
@@ -3444,7 +3425,7 @@ export default function TimesheetsPage() {
 
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 overflow-x-hidden">
+    <div className="min-h-screen bg-transparent text-slate-900 overflow-x-hidden">
       <div className="max-w-5xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
         {/* Page Header */}
         <div className="mb-5 sm:mb-8">
@@ -3455,11 +3436,9 @@ export default function TimesheetsPage() {
               </div>
               <div>
                 <h1 className="text-xl sm:text-2xl font-bold text-slate-900 flex items-center gap-2">
-                  Zeiterfassung & Stundenzettel-Scanner
-                </h1>
-                <p className="text-slate-500 text-xs sm:text-sm">
-                  Wochenstundenzettel per Fotos oder Datei-Upload nacheinander erfassen & verwalten
-                </p>
+                   {t("timesheet1257")} </h1>
+                <p className="text-slate-600 text-xs sm:text-sm">
+                   {t("timesheet1258")} </p>
               </div>
             </div>
 
@@ -3471,9 +3450,9 @@ export default function TimesheetsPage() {
         {/* Tab Navigation — scrollable on mobile */}
         <div className="flex gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 mb-5 sm:mb-6 overflow-x-auto">
           {[
-            { key: 'scanner', label: 'Stundenzettel Scannen', shortLabel: 'Scannen', icon: ScanLine },
-            { key: 'list', label: 'Wochenzettel Übersicht', shortLabel: 'Übersicht', icon: FileText },
-            { key: 'daily', label: 'Tages-Übersicht', shortLabel: 'Tages-Ansicht', icon: Users },
+            { key: 'scanner', label: t("timesheet1259"), shortLabel: t("timesheet1260"), icon: ScanLine },
+            { key: 'list', label: t("timesheet1261"), shortLabel: t("tabOverview"), icon: FileText },
+            { key: 'daily', label: t("timesheet1262"), shortLabel: t("timesheet1263"), icon: Users },
           ].map(({ key, label, shortLabel, icon: Icon }) => (
             <button
               key={key}
@@ -3523,7 +3502,7 @@ export default function TimesheetsPage() {
                 {/* Step Indicator */}
                 {(viewMode === 'upload' || viewMode === 'scanning' || viewMode === 'review' || viewMode === 'saved' || viewMode === 'error') && (
                   <div className="flex items-center gap-2 mb-6 text-xs text-slate-600 bg-slate-50 p-3 rounded-2xl border border-slate-200 overflow-x-auto whitespace-nowrap">
-                    {['Erfassen (Upload)', 'KI-Analyse', 'Prüfen & Speichern'].map((step, i) => {
+                    {[t("timesheet1264"), t("timesheet1265"), t("timesheet1266")].map((step, i) => {
                       const stepIndex = viewMode === 'upload' ? 0 : (viewMode === 'scanning' || viewMode === 'error') ? 1 : 2;
                       const isActive = i === stepIndex;
                       const isDone = i < stepIndex;
@@ -3531,7 +3510,7 @@ export default function TimesheetsPage() {
                         <div key={step} className="flex items-center gap-2 shrink-0">
                           <div
                             className={`flex items-center gap-1.5 font-bold ${
-                              isActive ? 'text-blue-700' : isDone ? 'text-emerald-700' : 'text-slate-400'
+                              isActive ? 'text-blue-700' : isDone ? 'text-emerald-700' : 'text-slate-600'
                             }`}
                           >
                             {isDone ? <CheckCircle size={14} className="text-emerald-700" /> : <div className={`w-2.5 h-2.5 rounded-full ${isActive ? 'bg-blue-600' : 'bg-slate-300'}`} />}
@@ -3613,7 +3592,7 @@ export default function TimesheetsPage() {
                       photoSize={photoSize}
                       onSizeChange={setPhotoSize}
                       status="error"
-                      statusMessage={currentPageJob.error || error || 'Dieses Dokument konnte nicht analysiert werden.'}
+                      statusMessage={currentPageJob.error || error || t("timesheet1267")}
                       onRetry={retryCurrent}
                       onSkip={skipCurrent}
                       onManualEntry={manualEntryForCurrent}
