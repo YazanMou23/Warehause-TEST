@@ -1,4 +1,5 @@
 "use client";
+import { useTranslation } from "../../i18n/LanguageContext";
 
 import React, { useState, useEffect, useMemo } from "react";
 import {
@@ -261,6 +262,7 @@ function applyRowFieldUpdate(
 }
 
 export default function ContainerListsPage() {
+ const { t, locale } = useTranslation();
   const [activeTab, setActiveTab] = useState<"upload" | "saved">("upload");
 
   // Extraction & Customer Detection State
@@ -311,7 +313,7 @@ export default function ContainerListsPage() {
       if (filterSite) url += `&site=${encodeURIComponent(filterSite)}`;
 
       const res = await fetch(url, { headers });
-      if (!res.ok) throw new Error("Fehler beim Laden der gespeicherten Listen");
+      if (!res.ok) throw new Error(t("inventory1503"));
       const data = await res.json();
       setSavedLists(data.items || []);
     } catch (err: any) {
@@ -329,7 +331,7 @@ export default function ContainerListsPage() {
       if (token) headers["Authorization"] = `Bearer ${token}`;
       const res = await fetch(`${API_URL}/container-lists/${id}`, { headers });
       if (!res.ok) {
-        throw new Error("Gespeicherte Liste konnte nicht geladen werden.");
+        throw new Error(t("inventory1504"));
       }
       const full: SavedContainerList = await res.json();
       setSelectedSavedList(full);
@@ -347,7 +349,7 @@ export default function ContainerListsPage() {
       setModalExpandedOtherWorkRow(null);
       setIsEditingModal(startInEditMode);
     } catch (err: any) {
-      setErrorMessage(err.message || "Fehler beim Öffnen der Liste");
+      setErrorMessage(err.message || t("inventory1505"));
     }
   };
 
@@ -373,7 +375,7 @@ export default function ContainerListsPage() {
     setIsEditingModal(false);
     setActiveTab("upload");
     setSuccessMessage(
-      `Gespeicherte Liste „${list.title || list.site}“ zur Bearbeitung geladen.`,
+      `${t("inventory1570")}: ${list.title || list.site}`,
     );
   };
 
@@ -393,7 +395,7 @@ export default function ContainerListsPage() {
   const handleSaveModalChanges = async () => {
     if (!selectedSavedList) return;
     if (modalEditRows.length === 0) {
-      setErrorMessage("Die Containerliste muss mindestens eine Zeile enthalten.");
+      setErrorMessage(t("inventory1506"));
       return;
     }
 
@@ -421,7 +423,7 @@ export default function ContainerListsPage() {
 
       if (!res.ok) {
         const err = await res.text();
-        throw new Error(err || "Fehler beim Aktualisieren der Containerliste");
+        throw new Error(err || t("inventory1507"));
       }
 
       const updated: SavedContainerList = await res.json();
@@ -438,10 +440,10 @@ export default function ContainerListsPage() {
         })),
       );
       setIsEditingModal(false);
-      setSuccessMessage("Änderungen an der Containerliste erfolgreich gespeichert!");
+      setSuccessMessage(t("inventory1508"));
       fetchSavedLists();
     } catch (err: any) {
-      setErrorMessage(`Aktualisierung fehlgeschlagen: ${err.message}`);
+      setErrorMessage(`${t("inventory1566")}: ${err.message}`);
     } finally {
       setIsSavingModal(false);
     }
@@ -456,7 +458,7 @@ export default function ContainerListsPage() {
       const res = await fetch(`${API_URL}/container-lists/${id}/export/${kind}`, { headers });
       if (!res.ok) {
         const txt = await res.text().catch(() => "");
-        throw new Error(txt || `Export fehlgeschlagen (HTTP ${res.status})`);
+        throw new Error(txt || `${t("inventory1509")} (HTTP ${res.status})`);
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -468,7 +470,7 @@ export default function ContainerListsPage() {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (err: any) {
-      setErrorMessage(err.message || "Export fehlgeschlagen");
+      setErrorMessage(err.message || t("inventory1509"));
     }
   };
 
@@ -500,7 +502,7 @@ export default function ContainerListsPage() {
 
   const handleExtract = async () => {
     if (!selectedFile) {
-      setErrorMessage("Bitte wählen Sie zuerst eine Datei (Foto, PDF oder CSV) aus.");
+      setErrorMessage(t("inventory1510"));
       return;
     }
 
@@ -527,7 +529,7 @@ export default function ContainerListsPage() {
 
       if (!res.ok) {
         const errText = await res.text();
-        throw new Error(errText || "Extraktion fehlgeschlagen");
+        throw new Error(errText || t("inventory1511"));
       }
 
       const draft = await res.json();
@@ -571,11 +573,11 @@ export default function ContainerListsPage() {
         setSuccessMessage(null);
       } else {
         setSuccessMessage(
-          `Erfolgreich extrahiert: ${draft.rows?.length || 0} Container-Zeilen gefunden.`,
+          t("inventory1569").replace("{count}", String(draft.rows?.length || 0)),
         );
       }
     } catch (err: any) {
-      setErrorMessage(`Fehler bei der Extraktion: ${err.message}`);
+      setErrorMessage(`${t("inventory1568")}: ${err.message}`);
     } finally {
       setIsExtracting(false);
     }
@@ -768,12 +770,12 @@ export default function ContainerListsPage() {
 
   const handleSaveToDatabase = async () => {
     if (draftRows.length === 0) {
-      setErrorMessage("Keine Zeilen zum Speichern vorhanden.");
+      setErrorMessage(t("inventory1512"));
       return;
     }
     if (!selectedSite || !isSiteConfirmed) {
       setErrorMessage(
-        "Bitte wählen und bestätigen Sie zuerst den Kunden-Standort (Vorlage), bevor Sie die Liste speichern.",
+        t("inventory1513"),
       );
       return;
     }
@@ -805,10 +807,10 @@ export default function ContainerListsPage() {
 
         if (!res.ok) {
           const err = await res.text();
-          throw new Error(err || "Fehler beim Aktualisieren");
+          throw new Error(err || t("inventory1514"));
         }
 
-        setSuccessMessage("Gespeicherte Containerliste erfolgreich aktualisiert!");
+        setSuccessMessage(t("inventory1515"));
         setEditingListId(null);
       } else {
         const createPayload = {
@@ -828,10 +830,10 @@ export default function ContainerListsPage() {
 
         if (!res.ok) {
           const err = await res.text();
-          throw new Error(err || "Fehler beim Speichern");
+          throw new Error(err || t("inventory1516"));
         }
 
-        setSuccessMessage("Containerliste erfolgreich in der Datenbank gespeichert!");
+        setSuccessMessage(t("inventory1517"));
       }
 
       setSelectedFile(null);
@@ -839,7 +841,7 @@ export default function ContainerListsPage() {
       setCustomerDetection(null);
       setActiveTab("saved");
     } catch (err: any) {
-      setErrorMessage(`Speichern fehlgeschlagen: ${err.message}`);
+      setErrorMessage(`${t("inventory1567")}: ${err.message}`);
     } finally {
       setIsSaving(false);
     }
@@ -867,12 +869,10 @@ export default function ContainerListsPage() {
               <FileSpreadsheet className="w-6 h-6" />
             </div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Container-Listen
-            </h1>
+               {t("inventory1424")} </h1>
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            KI-gestützte Erfassung, Prüfung, Nachbearbeitung und originalgetreuer Vorlagen-Export der Kundenstandorte.
-          </p>
+          <p className="text-sm text-gray-600 dark:text-gray-600 mt-1">
+             {t("inventory1425")} </p>
         </div>
 
         {/* Tab Buttons */}
@@ -882,20 +882,20 @@ export default function ContainerListsPage() {
             className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
               activeTab === "upload"
                 ? "bg-white dark:bg-gray-900 text-blue-600 dark:text-blue-400 shadow-sm"
-                : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                : "text-gray-600 dark:text-gray-600 hover:text-gray-900 dark:hover:text-white"
             }`}
           >
-            {editingListId ? "Liste bearbeiten" : "Neue Liste erfassen"}
+            {editingListId ? t("inventory1572") : t("inventory1573")}
           </button>
           <button
             onClick={() => setActiveTab("saved")}
             className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
               activeTab === "saved"
                 ? "bg-white dark:bg-gray-900 text-blue-600 dark:text-blue-400 shadow-sm"
-                : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                : "text-gray-600 dark:text-gray-600 hover:text-gray-900 dark:hover:text-white"
             }`}
           >
-            Gespeicherte Listen ({savedLists.length})
+             {t("inventory1426")} {savedLists.length})
           </button>
         </div>
       </div>
@@ -905,22 +905,19 @@ export default function ContainerListsPage() {
         <div className="flex items-center gap-2.5 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-sm font-semibold">
           <AlertTriangle className="w-5 h-5 flex-shrink-0" />
           <span>
-            Simulierte Vorschau (KI-Mock-Modus): Es wurden KEINE echten Daten
-            extrahiert. Alle Werte unten sind Platzhalter und müssen manuell
-            geprüft oder ersetzt werden.
-          </span>
+             {t("inventory1427")} </span>
         </div>
       )}
 
       {successMessage && (
-        <div className="flex items-center gap-2.5 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-sm font-medium">
+        <div className="flex items-center gap-2.5 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-400 text-sm font-medium">
           <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
           <span>{successMessage}</span>
         </div>
       )}
 
       {errorMessage && (
-        <div className="flex items-center gap-2.5 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-sm font-medium">
+        <div className="flex items-center gap-2.5 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-400 text-sm font-medium">
           <AlertTriangle className="w-5 h-5 flex-shrink-0" />
           <span>{errorMessage}</span>
         </div>
@@ -936,8 +933,8 @@ export default function ContainerListsPage() {
                 <UploadCloud className="w-5 h-5 text-blue-600" />
                 <span>
                   {editingListId
-                    ? "Gespeicherte Containerliste bearbeiten"
-                    : "1. Original-Containerliste hochladen (Foto, PDF oder CSV)"}
+                    ? t("inventory1574")
+                    : t("inventory1575")}
                 </span>
               </h2>
               {editingListId && (
@@ -947,7 +944,7 @@ export default function ContainerListsPage() {
                   className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-semibold inline-flex items-center gap-1"
                 >
                   <X className="w-3.5 h-3.5" />
-                  <span>Bearbeitung abbrechen (Neue Liste)</span>
+                  <span> {t("inventory1428")} </span>
                 </button>
               )}
             </div>
@@ -956,17 +953,15 @@ export default function ContainerListsPage() {
               {/* Site selector with Auto-Detection & Manual Override */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500">
-                    Kunde / Standort (Vorlage)
-                  </label>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600">
+                     {t("inventory1429")} </label>
                   {isManualSiteOverride && !editingListId && (
                     <button
                       type="button"
                       onClick={() => handleSiteSelectorChange("")}
                       className="text-[11px] text-blue-600 hover:underline font-medium"
                     >
-                      Auf Auto-Erkennung zurücksetzen
-                    </button>
+                       {t("inventory1430")} </button>
                   )}
                 </div>
                 <select
@@ -979,18 +974,17 @@ export default function ContainerListsPage() {
                   }`}
                 >
                   <option value="">
-                    — Automatisch aus Dokument erkennen —
-                  </option>
+                     {t("inventory1431")} </option>
                   {SUPPORTED_SITES.map((site) => (
                     <option key={site} value={site}>
                       {site}
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-400 mt-1.5">
+                <p className="text-xs text-gray-600 mt-1.5">
                   {isManualSiteOverride
-                    ? `Manuelle Auswahl aktiv (${selectedSite}). Wird durch Upload nicht stillschweigend überschrieben.`
-                    : "Kunde wird beim Hochladen automatisch aus dem Dokument gelesen."}
+                    ? t("inventory1561").replace("{site}", selectedSite)
+                    : t("inventory1432")}
                 </p>
               </div>
 
@@ -999,9 +993,8 @@ export default function ContainerListsPage() {
                 {editingListId ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
-                        Titel der Liste
-                      </label>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-2">
+                         {t("inventory1433")} </label>
                       <input
                         type="text"
                         value={draftTitle}
@@ -1010,9 +1003,8 @@ export default function ContainerListsPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
-                        Listen-Datum
-                      </label>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-2">
+                         {t("inventory1434")} </label>
                       <input
                         type="date"
                         value={draftDate}
@@ -1023,15 +1015,14 @@ export default function ContainerListsPage() {
                   </div>
                 ) : (
                   <>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
-                      Datei auswählen
-                    </label>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-2">
+                       {t("ui605")} </label>
                     <div className="flex flex-col sm:flex-row items-center gap-3">
                       <input
                         type="file"
                         accept="image/*,application/pdf,text/csv,.csv"
                         onChange={handleFileChange}
-                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/40 dark:file:text-blue-300 cursor-pointer"
+                        className="block w-full text-sm text-gray-600 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/40 dark:file:text-blue-300 cursor-pointer"
                       />
                       <button
                         onClick={handleExtract}
@@ -1041,12 +1032,12 @@ export default function ContainerListsPage() {
                         {isExtracting ? (
                           <>
                             <RotateCw className="w-4 h-4 animate-spin" />
-                            <span>Analysiere...</span>
+                            <span> {t("timesheet1131")} </span>
                           </>
                         ) : (
                           <>
                             <FileText className="w-4 h-4" />
-                            <span>KI-Extraktion starten</span>
+                            <span> {t("inventory1435")} </span>
                           </>
                         )}
                       </button>
@@ -1061,7 +1052,7 @@ export default function ContainerListsPage() {
               <div
                 className={`p-4 rounded-xl border text-xs space-y-2 ${
                   customerDetection.matchType === "exact" && isSiteConfirmed
-                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300"
+                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300"
                     : customerDetection.matchType === "ambiguous"
                       ? "bg-amber-500/10 border-amber-500/40 text-amber-800 dark:text-amber-300"
                       : "bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300"
@@ -1072,9 +1063,9 @@ export default function ContainerListsPage() {
                     <span className="font-semibold flex items-center gap-1.5">
                       <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
                       <span>
-                        Kunde exakt erkannt:{" "}
+                         {t("inventory1436")} {" "}
                         <strong>{customerDetection.matchedSite}</strong>{" "}
-                        (Dokumenttext: „{customerDetection.detectedCustomerRaw}“)
+                         {t("inventory1437")} {customerDetection.detectedCustomerRaw}“)
                       </span>
                     </span>
                     {isManualSiteOverride &&
@@ -1090,8 +1081,7 @@ export default function ContainerListsPage() {
                           }}
                           className="px-3 py-1 rounded-lg bg-amber-600 text-white font-semibold hover:bg-amber-700"
                         >
-                          Zu erkanntem Kunden „{customerDetection.matchedSite}“ wechseln
-                        </button>
+                           {t("inventory1438")} {customerDetection.matchedSite} {t("inventory1439")} </button>
                       )}
                   </div>
                 )}
@@ -1101,10 +1091,7 @@ export default function ContainerListsPage() {
                     <p className="font-semibold flex items-center gap-1.5">
                       <AlertTriangle className="w-4 h-4 flex-shrink-0" />
                       <span>
-                        Teil- oder mehrdeutige Kundenangabe erkannt („
-                        {customerDetection.detectedCustomerRaw}“). Bitte Kunden
-                        ausdrücklich bestätigen:
-                      </span>
+                         {t("inventory1440")} {customerDetection.detectedCustomerRaw} {t("inventory1441")} </span>
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
                       {customerDetection.candidates.map((cand) => (
@@ -1118,12 +1105,11 @@ export default function ContainerListsPage() {
                           }}
                           className={`px-3 py-1.5 rounded-lg font-semibold border transition-all ${
                             selectedSite === cand && isSiteConfirmed
-                              ? "bg-emerald-600 text-white border-emerald-600"
+                              ? "bg-emerald-700 text-white border-emerald-600"
                               : "bg-white dark:bg-gray-900 border-amber-400 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20"
                           }`}
                         >
-                          Kunde „{cand}“ bestätigen
-                        </button>
+                           {t("inventory1442")} {cand} {t("inventory1443")} </button>
                       ))}
                     </div>
                   </div>
@@ -1136,8 +1122,8 @@ export default function ContainerListsPage() {
                       <AlertTriangle className="w-4 h-4 flex-shrink-0" />
                       <span>
                         {customerDetection.matchType === "unknown"
-                          ? `Unbekannter Kunde im Dokument: „${customerDetection.detectedCustomerRaw}“. Es wurde kein Standardwert gesetzt. Bitte wählen und bestätigen Sie den Kunden manuell:`
-                          : "Kein Kunde im Dokument erkannt. Bitte wählen und bestätigen Sie den Kunden manuell:"}
+                          ? t("inventory1562").replace("{customer}", customerDetection.detectedCustomerRaw || "")
+                          : t("inventory1444")}
                       </span>
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
@@ -1152,7 +1138,7 @@ export default function ContainerListsPage() {
                           }}
                           className={`px-3 py-1.5 rounded-lg font-semibold border transition-all ${
                             selectedSite === site && isSiteConfirmed
-                              ? "bg-emerald-600 text-white border-emerald-600"
+                              ? "bg-emerald-700 text-white border-emerald-600"
                               : "bg-white dark:bg-gray-900 border-rose-300 text-gray-800 dark:text-gray-200 hover:bg-rose-500/10"
                           }`}
                         >
@@ -1186,22 +1172,20 @@ export default function ContainerListsPage() {
                   <h2 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
                     <span>
                       {editingListId
-                        ? `Gespeicherte Liste bearbeiten (${draftRows.length} Container)`
-                        : `2. Entwurf prüfen & korrigieren (${draftRows.length} Container)`}
+                        ? `${t("inventory1563")} (${draftRows.length})`
+                        : `2. ${t("inventory1564")} (${draftRows.length})`}
                     </span>
                     {selectedSite && isSiteConfirmed ? (
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
-                        Vorlage: {selectedSite}
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-800 dark:text-emerald-400 text-xs font-semibold">
+                         {t("inventory1445")} {selectedSite}
                       </span>
                     ) : (
-                      <span className="px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs font-semibold">
-                        Kunde noch nicht bestätigt!
-                      </span>
+                      <span className="px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-700 dark:text-rose-400 text-xs font-semibold">
+                         {t("inventory1446")} </span>
                     )}
                   </h2>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    Dauer (Ende − Start) bleibt als Formel erhalten. Wartezeit Von–Bis wird als eine kombinierte Textzelle exportiert.
-                  </p>
+                  <p className="text-xs text-gray-600 mt-0.5">
+                     {t("inventory1447")} </p>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -1210,12 +1194,12 @@ export default function ContainerListsPage() {
                     className="px-3.5 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold text-xs flex items-center gap-1.5"
                   >
                     <Plus className="w-4 h-4" />
-                    <span>Zeile hinzufügen</span>
+                    <span> {t("inventory1448")} </span>
                   </button>
                   <button
                     onClick={handleSaveToDatabase}
                     disabled={isSaving || !selectedSite || !isSiteConfirmed}
-                    className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-xs flex items-center gap-1.5 shadow-sm shadow-emerald-500/20"
+                    className="px-5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white font-semibold text-xs flex items-center gap-1.5 shadow-sm shadow-emerald-500/20"
                   >
                     {isSaving ? (
                       <RotateCw className="w-4 h-4 animate-spin" />
@@ -1224,7 +1208,7 @@ export default function ContainerListsPage() {
                     )}
                     <span>
                       {editingListId
-                        ? "Änderungen speichern"
+                        ? t("planning769")
                         : "In Datenbank speichern"}
                     </span>
                   </button>
@@ -1233,34 +1217,32 @@ export default function ContainerListsPage() {
 
               {/* Table Container */}
               <div className="overflow-x-auto -mx-6 px-6">
-                <table className="w-full text-left text-xs border-collapse">
+                <table className="w-full text-start text-xs border-collapse">
                   <thead>
-                    <tr className="border-b border-gray-200 dark:border-gray-800 text-gray-400 font-semibold uppercase tracking-wider">
+                    <tr className="border-b border-gray-200 dark:border-gray-800 text-gray-600 font-semibold uppercase tracking-wider">
                       <th className="py-2.5 px-2 w-10">#</th>
-                      <th className="py-2.5 px-2 min-w-[105px]">Datum</th>
-                      <th className="py-2.5 px-2 min-w-[135px]">Container-Nr.</th>
-                      <th className="py-2.5 px-2 min-w-[65px]">Fuß</th>
-                      <th className="py-2.5 px-2 min-w-[115px]">Artikel</th>
-                      <th className="py-2.5 px-2 min-w-[75px]">Kartons</th>
-                      <th className="py-2.5 px-2 min-w-[70px]">Termin</th>
-                      <th className="py-2.5 px-2 min-w-[70px]">Ankunft</th>
-                      <th className="py-2.5 px-2 min-w-[70px]">Start</th>
-                      <th className="py-2.5 px-2 min-w-[70px]">Ende</th>
-                      <th className="py-2.5 px-2 min-w-[68px]">Dauer</th>
-                      <th className="py-2.5 px-2 min-w-[95px] bg-amber-500/5 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                        {isSchwalbe ? "Personal Anzahl *" : "Personal *"}
+                      <th className="py-2.5 px-2 min-w-[105px]"> {t("dateLabel")} </th>
+                      <th className="py-2.5 px-2 min-w-[135px]"> {t("inventory1449")} </th>
+                      <th className="py-2.5 px-2 min-w-[65px]"> {t("inventory1450")} </th>
+                      <th className="py-2.5 px-2 min-w-[115px]"> {t("inventory1451")} </th>
+                      <th className="py-2.5 px-2 min-w-[75px]"> {t("inventory1452")} </th>
+                      <th className="py-2.5 px-2 min-w-[70px]"> {t("inventory1453")} </th>
+                      <th className="py-2.5 px-2 min-w-[70px]"> {t("inventory1454")} </th>
+                      <th className="py-2.5 px-2 min-w-[70px]"> {t("inventory1455")} </th>
+                      <th className="py-2.5 px-2 min-w-[70px]"> {t("inventory1456")} </th>
+                      <th className="py-2.5 px-2 min-w-[68px]"> {t("inventory1457")} </th>
+                      <th className="py-2.5 px-2 min-w-[95px] bg-amber-500/5 dark:bg-amber-500/10 text-amber-800 dark:text-amber-400">
+                        {isSchwalbe ? t("inventory1458") : t("inventory1459")}
                       </th>
                       <th className="py-2.5 px-2 min-w-[145px]">
-                        {isGant ? "Wartezeit (Von–Bis)" : "Wartezeit Von–Bis"}
+                        {isGant ? t("inventory1460") : t("inventory1461")}
                       </th>
                       <th className="py-2.5 px-2 min-w-[110px]">
-                        Anderw. Arbeit
-                      </th>
+                         {t("inventory1462")} </th>
                       <th className="py-2.5 px-2 min-w-[90px] text-blue-600 dark:text-blue-400 font-bold">
-                        Wartezeit Std.
-                      </th>
-                      <th className="py-2.5 px-2 min-w-[75px]">Wickel</th>
-                      <th className="py-2.5 px-2 min-w-[115px]">Bemerkung</th>
+                         {t("inventory1463")} </th>
+                      <th className="py-2.5 px-2 min-w-[75px]"> {t("inventory1464")} </th>
+                      <th className="py-2.5 px-2 min-w-[115px]"> {t("inventory1465")} </th>
                       <th className="py-2.5 px-2 w-10"></th>
                     </tr>
                   </thead>
@@ -1278,7 +1260,7 @@ export default function ContainerListsPage() {
                       return (
                         <React.Fragment key={idx}>
                           <tr className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
-                            <td className="py-2 px-2 text-gray-400 font-mono text-[11px]">
+                            <td className="py-2 px-2 text-gray-600 font-mono text-[11px]">
                               {idx + 1}.
                             </td>
 
@@ -1309,14 +1291,14 @@ export default function ContainerListsPage() {
                                   }
                                   className={`w-full px-2 py-1 rounded bg-transparent border font-mono font-bold text-xs outline-none ${
                                     isContainerUncertain
-                                      ? "border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                                      ? "border-amber-500 bg-amber-500/10 text-amber-800 dark:text-amber-400"
                                       : "border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500"
                                   }`}
                                 />
                                 {isContainerUncertain && (
                                   <span
                                     className="absolute right-1 top-1.5 w-2 h-2 rounded-full bg-amber-500"
-                                    title="Handschrift unsicher"
+                                    title={t("inventory1475")}
                                   />
                                 )}
                               </div>
@@ -1361,7 +1343,7 @@ export default function ContainerListsPage() {
                                     parseInt(e.target.value, 10) || 0,
                                   )
                                 }
-                                className="w-full px-2 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white font-mono text-xs outline-none text-right"
+                                className="w-full px-2 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white font-mono text-xs outline-none text-end"
                               />
                             </td>
 
@@ -1420,7 +1402,7 @@ export default function ContainerListsPage() {
                             {/* Dauer (Formula Ende - Start, read-only) */}
                             <td
                               className="py-2 px-2 font-mono text-gray-600 dark:text-gray-300 text-xs"
-                              title="Excel-Formel: Ende minus Start (h:mm)"
+                              title={t("inventory1497")}
                             >
                               {computeDauerClock(row.start, row.ende)}
                             </td>
@@ -1442,7 +1424,7 @@ export default function ContainerListsPage() {
                                 }
                                 className={`w-full px-2 py-1 rounded font-mono font-bold text-xs outline-none ${
                                   isPersonalMissing
-                                    ? "border-2 border-rose-500 bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                                    ? "border-2 border-rose-500 bg-rose-500/10 text-rose-700 dark:text-rose-400"
                                     : "border border-amber-300 dark:border-amber-700 text-gray-900 dark:text-white"
                                 }`}
                               />
@@ -1464,9 +1446,8 @@ export default function ContainerListsPage() {
                                   }
                                   className="w-16 px-1.5 py-1 rounded bg-transparent border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white font-mono text-xs outline-none"
                                 />
-                                <span className="text-[10px] text-gray-400">
-                                  bis
-                                </span>
+                                <span className="text-[10px] text-gray-600">
+                                   {t("ui408")} </span>
                                 <input
                                   type="text"
                                   value={row.wartezeitBis || ""}
@@ -1495,23 +1476,23 @@ export default function ContainerListsPage() {
                                 className={`px-2 py-1 rounded text-[11px] font-semibold border transition-colors ${
                                   otherWorkCount > 0
                                     ? "bg-purple-500/10 border-purple-500/40 text-purple-700 dark:text-purple-300"
-                                    : "border-gray-200 dark:border-gray-700 text-gray-500 hover:text-gray-800"
+                                    : "border-gray-200 dark:border-gray-700 text-gray-600 hover:text-gray-800"
                                 }`}
                               >
                                 {otherWorkCount > 0
-                                  ? `${otherWorkCount} Abzug (-${formatGermanDecimalHours(
+                                  ? `${otherWorkCount} ${t("inventory1565")} (-${formatGermanDecimalHours(
                                       waitingInfo.deductionHours,
-                                    )} Std.)`
-                                  : "+ Abzug"}
+                                    )} ${t("ui358")})`
+                                  : t("inventory1498")}
                               </button>
                             </td>
 
                             {/* Wartezeit Std (Net worker-hours in German decimal notation) */}
                             <td className="py-2 px-2 font-mono font-bold text-blue-600 dark:text-blue-400 text-xs">
                               {waitingInfo.netHours > 0
-                                ? `${waitingInfo.formattedDecimal} Std.`
+                                ? `${waitingInfo.formattedDecimal} ${t("ui358")}`
                                 : row.wartezeitStd
-                                  ? `${row.wartezeitStd} Std.`
+                                  ? `${row.wartezeitStd} ${t("ui358")}`
                                   : "0 Std."}
                             </td>
 
@@ -1520,7 +1501,7 @@ export default function ContainerListsPage() {
                               <input
                                 type="text"
                                 value={row.wickel || ""}
-                                placeholder="z. B. 12 Pal."
+                                placeholder={t("inventory1500")}
                                 onChange={(e) =>
                                   updateRowField(idx, "wickel", e.target.value)
                                 }
@@ -1533,7 +1514,7 @@ export default function ContainerListsPage() {
                               <input
                                 type="text"
                                 value={row.bemerkung || ""}
-                                placeholder="z. B. Verspätung"
+                                placeholder={t("inventory1501")}
                                 onChange={(e) =>
                                   updateRowField(idx, "bemerkung", e.target.value)
                                 }
@@ -1545,8 +1526,8 @@ export default function ContainerListsPage() {
                             <td className="py-2 px-1 text-center">
                               <button
                                 onClick={() => removeRow(idx)}
-                                className="text-gray-400 hover:text-rose-500 transition-colors p-1"
-                                title="Zeile entfernen"
+                                className="text-gray-600 hover:text-rose-700 transition-colors p-1"
+                                title={t("inventory1502")}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -1560,26 +1541,21 @@ export default function ContainerListsPage() {
                                 <div className="space-y-2">
                                   <div className="flex items-center justify-between">
                                     <span className="text-xs font-semibold text-purple-800 dark:text-purple-300">
-                                      Anderweitige Arbeit während der Wartezeit (Zeile{" "}
-                                      {idx + 1}: {row.containerNumber || "Container"}) —
-                                      wird von den Wartezeit-Personalstunden abgezogen:
-                                    </span>
+                                       {t("inventory1466")} {" "}
+                                      {idx + 1}: {row.containerNumber || t("containers")} {t("inventory1467")} </span>
                                     <button
                                       type="button"
                                       onClick={() => addOtherWorkEntry(idx)}
                                       className="px-2.5 py-1 rounded-lg bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 inline-flex items-center gap-1"
                                     >
                                       <Plus className="w-3.5 h-3.5" />
-                                      <span>Eintrag hinzufügen</span>
+                                      <span> {t("inventory1468")} </span>
                                     </button>
                                   </div>
 
                                   {(row.anderweitigeArbeiten || []).length === 0 ? (
-                                    <p className="text-xs text-gray-500">
-                                      Keine Abzüge eingetragen. Klicken Sie auf „Eintrag
-                                      hinzufügen“, wenn Mitarbeiter während der Wartezeit an
-                                      einem anderen Container gearbeitet haben.
-                                    </p>
+                                    <p className="text-xs text-gray-600">
+                                       {t("inventory1469")} </p>
                                   ) : (
                                     <div className="space-y-1.5">
                                       {(row.anderweitigeArbeiten || []).map(
@@ -1589,9 +1565,8 @@ export default function ContainerListsPage() {
                                             className="flex flex-wrap items-center gap-2 text-xs"
                                           >
                                             <label className="flex items-center gap-1">
-                                              <span className="text-gray-500">
-                                                Personal:
-                                              </span>
+                                              <span className="text-gray-600">
+                                                 {t("inventory1470")} </span>
                                               <input
                                                 type="number"
                                                 min={1}
@@ -1610,9 +1585,8 @@ export default function ContainerListsPage() {
                                               />
                                             </label>
                                             <label className="flex items-center gap-1">
-                                              <span className="text-gray-500">
-                                                Von:
-                                              </span>
+                                              <span className="text-gray-600">
+                                                 {t("planning718")} </span>
                                               <input
                                                 type="text"
                                                 placeholder="09:15"
@@ -1629,9 +1603,8 @@ export default function ContainerListsPage() {
                                               />
                                             </label>
                                             <label className="flex items-center gap-1">
-                                              <span className="text-gray-500">
-                                                Bis:
-                                              </span>
+                                              <span className="text-gray-600">
+                                                 {t("planning719")} </span>
                                               <input
                                                 type="text"
                                                 placeholder="09:45"
@@ -1649,7 +1622,7 @@ export default function ContainerListsPage() {
                                             </label>
                                             <input
                                               type="text"
-                                              placeholder="Notiz (optional)"
+                                              placeholder={t("notesOptional")}
                                               value={entry.bemerkung || ""}
                                               onChange={(e) =>
                                                 updateOtherWorkEntry(
@@ -1666,10 +1639,9 @@ export default function ContainerListsPage() {
                                               onClick={() =>
                                                 removeOtherWorkEntry(idx, eIdx)
                                               }
-                                              className="text-rose-500 hover:text-rose-700 px-2 py-1 font-semibold"
+                                              className="text-rose-700 hover:text-rose-700 px-2 py-1 font-semibold"
                                             >
-                                              Entfernen
-                                            </button>
+                                               {t("inventory1472")} </button>
                                           </div>
                                         ),
                                       )}
@@ -1687,39 +1659,39 @@ export default function ContainerListsPage() {
               </div>
 
               {/* Warnings Legend & Weekly/Daily Summary Rows */}
-              <div className="pt-3 border-t border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between text-xs text-gray-500 gap-4">
+              <div className="pt-3 border-t border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between text-xs text-gray-600 gap-4">
                 <div className="flex flex-wrap items-center gap-4">
                   <span className="flex items-center gap-1.5">
                     <span className="w-3 h-3 rounded border-2 border-rose-500 bg-rose-500/10 inline-block" />
-                    <span>Personal fehlt (Nicht raten)</span>
+                    <span> {t("inventory1473")} </span>
                   </span>
                   <span className="flex items-center gap-1.5">
                     <span className="w-3 h-3 rounded border border-amber-500 bg-amber-500/10 inline-block" />
-                    <span>Handschrift / Wert unsicher</span>
+                    <span> {t("inventory1474")} </span>
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <span className="font-bold text-blue-600">Wartezeit:</span>
-                    <span>(Bis − Von) × Personal − anderw. Arbeit</span>
+                    <span className="font-bold text-blue-600"> {t("inventory1476")} </span>
+                    <span> {t("inventory1477")} </span>
                   </span>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-4">
                   <div>
-                    {isSchwalbe ? "Gesamt Wartezeit:" : "Wartezeit Summe:"}{" "}
+                    {isSchwalbe ? t("inventory1478") : t("inventory1479")}{" "}
                     <strong className="text-blue-600 dark:text-blue-400 font-mono">
                       {summaryStats.totalWartezeitFormatted}
                     </strong>
                   </div>
                   {isSchwalbe && (
                     <div>
-                      Gesamt Personal Std. ohne Wartezeit:{" "}
-                      <strong className="text-emerald-600 dark:text-emerald-400 font-mono">
+                       {t("inventory1480")} {" "}
+                      <strong className="text-emerald-800 dark:text-emerald-400 font-mono">
                         {summaryStats.totalWorkHoursOhneWartezeitFormatted}
                       </strong>
                     </div>
                   )}
                   <div>
-                    Container:{" "}
+                     {t("inventory1481")} {" "}
                     <strong className="text-gray-900 dark:text-white font-mono">
                       {draftRows.length}
                     </strong>
@@ -1737,10 +1709,10 @@ export default function ContainerListsPage() {
           {/* Filter Bar */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-4 rounded-2xl shadow-sm">
             <div className="relative w-full sm:w-80">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search className="w-4 h-4 absolute start-3 top-1/2 -translate-y-1/2 text-gray-600" />
               <input
                 type="text"
-                placeholder="Liste nach Standort, Titel oder Datei suchen..."
+                placeholder={t("inventory1483")}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-xs font-medium focus:ring-2 focus:ring-blue-500 outline-none"
@@ -1753,7 +1725,7 @@ export default function ContainerListsPage() {
                 onChange={(e) => setFilterSite(e.target.value)}
                 className="px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-xs font-medium outline-none"
               >
-                <option value="">Alle Standorte</option>
+                <option value=""> {t("inventory1482")} </option>
                 {SUPPORTED_SITES.map((site) => (
                   <option key={site} value={site}>
                     {site}
@@ -1764,7 +1736,7 @@ export default function ContainerListsPage() {
               <button
                 onClick={fetchSavedLists}
                 className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-gray-600 dark:text-gray-300"
-                title="Aktualisieren"
+                title={t("planning827")}
               >
                 <RotateCw className="w-4 h-4" />
               </button>
@@ -1774,31 +1746,30 @@ export default function ContainerListsPage() {
           {/* Saved Lists Table */}
           <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden shadow-sm">
             {isLoadingSaved ? (
-              <div className="p-12 text-center text-sm text-gray-400 flex items-center justify-center gap-2">
+              <div className="p-12 text-center text-sm text-gray-600 flex items-center justify-center gap-2">
                 <RotateCw className="w-4 h-4 animate-spin" />
-                <span>Lade gespeicherte Listen...</span>
+                <span> {t("inventory1484")} </span>
               </div>
             ) : filteredLists.length === 0 ? (
-              <div className="p-12 text-center text-sm text-gray-400 space-y-2">
+              <div className="p-12 text-center text-sm text-gray-600 space-y-2">
                 <FileText className="w-8 h-8 mx-auto text-gray-300 dark:text-gray-600" />
-                <p>Keine gespeicherten Container-Listen gefunden.</p>
+                <p> {t("inventory1485")} </p>
                 <button
                   onClick={() => setActiveTab("upload")}
                   className="text-xs text-blue-600 hover:underline font-semibold"
                 >
-                  Erste Liste jetzt hochladen
-                </button>
+                   {t("inventory1486")} </button>
               </div>
             ) : (
-              <table className="w-full text-left text-xs border-collapse">
+              <table className="w-full text-start text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/40 text-gray-400 font-semibold uppercase tracking-wider">
-                    <th className="py-3 px-4">Standort</th>
-                    <th className="py-3 px-4">Titel &amp; Datum</th>
-                    <th className="py-3 px-4">Originaldatei</th>
-                    <th className="py-3 px-4 text-center">Container-Anzahl</th>
-                    <th className="py-3 px-4">Erfasst am</th>
-                    <th className="py-3 px-4 text-right">Aktionen</th>
+                  <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/40 text-gray-600 font-semibold uppercase tracking-wider">
+                    <th className="py-3 px-4"> {t("inventory1487")} </th>
+                    <th className="py-3 px-4"> {t("inventory1488")} </th>
+                    <th className="py-3 px-4"> {t("inventory1489")} </th>
+                    <th className="py-3 px-4 text-center"> {t("inventory1490")} </th>
+                    <th className="py-3 px-4"> {t("inventory1491")} </th>
+                    <th className="py-3 px-4 text-end"> {t("actionsColumn")} </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -1813,15 +1784,15 @@ export default function ContainerListsPage() {
                       </td>
 
                       <td className="py-3 px-4 font-medium text-gray-700 dark:text-gray-300">
-                        <div>{item.title || `Liste ${item.site}`}</div>
-                        <div className="text-[11px] text-gray-400">
+                        <div>{item.title || `${t("inventory1571")} ${item.site}`}</div>
+                        <div className="text-[11px] text-gray-600">
                           {item.date
-                            ? new Date(item.date).toLocaleDateString("de-DE")
+                            ? new Date(item.date).toLocaleDateString(locale)
                             : "—"}
                         </div>
                       </td>
 
-                      <td className="py-3 px-4 font-mono text-[11px] text-gray-500">
+                      <td className="py-3 px-4 font-mono text-[11px] text-gray-600">
                         {item.rawFileName || "—"}
                       </td>
 
@@ -1829,31 +1800,31 @@ export default function ContainerListsPage() {
                         {item._count?.rows ?? item.rows?.length ?? 0}
                       </td>
 
-                      <td className="py-3 px-4 text-gray-400 text-[11px]">
-                        {new Date(item.createdAt).toLocaleString("de-DE")}
+                      <td className="py-3 px-4 text-gray-600 text-[11px]">
+                        {new Date(item.createdAt).toLocaleString(locale)}
                       </td>
 
-                      <td className="py-3 px-4 text-right">
+                      <td className="py-3 px-4 text-end">
                         <div className="inline-flex items-center gap-1.5">
                           <button
                             onClick={() => openSavedListDetail(item.id, false)}
                             className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold text-xs inline-flex items-center gap-1"
                           >
                             <Eye className="w-3.5 h-3.5" />
-                            <span>Ansehen</span>
+                            <span> {t("inventory1492")} </span>
                           </button>
                           <button
                             onClick={() => openSavedListDetail(item.id, true)}
                             className="px-3 py-1.5 rounded-lg bg-blue-600/10 hover:bg-blue-600/20 text-blue-700 dark:text-blue-400 font-semibold text-xs inline-flex items-center gap-1"
-                            title="Gespeicherte Containerliste bearbeiten"
+                            title={t("inventory1574")}
                           >
                             <Pencil className="w-3.5 h-3.5" />
-                            <span>Bearbeiten</span>
+                            <span> {t("ui320")} </span>
                           </button>
                           <button
                             onClick={() => downloadExport(item.id, "xlsx", item.site)}
                             title="Als Excel exportieren"
-                            className="px-2.5 py-1.5 rounded-lg bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 font-semibold text-xs inline-flex items-center gap-1"
+                            className="px-2.5 py-1.5 rounded-lg bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-800 dark:text-emerald-400 font-semibold text-xs inline-flex items-center gap-1"
                           >
                             <FileSpreadsheet className="w-3.5 h-3.5" />
                             <span>XLSX</span>
@@ -1864,7 +1835,7 @@ export default function ContainerListsPage() {
                             className="px-2.5 py-1.5 rounded-lg bg-red-600/10 hover:bg-red-600/20 text-red-700 dark:text-red-400 font-semibold text-xs inline-flex items-center gap-1"
                           >
                             <Download className="w-3.5 h-3.5" />
-                            <span>PDF</span>
+                            <span> {t("timesheet1319")} </span>
                           </button>
                         </div>
                       </td>
@@ -1888,21 +1859,20 @@ export default function ContainerListsPage() {
                   <FileText className="w-5 h-5 text-blue-600" />
                   <span>
                     {isEditingModal
-                      ? `Containerliste bearbeiten: ${modalEditTitle || selectedSavedList.title}`
+                      ? `${t("inventory1563")}: ${modalEditTitle || selectedSavedList.title}`
                       : selectedSavedList.title}
                   </span>
                   <span className="px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 text-xs font-semibold">
                     {isEditingModal ? modalEditSite : selectedSavedList.site}
                   </span>
                 </h3>
-                <p className="text-xs text-gray-400 mt-1">
-                  Erfasst am{" "}
-                  {new Date(selectedSavedList.createdAt).toLocaleString("de-DE")} •{" "}
+                <p className="text-xs text-gray-600 mt-1">
+                   {t("inventory1491")} {" "}
+                  {new Date(selectedSavedList.createdAt).toLocaleString(locale)} •{" "}
                   {isEditingModal
                     ? modalEditRows.length
                     : selectedSavedList.rows?.length || 0}{" "}
-                  Container
-                </p>
+                   {t("containers")} </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -1913,14 +1883,14 @@ export default function ContainerListsPage() {
                       className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm"
                     >
                       <Pencil className="w-3.5 h-3.5" />
-                      <span>Bearbeiten</span>
+                      <span> {t("ui320")} </span>
                     </button>
                     <button
                       onClick={() => loadSavedListIntoMainEditor(selectedSavedList)}
                       className="px-3 py-1.5 rounded-xl bg-blue-600/10 hover:bg-blue-600/20 text-blue-700 dark:text-blue-400 text-xs font-semibold inline-flex items-center gap-1"
-                      title="Im großen Haupteditor öffnen"
+                      title={t("inventory1493")}
                     >
-                      <span>Im Haupteditor öffnen</span>
+                      <span> {t("inventory1493")} </span>
                     </button>
                     <button
                       onClick={() =>
@@ -1930,10 +1900,10 @@ export default function ContainerListsPage() {
                           selectedSavedList.site,
                         )
                       }
-                      className="px-3 py-1.5 rounded-xl bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 text-xs font-semibold inline-flex items-center gap-1"
+                      className="px-3 py-1.5 rounded-xl bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-800 dark:text-emerald-400 text-xs font-semibold inline-flex items-center gap-1"
                     >
                       <FileSpreadsheet className="w-3.5 h-3.5" />
-                      <span>Excel</span>
+                      <span> {t("timesheet1320")} </span>
                     </button>
                     <button
                       onClick={() =>
@@ -1946,7 +1916,7 @@ export default function ContainerListsPage() {
                       className="px-3 py-1.5 rounded-xl bg-red-600/10 hover:bg-red-600/20 text-red-700 dark:text-red-400 text-xs font-semibold inline-flex items-center gap-1"
                     >
                       <Download className="w-3.5 h-3.5" />
-                      <span>PDF</span>
+                      <span> {t("timesheet1319")} </span>
                     </button>
                   </>
                 ) : (
@@ -1956,19 +1926,19 @@ export default function ContainerListsPage() {
                       className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs font-semibold inline-flex items-center gap-1"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      <span>Zeile hinzufügen</span>
+                      <span> {t("inventory1448")} </span>
                     </button>
                     <button
                       onClick={handleSaveModalChanges}
                       disabled={isSavingModal}
-                      className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm"
+                      className="px-4 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm"
                     >
                       {isSavingModal ? (
                         <RotateCw className="w-3.5 h-3.5 animate-spin" />
                       ) : (
                         <Save className="w-3.5 h-3.5" />
                       )}
-                      <span>Änderungen speichern</span>
+                      <span> {t("planning769")} </span>
                     </button>
                     <button
                       onClick={() => {
@@ -1992,8 +1962,7 @@ export default function ContainerListsPage() {
                       }}
                       className="px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-xs font-semibold hover:bg-gray-200"
                     >
-                      Abbrechen
-                    </button>
+                       {t("ui336")} </button>
                   </>
                 )}
 
@@ -2004,8 +1973,7 @@ export default function ContainerListsPage() {
                   }}
                   className="px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-xs font-semibold hover:bg-gray-200"
                 >
-                  Schließen
-                </button>
+                   {t("close")} </button>
               </div>
             </div>
 
@@ -2015,9 +1983,8 @@ export default function ContainerListsPage() {
               {isEditingModal && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800">
                   <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-1">
-                      Standort / Kunde (Vorlage)
-                    </label>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-gray-600 mb-1">
+                       {t("inventory1494")} </label>
                     <select
                       value={modalEditSite}
                       onChange={(e) => setModalEditSite(e.target.value)}
@@ -2031,9 +1998,8 @@ export default function ContainerListsPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-1">
-                      Titel der Liste
-                    </label>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-gray-600 mb-1">
+                       {t("inventory1433")} </label>
                     <input
                       type="text"
                       value={modalEditTitle}
@@ -2042,9 +2008,8 @@ export default function ContainerListsPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-1">
-                      Datum
-                    </label>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-gray-600 mb-1">
+                       {t("dateLabel")} </label>
                     <input
                       type="date"
                       value={modalEditDate}
@@ -2056,42 +2021,41 @@ export default function ContainerListsPage() {
               )}
 
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
+                <table className="w-full text-start text-xs border-collapse">
                   <thead>
-                    <tr className="border-b border-gray-200 dark:border-gray-800 text-gray-400 font-semibold">
+                    <tr className="border-b border-gray-200 dark:border-gray-800 text-gray-600 font-semibold">
                       <th className="py-2 px-2">#</th>
-                      <th className="py-2 px-2">Datum</th>
-                      <th className="py-2 px-2">Container-Nr.</th>
-                      <th className="py-2 px-2">Fuß</th>
-                      <th className="py-2 px-2">Artikel</th>
-                      <th className="py-2 px-2">Kartons</th>
+                      <th className="py-2 px-2"> {t("dateLabel")} </th>
+                      <th className="py-2 px-2"> {t("inventory1449")} </th>
+                      <th className="py-2 px-2"> {t("inventory1450")} </th>
+                      <th className="py-2 px-2"> {t("inventory1451")} </th>
+                      <th className="py-2 px-2"> {t("inventory1452")} </th>
                       {isEditingModal && (
                         <>
-                          <th className="py-2 px-2">Termin</th>
-                          <th className="py-2 px-2">Ankunft</th>
+                          <th className="py-2 px-2"> {t("inventory1453")} </th>
+                          <th className="py-2 px-2"> {t("inventory1454")} </th>
                         </>
                       )}
-                      <th className="py-2 px-2">Start</th>
-                      <th className="py-2 px-2">Ende</th>
-                      <th className="py-2 px-2">Dauer</th>
+                      <th className="py-2 px-2"> {t("inventory1455")} </th>
+                      <th className="py-2 px-2"> {t("inventory1456")} </th>
+                      <th className="py-2 px-2"> {t("inventory1457")} </th>
                       <th className="py-2 px-2">
                         {(isEditingModal ? modalEditSite : selectedSavedList.site) ===
                         "Schwalbe"
-                          ? "Personal Anzahl"
+                          ? t("inventory1496")
                           : "Personal"}
                       </th>
                       <th className="py-2 px-2">
                         {(isEditingModal ? modalEditSite : selectedSavedList.site) ===
                         "Gant"
                           ? "Wartezeit"
-                          : "Wartezeit Von–Bis"}
+                          : t("inventory1461")}
                       </th>
-                      {isEditingModal && <th className="py-2 px-2">Anderw. Arbeit</th>}
+                      {isEditingModal && <th className="py-2 px-2"> {t("inventory1462")} </th>}
                       <th className="py-2 px-2 font-bold text-blue-600">
-                        Wartezeit Std.
-                      </th>
-                      {isEditingModal && <th className="py-2 px-2">Wickel</th>}
-                      <th className="py-2 px-2">Bemerkung</th>
+                         {t("inventory1463")} </th>
+                      {isEditingModal && <th className="py-2 px-2"> {t("inventory1464")} </th>}
+                      <th className="py-2 px-2"> {t("inventory1465")} </th>
                       {isEditingModal && <th className="py-2 px-2 w-8"></th>}
                     </tr>
                   </thead>
@@ -2102,7 +2066,7 @@ export default function ContainerListsPage() {
                             key={r.rowOrder || i}
                             className="hover:bg-gray-50/50 dark:hover:bg-gray-800/20"
                           >
-                            <td className="py-2 px-2 font-mono text-gray-400">
+                            <td className="py-2 px-2 font-mono text-gray-600">
                               {i + 1}
                             </td>
                             <td className="py-2 px-2">{r.date || "—"}</td>
@@ -2120,15 +2084,15 @@ export default function ContainerListsPage() {
                             <td className="py-2 px-2 font-mono font-semibold">
                               {r.personal ?? "—"}
                             </td>
-                            <td className="py-2 px-2 font-mono text-gray-500">
+                            <td className="py-2 px-2 font-mono text-gray-600">
                               {r.wartezeitVon && r.wartezeitBis
-                                ? `${r.wartezeitVon} bis ${r.wartezeitBis}`
+                                ? `${r.wartezeitVon} ${t("inventory1499")} ${r.wartezeitBis}`
                                 : r.wartezeitVon || "—"}
                             </td>
                             <td className="py-2 px-2 font-mono font-bold text-blue-600 dark:text-blue-400">
-                              {r.wartezeitStd ? `${r.wartezeitStd} Std.` : "—"}
+                              {r.wartezeitStd ? `${r.wartezeitStd} ${t("ui358")}` : "—"}
                             </td>
-                            <td className="py-2 px-2 text-gray-500">
+                            <td className="py-2 px-2 text-gray-600">
                               {r.bemerkung || "—"}
                             </td>
                           </tr>
@@ -2140,7 +2104,7 @@ export default function ContainerListsPage() {
                           return (
                             <React.Fragment key={idx}>
                               <tr className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30">
-                                <td className="py-1.5 px-2 font-mono text-gray-400">
+                                <td className="py-1.5 px-2 font-mono text-gray-600">
                                   {idx + 1}
                                 </td>
                                 <td className="py-1.5 px-1">
@@ -2205,7 +2169,7 @@ export default function ContainerListsPage() {
                                         parseInt(e.target.value, 10) || 0,
                                       )
                                     }
-                                    className="w-20 px-2 py-1 rounded border border-gray-200 dark:border-gray-700 bg-transparent font-mono text-xs text-right"
+                                    className="w-20 px-2 py-1 rounded border border-gray-200 dark:border-gray-700 bg-transparent font-mono text-xs text-end"
                                   />
                                 </td>
                                 <td className="py-1.5 px-1">
@@ -2256,7 +2220,7 @@ export default function ContainerListsPage() {
                                     className="w-16 px-1.5 py-1 rounded border border-gray-200 dark:border-gray-700 bg-transparent font-mono text-xs"
                                   />
                                 </td>
-                                <td className="py-1.5 px-2 font-mono text-gray-500">
+                                <td className="py-1.5 px-2 font-mono text-gray-600">
                                   {computeDauerClock(row.start, row.ende)}
                                 </td>
                                 <td className="py-1.5 px-1">
@@ -2290,9 +2254,8 @@ export default function ContainerListsPage() {
                                       }
                                       className="w-14 px-1 py-1 rounded border border-gray-200 dark:border-gray-700 bg-transparent font-mono text-xs"
                                     />
-                                    <span className="text-[10px] text-gray-400">
-                                      bis
-                                    </span>
+                                    <span className="text-[10px] text-gray-600">
+                                       {t("ui408")} </span>
                                     <input
                                       type="text"
                                       value={row.wartezeitBis || ""}
@@ -2321,19 +2284,19 @@ export default function ContainerListsPage() {
                                     className={`px-2 py-1 rounded text-[11px] font-semibold border ${
                                       otherWorkCount > 0
                                         ? "bg-purple-500/10 border-purple-500/40 text-purple-700 dark:text-purple-300"
-                                        : "border-gray-200 dark:border-gray-700 text-gray-500"
+                                        : "border-gray-200 dark:border-gray-700 text-gray-600"
                                     }`}
                                   >
                                     {otherWorkCount > 0
-                                      ? `${otherWorkCount} Abzug`
-                                      : "+ Abzug"}
+                                      ? `${otherWorkCount} ${t("inventory1565")}`
+                                      : t("inventory1498")}
                                   </button>
                                 </td>
                                 <td className="py-1.5 px-2 font-mono font-bold text-blue-600 dark:text-blue-400">
                                   {waitingInfo.netHours > 0
-                                    ? `${waitingInfo.formattedDecimal} Std.`
+                                    ? `${waitingInfo.formattedDecimal} ${t("ui358")}`
                                     : row.wartezeitStd
-                                      ? `${row.wartezeitStd} Std.`
+                                      ? `${row.wartezeitStd} ${t("ui358")}`
                                       : "0 Std."}
                                 </td>
                                 <td className="py-1.5 px-1">
@@ -2368,8 +2331,8 @@ export default function ContainerListsPage() {
                                   <button
                                     type="button"
                                     onClick={() => removeModalRow(idx)}
-                                    className="text-gray-400 hover:text-rose-500 p-1"
-                                    title="Zeile entfernen"
+                                    className="text-gray-600 hover:text-rose-700 p-1"
+                                    title={t("inventory1502")}
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
@@ -2382,8 +2345,7 @@ export default function ContainerListsPage() {
                                     <div className="space-y-2">
                                       <div className="flex items-center justify-between">
                                         <span className="text-xs font-semibold text-purple-800 dark:text-purple-300">
-                                          Anderweitige Arbeit während der Wartezeit
-                                          (Zeile {idx + 1}):
+                                           {t("inventory1466")} {idx + 1}):
                                         </span>
                                         <button
                                           type="button"
@@ -2391,7 +2353,7 @@ export default function ContainerListsPage() {
                                           className="px-2.5 py-1 rounded-lg bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 inline-flex items-center gap-1"
                                         >
                                           <Plus className="w-3.5 h-3.5" />
-                                          <span>Eintrag hinzufügen</span>
+                                          <span> {t("inventory1468")} </span>
                                         </button>
                                       </div>
                                       {(row.anderweitigeArbeiten || []).map(
@@ -2401,7 +2363,7 @@ export default function ContainerListsPage() {
                                             className="flex flex-wrap items-center gap-2 text-xs"
                                           >
                                             <label className="flex items-center gap-1">
-                                              <span>Personal:</span>
+                                              <span> {t("inventory1470")} </span>
                                               <input
                                                 type="number"
                                                 min={1}
@@ -2419,7 +2381,7 @@ export default function ContainerListsPage() {
                                               />
                                             </label>
                                             <label className="flex items-center gap-1">
-                                              <span>Von:</span>
+                                              <span> {t("planning718")} </span>
                                               <input
                                                 type="text"
                                                 value={entry.von || ""}
@@ -2435,7 +2397,7 @@ export default function ContainerListsPage() {
                                               />
                                             </label>
                                             <label className="flex items-center gap-1">
-                                              <span>Bis:</span>
+                                              <span> {t("planning719")} </span>
                                               <input
                                                 type="text"
                                                 value={entry.bis || ""}
@@ -2455,10 +2417,9 @@ export default function ContainerListsPage() {
                                               onClick={() =>
                                                 removeModalOtherWorkEntry(idx, eIdx)
                                               }
-                                              className="text-rose-500 hover:text-rose-700 px-2 py-1 font-semibold"
+                                              className="text-rose-700 hover:text-rose-700 px-2 py-1 font-semibold"
                                             >
-                                              Entfernen
-                                            </button>
+                                               {t("inventory1472")} </button>
                                           </div>
                                         ),
                                       )}
@@ -2474,9 +2435,9 @@ export default function ContainerListsPage() {
               </div>
 
               {/* Modal Summary Footer */}
-              <div className="pt-3 border-t border-gray-200 dark:border-gray-800 flex flex-wrap items-center justify-between text-xs text-gray-500 gap-4">
+              <div className="pt-3 border-t border-gray-200 dark:border-gray-800 flex flex-wrap items-center justify-between text-xs text-gray-600 gap-4">
                 <div>
-                  Standort-Vorlage:{" "}
+                   {t("inventory1495")} {" "}
                   <strong className="text-gray-900 dark:text-white">
                     {isEditingModal ? modalEditSite : selectedSavedList.site}
                   </strong>
@@ -2485,8 +2446,8 @@ export default function ContainerListsPage() {
                   <div>
                     {(isEditingModal ? modalEditSite : selectedSavedList.site) ===
                     "Schwalbe"
-                      ? "Gesamt Wartezeit:"
-                      : "Wartezeit Summe:"}{" "}
+                      ? t("inventory1478")
+                      : t("inventory1479")}{" "}
                     <strong className="text-blue-600 dark:text-blue-400 font-mono">
                       {modalSummaryStats.totalWartezeitFormatted}
                     </strong>
@@ -2494,8 +2455,8 @@ export default function ContainerListsPage() {
                   {(isEditingModal ? modalEditSite : selectedSavedList.site) ===
                     "Schwalbe" && (
                     <div>
-                      Gesamt Personal Std. ohne Wartezeit:{" "}
-                      <strong className="text-emerald-600 dark:text-emerald-400 font-mono">
+                       {t("inventory1480")} {" "}
+                      <strong className="text-emerald-800 dark:text-emerald-400 font-mono">
                         {modalSummaryStats.totalWorkHoursOhneWartezeitFormatted}
                       </strong>
                     </div>
