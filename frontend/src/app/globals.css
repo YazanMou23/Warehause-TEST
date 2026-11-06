@@ -21,23 +21,23 @@
   --color-on-secondary-container: #234f87;
 
   /* ── Background & Surface System ── */
-  --color-background: #f2efe9;
+  --color-background: #f1f5f9;
   --color-on-background: #0f172a;
   --color-surface: #ffffff;
   --color-on-surface: #0f172a;
 
-  --color-surface-dim: #eae6df;
+  --color-surface-dim: #e2e8f0;
   --color-surface-bright: #ffffff;
   --color-surface-container-lowest: #ffffff;
-  --color-surface-container-low: #f2efe9;
-  --color-surface-container: #eae6df;
-  --color-surface-container-high: #dcd6cd;
+  --color-surface-container-low: #f1f5f9;
+  --color-surface-container: #e2e8f0;
+  --color-surface-container-high: #cbd5e1;
   --color-surface-container-highest: #cbd5e1;
 
   /* ── Text & Border ── */
   --color-on-surface-variant: #526174;
   --color-outline: #94a3b8;
-  --color-outline-variant: #dcd6cd;
+  --color-outline-variant: #cbd5e1;
 
   /* ── Semantic ── */
   --color-error: #dc2626;
@@ -93,7 +93,7 @@
   --color-gold: #c9a34d;
   --color-gold-hover: #bc953e;
   --color-on-gold: #182c49;
-  --color-slate-50: #f7f4ee;
+  --color-slate-50: #f8fafc;
   --color-slate-100: #efebe4;
   --color-slate-200: #e1dbd1;
 
@@ -152,7 +152,7 @@ body {
 @utility btn-secondary {
   background-color: #ffffff;
   color: #334155;
-  border: 1px solid #dcd6cd;
+  border: 1px solid #cbd5e1;
   font-weight: 600;
   padding: 0.5rem 1rem;
   border-radius: 0.5rem;
@@ -165,7 +165,7 @@ body {
   cursor: pointer;
 
   &:hover {
-    background-color: #f2efe9;
+    background-color: #f1f5f9;
     color: #0f172a;
     border-color: #cbd5e1;
   }
@@ -177,7 +177,7 @@ body {
 
 @utility card-premium {
   background-color: #ffffff;
-  border: 1px solid #eae6df;
+  border: 1px solid #e2e8f0;
   border-radius: 0.75rem;
   padding: 1.5rem;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
@@ -185,7 +185,7 @@ body {
 
   &:hover {
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-    border-color: #dcd6cd;
+    border-color: #cbd5e1;
   }
 }
 
@@ -205,7 +205,7 @@ body {
     box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.1);
   }
   &:disabled {
-    background-color: #eae6df;
+    background-color: #e2e8f0;
     color: #64748b;
     opacity: 0.7;
   }
@@ -243,9 +243,9 @@ body {
   border-color: #e0f2fe;
 }
 @utility badge-neutral {
-  background-color: #f2efe9;
+  background-color: #f1f5f9;
   color: #475569;
-  border-color: #eae6df;
+  border-color: #e2e8f0;
 }
 
 
@@ -458,3 +458,15 @@ html[dir="rtl"] .text-left { text-align: right; }
 html[dir="rtl"] .text-right { text-align: left; }
 html[dir="rtl"] input:is([type="email"], [type="tel"], [type="time"], [type="date"], [type="number"], [type="password"]) { direction: ltr; text-align: start; }
 html[dir="rtl"] .tracking-widest, html[dir="rtl"] .tracking-wider, html[dir="rtl"] .tracking-tight { letter-spacing: normal; }
+
+/* Stable layout markers do not depend on translated display labels. */
+@media screen and (max-width: 767px) {
+ .employee-card-table td[data-column="select"],
+ .employee-card-table td[data-column="email"],
+ .employee-card-table td[data-column="meeting"],
+ .employee-card-table td[data-column="actions"],
+ .employee-card-table td[data-column="settings"] { grid-column: 1 / -1; }
+ .employee-card-table td[data-column="first"] { background: var(--color-surface-container-low); }
+ .employee-card-table td[data-column="actions"] > div,
+ .employee-card-table td[data-column="settings"] > div { flex-wrap: wrap; }
+}

@@ -335,7 +335,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const breadcrumbs = getBreadcrumbs();
 
   return (
-    <div className="flex h-screen bg-[#f2efe9] text-[#0f172a]" suppressHydrationWarning>
+    <div className="flex h-screen bg-background text-[#0f172a]" suppressHydrationWarning>
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex lg:w-[260px] lg:flex-col fixed inset-y-0 z-40 print:hidden">
         <SidebarContent />

@@ -186,7 +186,7 @@ export default function ActiveEmployeeCalendar({ logs, loading }: ActiveEmployee
                     {getInitials(staff.name)}
                   </div>
                   <span className="font-bold text-slate-900">{staff.name}</span>
-                  <span className="text-[10px] text-slate-500 font-normal">
+                  <span className="text-[10px] text-slate-600 font-normal">
                     ({staff.location})
                   </span>
                 </div>
@@ -199,11 +199,11 @@ export default function ActiveEmployeeCalendar({ logs, loading }: ActiveEmployee
       {loading ? (
         <div className="flex flex-col items-center justify-center py-16 gap-2">
           <Loader2 className="w-8 h-8 animate-spin text-secondary" />
-          <p className="text-sm text-slate-500">Lade Belegungsplan...</p>
+          <p className="text-sm text-slate-600">Lade Belegungsplan...</p>
         </div>
       ) : logs.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-2">
-          <AlertCircle className="w-8 h-8 opacity-40 text-slate-500" />
+        <div className="flex flex-col items-center justify-center py-16 text-slate-600 gap-2">
+          <AlertCircle className="w-8 h-8 opacity-40 text-slate-600" />
           <p className="text-sm font-semibold">Keine aktiven Mitarbeiter heute registriert.</p>
         </div>
       ) : (
@@ -212,7 +212,7 @@ export default function ActiveEmployeeCalendar({ logs, loading }: ActiveEmployee
             {/* Timeline X-Axis Header */}
             <div className="flex border-b border-outline-variant bg-slate-50/50">
               {/* Top-left spacer */}
-              <div className="sticky left-0 w-[240px] bg-slate-50 border-r border-outline-variant p-3 font-bold text-xs text-slate-500 shrink-0 z-20 shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
+              <div className="sticky left-0 w-[240px] bg-slate-50 border-r border-outline-variant p-3 font-bold text-xs text-slate-600 shrink-0 z-20 shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
                 Lager & Halle
               </div>
               
@@ -223,7 +223,7 @@ export default function ActiveEmployeeCalendar({ logs, loading }: ActiveEmployee
                   return (
                     <div
                       key={hour}
-                      className="flex-1 text-center py-2.5 text-[10px] font-bold text-slate-400 font-mono border-r border-slate-100 last:border-r-0"
+                      className="flex-1 text-center py-2.5 text-[10px] font-bold text-slate-600 font-mono border-r border-slate-100 last:border-r-0"
                     >
                       {hour.toString().padStart(2, "0")}:00
                     </div>
@@ -239,7 +239,7 @@ export default function ActiveEmployeeCalendar({ logs, loading }: ActiveEmployee
                   {/* Sticky Location Y-Axis Label */}
                   <div className="sticky left-0 w-[240px] bg-white border-r border-outline-variant p-4 shrink-0 flex flex-col justify-center z-10 shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
                     <span className="font-bold text-slate-900 text-sm">{warehouseName}</span>
-                    <span className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                    <span className="text-[11px] text-slate-600 flex items-center gap-1 mt-0.5">
                       <span className="w-1.5 h-1.5 bg-secondary/30 rounded-full"></span>
                       {hallName}
                     </span>
@@ -306,7 +306,7 @@ export default function ActiveEmployeeCalendar({ logs, loading }: ActiveEmployee
                               <div className="flex items-center gap-2 min-w-0">
                                 {/* Avatar initials */}
                                 <div
-                                  style={{ backgroundColor: `${hallColor}30`, color: hallColor }}
+                                  style={{ backgroundColor: `${hallColor}30`, color: "#0f172a" }}
                                   className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center font-bold text-[9px] border border-current"
                                 >
                                   {getInitials(empName)}
@@ -315,7 +315,7 @@ export default function ActiveEmployeeCalendar({ logs, loading }: ActiveEmployee
                                   <span className="block font-bold text-xs truncate leading-none text-slate-800">
                                     {empName}
                                   </span>
-                                  <span className="text-[9px] opacity-75 font-mono text-slate-500">
+                                  <span className="text-[9px] font-mono text-slate-600">
                                     {formatTime(log.clockIn).split(" ")[0]} – {log.clockOut ? formatTime(log.clockOut).split(" ")[0] : "Jetzt"}
                                   </span>
                                 </div>
