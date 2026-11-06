@@ -64,3 +64,9 @@ Warehouses, halls, containers and container lists use the four-language catalogs
 Chat search, empty/loading states, role labels, input, blocked/waiting notices, block/unblock confirmation and error wording use the four-language catalog. Message content is never translated or changed. API actions, polling interval and send restrictions are unchanged. RTL uses logical borders/padding and bubble corners. Shared custom-alert badges now use the selected language and warning/success action colors have stronger contrast.
 
 `chat-languages-phase-3.cjs` captures list, history and block-confirmation states at four widths in four languages (48 screenshots). All requests use synthetic fixtures and external non-GET requests are blocked. No message is sent and no block is confirmed. Worker blocked/waiting wording is translated in source but those branches are not exercised in this visual runner.
+
+## Reports batch
+
+Timesheet reports and activity logs use the selected language, including months, roles, known action labels, filters, date/time display, hour units, pagination and print-only labels. IDs, action filter values, attendance calculations, the existing 160-hour display target and APIs remain unchanged. Unknown action identifiers and log detail text remain as received.
+
+`reports-languages-phase-3.cjs` checks timesheet and activity screens at four widths/four languages plus desktop print-media previews (36 screenshots). Text contrast/overflow checks pass with synthetic data. No external write or print dialog is triggered. Wide reports/log tables scroll inside cards. Print-media preview is not a physical/PDF pagination test.

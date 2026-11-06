@@ -75,7 +75,7 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
 
   const [errorMsg, setErrorMsg] = useState("");
-  
+
   // Actor info from JWT
   const [actorId, setActorId] = useState("");
   const [actorRole, setActorRole] = useState("");
@@ -114,7 +114,7 @@ export default function ChatPage() {
       if (!res.ok) throw new Error("Fehler beim Laden");
       const data = await res.json();
       setConversations(data);
-      
+
       // If we are an employee, find if we are blocked
       if (actorRole === "EMPLOYEE") {
         const empRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${actorId}`, {
@@ -143,7 +143,7 @@ export default function ChatPage() {
       if (!res.ok) throw new Error(t("ui526"));
       const data = await res.json();
       setMessages(data);
-      
+
       // Update unread count locally for smooth UI
       setConversations(prev =>
         prev.map(c => c.id === partnerId ? { ...c, unreadCount: 0 } : c)
@@ -217,7 +217,7 @@ export default function ChatPage() {
   };
 
   const handleBlockToggle = (employeeId: string, currentBlockStatus: boolean) => {
-    
+
     showAlert({
       title: currentBlockStatus ? t("inventory1582") : t("inventory1583"),
       message: currentBlockStatus ? t("inventory1600") : t("inventory1599"),
@@ -272,7 +272,7 @@ export default function ChatPage() {
   const isSendDisabled = useMemo(() => {
     if (actorRole !== "EMPLOYEE") return false;
     if (isActorBlocked) return true;
-    
+
     // Check if the last message in history was sent by this employee (self)
     if (messages.length > 0) {
       const lastMsg = messages[messages.length - 1];
@@ -301,10 +301,10 @@ export default function ChatPage() {
 
   return (
     <div className="h-[calc(100vh-8rem)] sm:h-[80vh] flex bg-white border border-outline-variant rounded-2xl overflow-hidden shadow-sm">
-      
+
       {/* 1. LEFT SIDEBAR: Conversation list — hidden on mobile when a chat is open */}
       <div className={`${selectedPartnerId ? "hidden sm:flex" : "flex"} w-full sm:w-1/3 border-e border-outline-variant flex-col bg-slate-50/30 shrink-0`}>
-        
+
         {/* Search */}
         <div className="p-4 border-b border-outline-variant bg-white">
           <h4 className="font-bold text-slate-800 text-body-lg flex items-center gap-2 mb-3">

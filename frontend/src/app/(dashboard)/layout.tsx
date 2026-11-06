@@ -335,14 +335,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const breadcrumbs = getBreadcrumbs();
 
   return (
-    <div className="flex h-screen bg-background text-[#0f172a]" suppressHydrationWarning>
+    <div className="flex h-screen print:h-auto print:bg-white bg-background text-[#0f172a]" suppressHydrationWarning>
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex lg:w-[260px] lg:flex-col fixed inset-y-0 z-40 print:hidden">
         <SidebarContent />
       </aside>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col lg:ps-[260px] min-h-screen min-w-0">
+      <div className="flex-1 flex flex-col lg:ps-[260px] print:ps-0 min-h-screen print:min-h-0 min-w-0">
 
         {/* Top Header */}
         <header className="h-14 flex items-center justify-between px-6 border-b border-[#e2e8f0] bg-white print:hidden shrink-0 shadow-sm shadow-slate-100/50">
@@ -475,7 +475,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-3 sm:p-6 print:p-0" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+        <main className="flex-1 overflow-y-auto print:overflow-visible p-3 sm:p-6 print:p-0" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
           {children}
         </main>
       </div>
