@@ -1,4 +1,4 @@
-# Phase 3 language foundation
+# Phase 3 interface languages
 
 User-facing interface languages: German (`de`), Arabic (`ar`), Turkish (`tr`), Ukrainian (`uk`). German is the initial and invalid/legacy-value fallback. The preference is stored only in this browser's localStorage. It is not a server/account preference and does not affect WhatsApp conversation language.
 
@@ -6,7 +6,7 @@ Arabic sets `<html lang="ar" dir="rtl">`, mirrors the navigation drawer and desk
 
 Covered: shared navigation/catalog and dialogs, language selectors, login/reset, profile, worker dashboard/hours/QR scanner, Documents capture/queue copy, admin planning/shift responses, employees/admins, and work-hours visibility controls. User-provided names, notes, filenames and server-provided errors are not rewritten or translated. English OCR document-language selection remains available as an input-processing option, not an English interface.
 
-Not yet translated end-to-end: warehouses/halls/containers/container lists, chat and reports. They use translated shared labels but retain page-specific hardcoded copy. Legal policy pages and exported CSV headers are not translated by this change. Do not describe this foundation as complete app translation.
+Page coverage now includes attendance, timesheets, inventory, chat, reports and manager dashboard controls in addition to the foundation listed above. Legal policy pages, exported CSV headers/customer templates, outbound message bodies/presets and raw server/user content are intentionally not translated. This is interface-language coverage, not automatic document/message translation.
 
 ## Verify
 
@@ -70,3 +70,10 @@ Chat search, empty/loading states, role labels, input, blocked/waiting notices, 
 Timesheet reports and activity logs use the selected language, including months, roles, known action labels, filters, date/time display, hour units, pagination and print-only labels. IDs, action filter values, attendance calculations, the existing 160-hour display target and APIs remain unchanged. Unknown action identifiers and log detail text remain as received.
 
 `reports-languages-phase-3.cjs` checks timesheet and activity screens at four widths/four languages plus desktop print-media previews (36 screenshots). Text contrast/overflow checks pass with synthetic data. No external write or print dialog is triggered. Wide reports/log tables scroll inside cards. Print-media preview is not a physical/PDF pagination test.
+
+
+## Manager dashboard and final shared-surface audit
+
+Manager bulk-plan messages and confirmations, role/status labels, the employee live calendar, WhatsApp composer chrome and small remaining document/tooltips use the four-language catalog. Calendar timelines stay chronological left-to-right while the interface follows Arabic RTL. Outbound message defaults, preset bodies/buttons, approved Meta template name/language, payloads and CSV values remain canonical. Switching interface language does not translate a message or authorize a send.
+
+`dashboard-languages-phase-3.cjs` captures manager overview, lower dashboard, plan details, duplicate confirmation and all three WhatsApp composer modes at four widths/four languages (112 screenshots). Mock analytics includes populated employee/trend data. All external writes blocked; duplicate/send not confirmed. Four-language foundation runner and edge runner were repeated after shared-component changes. The audit does not exercise every network error/success branch or live camera/scanner hardware.

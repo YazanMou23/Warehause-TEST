@@ -262,7 +262,7 @@ export default function ScannerCaptureTab({ onScanCompleted }: ScannerCaptureTab
                 )}
                 {!selectedDevice.hasAdf && !selectedDevice.hasFlatbed && (
                   <>
-                    <option value="Platen">Flachbett</option>
+                    <option value="Platen"> {tx("inventory1717")} </option>
                     <option value="Feeder">{tx("ui474")}</option>
                   </>
                 )}

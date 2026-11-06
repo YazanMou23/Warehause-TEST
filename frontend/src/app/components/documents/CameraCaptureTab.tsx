@@ -322,7 +322,7 @@ export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTab
                 type="text"
                 value={documentTitle}
                 onChange={(e) => setDocumentTitle(e.target.value)}
-                placeholder="Dokumentenname"
+                placeholder={tx("inventory1716")}
                 className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-900 focus:outline-none focus:border-purple-500"
               />
             </div>

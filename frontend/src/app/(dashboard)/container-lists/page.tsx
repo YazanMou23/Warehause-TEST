@@ -1414,7 +1414,7 @@ export default function ContainerListsPage() {
                                 min={1}
                                 max={30}
                                 value={row.personal ?? ""}
-                                placeholder="Fehlt!"
+                                placeholder={t("inventory1713")}
                                 onChange={(e) =>
                                   updateRowField(
                                     idx,

@@ -181,7 +181,7 @@ export default function DashboardPage() {
       } else {
         showAlert({
           title: t("errorOccurred"),
-          message: "Fehler beim Ändern der Sichtbarkeit",
+          message: t("staff899"),
           type: "error",
         });
       }
@@ -189,7 +189,7 @@ export default function DashboardPage() {
       console.error(e);
       showAlert({
         title: t("errorOccurred"),
-        message: "Verbindungsfehler beim Ändern der Sichtbarkeit",
+        message: t("staff900"),
         type: "error",
       });
     } finally {
@@ -303,8 +303,8 @@ export default function DashboardPage() {
   const handleBulkDeletePlans = () => {
     if (selectedPlanIds.length === 0) return;
     showAlert({
-      title: "Schichtpläne löschen",
-      message: `Sind Sie sicher, dass Sie die ${selectedPlanIds.length} ausgewählten Schichtpläne löschen möchten?`,
+      title: t("inventory1658"),
+      message: t("inventory1675").replace("{count}", String(selectedPlanIds.length)),
       type: "warning",
       confirmText: tx("deleteEntry"),
       cancelText: tx("ui336"),
@@ -323,13 +323,13 @@ export default function DashboardPage() {
           if (res.ok) {
             setSelectedPlanIds([]);
             fetchPlans(selectedDate, showAllPlans);
-            showAlert({ title: tx("success"), message: "Ausgewählte Schichtpläne wurden gelöscht.", type: "success" });
+            showAlert({ title: tx("success"), message: t("inventory1659"), type: "success" });
           } else {
-            showAlert({ title: tx("ui526"), message: "Schichtpläne konnten nicht gelöscht werden.", type: "error" });
+            showAlert({ title: tx("ui526"), message: t("inventory1660"), type: "error" });
           }
         } catch (e) {
           console.error(e);
-          showAlert({ title: tx("ui526"), message: "Fehler beim Löschen der Schichtpläne.", type: "error" });
+          showAlert({ title: tx("ui526"), message: t("inventory1661"), type: "error" });
         }
       },
     });
@@ -338,8 +338,8 @@ export default function DashboardPage() {
   const handleBulkDuplicatePlans = () => {
     if (selectedPlanIds.length === 0) return;
     showAlert({
-      title: "Schichtpläne duplizieren",
-      message: `Sind Sie sicher, dass Sie die ${selectedPlanIds.length} ausgewählten Schichtpläne duplizieren möchten?`,
+      title: t("inventory1662"),
+      message: t("inventory1676").replace("{count}", String(selectedPlanIds.length)),
       type: "info",
       confirmText: tx("ui312"),
       cancelText: tx("ui336"),
@@ -358,13 +358,13 @@ export default function DashboardPage() {
           if (res.ok) {
             setSelectedPlanIds([]);
             fetchPlans(selectedDate, showAllPlans);
-            showAlert({ title: tx("success"), message: "Schichtpläne wurden erfolgreich dupliziert.", type: "success" });
+            showAlert({ title: tx("success"), message: t("inventory1663"), type: "success" });
           } else {
-            showAlert({ title: tx("ui526"), message: "Schichtpläne konnten nicht dupliziert werden.", type: "error" });
+            showAlert({ title: tx("ui526"), message: t("inventory1664"), type: "error" });
           }
         } catch (e) {
           console.error(e);
-          showAlert({ title: tx("ui526"), message: "Fehler beim Duplizieren der Schichtpläne.", type: "error" });
+          showAlert({ title: tx("ui526"), message: t("inventory1665"), type: "error" });
         }
       },
     });
@@ -387,13 +387,13 @@ export default function DashboardPage() {
       if (res.ok) {
         setSelectedPlanIds([]);
         fetchPlans(selectedDate, showAllPlans);
-        showAlert({ title: tx("success"), message: "Halle für ausgewählte Pläne erfolgreich geändert.", type: "success" });
+        showAlert({ title: tx("success"), message: t("inventory1666"), type: "success" });
       } else {
-        showAlert({ title: tx("ui526"), message: "Hallenänderung fehlgeschlagen.", type: "error" });
+        showAlert({ title: tx("ui526"), message: t("inventory1667"), type: "error" });
       }
     } catch (e) {
       console.error(e);
-      showAlert({ title: tx("ui526"), message: "Fehler beim Ändern der Halle.", type: "error" });
+      showAlert({ title: tx("ui526"), message: t("inventory1668"), type: "error" });
     }
   };
 
@@ -414,13 +414,13 @@ export default function DashboardPage() {
       if (res.ok) {
         setSelectedPlanIds([]);
         fetchPlans(selectedDate, showAllPlans);
-        showAlert({ title: tx("success"), message: "Schicht für ausgewählte Pläne erfolgreich geändert.", type: "success" });
+        showAlert({ title: tx("success"), message: t("inventory1669"), type: "success" });
       } else {
-        showAlert({ title: tx("ui526"), message: "Schichtänderung fehlgeschlagen.", type: "error" });
+        showAlert({ title: tx("ui526"), message: t("inventory1670"), type: "error" });
       }
     } catch (e) {
       console.error(e);
-      showAlert({ title: tx("ui526"), message: "Fehler beim Ändern der Schicht.", type: "error" });
+      showAlert({ title: tx("ui526"), message: t("inventory1671"), type: "error" });
     }
   };
 
@@ -441,13 +441,13 @@ export default function DashboardPage() {
       if (res.ok) {
         setSelectedPlanIds([]);
         fetchPlans(selectedDate, showAllPlans);
-        showAlert({ title: tx("success"), message: "Mitarbeiter erfolgreich für ausgewählte Pläne zugewiesen.", type: "success" });
+        showAlert({ title: tx("success"), message: t("inventory1672"), type: "success" });
       } else {
-        showAlert({ title: tx("ui526"), message: "Mitarbeiterzuweisung fehlgeschlagen.", type: "error" });
+        showAlert({ title: tx("ui526"), message: t("inventory1673"), type: "error" });
       }
     } catch (e) {
       console.error(e);
-      showAlert({ title: tx("ui526"), message: "Fehler beim Zuweisen der Mitarbeiter.", type: "error" });
+      showAlert({ title: tx("ui526"), message: t("inventory1674"), type: "error" });
     }
   };
 
@@ -477,7 +477,7 @@ export default function DashboardPage() {
       } else {
         // Clock In
         if (!clockInWarehouseId || !clockInHallId) {
-          showAlert({ title: "Hinweis", message: tx("ui529"), type: "warning" });
+          showAlert({ title: t("ui606"), message: tx("ui529"), type: "warning" });
           setClockLoading(false);
           return;
         }
@@ -1535,7 +1535,7 @@ export default function DashboardPage() {
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
               <h3 className="text-xl font-bold text-slate-800 tracking-tight">
-                {userRole === "MANAGER" ? t("roleManager") + " Dashboard" : t("operationalDashboard")}
+                {userRole === "MANAGER" ? t("inventory1677") : t("operationalDashboard")}
               </h3>
               <p className="text-slate-600 text-xs mt-1">
                 {t("statusOverview")}
@@ -1923,7 +1923,7 @@ export default function DashboardPage() {
                     {/* Bulk Duplicate */}
                     <button
                       onClick={handleBulkDuplicatePlans}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-sm"
+                      className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-sm"
                     >
                       {tx("ui312")}</button>
 
@@ -2361,7 +2361,7 @@ export default function DashboardPage() {
                             <td className="px-4 py-2.5 font-medium text-slate-850">{emp.name}</td>
                             <td className="px-4 py-2.5">
                               <span className="badge-premium badge-info text-[9px] py-0.5 px-2">
-                                {emp.role}
+                                {emp.role === "ADMIN" ? t("staff924") : emp.role === "MANAGER" ? t("roleManager") : t("roleEmployee")}
                               </span>
                             </td>
                             <td className="px-4 py-2.5 font-mono text-slate-600">{emp.phone || "—"}</td>
@@ -2401,7 +2401,7 @@ export default function DashboardPage() {
                                   ? "badge-warning" 
                                   : "badge-success"
                               }`}>
-                                {c.status}
+                                {c.status === "FULL" ? t("inventory1386") : c.status === "EMPTY" ? t("inventory1387") : c.status}
                               </span>
                             </td>
                           </tr>
@@ -2484,7 +2484,7 @@ export default function DashboardPage() {
                       />
                       <div>
                         <span className="font-semibold text-slate-800">{emp.name}</span>
-                        <span className="text-[10px] text-slate-450 block">{emp.role} {emp.hallName ? `• ${emp.hallName}` : ""}</span>
+                        <span className="text-[10px] text-slate-600 block">{emp.role === "ADMIN" ? t("staff924") : emp.role === "MANAGER" ? t("roleManager") : t("roleEmployee")} {emp.hallName ? `• ${emp.hallName}` : ""}</span>
                       </div>
                     </label>
                   );
@@ -2547,7 +2547,7 @@ export default function DashboardPage() {
               {selectedPlanForView.assignedEmployees?.map((emp, idx) => (
                 <tr key={idx} className="border-b border-black">
                   <td className="py-2 font-medium">{emp.name}</td>
-                  <td className="py-2">{emp.role}</td>
+                  <td className="py-2">{emp.role === "ADMIN" ? t("staff924") : emp.role === "MANAGER" ? t("roleManager") : t("roleEmployee")}</td>
                   <td className="py-2">{emp.phone || "—"}</td>
                 </tr>
               ))}
@@ -2566,7 +2566,7 @@ export default function DashboardPage() {
               {selectedPlanForView.assignedContainers?.map((c, idx) => (
                 <tr key={idx} className="border-b border-black">
                   <td className="py-2 font-mono font-medium">{c.containerNumber}</td>
-                  <td className="py-2">{c.status}</td>
+                  <td className="py-2">{c.status === "FULL" ? t("inventory1386") : c.status === "EMPTY" ? t("inventory1387") : c.status}</td>
                 </tr>
               ))}
             </tbody>

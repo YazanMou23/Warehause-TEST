@@ -1,4 +1,5 @@
 "use client";
+import { useTranslation } from "../i18n/LanguageContext";
 
 import React, { useMemo, useEffect, useState } from "react";
 import { Clock, Warehouse, User, AlertCircle, Loader2 } from "lucide-react";
@@ -34,6 +35,7 @@ interface ActiveEmployeeCalendarProps {
 }
 
 export default function ActiveEmployeeCalendar({ logs, loading }: ActiveEmployeeCalendarProps) {
+ const { t, locale } = useTranslation();
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
 
   // Update clock every minute for live progress bar
@@ -61,8 +63,8 @@ export default function ActiveEmployeeCalendar({ logs, loading }: ActiveEmployee
     > = {};
 
     logs.forEach((log) => {
-      const wName = log.warehouse?.name || log.warehouseName || "Unbekanntes Lager";
-      const hName = log.hall?.name || log.hallName || "Halle";
+      const wName = log.warehouse?.name || log.warehouseName || t("inventory1684");
+      const hName = log.hall?.name || log.hallName || t("planning716");
       const key = `${wName} - ${hName}`;
 
       if (!locationsMap[key]) {
@@ -79,32 +81,32 @@ export default function ActiveEmployeeCalendar({ logs, loading }: ActiveEmployee
       key,
       ...data,
     }));
-  }, [logs]);
+  }, [logs, t]);
 
   // Find currently active employees (clockOut is null)
   const activeStaffList = useMemo(() => {
     return logs
       .filter((log) => !log.clockOut)
       .map((log) => {
-        const empName = log.employee?.name || log.employeeName || "Mitarbeiter";
-        const wName = log.warehouse?.name || log.warehouseName || "Lager";
-        const hName = log.hall?.name || log.hallName || "Halle";
+        const empName = log.employee?.name || log.employeeName || t("roleEmployee");
+        const wName = log.warehouse?.name || log.warehouseName || t("warehouse");
+        const hName = log.hall?.name || log.hallName || t("planning716");
         return {
           id: log.id,
           employeeId: log.employeeId,
           name: empName,
-          location: `${wName} — ${hName}`,
+          location: `${wName} - ${hName}`,
           clockIn: log.clockIn,
         };
       });
-  }, [logs]);
+  }, [logs, t]);
 
 
   // Format date helper
   const formatTime = (isoString: string) => {
     try {
       const d = new Date(isoString);
-      return d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr";
+      return d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
     } catch {
       return "--:--";
     }
@@ -145,19 +147,16 @@ export default function ActiveEmployeeCalendar({ logs, loading }: ActiveEmployee
           <Warehouse className="w-5 h-5 text-secondary" />
           <div>
             <h5 className="font-bold text-body-lg text-on-surface">
-              Mitarbeiter-Belegungsplan (Gantt)
-            </h5>
+               {t("inventory1678")} </h5>
             <p className="text-xs text-on-surface-variant">
-              Tägliche Schichtbelegung und Live-Status nach Lagerbereichen geordnet
-            </p>
+               {t("inventory1679")} </p>
           </div>
         </div>
         
         <div className="flex items-center gap-4">
 
           <span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-200 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider flex items-center gap-1.5 animate-pulse">
-            <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full"></span> Live
-          </span>
+            <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full"></span>  {t("live")} </span>
         </div>
       </div>
 
@@ -169,7 +168,7 @@ export default function ActiveEmployeeCalendar({ logs, loading }: ActiveEmployee
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
-            Jetzt aktiv im Dienst ({activeStaffList.length}):
+             {t("inventory1680")} {activeStaffList.length}):
           </span>
           <div className="flex flex-wrap gap-2">
             {activeStaffList.map((staff) => {
@@ -199,22 +198,21 @@ export default function ActiveEmployeeCalendar({ logs, loading }: ActiveEmployee
       {loading ? (
         <div className="flex flex-col items-center justify-center py-16 gap-2">
           <Loader2 className="w-8 h-8 animate-spin text-secondary" />
-          <p className="text-sm text-slate-600">Lade Belegungsplan...</p>
+          <p className="text-sm text-slate-600"> {t("inventory1681")} </p>
         </div>
       ) : logs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-slate-600 gap-2">
           <AlertCircle className="w-8 h-8 opacity-40 text-slate-600" />
-          <p className="text-sm font-semibold">Keine aktiven Mitarbeiter heute registriert.</p>
+          <p className="text-sm font-semibold"> {t("inventory1682")} </p>
         </div>
       ) : (
         <div className="w-full overflow-x-auto relative">
-          <div className="min-w-[900px] flex flex-col">
+          <div dir="ltr" className="min-w-[900px] flex flex-col">
             {/* Timeline X-Axis Header */}
             <div className="flex border-b border-outline-variant bg-slate-50/50">
               {/* Top-left spacer */}
               <div className="sticky left-0 w-[240px] bg-slate-50 border-r border-outline-variant p-3 font-bold text-xs text-slate-600 shrink-0 z-20 shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
-                Lager & Halle
-              </div>
+                 {t("inventory1683")} </div>
               
               {/* Hour Columns */}
               <div className="flex-1 flex relative">
@@ -256,7 +254,7 @@ export default function ActiveEmployeeCalendar({ logs, loading }: ActiveEmployee
 
                     {/* Employee Shift Tracks */}
                     {records.map((log) => {
-                      const empName = log.employee?.name || log.employeeName || "Mitarbeiter";
+                      const empName = log.employee?.name || log.employeeName || t("roleEmployee");
                       
                       // Calculate times
                       const clockIn = new Date(log.clockIn);
@@ -316,7 +314,7 @@ export default function ActiveEmployeeCalendar({ logs, loading }: ActiveEmployee
                                     {empName}
                                   </span>
                                   <span className="text-[9px] font-mono text-slate-600">
-                                    {formatTime(log.clockIn).split(" ")[0]} – {log.clockOut ? formatTime(log.clockOut).split(" ")[0] : "Jetzt"}
+                                    {formatTime(log.clockIn)} – {log.clockOut ? formatTime(log.clockOut) : t("inventory1685")}
                                   </span>
                                 </div>
                               </div>

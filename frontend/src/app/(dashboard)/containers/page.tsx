@@ -707,7 +707,7 @@ export default function ContainersPage() {
                     <label className="text-[9px] font-bold text-slate-600 uppercase"> {t("inventory1332")} </label>
                     <input
                       type="text"
-                      placeholder="z.B. Halle D"
+                      placeholder={t("inventory1715")}
                       value={inlineHallName}
                       onChange={(e) => setInlineHallName(e.target.value)}
                       className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none"
@@ -813,7 +813,7 @@ export default function ContainersPage() {
                 <textarea
                   value={moveNotes}
                   onChange={(e) => setMoveNotes(e.target.value)}
-                  placeholder="Bearbeitungsinformationen..."
+                  placeholder={t("inventory1714")}
                   rows={2}
                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 outline-none resize-none"
                 />
