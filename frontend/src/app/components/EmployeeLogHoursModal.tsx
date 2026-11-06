@@ -313,7 +313,7 @@ export default function EmployeeLogHoursModal({
               <h3 id="log-hours-title" className="text-base font-bold text-slate-900 leading-tight">
                 {t("logHoursCTA")}
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-xs text-slate-600 mt-0.5">
                 {t("logHoursSubtitle")}
               </p>
             </div>
@@ -435,8 +435,8 @@ export default function EmployeeLogHoursModal({
                     {t("earlyShift")}
                   </span>
                 </div>
-                <span className="text-[11px] font-mono text-slate-500">06:00 – 14:30</span>
-                <span className="text-[10px] font-semibold text-emerald-600 mt-1">8,0h (30m P.)</span>
+                <span className="text-[11px] font-mono text-slate-600">06:00 – 14:30</span>
+                <span className="text-[10px] font-semibold text-emerald-700 mt-1">8,0h (30m P.)</span>
               </button>
 
               <button
@@ -454,8 +454,8 @@ export default function EmployeeLogHoursModal({
                     {t("lateShift")}
                   </span>
                 </div>
-                <span className="text-[11px] font-mono text-slate-500">14:00 – 22:30</span>
-                <span className="text-[10px] font-semibold text-emerald-600 mt-1">8,0h (30m P.)</span>
+                <span className="text-[11px] font-mono text-slate-600">14:00 – 22:30</span>
+                <span className="text-[10px] font-semibold text-emerald-700 mt-1">8,0h (30m P.)</span>
               </button>
 
               <button
@@ -473,8 +473,8 @@ export default function EmployeeLogHoursModal({
                     {t("nightShift")}
                   </span>
                 </div>
-                <span className="text-[11px] font-mono text-slate-500">22:00 – 06:30</span>
-                <span className="text-[10px] font-semibold text-emerald-600 mt-1">8,0h (30m P.)</span>
+                <span className="text-[11px] font-mono text-slate-600">22:00 – 06:30</span>
+                <span className="text-[10px] font-semibold text-emerald-700 mt-1">8,0h (30m P.)</span>
               </button>
 
               <button
@@ -492,7 +492,7 @@ export default function EmployeeLogHoursModal({
                     {t("customShift")}
                   </span>
                 </div>
-                <span className="text-[11px] font-mono text-slate-500">Manuell</span>
+                <span className="text-[11px] font-mono text-slate-600">Manuell</span>
                 <span className="text-[10px] font-semibold text-blue-600 mt-1">Freie Zeit</span>
               </button>
             </div>
@@ -539,7 +539,7 @@ export default function EmployeeLogHoursModal({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-emerald-600" />
+                  <Clock className="w-3.5 h-3.5 text-emerald-700" />
                   <span>{t("endTime")}</span>
                 </label>
                 <div className="flex items-center gap-1">
@@ -590,7 +590,7 @@ export default function EmployeeLogHoursModal({
                   onClick={() => setBreakMinutes(mins)}
                   className={`py-2 px-2 text-xs font-bold rounded-xl border transition-all cursor-pointer text-center ${
                     breakMinutes === mins
-                      ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                      ? "bg-tertiary text-white border-tertiary shadow-sm"
                       : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
                   }`}
                 >
@@ -601,7 +601,7 @@ export default function EmployeeLogHoursModal({
           </div>
 
           {/* 5. Live Net Hours Calculation & Compliance Ring */}
-          <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-900 to-slate-900 text-white shadow-lg space-y-3">
+          <div className="p-4 rounded-2xl bg-slate-900 text-white shadow-lg space-y-3">
             <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
               <div className="space-y-0.5">
                 <span className="text-[10px] text-blue-200 uppercase font-bold tracking-wider">
@@ -626,7 +626,7 @@ export default function EmployeeLogHoursModal({
                     {t("overtime")}
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-red-500/20 text-red-300 border border-red-500/40 px-2.5 py-1 rounded-full animate-pulse">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-red-500/20 text-red-300 border border-red-500/40 px-2.5 py-1 rounded-full">
                     <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
                     &gt; 10h Max
                   </span>

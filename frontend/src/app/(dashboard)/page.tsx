@@ -866,7 +866,7 @@ export default function DashboardPage() {
                   {t("employeeDashboard")}
                 </h3>
                 {employeeSummary?.activeShift ? (
-                  <span className="badge-premium badge-success animate-pulse text-[11px] font-bold">
+                  <span className="badge-premium badge-success text-[11px] font-bold">
                     <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span> {t("clockedIn")}
                   </span>
                 ) : (
@@ -875,7 +875,7 @@ export default function DashboardPage() {
                   </span>
                 )}
               </div>
-              <p className="text-slate-500 text-xs mt-1">
+              <p className="text-slate-600 text-xs mt-1">
                 {t("welcomeBack")},{" "}
                 <span className="font-semibold text-slate-800">
                   {employeeInfo?.name || "Mitarbeiter"}
@@ -885,7 +885,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Quick Primary Actions (Visible on header on tablet/desktop, thumb bar on mobile) */}
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="hidden sm:flex items-center gap-2 shrink-0">
               {!isWorkHoursHidden && (
                 <button
                   onClick={() => setIsLogHoursOpen(true)}
@@ -908,10 +908,10 @@ export default function DashboardPage() {
 
           {/* Active Shift Live Ticker Banner (If Clocked In) */}
           {employeeSummary?.activeShift && (
-            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-900 via-slate-900 to-blue-950 text-white shadow-lg border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in duration-300">
+            <div className="p-4 sm:p-5 rounded-2xl bg-slate-900 text-white shadow-lg border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in duration-300">
               <div className="flex items-center gap-3">
                 <div className="w-11 h-11 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
-                  <Clock className="w-6 h-6 animate-pulse" />
+                  <Clock className="w-6 h-6" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
@@ -966,7 +966,7 @@ export default function DashboardPage() {
               onClick={() => setEmployeeActiveTab("overview")}
               className={`flex-1 py-2 rounded-lg text-center transition-all cursor-pointer flex items-center justify-center gap-1 ${
                 employeeActiveTab === "overview"
-                  ? "bg-white text-blue-900 shadow-xs font-extrabold"
+                  ? "bg-gold text-on-gold shadow-xs font-extrabold"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -976,7 +976,7 @@ export default function DashboardPage() {
               onClick={() => setEmployeeActiveTab("shifts")}
               className={`flex-1 py-2 rounded-lg text-center transition-all cursor-pointer flex items-center justify-center gap-1 ${
                 employeeActiveTab === "shifts"
-                  ? "bg-white text-blue-900 shadow-xs font-extrabold"
+                  ? "bg-gold text-on-gold shadow-xs font-extrabold"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -992,7 +992,7 @@ export default function DashboardPage() {
                 onClick={() => setEmployeeActiveTab("logs")}
                 className={`flex-1 py-2 rounded-lg text-center transition-all cursor-pointer flex items-center justify-center gap-1 ${
                   employeeActiveTab === "logs"
-                    ? "bg-white text-blue-900 shadow-xs font-extrabold"
+                    ? "bg-gold text-on-gold shadow-xs font-extrabold"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
@@ -1008,7 +1008,7 @@ export default function DashboardPage() {
               onClick={() => setEmployeeActiveTab("profile")}
               className={`flex-1 py-2 rounded-lg text-center transition-all cursor-pointer flex items-center justify-center gap-1 ${
                 employeeActiveTab === "profile"
-                  ? "bg-white text-blue-900 shadow-xs font-extrabold"
+                  ? "bg-gold text-on-gold shadow-xs font-extrabold"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -1016,38 +1016,9 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          {/* Quick Hours Action Card (Shown only when hours are visible) */}
-          {!isWorkHoursHidden && (
-            <div className={`card-premium border-2 border-blue-500/20 shadow-sm bg-gradient-to-r from-blue-50/50 via-white to-indigo-50/40 p-4 sm:p-5 ${employeeActiveTab !== "overview" ? "hidden sm:block" : ""}`}>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0 mt-0.5">
-                    <Clock className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
-                      <span>Arbeitszeit & Stunden eintragen</span>
-                      <span className="text-[10px] bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded-md uppercase">Neu</span>
-                    </h4>
-                    <p className="text-xs text-slate-600 mt-0.5">
-                      Haben Sie heute oder gestern gearbeitet? Tragen Sie Ihre Stunden mit flexiblen Vorlagen oder freier Zeiteingabe ein.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setIsLogHoursOpen(true)}
-                  className="btn-primary py-2.5 px-5 text-xs font-extrabold shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer self-stretch sm:self-auto shrink-0"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>+ Jetzt Stunden erfassen</span>
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* Shift Focus Info Banner (When hours are hidden) */}
           {isWorkHoursHidden && employeeActiveTab === "overview" && (
-            <div className="card-premium border-2 border-slate-200/80 shadow-xs bg-gradient-to-r from-slate-50 via-white to-blue-50/20 p-4 sm:p-5">
+            <div className="card-premium border-2 border-slate-200/80 shadow-xs bg-slate-50 p-4 sm:p-5">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0 mt-0.5">
                   <Calendar className="w-5 h-5" />
@@ -1078,48 +1049,43 @@ export default function DashboardPage() {
                       <TrendingUp className="w-4 h-4 text-blue-600" />
                       <span>{t("workHours")}</span>
                     </h4>
-                    <button
-                      onClick={() => setIsLogHoursOpen(true)}
-                      className="text-[11px] font-bold text-blue-600 hover:text-blue-700 cursor-pointer"
-                    >
-                      + Eintragen
-                    </button>
+
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 text-center">
                     <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                      <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">{t("today")}</p>
+                      <p className="text-[10px] text-slate-600 uppercase tracking-wider font-bold">{t("today")}</p>
                       <p className="text-xl font-extrabold text-slate-900 font-mono mt-1">
                         {employeeSummary?.hoursSummary?.today || 0}
-                        <span className="text-xs font-normal text-slate-400">h</span>
+                        <span className="text-xs font-normal text-slate-600">h</span>
                       </p>
                     </div>
                     <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-3">
                       <p className="text-[10px] text-blue-600 uppercase tracking-wider font-bold">{t("thisWeek")}</p>
                       <p className="text-xl font-extrabold text-blue-700 font-mono mt-1">
                         {employeeSummary?.hoursSummary?.week || 0}
-                        <span className="text-xs font-normal text-blue-400">h</span>
+                        <span className="text-xs font-normal text-blue-600">h</span>
                       </p>
                     </div>
                     <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                      <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">{t("thisMonth")}</p>
+                      <p className="text-[10px] text-slate-600 uppercase tracking-wider font-bold">{t("thisMonth")}</p>
                       <p className="text-xl font-extrabold text-slate-900 font-mono mt-1">
                         {employeeSummary?.hoursSummary?.month || 0}
-                        <span className="text-xs font-normal text-slate-400">h</span>
+                        <span className="text-xs font-normal text-slate-600">h</span>
                       </p>
                     </div>
                     <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                      <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">{t("totalHours")}</p>
+                      <p className="text-[10px] text-slate-600 uppercase tracking-wider font-bold">{t("totalHours")}</p>
                       <p className="text-xl font-extrabold text-slate-900 font-mono mt-1">
                         {employeeSummary?.hoursSummary?.total || 0}
-                        <span className="text-xs font-normal text-slate-400">h</span>
+                        <span className="text-xs font-normal text-slate-600">h</span>
                       </p>
                     </div>
                   </div>
 
                   {/* Weekly Progress bar against 40h standard */}
                   <div className="pt-2 border-t border-slate-100 space-y-1.5">
-                    <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+                    <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600">
                       <span>Wochensoll (40h):</span>
                       <span className="font-mono text-slate-800">
                         {Math.min(100, Math.round(((employeeSummary?.hoursSummary?.week || 0) / 40) * 100))}%
@@ -1152,7 +1118,7 @@ export default function DashboardPage() {
 
                   {employeeSummary?.activeShift ? (
                     <div className="space-y-3 text-center">
-                      <p className="text-xs text-slate-500 leading-relaxed">
+                      <p className="text-xs text-slate-600 leading-relaxed">
                         Beim Verlassen der Halle den offiziellen QR-Code am Ausgang scannen.
                       </p>
                       <button
@@ -1168,12 +1134,12 @@ export default function DashboardPage() {
                     <div className="space-y-3">
                       <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-100 text-center space-y-2">
                         <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center mx-auto shadow-sm">
-                          <ScanLine className="w-6 h-6 animate-pulse" />
+                          <ScanLine className="w-6 h-6" />
                         </div>
                         <p className="font-bold text-slate-800 text-xs">
                           Hallen QR-Code beim Eingang scannen
                         </p>
-                        <p className="text-[11px] text-slate-500 leading-normal">
+                        <p className="text-[11px] text-slate-600 leading-normal">
                           Scannen Sie den QR-Code am Halleneingang um Ihre Schicht zu starten.
                         </p>
                       </div>
@@ -1195,15 +1161,15 @@ export default function DashboardPage() {
               {(employeeActiveTab === "overview" || employeeActiveTab === "profile") && (
                 <div className="card-premium space-y-3">
                   <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-                    <User className="w-4 h-4 text-slate-500" /> {t("profileDetails")}
+                    <User className="w-4 h-4 text-slate-600" /> {t("profileDetails")}
                   </h4>
                   <div className="divide-y divide-slate-100 text-xs text-slate-600">
                     <div className="py-2 flex justify-between">
-                      <span className="text-slate-400">{t("usernameLabel")}</span>
+                      <span className="text-slate-600">{t("usernameLabel")}</span>
                       <span className="font-semibold text-slate-800 font-mono">{employeeInfo?.username}</span>
                     </div>
                     <div className="py-2 flex justify-between">
-                      <span className="text-slate-400">{t("employmentStart")}</span>
+                      <span className="text-slate-600">{t("employmentStart")}</span>
                       <span suppressHydrationWarning className="font-semibold text-slate-800">
                         {employeeSummary?.employmentStart
                           ? new Date(employeeSummary.employmentStart).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")
@@ -1211,15 +1177,15 @@ export default function DashboardPage() {
                       </span>
                     </div>
                     <div className="py-2 flex justify-between">
-                      <span className="text-slate-400">{t("phone")}</span>
+                      <span className="text-slate-600">{t("phone")}</span>
                       <span className="font-semibold text-slate-800">{employeeInfo?.phone}</span>
                     </div>
                     <div className="py-2 flex justify-between">
-                      <span className="text-slate-400">{t("email")}</span>
+                      <span className="text-slate-600">{t("email")}</span>
                       <span className="font-semibold text-slate-800">{employeeInfo?.email || "—"}</span>
                     </div>
                     <div className="py-2 flex justify-between">
-                      <span className="text-slate-400">{t("telegramId")}</span>
+                      <span className="text-slate-600">{t("telegramId")}</span>
                       <span className="font-semibold text-slate-800">{employeeInfo?.telegramId || "—"}</span>
                     </div>
                   </div>
@@ -1248,7 +1214,7 @@ export default function DashboardPage() {
                   <div className="divide-y divide-slate-100">
                     {(!employeeSummary?.plansUpcoming || employeeSummary.plansUpcoming.length === 0) &&
                     (!employeeSummary?.plansToday || employeeSummary.plansToday.length === 0) ? (
-                      <div className="py-8 text-center text-slate-400 text-xs">
+                      <div className="py-8 text-center text-slate-600 text-xs">
                         <Calendar className="w-7 h-7 text-slate-200 mx-auto mb-1.5" />
                         <p>{language === "de" ? "Keine kommenden Schichten geplant." : "No upcoming shifts scheduled."}</p>
                       </div>
@@ -1277,7 +1243,7 @@ export default function DashboardPage() {
                                 <span className={`text-[10px] uppercase px-2 py-0.5 rounded-full border ${badgeClass}`}>
                                   {dateLabel}
                                 </span>
-                                <span suppressHydrationWarning className="text-[11px] font-mono text-slate-400">
+                                <span suppressHydrationWarning className="text-[11px] font-mono text-slate-600">
                                   {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
                                 </span>
                               </div>
@@ -1308,17 +1274,17 @@ export default function DashboardPage() {
                                     <MapPin className="w-3 h-3 text-amber-600" /> {p.treffpunkt}{p.treffpunktTime ? ` (${p.treffpunktTime})` : ""}
                                   </span>
                                 )}
-                                <span className="flex items-center gap-1 text-[10px] text-slate-500 font-semibold">
-                                  <Users className="w-3 h-3 text-slate-400" />
+                                <span className="flex items-center gap-1 text-[10px] text-slate-600 font-semibold">
+                                  <Users className="w-3 h-3 text-slate-600" />
                                   {p.assignedEmployees?.length || 0} {language === "de" ? "Mitarbeiter" : "Staff"}
                                 </span>
-                                <span className="flex items-center gap-1 text-[10px] text-slate-500 font-semibold">
-                                  <Package className="w-3 h-3 text-slate-400" />
+                                <span className="flex items-center gap-1 text-[10px] text-slate-600 font-semibold">
+                                  <Package className="w-3 h-3 text-slate-600" />
                                   {p.assignedContainers?.length || 0} {language === "de" ? "Container" : "Containers"}
                                 </span>
                               </div>
                               {p.notes && (
-                                <p className="text-[10px] text-slate-500 mt-1.5 italic bg-slate-50 p-1.5 rounded border border-slate-100">
+                                <p className="text-[10px] text-slate-600 mt-1.5 italic bg-slate-50 p-1.5 rounded border border-slate-100">
                                   "{p.notes}"
                                 </p>
                               )}
@@ -1342,17 +1308,17 @@ export default function DashboardPage() {
                 <div className="card-premium p-0 overflow-hidden shadow-xs">
                   <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
                     <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-                      <History className="w-4 h-4 text-slate-500" /> {t("shiftHistory")}
+                      <History className="w-4 h-4 text-slate-600" /> {t("shiftHistory")}
                     </h5>
                     {employeeSummary?.plansHistory?.length > 0 && (
-                      <span className="text-[10px] font-mono text-slate-400 font-semibold">
+                      <span className="text-[10px] font-mono text-slate-600 font-semibold">
                         {employeeSummary.plansHistory.length} {language === "de" ? "Einträge" : "Records"}
                       </span>
                     )}
                   </div>
                   <div className="divide-y divide-slate-100 max-h-[360px] overflow-y-auto">
                     {!employeeSummary?.plansHistory || employeeSummary.plansHistory.length === 0 ? (
-                      <div className="py-8 text-center text-slate-400 text-xs">
+                      <div className="py-8 text-center text-slate-600 text-xs">
                         <p>{t("noPastShifts")}</p>
                       </div>
                     ) : (
@@ -1362,7 +1328,7 @@ export default function DashboardPage() {
                             <span className="text-xs font-bold text-slate-800 block">
                               {p.warehouseName} — {p.hallName}
                             </span>
-                            <div className="flex flex-wrap gap-2 mt-1 text-[10px] text-slate-400 font-semibold">
+                            <div className="flex flex-wrap gap-2 mt-1 text-[10px] text-slate-600 font-semibold">
                               <span suppressHydrationWarning className="font-mono text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
                                 {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
                               </span>
@@ -1395,26 +1361,15 @@ export default function DashboardPage() {
                       <FileText className="w-4 h-4 text-blue-600" />
                       <span>{t("timesheetsTitle")}</span>
                     </h5>
-                    <button
-                      onClick={() => setIsLogHoursOpen(true)}
-                      className="btn-primary py-1.5 px-3 text-[11px] font-bold flex items-center gap-1 cursor-pointer shadow-xs"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>{t("logHoursCTA")}</span>
-                    </button>
+
                   </div>
 
                   {/* Empty state */}
                   {!employeeSummary?.workHistory || employeeSummary.workHistory.length === 0 ? (
-                    <div className="p-8 text-center text-slate-400 text-xs space-y-2">
+                    <div className="p-8 text-center text-slate-600 text-xs space-y-2">
                       <Clock className="w-8 h-8 text-slate-200 mx-auto" />
                       <p>{t("noAttendanceLogs")}</p>
-                      <button
-                        onClick={() => setIsLogHoursOpen(true)}
-                        className="btn-secondary py-1.5 px-3 text-xs font-semibold cursor-pointer"
-                      >
-                        + Erste Arbeitszeit erfassen
-                      </button>
+
                     </div>
                   ) : (
                     <>
@@ -1455,7 +1410,7 @@ export default function DashboardPage() {
                                 <span className="font-medium truncate">{r.warehouseName} — {r.hallName}</span>
                               </div>
 
-                              <div className="flex items-center justify-between text-[11px] font-mono text-slate-500 pt-1 border-t border-slate-100">
+                              <div className="flex items-center justify-between text-[11px] font-mono text-slate-600 pt-1 border-t border-slate-100">
                                 <div className="flex items-center gap-2">
                                   <span>
                                     {new Date(r.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -1463,7 +1418,7 @@ export default function DashboardPage() {
                                     {r.clockOut ? new Date(r.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "läuft"}
                                   </span>
                                   {r.breakMinutes > 0 && (
-                                    <span className="text-slate-400">
+                                    <span className="text-slate-600">
                                       (Pause: {r.breakMinutes}m)
                                     </span>
                                   )}
@@ -1489,7 +1444,7 @@ export default function DashboardPage() {
                       <div className="hidden sm:block overflow-x-auto">
                         <table className="w-full text-left text-xs border-collapse">
                           <thead>
-                            <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-500">
+                            <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-600">
                               <th className="px-5 py-3 font-semibold">{t("date")}</th>
                               <th className="px-5 py-3 font-semibold">{t("warehouse")}</th>
                               <th className="px-4 py-3 font-semibold">Zeitraum</th>
@@ -1510,12 +1465,12 @@ export default function DashboardPage() {
                                   <td className="px-5 py-3 text-slate-700 font-medium">
                                     {r.warehouseName} — {r.hallName}
                                   </td>
-                                  <td suppressHydrationWarning className="px-4 py-3 font-mono text-slate-500">
+                                  <td suppressHydrationWarning className="px-4 py-3 font-mono text-slate-600">
                                     {new Date(r.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     {" – "}
                                     {r.clockOut ? new Date(r.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Aktiv"}
                                   </td>
-                                  <td className="px-3 py-3 font-mono text-center text-slate-500">
+                                  <td className="px-3 py-3 font-mono text-center text-slate-600">
                                     {r.breakMinutes ? `${r.breakMinutes}m` : "—"}
                                   </td>
                                   <td className="px-4 py-3 font-mono text-right text-slate-900 font-bold">
@@ -1537,7 +1492,7 @@ export default function DashboardPage() {
                                     {isManual && (
                                       <button
                                         onClick={() => handleDeleteAttendanceEntry(r.id)}
-                                        className="text-slate-400 hover:text-red-600 transition-colors p-1 rounded-md hover:bg-red-50 cursor-pointer inline-flex items-center"
+                                        className="text-slate-600 hover:text-red-600 transition-colors p-1 rounded-md hover:bg-red-50 cursor-pointer inline-flex items-center"
                                         title="Löschen"
                                       >
                                         <Trash2 className="w-4 h-4" />
@@ -1591,7 +1546,7 @@ export default function DashboardPage() {
               <h3 className="text-xl font-bold text-slate-800 tracking-tight">
                 {userRole === "MANAGER" ? t("roleManager") + " Dashboard" : t("operationalDashboard")}
               </h3>
-              <p className="text-slate-500 text-xs mt-1">
+              <p className="text-slate-600 text-xs mt-1">
                 {t("statusOverview")}
               </p>
             </div>
@@ -1608,10 +1563,10 @@ export default function DashboardPage() {
             {/* Total Employees */}
             <div className="card-premium">
               <div className="flex justify-between items-start mb-2">
-                <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                <span className="text-[10px] font-bold tracking-wider text-slate-600 uppercase">
                   {t("totalEmployees")}
                 </span>
-                <Users className="w-4 h-4 text-slate-400" />
+                <Users className="w-4 h-4 text-slate-600" />
               </div>
               <div className="flex items-baseline gap-2 mt-1">
                 <h4 className="text-2xl font-bold font-mono tracking-tight text-slate-800">
@@ -1621,13 +1576,13 @@ export default function DashboardPage() {
                   <TrendingUp className="w-2.5 h-2.5 text-emerald-600" /> +2.4%
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400 mt-1.5">Registered personnel</p>
+              <p className="text-[10px] text-slate-600 mt-1.5">Registered personnel</p>
             </div>
 
             {/* Active Today */}
             <div className="card-premium">
               <div className="flex justify-between items-start mb-2">
-                <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                <span className="text-[10px] font-bold tracking-wider text-slate-600 uppercase">
                   {t("activeToday")}
                 </span>
                 <Activity className="w-4 h-4 text-blue-600" />
@@ -1636,43 +1591,43 @@ export default function DashboardPage() {
                 <h4 className="text-2xl font-bold font-mono tracking-tight text-blue-600">
                   {metrics.activeTodayCount}
                 </h4>
-                <span className="badge-premium badge-info py-0.5 px-1.5 text-[9px] flex items-center gap-0.5 animate-pulse font-semibold">
+                <span className="badge-premium badge-info py-0.5 px-1.5 text-[9px] flex items-center gap-0.5 font-semibold">
                   <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span> {t("live")}
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400 mt-1.5">Currently clocked-in staff</p>
+              <p className="text-[10px] text-slate-600 mt-1.5">Currently clocked-in staff</p>
             </div>
 
             {/* Containers Today */}
             <div className="card-premium">
               <div className="flex justify-between items-start mb-2">
-                <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                <span className="text-[10px] font-bold tracking-wider text-slate-600 uppercase">
                   {t("totalContainers")}
                 </span>
-                <Package className="w-4 h-4 text-slate-400" />
+                <Package className="w-4 h-4 text-slate-600" />
               </div>
               <div className="flex items-baseline gap-2 mt-1">
                 <h4 className="text-2xl font-bold font-mono tracking-tight text-slate-800">
                   {metrics.containersCount}
                 </h4>
               </div>
-              <p className="text-[10px] text-slate-400 mt-1.5">Routed containers queue</p>
+              <p className="text-[10px] text-slate-600 mt-1.5">Routed containers queue</p>
             </div>
 
             {/* Active Halls */}
             <div className="card-premium">
               <div className="flex justify-between items-start mb-2">
-                <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                <span className="text-[10px] font-bold tracking-wider text-slate-600 uppercase">
                   {t("activeHalls")}
                 </span>
-                <Grid className="w-4 h-4 text-slate-400" />
+                <Grid className="w-4 h-4 text-slate-600" />
               </div>
               <div className="flex items-baseline gap-2 mt-1">
                 <h4 className="text-2xl font-bold font-mono tracking-tight text-slate-800">
                   {metrics.hallsCount}
                 </h4>
               </div>
-              <p className="text-[10px] text-slate-400 mt-1.5">Assigned staging zones</p>
+              <p className="text-[10px] text-slate-600 mt-1.5">Assigned staging zones</p>
             </div>
           </div>
 
@@ -1686,7 +1641,7 @@ export default function DashboardPage() {
                     <Clock className="w-4 h-4 text-blue-600" />
                     Mitarbeiter-Arbeitszeiten: Soll vs. Ist
                   </h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
+                  <p className="text-[11px] text-slate-600 mt-0.5">
                     {analyticsData?.range?.label || "Aktueller Zeitraum"} (Soll: {analyticsTimeframe === 'weekly' ? '40h' : '160h'})
                   </p>
                 </div>
@@ -1695,7 +1650,7 @@ export default function DashboardPage() {
                     type="button"
                     onClick={() => { setAnalyticsTimeframe("weekly"); fetchAnalytics("weekly"); }}
                     className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                      analyticsTimeframe === "weekly" ? "bg-white text-blue-600 shadow-xs" : "text-slate-500 hover:text-slate-800"
+                      analyticsTimeframe === "weekly" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-800"
                     }`}
                   >
                     Wöchentlich
@@ -1704,7 +1659,7 @@ export default function DashboardPage() {
                     type="button"
                     onClick={() => { setAnalyticsTimeframe("monthly"); fetchAnalytics("monthly"); }}
                     className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                      analyticsTimeframe === "monthly" ? "bg-white text-blue-600 shadow-xs" : "text-slate-500 hover:text-slate-800"
+                      analyticsTimeframe === "monthly" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-800"
                     }`}
                   >
                     Monatlich
@@ -1719,7 +1674,7 @@ export default function DashboardPage() {
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                   </div>
                 ) : !analyticsData?.employeeStats || analyticsData.employeeStats.length === 0 ? (
-                  <div className="text-center py-10 text-xs text-slate-400 italic">
+                  <div className="text-center py-10 text-xs text-slate-600 italic">
                     Keine Mitarbeiterdaten für diesen Zeitraum vorhanden.
                   </div>
                 ) : (
@@ -1773,7 +1728,7 @@ export default function DashboardPage() {
                     <Activity className="w-4 h-4 text-emerald-600" />
                     Gesamtarbeitszeit aller Mitarbeiter
                   </h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
+                  <p className="text-[11px] text-slate-600 mt-0.5">
                     Summierte Teamstunden & Auslastung im Zeitverlauf
                   </p>
                 </div>
@@ -1782,7 +1737,7 @@ export default function DashboardPage() {
                     type="button"
                     onClick={() => { setAnalyticsTimeframe("weekly"); fetchAnalytics("weekly"); }}
                     className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                      analyticsTimeframe === "weekly" ? "bg-white text-blue-600 shadow-xs" : "text-slate-500 hover:text-slate-800"
+                      analyticsTimeframe === "weekly" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-800"
                     }`}
                   >
                     Wöchentlich
@@ -1791,7 +1746,7 @@ export default function DashboardPage() {
                     type="button"
                     onClick={() => { setAnalyticsTimeframe("monthly"); fetchAnalytics("monthly"); }}
                     className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                      analyticsTimeframe === "monthly" ? "bg-white text-blue-600 shadow-xs" : "text-slate-500 hover:text-slate-800"
+                      analyticsTimeframe === "monthly" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-800"
                     }`}
                   >
                     Monatlich
@@ -1814,7 +1769,7 @@ export default function DashboardPage() {
                   </p>
                 </div>
                 <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Team Soll-Summe</p>
+                  <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Team Soll-Summe</p>
                   <p className="text-lg font-mono font-extrabold text-slate-800 mt-0.5">
                     {analyticsData?.summary?.totalSoll?.toFixed(0) || "0"} h
                   </p>
@@ -1828,7 +1783,7 @@ export default function DashboardPage() {
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-600"></div>
                   </div>
                 ) : !analyticsData?.aggregatedTrend || analyticsData.aggregatedTrend.length === 0 ? (
-                  <div className="text-center py-10 text-xs text-slate-400 italic">
+                  <div className="text-center py-10 text-xs text-slate-600 italic">
                     Keine Trenddaten für diesen Zeitraum vorhanden.
                   </div>
                 ) : (
@@ -1841,7 +1796,7 @@ export default function DashboardPage() {
                           <div className="flex justify-between text-xs">
                             <span className="font-semibold text-slate-700">{tItem.label}</span>
                             <div className="flex items-center gap-2">
-                              <span className="text-[10px] text-slate-400">
+                              <span className="text-[10px] text-slate-600">
                                 {tItem.activeCount} Mitarbeiter
                               </span>
                               <span className="font-mono font-bold text-slate-900">
@@ -1885,7 +1840,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <span className="font-bold text-slate-800 block text-xs">{t("createNewPlan")}</span>
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">{t("createPlanDesc")}</span>
+                  <span className="text-[10px] text-slate-600 mt-0.5 block">{t("createPlanDesc")}</span>
                 </div>
               </Link>
 
@@ -1898,7 +1853,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <span className="font-bold text-slate-800 block text-xs">{t("containers")}</span>
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">{t("containersDesc")}</span>
+                  <span className="text-[10px] text-slate-600 mt-0.5 block">{t("containersDesc")}</span>
                 </div>
               </Link>
 
@@ -1911,7 +1866,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <span className="font-bold text-slate-800 block text-xs">{t("employees")}</span>
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">{t("staffDesc")}</span>
+                  <span className="text-[10px] text-slate-600 mt-0.5 block">{t("staffDesc")}</span>
                 </div>
               </Link>
             </div>
@@ -1925,7 +1880,7 @@ export default function DashboardPage() {
               <div>
                 <div className="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between sm:items-center bg-slate-50/50 gap-3">
                   <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-slate-500" />
+                    <Calendar className="w-4 h-4 text-slate-600" />
                     {t("shiftPlans")} {showAllPlans ? `(${t("showingAll")})` : `(${selectedDate})`}
                   </h5>
                   
@@ -2043,7 +1998,7 @@ export default function DashboardPage() {
                     {/* Clear selection */}
                     <button
                       onClick={() => setSelectedPlanIds([])}
-                      className="text-slate-500 hover:text-slate-800 font-bold ml-auto px-2 py-1 cursor-pointer"
+                      className="text-slate-600 hover:text-slate-800 font-bold ml-auto px-2 py-1 cursor-pointer"
                     >
                       Auswahl aufheben
                     </button>
@@ -2057,7 +2012,7 @@ export default function DashboardPage() {
                 ) : (
                   <div className="p-4 space-y-3">
                     {plans.length === 0 ? (
-                      <div className="py-12 text-center text-slate-400">
+                      <div className="py-12 text-center text-slate-600">
                         <AlertTriangle className="w-8 h-8 mx-auto mb-2 opacity-40 text-amber-500" />
                         <p className="text-xs font-medium">{t("noPlansConfigured")}</p>
                       </div>
@@ -2171,7 +2126,7 @@ export default function DashboardPage() {
                               )}
 
                               {p.notes && (
-                                <span className="text-[11px] text-slate-500 italic max-w-md truncate">
+                                <span className="text-[11px] text-slate-600 italic max-w-md truncate">
                                   „{p.notes}“
                                 </span>
                               )}
@@ -2194,7 +2149,7 @@ export default function DashboardPage() {
                                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-lg text-xs font-bold border border-slate-200 transition-all cursor-pointer shadow-2xs"
                                   title={t("viewDetails")}
                                 >
-                                  <Eye className="w-3.5 h-3.5 text-slate-500" />
+                                  <Eye className="w-3.5 h-3.5 text-slate-600" />
                                   <span>{t("viewDetails")}</span>
                                 </button>
 
@@ -2235,7 +2190,7 @@ export default function DashboardPage() {
                   <div>
                     <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                       <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-                        <Shield className="w-4 h-4 text-slate-500" /> {t("auditActivityLogs")}
+                        <Shield className="w-4 h-4 text-slate-600" /> {t("auditActivityLogs")}
                       </h5>
                       <Link href="/reports" className="text-blue-600 text-xs font-bold hover:underline flex items-center gap-1">
                         {t("reports")} <ArrowRight className="w-3 h-3" />
@@ -2244,12 +2199,12 @@ export default function DashboardPage() {
                     
                     <div className="p-5 space-y-5 max-h-[500px] overflow-y-auto divide-y divide-slate-100">
                       <div>
-                        <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-3 flex items-center gap-1.5 font-semibold">
+                        <p className="text-[10px] text-slate-600 uppercase tracking-widest font-bold mb-3 flex items-center gap-1.5 font-semibold">
                           <Users className="w-3.5 h-3.5 text-blue-600" /> {t("employeeActivity")}
                         </p>
                         <div className="space-y-2.5">
                           {recentActivityLogs.filter(log => ["LOGIN", "LOGOUT", "CLOCK_IN", "CLOCK_OUT"].includes(log.action)).length === 0 ? (
-                            <p className="text-xs text-slate-400 italic">{t("noRecentActivity")}</p>
+                            <p className="text-xs text-slate-600 italic">{t("noRecentActivity")}</p>
                           ) : (
                             recentActivityLogs
                               .filter(log => ["LOGIN", "LOGOUT", "CLOCK_IN", "CLOCK_OUT"].includes(log.action))
@@ -2258,9 +2213,9 @@ export default function DashboardPage() {
                                 <div key={log.id} className="text-xs p-3 bg-slate-50 border border-slate-100 rounded-lg flex flex-col gap-1">
                                   <div className="flex justify-between items-center">
                                     <span className="font-semibold text-slate-800">{log.user?.name || "System"}</span>
-                                    <span suppressHydrationWarning className="text-[9px] text-slate-400 font-mono"> {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    <span suppressHydrationWarning className="text-[9px] text-slate-600 font-mono"> {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                   </div>
-                                  <span className="text-slate-500 text-[11px] leading-relaxed">{log.details}</span>
+                                  <span className="text-slate-600 text-[11px] leading-relaxed">{log.details}</span>
                                 </div>
                               ))
                           )}
@@ -2268,12 +2223,12 @@ export default function DashboardPage() {
                       </div>
 
                       <div className="pt-5">
-                        <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-3 flex items-center gap-1.5 font-semibold">
-                          <Shield className="w-3.5 h-3.5 text-slate-500" /> {t("adminActivity")}
+                        <p className="text-[10px] text-slate-600 uppercase tracking-widest font-bold mb-3 flex items-center gap-1.5 font-semibold">
+                          <Shield className="w-3.5 h-3.5 text-slate-600" /> {t("adminActivity")}
                         </p>
                         <div className="space-y-2.5">
                           {recentActivityLogs.filter(log => !["LOGIN", "LOGOUT", "CLOCK_IN", "CLOCK_OUT"].includes(log.action)).length === 0 ? (
-                            <p className="text-xs text-slate-400 italic">{t("noRecentActivity")}</p>
+                            <p className="text-xs text-slate-600 italic">{t("noRecentActivity")}</p>
                           ) : (
                             recentActivityLogs
                               .filter(log => !["LOGIN", "LOGOUT", "CLOCK_IN", "CLOCK_OUT"].includes(log.action))
@@ -2282,10 +2237,10 @@ export default function DashboardPage() {
                                 <div key={log.id} className="text-xs p-3 bg-slate-50 border border-slate-100 rounded-lg flex flex-col gap-1">
                                   <div className="flex justify-between items-center">
                                     <span className="font-semibold text-slate-800">{log.user?.name || "System"}</span>
-                                    <span suppressHydrationWarning className="text-[9px] text-slate-400 font-mono"> {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    <span suppressHydrationWarning className="text-[9px] text-slate-600 font-mono"> {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                   </div>
                                   <span className="font-mono text-[9px] mt-0.5 uppercase text-blue-600 bg-blue-50 border border-blue-100/50 w-fit px-1.5 py-0.5 rounded font-bold">{log.action}</span>
-                                  <span className="text-slate-500 text-[11px] leading-relaxed mt-1">{log.details}</span>
+                                  <span className="text-slate-600 text-[11px] leading-relaxed mt-1">{log.details}</span>
                                 </div>
                               ))
                           )}
@@ -2306,14 +2261,14 @@ export default function DashboardPage() {
                       <div className="px-6 py-4 flex justify-between items-center hover:bg-slate-50/30 transition-colors">
                         <div className="flex flex-col">
                           <span className="text-xs font-bold text-slate-800">{language === "de" ? "Plan für Duisburg verarbeitet" : "Plan processed for Duisburg"}</span>
-                          <span className="text-[9px] text-slate-400 uppercase tracking-wider font-mono mt-0.5">System • {language === "de" ? "Gerade eben" : "Just Now"}</span>
+                          <span className="text-[9px] text-slate-600 uppercase tracking-wider font-mono mt-0.5">System • {language === "de" ? "Gerade eben" : "Just Now"}</span>
                         </div>
                         <span className="badge-premium badge-success text-[9px] py-0.5 px-2">{t("success")}</span>
                       </div>
                       <div className="px-6 py-4 flex justify-between items-center hover:bg-slate-50/30 transition-colors">
                         <div className="flex flex-col">
                           <span className="text-xs font-bold text-slate-800">{language === "de" ? "Neuer Mitarbeiter hinzugefügt" : "New Employee Added"}</span>
-                          <span className="text-[9px] text-slate-400 uppercase tracking-wider font-mono mt-0.5">Admin • {language === "de" ? "vor 1 Std." : "1h ago"}</span>
+                          <span className="text-[9px] text-slate-600 uppercase tracking-wider font-mono mt-0.5">Admin • {language === "de" ? "vor 1 Std." : "1h ago"}</span>
                         </div>
                         <span className="badge-premium badge-neutral text-[9px] py-0.5 px-2">Audit</span>
                       </div>
@@ -2336,13 +2291,13 @@ export default function DashboardPage() {
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
               <div>
                 <h4 className="font-bold text-slate-800 text-sm">{t("shiftDetailsModalTitle")}</h4>
-                <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                <p className="text-[10px] text-slate-600 font-semibold mt-0.5">
                   {t("shiftDetailsSubtitle")}
                 </p>
               </div>
               <button
                 onClick={() => setSelectedPlanForView(null)}
-                className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                className="text-slate-600 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2355,7 +2310,7 @@ export default function DashboardPage() {
               <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl text-xs space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/60 pb-3">
                   <div>
-                    <span className="text-[10px] text-slate-400 uppercase tracking-widest block font-bold">{t("shiftDate")} & {language === "de" ? "Arbeitszeit" : "Shift Time"}</span>
+                    <span className="text-[10px] text-slate-600 uppercase tracking-widest block font-bold">{t("shiftDate")} & {language === "de" ? "Arbeitszeit" : "Shift Time"}</span>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span suppressHydrationWarning className="font-mono text-blue-600 font-bold bg-blue-100/50 px-2 py-0.5 rounded">
                         {new Date(selectedPlanForView.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
@@ -2370,7 +2325,7 @@ export default function DashboardPage() {
                   </div>
                   {selectedPlanForView.treffpunkt && (
                     <div>
-                      <span className="text-[10px] text-slate-400 uppercase tracking-widest block font-bold">{language === "de" ? "Treffpunkt" : "Meeting Point"}</span>
+                      <span className="text-[10px] text-slate-600 uppercase tracking-widest block font-bold">{language === "de" ? "Treffpunkt" : "Meeting Point"}</span>
                       <span className="font-semibold text-slate-800 mt-1 flex items-center gap-1 bg-amber-50 text-amber-800 px-2 py-0.5 rounded border border-amber-200/60">
                         <MapPin className="w-3.5 h-3.5 text-amber-600" />
                         {selectedPlanForView.treffpunkt} {selectedPlanForView.treffpunktTime ? `(${selectedPlanForView.treffpunktTime})` : ""}
@@ -2380,7 +2335,7 @@ export default function DashboardPage() {
                 </div>
 
                 <div>
-                  <span className="text-[10px] text-slate-400 uppercase tracking-widest block font-bold mb-1.5">
+                  <span className="text-[10px] text-slate-600 uppercase tracking-widest block font-bold mb-1.5">
                     {language === "de" ? "Einsatzstandorte (Lager & Hallen)" : "Assigned Locations (Warehouses & Halls)"}
                   </span>
                   {selectedPlanForView.locations && Array.isArray(selectedPlanForView.locations) && selectedPlanForView.locations.length > 0 ? (
@@ -2397,11 +2352,11 @@ export default function DashboardPage() {
                   ) : (
                     <div className="grid grid-cols-2 gap-4 bg-white p-2.5 rounded-lg border border-slate-200/60">
                       <div>
-                        <span className="text-[9px] text-slate-400 uppercase font-bold">{t("depotLocation")}</span>
+                        <span className="text-[9px] text-slate-600 uppercase font-bold">{t("depotLocation")}</span>
                         <span className="font-bold text-slate-800 block mt-0.5">{selectedPlanForView.warehouseName || "—"}</span>
                       </div>
                       <div>
-                        <span className="text-[9px] text-slate-400 uppercase font-bold">{t("stagingHall")}</span>
+                        <span className="text-[9px] text-slate-600 uppercase font-bold">{t("stagingHall")}</span>
                         <span className="font-bold text-slate-800 block mt-0.5">{selectedPlanForView.hallName || "—"}</span>
                       </div>
                     </div>
@@ -2417,7 +2372,7 @@ export default function DashboardPage() {
                 <div className="bg-white border border-slate-100 rounded-xl overflow-hidden shadow-sm">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="bg-slate-50 border-b border-slate-100 text-slate-500">
+                      <tr className="bg-slate-50 border-b border-slate-100 text-slate-600">
                         <th className="px-4 py-2 font-semibold">{t("nameColumn")}</th>
                         <th className="px-4 py-2 font-semibold">{t("roleColumn")}</th>
                         <th className="px-4 py-2 font-semibold">{t("phone")}</th>
@@ -2426,7 +2381,7 @@ export default function DashboardPage() {
                     <tbody className="divide-y divide-slate-100">
                       {!selectedPlanForView.assignedEmployees || selectedPlanForView.assignedEmployees.length === 0 ? (
                         <tr>
-                          <td colSpan={3} className="p-4 text-center text-slate-400 italic">{t("noStaffAssigned")}</td>
+                          <td colSpan={3} className="p-4 text-center text-slate-600 italic">{t("noStaffAssigned")}</td>
                         </tr>
                       ) : (
                         selectedPlanForView.assignedEmployees.map((emp, idx) => (
@@ -2437,7 +2392,7 @@ export default function DashboardPage() {
                                 {emp.role}
                               </span>
                             </td>
-                            <td className="px-4 py-2.5 font-mono text-slate-500">{emp.phone || "—"}</td>
+                            <td className="px-4 py-2.5 font-mono text-slate-600">{emp.phone || "—"}</td>
                           </tr>
                         ))
                       )}
@@ -2454,7 +2409,7 @@ export default function DashboardPage() {
                 <div className="bg-white border border-slate-100 rounded-xl overflow-hidden shadow-sm">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="bg-slate-50 border-b border-slate-100 text-slate-500">
+                      <tr className="bg-slate-50 border-b border-slate-100 text-slate-600">
                         <th className="px-4 py-2 font-semibold">{t("containerNumber")}</th>
                         <th className="px-4 py-2 font-semibold">Status</th>
                       </tr>
@@ -2462,7 +2417,7 @@ export default function DashboardPage() {
                     <tbody className="divide-y divide-slate-100">
                       {!selectedPlanForView.assignedContainers || selectedPlanForView.assignedContainers.length === 0 ? (
                         <tr>
-                          <td colSpan={2} className="p-4 text-center text-slate-400 italic">{t("noContainersRouted")}</td>
+                          <td colSpan={2} className="p-4 text-center text-slate-600 italic">{t("noContainersRouted")}</td>
                         </tr>
                       ) : (
                         selectedPlanForView.assignedContainers.map((c, idx) => (
@@ -2499,7 +2454,7 @@ export default function DashboardPage() {
                   onClick={() => handleExportCSV(selectedPlanForView)}
                   className="btn-secondary py-1.5 px-4 cursor-pointer text-xs"
                 >
-                  <Download className="w-3.5 h-3.5 text-slate-500" /> {t("exportCsv")}
+                  <Download className="w-3.5 h-3.5 text-slate-600" /> {t("exportCsv")}
                 </button>
                 <button
                   onClick={() => window.print()}
@@ -2527,14 +2482,14 @@ export default function DashboardPage() {
                   setBulkAssignEmployeesModalOpen(false);
                   setBulkSelectedEmployeeIds([]);
                 }}
-                className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                className="text-slate-600 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-600">
                 Wählen Sie die Mitarbeiter aus, die Sie allen {selectedPlanIds.length} ausgewählten Plänen zuweisen möchten:
               </p>
               <div className="space-y-2">
