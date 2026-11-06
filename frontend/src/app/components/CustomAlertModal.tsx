@@ -291,7 +291,7 @@ export default function CustomAlertModal({
               (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
               (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8";
             }}
-            aria-label="Schließen"
+            aria-label={t("close")}
           >
             <X style={{ width: "16px", height: "16px" }} />
           </button>

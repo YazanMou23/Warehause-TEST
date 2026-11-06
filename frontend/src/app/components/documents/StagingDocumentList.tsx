@@ -177,7 +177,7 @@ export default function StagingDocumentList({
                   type="button"
                   onClick={() => onRemoveDocument(doc.id)}
                   className="p-1.5 text-red-700 hover:text-red-700 hover:bg-red-500/10 rounded transition-colors"
-                  title="Entfernen"
+                  title={tx("inventory1472")}
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>

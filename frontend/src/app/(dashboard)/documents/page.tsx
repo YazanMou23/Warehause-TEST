@@ -163,7 +163,7 @@ export default function DocumentsPage() {
               type="button"
               onClick={fetchBatches}
               className="p-1 text-slate-600 hover:text-slate-900 transition-colors"
-              title="Aktualisieren"
+              title={tx("planning827")}
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
