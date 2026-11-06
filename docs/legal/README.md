@@ -22,9 +22,3 @@ Rechtsanwältin / einem Rechtsanwalt oder Datenschutzberater prüfen lassen.
 
 ## Nicht belegt / vom Betreiber zu klären
 Siehe Fragenliste im PR. Alle Stellen mit `[BITTE PRÜFEN: ...]` in den Vorlagen sind offen.
-
-## Bekannte technische Lücken mit Datenschutzbezug (nicht in diesem PR geändert)
-- Es gibt keine automatische Löschung nach Fristen im Code gefunden (nur Löschen einzelner Datensätze). Ein Löschkonzept fehlt.
-- Es gibt keine Mandantentrennung im Datenmodell (kein `tenantId` / `companyId`). Mehrere Kunden in derselben Instanz und Datenbank wären ein Risiko; für die Vermietung ist je Kunde eine eigene Instanz oder eine Mandantentrennung nötig.
-- Dokumente werden im lokalen Dateisystem des Servers gespeichert. Auf Render geht das bei Neustarts ohne persistenten Datenträger verloren und ist nicht ausfallsicher.
-- Eine frühere Version der Datenbank-Zugangsdaten war öffentlich sichtbar (Vorfall 2026-10-18); Zugangsdaten rotieren und beim Kunden ggf. Meldepflichten prüfen, falls dort Echtdaten waren.
