@@ -470,3 +470,5 @@ html[dir="rtl"] .tracking-widest, html[dir="rtl"] .tracking-wider, html[dir="rtl
  .employee-card-table td[data-column="actions"] > div,
  .employee-card-table td[data-column="settings"] > div { flex-wrap: wrap; }
 }
+
+@media screen and (max-width:767px){.weekly-card-table td[data-column="total"]{grid-column:1 / -1;}.weekly-card-table td[data-column="actions"]>div{flex-wrap:wrap;}}
