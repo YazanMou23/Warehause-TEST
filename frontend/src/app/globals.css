@@ -451,3 +451,10 @@ html {
     scroll-behavior: auto !important;
   }
 }
+
+/* Arabic uses logical positioning; identifiers and time inputs remain unambiguous. */
+html[dir="rtl"] body { font-family: Arial, Tahoma, var(--font-sans), sans-serif; }
+html[dir="rtl"] .text-left { text-align: right; }
+html[dir="rtl"] .text-right { text-align: left; }
+html[dir="rtl"] input:is([type="email"], [type="tel"], [type="time"], [type="date"], [type="number"], [type="password"]) { direction: ltr; text-align: start; }
+html[dir="rtl"] .tracking-widest, html[dir="rtl"] .tracking-wider, html[dir="rtl"] .tracking-tight { letter-spacing: normal; }

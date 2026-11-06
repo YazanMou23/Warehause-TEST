@@ -1,4 +1,5 @@
 "use client";
+import { useTranslation } from "../../i18n/LanguageContext";
 
 import React, { useState } from "react";
 import {
@@ -27,6 +28,7 @@ export default function AddDocumentModal({
   onClose,
   onBatchCreated,
 }: AddDocumentModalProps) {
+  const { t: tx } = useTranslation();
   const [activeTab, setActiveTab] = useState<"upload" | "scanner" | "camera">("upload");
   const [stagedDocuments, setStagedDocuments] = useState<StagedDocument[]>([]);
   const [batchTitle, setBatchTitle] = useState<string>(
@@ -92,7 +94,7 @@ export default function AddDocumentModal({
 
   const handleSubmitBatch = async () => {
     if (stagedDocuments.length === 0) {
-      setErrorMessage("Bitte füge mindestens ein Dokument hinzu.");
+      setErrorMessage(tx("ui552"));
       return;
     }
 
@@ -134,7 +136,7 @@ export default function AddDocumentModal({
       onBatchCreated(batchId);
       onClose();
     } catch (err: any) {
-      setErrorMessage(err.message || "Dokumente konnten nicht in die Warteschlange eingereiht werden.");
+      setErrorMessage(err.message || tx("ui553"));
     } finally {
       setSubmitting(false);
     }
@@ -150,10 +152,9 @@ export default function AddDocumentModal({
               <FilePlus className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900">Dokumente erfassen & KI-Verarbeitung</h2>
+              <h2 className="text-lg font-bold text-slate-900">{tx("ui391")}</h2>
               <p className="text-xs text-slate-600">
-                Wähle Hardware-Scanner, Kamera oder Datei-Upload. Alle Quellen fließen in die sequentielle KI-Warteschlange.
-              </p>
+                {tx("ui392")}</p>
             </div>
           </div>
 
@@ -178,7 +179,7 @@ export default function AddDocumentModal({
             }`}
           >
             <UploadCloud className="w-4 h-4" />
-            <span>Datei-Upload & Drag-and-Drop</span>
+            <span>{tx("ui393")}</span>
           </button>
 
           <button
@@ -191,7 +192,7 @@ export default function AddDocumentModal({
             }`}
           >
             <Printer className="w-4 h-4" />
-            <span>Netzwerk- / USB-Scanner</span>
+            <span>{tx("ui394")}</span>
           </button>
 
           <button
@@ -204,7 +205,7 @@ export default function AddDocumentModal({
             }`}
           >
             <Camera className="w-4 h-4" />
-            <span>Live-Kamera</span>
+            <span>{tx("ui395")}</span>
           </button>
         </div>
 

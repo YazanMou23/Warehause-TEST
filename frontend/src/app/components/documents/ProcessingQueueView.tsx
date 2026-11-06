@@ -1,4 +1,5 @@
 "use client";
+import { useTranslation } from "../../i18n/LanguageContext";
 
 import React, { useState, useEffect } from "react";
 import {
@@ -89,6 +90,7 @@ export default function ProcessingQueueView({
   batchId,
   onNewBatchClick,
 }: ProcessingQueueViewProps) {
+  const { t: tx } = useTranslation();
   const [batch, setBatch] = useState<DocumentBatchDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string>("");
@@ -110,7 +112,7 @@ export default function ProcessingQueueView({
         throw new Error(`Batch nicht gefunden (HTTP ${res.status})`);
       }
     } catch (err: any) {
-      setErrorMsg(err.message || "Fehler beim Laden der Warteschlange.");
+      setErrorMsg(err.message || tx("ui567"));
     } finally {
       setLoading(false);
     }
@@ -208,7 +210,7 @@ export default function ProcessingQueueView({
     return (
       <div className="flex flex-col items-center justify-center py-20 space-y-4 text-slate-600">
         <RefreshCw className="w-8 h-8 animate-spin text-blue-500" />
-        <p className="text-sm">Lade sequentielle KI-Verarbeitungswarteschlange...</p>
+        <p className="text-sm">{tx("ui428")}</p>
       </div>
     );
   }
@@ -223,8 +225,7 @@ export default function ProcessingQueueView({
           onClick={fetchBatch}
           className="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-200 text-xs rounded-lg transition-colors"
         >
-          Erneut versuchen
-        </button>
+          {tx("ui429")}</button>
       </div>
     );
   }
@@ -272,7 +273,7 @@ export default function ProcessingQueueView({
           <div>
             <div className="flex flex-wrap items-center gap-3">
               <h2 className="text-xl font-bold text-slate-900">
-                {batch.title || `Stapel #${batch.batchNumber}`}
+                {batch.title || `${tx("batch")} #${batch.batchNumber}`}
               </h2>
               <span
                 className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${
@@ -284,15 +285,14 @@ export default function ProcessingQueueView({
                 }`}
               >
                 {batch.status === "COMPLETED"
-                  ? "Abgeschlossen"
+                  ? tx("completed")
                   : batch.status === "PAUSED"
-                  ? "Angehalten"
-                  : "Sequentielle KI-Verarbeitung aktiv"}
+                  ? tx("paused")
+                  : tx("ui568")}
               </span>
             </div>
             <p className="text-xs text-slate-600 mt-1">
-              Strikte sequentielle Verarbeitung: Dokument N muss vollständig abgeschlossen & in der Datenbank gespeichert sein, bevor Dokument N+1 startet.
-            </p>
+              {tx("ui430")}</p>
           </div>
 
           {/* Controls */}
@@ -305,7 +305,7 @@ export default function ProcessingQueueView({
                 className="flex items-center space-x-1.5 px-3.5 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-800 border border-amber-500/30 rounded-xl text-xs font-semibold transition-colors"
               >
                 <Pause className="w-3.5 h-3.5" />
-                <span>Anhalten</span>
+                <span>{tx("ui431")}</span>
               </button>
             )}
 
@@ -317,7 +317,7 @@ export default function ProcessingQueueView({
                 className="flex items-center space-x-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold transition-colors shadow-lg "
               >
                 <Play className="w-3.5 h-3.5" />
-                <span>Fortsetzen</span>
+                <span>{tx("ui432")}</span>
               </button>
             )}
 
@@ -326,7 +326,7 @@ export default function ProcessingQueueView({
               onClick={onNewBatchClick}
               className="flex items-center space-x-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-200 rounded-xl text-xs font-medium transition-colors"
             >
-              <span>+ Neuer Stapel</span>
+              <span>{tx("ui433")}</span>
             </button>
           </div>
         </div>
@@ -335,10 +335,10 @@ export default function ProcessingQueueView({
         <div className="space-y-2">
           <div className="flex flex-wrap gap-2 justify-between text-xs font-medium text-slate-900">
             <span>
-              Verarbeitet: <b className="text-slate-900">{completed}</b> von <b className="text-slate-900">{total}</b> Dokumenten ({percent}%)
+              {tx("ui434")}<b className="text-slate-900">{completed}</b> {tx("ui435")}<b className="text-slate-900">{total}</b> {tx("ui436")}{percent}%)
             </span>
             <span>
-              Fehlgeschlagen: <b className="text-red-700">{batch.failedCount}</b> | Übersprungen: <b className="text-slate-600">{batch.skippedCount}</b>
+              {tx("ui437")}<b className="text-red-700">{batch.failedCount}</b> {tx("ui438")}<b className="text-slate-600">{batch.skippedCount}</b>
             </span>
           </div>
 
@@ -364,7 +364,7 @@ export default function ProcessingQueueView({
               <div>
                 <div className="flex items-center space-x-2">
                   <span className="text-[11px] px-2 py-0.5 rounded bg-blue-500/20 text-blue-700 border border-blue-500/30 font-bold uppercase tracking-wider">
-                    Aktuell in Verarbeitung (Dokument #{activeDoc.queuePosition})
+                    {tx("ui439")}{activeDoc.queuePosition})
                   </span>
                   <span className="flex items-center space-x-1 text-xs text-slate-600">
                     {getSourceIcon(activeDoc.source)}
@@ -376,8 +376,8 @@ export default function ProcessingQueueView({
             </div>
 
             <div className="text-right">
-              <span className="text-xs text-slate-600 block">{activeDoc.pageCount} Seite(n)</span>
-              <span className="text-xs text-blue-700 font-medium">Sprache: {activeDoc.ocrLanguage?.toUpperCase() || "DE"}</span>
+              <span className="text-xs text-slate-600 block">{activeDoc.pageCount} {tx("ui440")}</span>
+              <span className="text-xs text-blue-700 font-medium">{tx("ui441")}{activeDoc.ocrLanguage?.toUpperCase() || "DE"}</span>
             </div>
           </div>
 
@@ -397,10 +397,10 @@ export default function ProcessingQueueView({
                     activeDoc.status === "OCR_PROCESSING" ? "animate-spin text-blue-700" : "text-emerald-700"
                   }`}
                 />
-                <span className="font-semibold text-xs">1. OCR-Textextraktion</span>
+                <span className="font-semibold text-xs">{tx("ui442")}</span>
               </div>
               <p className="text-[11px] text-slate-600 mt-1">
-                {activeDoc.status === "OCR_PROCESSING" ? "Liest Dokumentinhalte..." : "OCR abgeschlossen"}
+                {activeDoc.status === "OCR_PROCESSING" ? tx("ui569") : tx("ui570")}
               </p>
             </div>
 
@@ -420,12 +420,12 @@ export default function ProcessingQueueView({
                     activeDoc.status === "AI_ANALYZING" ? "animate-spin text-purple-700" : "text-purple-700"
                   }`}
                 />
-                <span className="font-semibold text-xs">2. KI-Analyse & Klassifikation</span>
+                <span className="font-semibold text-xs">{tx("ui443")}</span>
               </div>
               <p className="text-[11px] text-slate-600 mt-1">
                 {activeDoc.status === "AI_ANALYZING"
-                  ? "Extrahiert CRM-Daten mit GPT-4o..."
-                  : "Warten auf OCR"}
+                  ? tx("ui571")
+                  : tx("ui572")}
               </p>
             </div>
 
@@ -443,12 +443,12 @@ export default function ProcessingQueueView({
                     activeDoc.status === "PERSISTING" ? "animate-spin text-emerald-700" : "text-slate-600"
                   }`}
                 />
-                <span className="font-semibold text-xs">3. CRM-Persistierung</span>
+                <span className="font-semibold text-xs">{tx("ui444")}</span>
               </div>
               <p className="text-[11px] text-slate-600 mt-1">
                 {activeDoc.status === "PERSISTING"
-                  ? "Speichert Datensätze in PostgreSQL..."
-                  : "Abschließender Schritt"}
+                  ? tx("ui573")
+                  : tx("ui574")}
               </p>
             </div>
           </div>
@@ -459,8 +459,8 @@ export default function ProcessingQueueView({
       {queuedDocs.length > 0 && (
         <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
           <div className="flex items-center justify-between text-xs font-bold text-slate-900">
-            <span>Warteschlange ({queuedDocs.length} wartend)</span>
-            <span className="text-slate-600">Werden der Reihe nach verarbeitet</span>
+            <span>{tx("ui445")}{queuedDocs.length} {tx("ui446")}</span>
+            <span className="text-slate-600">{tx("ui447")}</span>
           </div>
 
           <div className="space-y-2">
@@ -477,18 +477,17 @@ export default function ProcessingQueueView({
                     {getSourceIcon(doc.source)}
                     <span className="font-medium text-slate-900">{doc.originalFileName}</span>
                   </div>
-                  <span className="text-slate-600">• {doc.pageCount} Seite(n)</span>
+                  <span className="text-slate-600">• {doc.pageCount} {tx("ui440")}</span>
                 </div>
 
                 <div className="flex items-center space-x-2">
                   <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-600">
-                    Wartend
-                  </span>
+                    {tx("ui448")}</span>
                   <button
                     type="button"
                     onClick={() => handleSkip(doc.id)}
                     className="text-slate-600 hover:text-slate-900 transition-colors p-1"
-                    title="Überspringen"
+                    title={tx("ui464")}
                   >
                     <SkipForward className="w-3.5 h-3.5" />
                   </button>
@@ -505,7 +504,7 @@ export default function ProcessingQueueView({
           <div className="flex items-center justify-between text-sm font-bold text-slate-900">
             <div className="flex items-center space-x-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-700" />
-              <span>Erfolgreich verarbeitete CRM-Dokumente ({completedDocs.length})</span>
+              <span>{tx("ui449")}{completedDocs.length})</span>
             </div>
           </div>
 
@@ -543,7 +542,7 @@ export default function ProcessingQueueView({
                           )}
                         </div>
                         <p className="text-xs text-slate-600 mt-0.5 truncate max-w-lg">
-                          {res.summary || "Dokument erfolgreich extrahiert und zugeordnet."}
+                          {res.summary || tx("ui575")}
                         </p>
                       </div>
                     </div>
@@ -570,19 +569,19 @@ export default function ProcessingQueueView({
                       {/* Grid of Key CRM Attributes */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                         <div className="p-3 bg-white rounded-lg border border-slate-200">
-                          <span className="text-slate-600 block mb-0.5">Unternehmen / Aussteller</span>
+                          <span className="text-slate-600 block mb-0.5">{tx("ui450")}</span>
                           <span className="font-semibold text-slate-900">{res.companyName || "—"}</span>
                         </div>
                         <div className="p-3 bg-white rounded-lg border border-slate-200">
-                          <span className="text-slate-600 block mb-0.5">Kontaktperson / Mitarbeiter</span>
+                          <span className="text-slate-600 block mb-0.5">{tx("ui451")}</span>
                           <span className="font-semibold text-slate-900">{res.contactPerson || "—"}</span>
                         </div>
                         <div className="p-3 bg-white rounded-lg border border-slate-200">
-                          <span className="text-slate-600 block mb-0.5">Referenz- / Belegnummer</span>
+                          <span className="text-slate-600 block mb-0.5">{tx("ui452")}</span>
                           <span className="font-semibold text-slate-900">{res.referenceNumber || "—"}</span>
                         </div>
                         <div className="p-3 bg-white rounded-lg border border-slate-200">
-                          <span className="text-slate-600 block mb-0.5">Gesamtbetrag</span>
+                          <span className="text-slate-600 block mb-0.5">{tx("ui453")}</span>
                           <span className="font-semibold text-emerald-700">
                             {res.totalAmount ? `${res.totalAmount.toFixed(2)} ${res.currency || "EUR"}` : "—"}
                           </span>
@@ -594,7 +593,7 @@ export default function ProcessingQueueView({
                         <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-xs text-blue-700 flex items-center space-x-2">
                           <Sparkles className="w-4 h-4 text-blue-700 shrink-0" />
                           <span>
-                            <b>CRM-Zuordnung:</b> Automatisch verknüpft mit{" "}
+                            <b>{tx("ui454")}</b> {tx("ui455")}{" "}
                             {res.matchedEntities.employee && `Mitarbeiter "${res.matchedEntities.employee.name}"`}
                             {res.matchedEntities.container && `Container "${res.matchedEntities.container.containerNumber}"`}
                             {res.matchedEntities.warehouse && `Lager "${res.matchedEntities.warehouse.name}"`}
@@ -605,15 +604,15 @@ export default function ProcessingQueueView({
                       {/* Line Items Table if extracted */}
                       {res.lineItems && res.lineItems.length > 0 && (
                         <div className="space-y-1.5">
-                          <span className="text-xs font-semibold text-slate-900">Positionen / Einzelposten</span>
+                          <span className="text-xs font-semibold text-slate-900">{tx("ui456")}</span>
                           <div className="rounded-lg border border-slate-200 overflow-hidden">
                             <table className="w-full text-left text-xs">
                               <thead className="bg-white text-slate-600">
                                 <tr>
-                                  <th className="p-2">Beschreibung</th>
-                                  <th className="p-2 text-right">Menge</th>
-                                  <th className="p-2 text-right">Einzelpreis</th>
-                                  <th className="p-2 text-right">Gesamt</th>
+                                  <th className="p-2">{tx("ui457")}</th>
+                                  <th className="p-2 text-right">{tx("ui458")}</th>
+                                  <th className="p-2 text-right">{tx("ui459")}</th>
+                                  <th className="p-2 text-right">{tx("ui460")}</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-800 text-slate-900">
@@ -640,7 +639,7 @@ export default function ProcessingQueueView({
                           className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-900 text-xs font-medium rounded-lg transition-colors"
                         >
                           <Eye className="w-3.5 h-3.5" />
-                          <span>Originaldokument öffnen</span>
+                          <span>{tx("ui461")}</span>
                         </a>
                       </div>
                     </div>
@@ -657,7 +656,7 @@ export default function ProcessingQueueView({
         <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-5 space-y-3">
           <div className="flex items-center space-x-2 text-sm font-bold text-red-700">
             <AlertCircle className="w-4 h-4" />
-            <span>Fehlgeschlagene oder übersprungene Dokumente ({issueDocs.length})</span>
+            <span>{tx("ui462")}{issueDocs.length})</span>
           </div>
 
           <div className="space-y-2">
@@ -669,7 +668,7 @@ export default function ProcessingQueueView({
                 <div>
                   <span className="font-semibold text-slate-900">{doc.originalFileName}</span>
                   <p className="text-red-700 text-[11px] mt-0.5">
-                    {doc.errorMessage || (doc.status === "SKIPPED" ? "Manuell übersprungen" : "Verarbeitungsfehler")}
+                    {doc.errorMessage || (doc.status === "SKIPPED" ? tx("ui576") : tx("processingError"))}
                   </p>
                 </div>
 
@@ -681,7 +680,7 @@ export default function ProcessingQueueView({
                     className="flex items-center space-x-1 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-700 border border-blue-500/30 rounded-lg text-xs font-medium transition-colors"
                   >
                     <RotateCcw className="w-3 h-3" />
-                    <span>Wiederholen</span>
+                    <span>{tx("ui463")}</span>
                   </button>
                   {doc.status !== "SKIPPED" && (
                     <button
@@ -691,7 +690,7 @@ export default function ProcessingQueueView({
                       className="flex items-center space-x-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-900 rounded-lg text-xs font-medium transition-colors"
                     >
                       <SkipForward className="w-3 h-3" />
-                      <span>Überspringen</span>
+                      <span>{tx("ui464")}</span>
                     </button>
                   )}
                 </div>
