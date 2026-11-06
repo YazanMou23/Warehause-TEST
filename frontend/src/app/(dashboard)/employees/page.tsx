@@ -1150,10 +1150,13 @@ export default function EmployeesPage() {
         )}
       </div>
 
+      {canManage && <button type="button" className="md:hidden btn-secondary text-xs" onClick={() => setSelectedEmpIds(selectedEmpIds.length === filteredEmployees.length ? [] : filteredEmployees.map(e => e.id))}>
+        {selectedEmpIds.length === filteredEmployees.length && filteredEmployees.length > 0 ? "Auswahl aufheben" : "Alle auswählen"}
+      </button>}
       {/* Grid List */}
       <div className="bg-white border border-slate-100 rounded-xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+        <div className="overflow-x-auto mobile-card-scroll">
+          <table className="w-full text-left text-xs border-collapse mobile-card-table employee-card-table">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold uppercase tracking-wider">
                 {canManage && (
@@ -1200,8 +1203,10 @@ export default function EmployeesPage() {
                 paginatedEmployees.map((emp) => (
                   <tr key={emp.id} className={`hover:bg-slate-50/30 transition-colors ${selectedEmpIds.includes(emp.id) ? "bg-blue-50/20" : ""}`}>
                     {canManage && (
-                      <td className="p-3 text-center">
+                      <td data-label="Auswählen" className="p-3 text-center">
                         <button
+                          aria-label={`${emp.name} auswählen`}
+                          aria-pressed={selectedEmpIds.includes(emp.id)}
                           onClick={() => {
                             if (selectedEmpIds.includes(emp.id)) {
                               setSelectedEmpIds(prev => prev.filter(id => id !== emp.id));
@@ -1219,7 +1224,7 @@ export default function EmployeesPage() {
                         </button>
                       </td>
                     )}
-                    <td className="px-4 py-3">
+                    <td data-label="Vorname" className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs relative overflow-hidden shrink-0 shadow-sm">
                           <img
@@ -1243,7 +1248,7 @@ export default function EmployeesPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 font-semibold text-slate-800">
+                    <td data-label="Nachname" className="px-4 py-3 font-semibold text-slate-800">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span>{getLastName(emp.name)}</span>
                         {isGlobalWorkHoursHidden ? (
@@ -1277,13 +1282,13 @@ export default function EmployeesPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-700">
+                    <td data-label="Benutzername" className="px-4 py-3 font-mono text-xs text-slate-700">
                       {emp.username}
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-400">
+                    <td data-label="Telefon" className="px-4 py-3 font-mono text-xs text-slate-400">
                       {emp.phone}
                     </td>
-                    <td className="px-4 py-3">
+                    <td data-label="E-Mail" className="px-4 py-3">
                       {emp.email ? (
                         <a
                           href={`mailto:${emp.email}`}
@@ -1299,7 +1304,7 @@ export default function EmployeesPage() {
                         <span className="text-slate-400 italic text-[11px]">— no email</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-xs font-medium text-slate-700 max-w-[200px]" title={emp.address || emp.treffpunkt || ''}>
+                    <td data-label="Treffpunkt" className="px-4 py-3 text-xs font-medium text-slate-700 max-w-[200px]" title={emp.address || emp.treffpunkt || ''}>
                       {emp.address || emp.treffpunkt ? (
                         <span className="flex items-center gap-1 text-slate-800 font-medium leading-tight">
                           <MapPin className="w-3.5 h-3.5 text-blue-500 shrink-0" />
@@ -1309,13 +1314,13 @@ export default function EmployeesPage() {
                         <span className="text-slate-400 italic text-[11px]">—</span>
                       )}
                     </td>
-                    <td suppressHydrationWarning className="px-4 py-3 font-mono text-xs text-slate-500">
+                    <td data-label="Vertrag ab" suppressHydrationWarning className="px-4 py-3 font-mono text-xs text-slate-500">
                       {emp.employmentStart ? new Date(emp.employmentStart).toLocaleDateString(language === "de" ? "de-DE" : "en-CA") : "—"}
                     </td>
-                    <td suppressHydrationWarning className="px-4 py-3 font-mono text-xs text-slate-500">
+                    <td data-label="Vertrag bis" suppressHydrationWarning className="px-4 py-3 font-mono text-xs text-slate-500">
                       {emp.employmentEnd ? new Date(emp.employmentEnd).toLocaleDateString(language === "de" ? "de-DE" : "en-CA") : (language === "de" ? "Unbefristet" : "Permanent")}
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs">
+                    <td data-label="Telegram ID" className="px-4 py-3 font-mono text-xs">
                       {emp.telegramId ? (
                         <span className="text-blue-600 flex items-center gap-1 font-bold">
                           <MessageSquare className="w-3.5 h-3.5 text-blue-500" /> {emp.telegramId}
@@ -1324,7 +1329,7 @@ export default function EmployeesPage() {
                         <span className="text-slate-400 italic">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td data-label="Aktionen" className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         {/* Bug#8 FIX: Only render links when employee has a phone number */}
                         {emp.phone ? (
@@ -1359,15 +1364,17 @@ export default function EmployeesPage() {
                       </div>
                     </td>
                     {canManage && (
-                      <td className="px-4 py-3 text-right pr-6">
+                      <td data-label="Einstellungen" className="px-4 py-3 text-right pr-6">
                         <div className="inline-flex gap-1.5">
                           <button
+                            aria-label={`Mitarbeiter ${emp.name} bearbeiten`}
                             onClick={() => openEditModal(emp)}
                             className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
+                            aria-label={`Mitarbeiter ${emp.name} löschen`}
                             onClick={() => handleDeactivate(emp.id, emp.name)}
                             className="p-1.5 text-slate-400 hover:text-red-650 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
                           >
@@ -1385,7 +1392,7 @@ export default function EmployeesPage() {
       </div>
 
       {/* Pagination Pager */}
-      <div className="flex items-center justify-between bg-white border border-slate-100 px-6 py-4 rounded-xl shadow-sm">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white border border-slate-100 px-4 sm:px-6 py-4 rounded-xl shadow-sm">
         <div className="text-slate-500 text-xs font-semibold">
           {language === "de"
             ? `Zeige ${filteredEmployees.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} bis ${Math.min(filteredEmployees.length, currentPage * itemsPerPage)} von ${filteredEmployees.length} Mitarbeitern`
@@ -1416,7 +1423,7 @@ export default function EmployeesPage() {
 
       {/* ── Excel Import Result & Preview Modal ── */}
       {importModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-md animate-fadeIn">
+        <div className="responsive-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-md animate-fadeIn">
           <div className="bg-white border border-slate-200 rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden animate-scaleIn flex flex-col max-h-[90vh]">
             {/* Modal Header */}
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center shrink-0">
@@ -1661,16 +1668,16 @@ export default function EmployeesPage() {
 
       {/* Add Employee Modal */}
       {addModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fadeIn">
-          <div className="bg-white border border-slate-100 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-scaleIn">
+        <div className="responsive-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fadeIn">
+          <div className="responsive-form-panel bg-white border border-slate-100 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-scaleIn">
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
               <h4 className="font-bold text-sm text-slate-800">{t("addEmployee")}</h4>
-              <button onClick={() => setAddModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer">
+              <button aria-label="Schließen" onClick={() => setAddModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleAddEmployee} className="p-6 space-y-4">
+            <form onSubmit={handleAddEmployee} className="responsive-form-body p-6 space-y-4">
               {formError && (
                 <div className="p-3 bg-red-50 border border-red-100 text-red-700 rounded-lg flex items-start gap-2 text-xs">
                   <AlertTriangle className="w-4.5 h-4.5 shrink-0 mt-0.5" />
@@ -1838,10 +1845,10 @@ export default function EmployeesPage() {
                 />
               </div>
 
-              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 -mx-6 -mb-6">
+              <div className="responsive-modal-actions px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-wrap justify-end gap-3 -mx-6 -mb-6">
                 <button
                   type="button"
-                  onClick={() => setAddModalOpen(false)}
+                  aria-label="Schließen" onClick={() => setAddModalOpen(false)}
                   className="btn-secondary py-1.5 px-4 cursor-pointer text-xs"
                 >
                   {t("close")}
@@ -1861,16 +1868,16 @@ export default function EmployeesPage() {
 
       {/* Edit Employee Modal */}
       {editModalOpen && selectedEmp && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fadeIn">
-          <div className="bg-white border border-slate-100 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-scaleIn">
+        <div className="responsive-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fadeIn">
+          <div className="responsive-form-panel bg-white border border-slate-100 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-scaleIn">
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
               <h4 className="font-bold text-sm text-slate-800">{t("editEmployee")}</h4>
-              <button onClick={() => setEditModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer">
+              <button aria-label="Schließen" onClick={() => setEditModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleEditEmployee} className="p-6 space-y-4">
+            <form onSubmit={handleEditEmployee} className="responsive-form-body p-6 space-y-4">
               {formError && (
                 <div className="p-3 bg-red-50 border border-red-100 text-red-700 rounded-lg flex items-start gap-2 text-xs">
                   <AlertTriangle className="w-4.5 h-4.5 shrink-0 mt-0.5" />
@@ -2067,10 +2074,10 @@ export default function EmployeesPage() {
                 )}
               </div>
 
-              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 -mx-6 -mb-6">
+              <div className="responsive-modal-actions px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-wrap justify-end gap-3 -mx-6 -mb-6">
                 <button
                   type="button"
-                  onClick={() => setEditModalOpen(false)}
+                  aria-label="Schließen" onClick={() => setEditModalOpen(false)}
                   className="btn-secondary py-1.5 px-4 cursor-pointer text-xs"
                 >
                   {t("close")}
@@ -2090,8 +2097,8 @@ export default function EmployeesPage() {
 
       {/* Email Compose Modal */}
       {emailModalOpen && emailTargetEmp && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fadeIn">
-          <div className="bg-white border border-slate-100 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-scaleIn">
+        <div className="responsive-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fadeIn">
+          <div className="responsive-form-panel bg-white border border-slate-100 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-scaleIn">
             {/* Modal Header */}
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
               <div>
@@ -2105,14 +2112,14 @@ export default function EmployeesPage() {
                 </p>
               </div>
               <button
-                onClick={() => setEmailModalOpen(false)}
+                aria-label="Schließen" onClick={() => setEmailModalOpen(false)}
                 className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSendEmail} className="p-6 space-y-4">
+            <form onSubmit={handleSendEmail} className="responsive-form-body p-6 space-y-4">
               {/* Error */}
               {emailError && (
                 <div className="p-3 bg-red-50 border border-red-100 text-red-700 rounded-lg flex items-start gap-2 text-xs">
@@ -2163,10 +2170,10 @@ export default function EmployeesPage() {
               </div>
 
               {/* Footer Actions */}
-              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 -mx-6 -mb-6">
+              <div className="responsive-modal-actions px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-wrap justify-end gap-3 -mx-6 -mb-6">
                 <button
                   type="button"
-                  onClick={() => setEmailModalOpen(false)}
+                  aria-label="Schließen" onClick={() => setEmailModalOpen(false)}
                   disabled={emailLoading}
                   className="btn-secondary py-1.5 px-4 cursor-pointer text-xs"
                 >

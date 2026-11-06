@@ -313,3 +313,80 @@ html {
     font-size: 16px !important;
   }
 }
+
+/* Phase 1: bounded dialogs, without changing their submit or data behaviour. */
+.responsive-modal { overflow-y: auto; }
+.responsive-modal > div {
+  max-height: calc(100dvh - 2rem);
+  min-height: 0;
+  min-width: 0;
+  overscroll-behavior: contain;
+}
+.responsive-modal > div:not(.flex) { overflow-y: auto; }
+.responsive-modal > .responsive-form-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.responsive-form-panel > div:first-child { flex-shrink: 0; }
+.responsive-form-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.responsive-modal-actions { position: sticky; bottom: -1.5rem; z-index: 2; }
+
+@media screen and (max-width: 767px) {
+  /* Minimum hit area for controls, including icon buttons and action badges.
+     Checkboxes keep their native size; their label supplies the hit area. */
+  button:not(.hidden), [role="button"], a.badge-premium,
+  a.btn-primary, a.btn-secondary, label:has(input[type="file"]),
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  main select, main input, main textarea { max-width: 100%; }
+  .mobile-card-scroll { overflow-x: visible; }
+  .mobile-card-table { display: block; width: 100%; min-width: 0; }
+  .mobile-card-table > thead { display: none; }
+  .mobile-card-table > tbody { display: grid; gap: 12px; padding: 12px; }
+  .mobile-card-table > tbody > tr {
+    display: block;
+    min-width: 0;
+    border: 1px solid var(--color-outline-variant);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--color-surface);
+  }
+  .mobile-card-table > tbody > tr > td {
+    display: block;
+    padding: 10px 12px;
+    text-align: start;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+  .mobile-card-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font: 600 11px/1.5 var(--font-sans);
+    color: var(--color-on-surface-variant);
+    margin-bottom: 4px;
+  }
+  .mobile-card-table td + td { border-top: 1px solid var(--color-outline-variant); }
+  .mobile-card-table td[data-label="Aktionen"] > div,
+  .mobile-card-table td[data-label="Einstellungen"] > div { flex-wrap: wrap; }
+  .mobile-card-table td[data-label="Vorname"] { background: var(--color-surface-container-low); }
+  .mobile-card-table .opacity-0 { opacity: 1; }
+  .weekly-card-table > tbody > tr { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+  .weekly-card-table td:first-child, .weekly-card-table td:last-child,
+  .weekly-card-table td[data-label="Gesamt"], .weekly-card-table td[colspan] { grid-column: 1 / -1; }
+  .weekly-card-table td:has(> div.flex-col) > div { align-items: flex-start; }
+}
+
+@media screen and (max-width: 767px) {
+  .employee-card-table > tbody > tr { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+  .employee-card-table td[data-label="Auswählen"],
+  .employee-card-table td[data-label="E-Mail"],
+  .employee-card-table td[data-label="Treffpunkt"],
+  .employee-card-table td[data-label="Aktionen"],
+  .employee-card-table td[data-label="Einstellungen"],
+  .employee-card-table td[colspan] { grid-column: 1 / -1; }
+  .employee-card-table td[data-label="Auswählen"] { display: flex; align-items: center; justify-content: space-between; }
+  .employee-card-table td[data-label="Auswählen"]::before { margin: 0; }
+}

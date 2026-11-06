@@ -124,7 +124,7 @@ export default function QRCodeModal({ isOpen, onClose, hall }: QRCodeModalProps)
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-fadeIn">
+    <div className="responsive-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-fadeIn">
       <div className="bg-slate-900 border border-slate-700/80 text-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6 relative">
         {/* Close Button */}
         <button

@@ -27,3 +27,5 @@ build
 *.sw?
 .system_generated/
 .gemini/
+
+/artifacts/

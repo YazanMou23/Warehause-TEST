@@ -2329,7 +2329,7 @@ export default function DashboardPage() {
 
       {/* Detail View Modal */}
       {selectedPlanForView && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fadeIn print:hidden">
+        <div className="responsive-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fadeIn print:hidden">
           <div className="bg-white border border-slate-100 rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden animate-scaleIn">
             
             {/* Modal Header */}
@@ -2515,7 +2515,7 @@ export default function DashboardPage() {
 
       {/* ── Bulk Assign Employees Modal ── */}
       {bulkAssignEmployeesModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fadeIn">
+        <div className="responsive-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fadeIn">
           <div className="bg-white border border-slate-100 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-scaleIn">
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
               <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">

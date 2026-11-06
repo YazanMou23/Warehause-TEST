@@ -255,7 +255,7 @@ export default function QRScannerCameraModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md">
+    <div className="responsive-modal fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md">
       <div className="bg-slate-900 border border-slate-700/80 text-white rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-2xl space-y-4 relative">
         {/* Close */}
         <button
