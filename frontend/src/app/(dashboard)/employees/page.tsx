@@ -66,7 +66,7 @@ const getLastName = (fullName: string) => {
 };
 
 export default function EmployeesPage() {
-  const { t, language } = useTranslation();
+  const { t, locale } = useTranslation();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -156,7 +156,7 @@ export default function EmployeesPage() {
       } else {
         showAlert({
           title: t("errorOccurred"),
-          message: "Fehler beim Ändern der Sichtbarkeit",
+          message: t("staff899"),
           type: "error",
         });
       }
@@ -164,7 +164,7 @@ export default function EmployeesPage() {
       console.error(e);
       showAlert({
         title: t("errorOccurred"),
-        message: "Verbindungsfehler beim Ändern der Sichtbarkeit",
+        message: t("staff900"),
         type: "error",
       });
     } finally {
@@ -356,10 +356,10 @@ export default function EmployeesPage() {
         loadEmployees();
       } else {
         const err = await res.json();
-        setFormError(err.message || "Failed to add employee");
+        setFormError(err.message || t("staff1092"));
       }
     } catch (err: any) {
-      setFormError(err.message || "Network error occurred.");
+      setFormError(err.message || t("staff1094"));
     } finally {
       setFormLoading(false);
     }
@@ -415,10 +415,10 @@ export default function EmployeesPage() {
         loadEmployees();
       } else {
         const err = await res.json();
-        setFormError(err.message || "Failed to update employee");
+        setFormError(err.message || t("staff1093"));
       }
     } catch (err: any) {
-      setFormError(err.message || "Network error occurred.");
+      setFormError(err.message || t("staff1094"));
     } finally {
       setFormLoading(false);
     }
@@ -426,11 +426,11 @@ export default function EmployeesPage() {
 
   const handleDeactivate = (id: string, name: string) => {
     showAlert({
-      title: language === "de" ? "Mitarbeiter löschen" : "Delete Employee",
-      message: language === "de" ? `Sind Sie sicher, dass Sie den Mitarbeiter ${name} löschen möchten?` : `Are you sure you want to delete employee ${name}?`,
+      title: t("staff901"),
+      message: t("staffDeleteQuestion").replace("{name}", name),
       type: "warning",
-      confirmText: language === "de" ? "Löschen" : "Delete",
-      cancelText: language === "de" ? "Abbrechen" : "Cancel",
+      confirmText: t("deleteEntry"),
+      cancelText: t("ui336"),
       onConfirm: async () => {
         const token = localStorage.getItem("accessToken");
         try {
@@ -441,13 +441,13 @@ export default function EmployeesPage() {
 
           if (res.ok) {
             loadEmployees();
-            showAlert({ title: "Erfolg", message: language === "de" ? "Mitarbeiter wurde gelöscht" : "Employee deleted successfully", type: "success" });
+            showAlert({ title: t("success"), message: t("staff902"), type: "success" });
           } else {
-            showAlert({ title: "Fehler", message: language === "de" ? "Mitarbeiter konnte nicht gelöscht werden" : "Failed to delete employee", type: "error" });
+            showAlert({ title: t("ui526"), message: t("staff903"), type: "error" });
           }
         } catch (e) {
           console.error(e);
-          showAlert({ title: "Fehler", message: "Error occurred", type: "error" });
+          showAlert({ title: t("ui526"), message: t("errorOccurred"), type: "error" });
         }
       },
     });
@@ -478,8 +478,8 @@ export default function EmployeesPage() {
         showAlert({
           title: t("success"),
           message: newVal
-            ? `Arbeitszeiten für ${emp.name} wurden ausgeblendet.`
-            : `Arbeitszeiten für ${emp.name} sind nun sichtbar.`,
+            ? t("staffHiddenName").replace("{name}", emp.name)
+            : t("staffVisibleName").replace("{name}", emp.name),
           type: "success",
         });
       } else {
@@ -498,11 +498,11 @@ export default function EmployeesPage() {
   const handleBulkDeactivate = () => {
     if (selectedEmpIds.length === 0) return;
     showAlert({
-      title: language === "de" ? "Mitarbeiter löschen" : "Delete Employees",
-      message: language === "de" ? `Sind Sie sicher, dass Sie die ${selectedEmpIds.length} ausgewählten Mitarbeiter löschen möchten?` : `Are you sure you want to delete the ${selectedEmpIds.length} selected employee(s)?`,
+      title: t("staff901"),
+      message: t("staffDeleteManyQuestion").replace("{count}", String(selectedEmpIds.length)),
       type: "warning",
-      confirmText: language === "de" ? "Löschen" : "Delete",
-      cancelText: language === "de" ? "Abbrechen" : "Cancel",
+      confirmText: t("deleteEntry"),
+      cancelText: t("ui336"),
       onConfirm: async () => {
         const token = localStorage.getItem("accessToken");
         try {
@@ -518,13 +518,13 @@ export default function EmployeesPage() {
           if (res.ok) {
             setSelectedEmpIds([]);
             loadEmployees();
-            showAlert({ title: "Erfolg", message: language === "de" ? "Ausgewählte Mitarbeiter wurden gelöscht" : "Selected employees deleted", type: "success" });
+            showAlert({ title: t("success"), message: t("staff905"), type: "success" });
           } else {
-            showAlert({ title: "Fehler", message: language === "de" ? "Mitarbeiter konnten nicht gelöscht werden" : "Failed to delete employees", type: "error" });
+            showAlert({ title: t("ui526"), message: t("staff906"), type: "error" });
           }
         } catch (e) {
           console.error(e);
-          showAlert({ title: "Fehler", message: "Error occurred", type: "error" });
+          showAlert({ title: t("ui526"), message: t("errorOccurred"), type: "error" });
         }
       },
     });
@@ -533,11 +533,11 @@ export default function EmployeesPage() {
   const handleBulkActivate = () => {
     if (selectedEmpIds.length === 0) return;
     showAlert({
-      title: language === "de" ? "Mitarbeiter aktivieren" : "Activate Employees",
-      message: language === "de" ? `Ausgewählte ${selectedEmpIds.length} Mitarbeiter aktivieren?` : `Activate the ${selectedEmpIds.length} selected employee(s)?`,
+      title: t("staff907"),
+      message: t("staffActivateManyQuestion").replace("{count}", String(selectedEmpIds.length)),
       type: "info",
-      confirmText: language === "de" ? "Aktivieren" : "Activate",
-      cancelText: language === "de" ? "Abbrechen" : "Cancel",
+      confirmText: t("staff908"),
+      cancelText: t("ui336"),
       onConfirm: async () => {
         const token = localStorage.getItem("accessToken");
         try {
@@ -553,13 +553,13 @@ export default function EmployeesPage() {
           if (res.ok) {
             setSelectedEmpIds([]);
             loadEmployees();
-            showAlert({ title: "Erfolg", message: language === "de" ? "Mitarbeiter aktiviert" : "Employees activated", type: "success" });
+            showAlert({ title: t("success"), message: t("staff909"), type: "success" });
           } else {
-            showAlert({ title: "Fehler", message: language === "de" ? "Aktivierung fehlgeschlagen" : "Failed to activate employees", type: "error" });
+            showAlert({ title: t("ui526"), message: t("staff910"), type: "error" });
           }
         } catch (e) {
           console.error(e);
-          showAlert({ title: "Fehler", message: "Error occurred", type: "error" });
+          showAlert({ title: t("ui526"), message: t("errorOccurred"), type: "error" });
         }
       },
     });
@@ -583,7 +583,7 @@ export default function EmployeesPage() {
         setSelectedEmpIds([]);
         loadEmployees();
       } else {
-        showAlert({ title: "Fehler", message: "Failed to assign hall", type: "error" });
+        showAlert({ title: t("ui526"), message: t("staff911"), type: "error" });
       }
     } catch (e) {
       console.error(e);
@@ -608,7 +608,7 @@ export default function EmployeesPage() {
         setSelectedEmpIds([]);
         loadEmployees();
       } else {
-        showAlert({ title: "Fehler", message: "Failed to assign role", type: "error" });
+        showAlert({ title: t("ui526"), message: t("staff912"), type: "error" });
       }
     } catch (e) {
       console.error(e);
@@ -730,11 +730,11 @@ export default function EmployeesPage() {
     if (!emailTargetEmp) return;
 
     if (!emailSubject.trim()) {
-      setEmailError("Please enter an email subject.");
+      setEmailError(t("staff1095"));
       return;
     }
     if (!emailMessage.trim()) {
-      setEmailError("Please enter an email message.");
+      setEmailError(t("staff1096"));
       return;
     }
 
@@ -769,11 +769,11 @@ export default function EmployeesPage() {
         setEmailError(
           Array.isArray(data.message)
             ? data.message.join(", ")
-            : data.message || "Failed to send email."
+            : data.message || t("staff1097")
         );
       }
     } catch (err: any) {
-      setEmailError(err.message || "Network error occurred.");
+      setEmailError(err.message || t("staff1094"));
     } finally {
       setEmailLoading(false);
     }
@@ -836,7 +836,7 @@ export default function EmployeesPage() {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/excel-template`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error("Download failed");
+      if (!res.ok) throw new Error(t("staff913"));
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -845,7 +845,7 @@ export default function EmployeesPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      showAlert({ title: "Fehler", message: "Vorlage konnte nicht heruntergeladen werden. Stellen Sie sicher, dass Sie eingeloggt sind.", type: "error" });
+      showAlert({ title: t("ui526"), message: t("staff914"), type: "error" });
     }
   };
 
@@ -876,10 +876,10 @@ export default function EmployeesPage() {
       if (res.ok) {
         setPreviewData(data);
       } else {
-        setImportError(Array.isArray(data.message) ? data.message.join(", ") : data.message || "Failed to analyze Excel file");
+        setImportError(Array.isArray(data.message) ? data.message.join(", ") : data.message || t("staff1098"));
       }
     } catch (err: any) {
-      setImportError(err.message || "Network error");
+      setImportError(err.message || t("staff1094"));
     } finally {
       setImportLoading(false);
     }
@@ -908,11 +908,11 @@ export default function EmployeesPage() {
         setImportStage("DONE");
         if (data.summary?.createdCount > 0) loadEmployees();
       } else {
-        setImportError(Array.isArray(data.message) ? data.message.join(", ") : data.message || "Import execution failed");
+        setImportError(Array.isArray(data.message) ? data.message.join(", ") : data.message || t("staff1100"));
         setImportStage("PREVIEW");
       }
     } catch (err: any) {
-      setImportError(err.message || "Network error during import execution");
+      setImportError(err.message || t("staff1101"));
       setImportStage("PREVIEW");
     } finally {
       setExecuteLoading(false);
@@ -928,14 +928,14 @@ export default function EmployeesPage() {
   }
 
   return (
-    <div className="space-y-stack-lg animate-fadeIn text-on-background">
+    <div className="space-y-stack-lg text-on-background">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h3 className="text-xl font-bold text-slate-800 tracking-tight">
-            {t("employeeManagement")} <span className="text-slate-400 font-medium ml-1">({filteredEmployees.length})</span>
+            {t("employeeManagement")} <span className="text-slate-600 font-medium ml-1">({filteredEmployees.length})</span>
           </h3>
-          <p className="text-slate-500 text-xs mt-1">
+          <p className="text-slate-600 text-xs mt-1">
             {t("staffSubtitle")}
           </p>
         </div>
@@ -948,19 +948,17 @@ export default function EmployeesPage() {
             {/* Download Template */}
             <button
               onClick={handleDownloadTemplate}
-              title="Download Excel template"
+              title={t("staff915")}
               className="btn-secondary py-2 px-3 text-xs"
             >
-              <Download className="w-3.5 h-3.5 text-slate-500" /> Template
-            </button>
+              <Download className="w-3.5 h-3.5 text-slate-600" />  {t("staff916")} </button>
 
             {/* Upload Excel */}
             <label
-              title="Import employees from Excel"
+              title={t("staff917")}
               className="btn-secondary py-2 px-3 text-xs cursor-pointer"
             >
-              <Upload className="w-3.5 h-3.5 text-slate-500" /> Import Excel
-              <input
+              <Upload className="w-3.5 h-3.5 text-slate-600" />  {t("staff918")} <input
                 type="file"
                 accept=".xlsx,.xls"
                 className="hidden"
@@ -988,9 +986,7 @@ export default function EmployeesPage() {
           <div className="flex-1 min-w-0">
             <span className="font-extrabold block text-slate-900">{t("globalVisibilityBanner")}</span>
             <span className="text-amber-850 text-[11px] leading-tight block mt-0.5">
-              {language === "de"
-                ? "Alle Mitarbeiter sehen aktuell keine Stundenstatistiken, Zeiterfassungen oder Stundenzettel. Sobald die globale Sperre oben deaktiviert wird, gelten wieder die individuellen Einstellungen."
-                : "All employees currently cannot view work hours or timesheets. Once global hiding is toggled off above, individual employee settings will apply."}
+              {t("staff1110")}
             </span>
           </div>
         </div>
@@ -1000,55 +996,55 @@ export default function EmployeesPage() {
       <div className="space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-100 p-5 rounded-xl shadow-sm">
           <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-600 absolute start-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search by name, username or phone..."
+              placeholder={t("staff919")}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="input-premium pl-9 py-2 text-xs"
+              className="input-premium ps-9 py-2 text-xs"
             />
           </div>
 
           {/* Sort Controls */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-slate-500 font-semibold">{language === "de" ? "Sortieren:" : "Sort:"}</span>
+            <span className="text-xs text-slate-600 font-semibold">{t("staff1074")}</span>
             <select
               value={sortBy}
               onChange={(e) => { setSortBy(e.target.value as any); setCurrentPage(1); }}
               className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 bg-white outline-none hover:border-slate-400 cursor-pointer"
             >
-              <option value="name">{language === "de" ? "Name (A–Z)" : "Name (A–Z)"}</option>
-              <option value="contractPeriod">{language === "de" ? "Vertragszeitraum (Monat & Jahr)" : "Contract Period (Month & Year)"}</option>
+              <option value="name">{t("staff1075")}</option>
+              <option value="contractPeriod">{t("staff1076")}</option>
             </select>
 
             {sortBy === "contractPeriod" && (
               <div className="flex items-center gap-2 flex-wrap bg-slate-50 border border-slate-200 rounded-lg p-1 px-2 text-xs">
                 <div className="flex items-center gap-1">
-                  <span className="text-slate-500 font-medium text-[11px]">{language === "de" ? "Von:" : "From:"}</span>
+                  <span className="text-slate-600 font-medium text-[11px]">{t("planning718")}</span>
                   <input
                     type="month"
                     value={fromMonthYear}
                     onChange={(e) => { setFromMonthYear(e.target.value); setCurrentPage(1); }}
                     className="border border-slate-200 rounded px-1.5 py-1 text-xs text-slate-700 bg-white outline-none focus:border-blue-500 cursor-pointer"
-                    placeholder="YYYY-MM"
+                    placeholder={t("staff920")}
                   />
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="text-slate-500 font-medium text-[11px]">{language === "de" ? "Bis:" : "To:"}</span>
+                  <span className="text-slate-600 font-medium text-[11px]">{t("planning719")}</span>
                   <input
                     type="month"
                     value={toMonthYear}
                     onChange={(e) => { setToMonthYear(e.target.value); setCurrentPage(1); }}
                     className="border border-slate-200 rounded px-1.5 py-1 text-xs text-slate-700 bg-white outline-none focus:border-blue-500 cursor-pointer"
-                    placeholder="YYYY-MM"
+                    placeholder={t("staff920")}
                   />
                 </div>
                 {(fromMonthYear || toMonthYear) && (
                   <button
                     onClick={() => { setFromMonthYear(""); setToMonthYear(""); setCurrentPage(1); }}
-                    className="text-slate-400 hover:text-red-600 transition-colors p-0.5"
-                    title={language === "de" ? "Zeitraum zurücksetzen" : "Reset date range"}
+                    className="text-slate-600 hover:text-red-600 transition-colors p-0.5"
+                    title={t("staff1077")}
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -1058,7 +1054,7 @@ export default function EmployeesPage() {
 
             <button
               onClick={() => setSortDir(d => d === "asc" ? "desc" : "asc")}
-              title={sortDir === "asc" ? "Ascending" : "Descending"}
+              title={sortDir === "asc" ? t("staff1078") : t("staff1079")}
               className="flex items-center gap-1 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-400 cursor-pointer transition-all"
             >
               {sortDir === "asc" ? (
@@ -1070,7 +1066,7 @@ export default function EmployeesPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
                 </svg>
               )}
-              {sortDir === "asc" ? (language === "de" ? "Aufst." : "Asc") : (language === "de" ? "Abst." : "Desc")}
+              {sortDir === "asc" ? (t("staff1080")) : (t("staff1081"))}
             </button>
           </div>
         </div>
@@ -1079,26 +1075,24 @@ export default function EmployeesPage() {
           <div className="bg-blue-50/50 border border-blue-150 p-4 rounded-xl shadow-sm flex flex-wrap items-center gap-3 animate-fadeIn text-xs">
             <div className="font-bold text-blue-800 mr-2 flex items-center gap-1.5">
               <Users className="w-4 h-4" />
-              <span>{selectedEmpIds.length} Mitarbeiter ausgewählt:</span>
+              <span>{selectedEmpIds.length}  {t("staff921")} </span>
             </div>
 
             {/* Bulk Deactivate */}
             <button
               onClick={handleBulkDeactivate}
               className="bg-red-600 hover:bg-red-700 text-white px-3.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-sm"
-              title="Mitarbeiter löschen"
+              title={t("staff901")}
             >
-              <Trash2 className="w-3.5 h-3.5" /> Löschen
-            </button>
+              <Trash2 className="w-3.5 h-3.5" />  {t("deleteEntry")} </button>
 
             {/* Bulk Activate */}
             <button
               onClick={handleBulkActivate}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-sm"
-              title="Mitarbeiter aktivieren"
+              className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-sm"
+              title={t("staff907")}
             >
-              <UserCheck className="w-3.5 h-3.5" /> Aktivieren
-            </button>
+              <UserCheck className="w-3.5 h-3.5" />  {t("staff908")} </button>
 
             {/* Bulk Assign Hall Select */}
             <div className="relative">
@@ -1112,7 +1106,7 @@ export default function EmployeesPage() {
                 className="bg-white border border-slate-200 px-3 py-1.5 rounded-lg font-bold text-slate-700 outline-none hover:border-slate-350 cursor-pointer"
                 defaultValue=""
               >
-                <option value="" disabled>Halle zuweisen...</option>
+                <option value="" disabled> {t("staff922")} </option>
                 {halls.map((h) => (
                   <option key={h.id} value={h.id}>{h.name}</option>
                 ))}
@@ -1131,11 +1125,11 @@ export default function EmployeesPage() {
                 className="bg-white border border-slate-200 px-3 py-1.5 rounded-lg font-bold text-slate-700 outline-none hover:border-slate-350 cursor-pointer"
                 defaultValue=""
               >
-                <option value="" disabled>Rolle zuweisen...</option>
-                <option value="EMPLOYEE">Mitarbeiter</option>
-                <option value="TEAM_LEADER">Vorarbeiter</option>
-                <option value="ADMIN">Administrator</option>
-                <option value="MANAGER">Manager</option>
+                <option value="" disabled> {t("staff923")} </option>
+                <option value="EMPLOYEE"> {t("roleEmployee")} </option>
+                <option value="TEAM_LEADER"> {t("planning736")} </option>
+                <option value="ADMIN"> {t("staff924")} </option>
+                <option value="MANAGER"> {t("roleManager")} </option>
               </select>
             </div>
 
@@ -1144,21 +1138,20 @@ export default function EmployeesPage() {
               onClick={handleExportSelected}
               className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-sm"
             >
-              <Download className="w-3.5 h-3.5" /> Exportieren (CSV)
-            </button>
+              <Download className="w-3.5 h-3.5" />  {t("staff925")} </button>
           </div>
         )}
       </div>
 
       {canManage && <button type="button" className="md:hidden btn-secondary text-xs" onClick={() => setSelectedEmpIds(selectedEmpIds.length === filteredEmployees.length ? [] : filteredEmployees.map(e => e.id))}>
-        {selectedEmpIds.length === filteredEmployees.length && filteredEmployees.length > 0 ? "Auswahl aufheben" : "Alle auswählen"}
+        {selectedEmpIds.length === filteredEmployees.length && filteredEmployees.length > 0 ? t("ui316") : t("ui541")}
       </button>}
       {/* Grid List */}
       <div className="bg-white border border-slate-100 rounded-xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto mobile-card-scroll">
           <table className="w-full text-left text-xs border-collapse mobile-card-table employee-card-table">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold uppercase tracking-wider">
+              <tr className="bg-slate-50 border-b border-slate-100 text-slate-600 font-semibold uppercase tracking-wider">
                 {canManage && (
                   <th className="p-3 text-center w-12">
                     <button
@@ -1169,7 +1162,7 @@ export default function EmployeesPage() {
                           setSelectedEmpIds(filteredEmployees.map((e) => e.id));
                         }
                       }}
-                      className="text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
+                      className="text-slate-600 hover:text-blue-600 transition-colors cursor-pointer"
                     >
                       {selectedEmpIds.length === filteredEmployees.length && filteredEmployees.length > 0 ? (
                         <CheckSquare className="w-4 h-4 inline" />
@@ -1179,23 +1172,23 @@ export default function EmployeesPage() {
                     </button>
                   </th>
                 )}
-                <th className="px-4 py-3">{language === "de" ? "Vorname" : "First Name"}</th>
-                <th className="px-4 py-3">{language === "de" ? "Nachname" : "Last Name"}</th>
+                <th className="px-4 py-3">{t("firstNameColumn")}</th>
+                <th className="px-4 py-3">{t("lastNameColumn")}</th>
                 <th className="px-4 py-3">{t("usernameLabel")}</th>
                 <th className="px-4 py-3">{t("phone")}</th>
                 <th className="px-4 py-3">{t("email")}</th>
-                <th className="px-4 py-3">{language === "de" ? "Treffpunkt" : "Treffpunkt / Transport"}</th>
-                <th className="px-4 py-3">{language === "de" ? "Vertrag ab (from)" : "Contract From"}</th>
-                <th className="px-4 py-3">{language === "de" ? "Vertrag bis (to)" : "Contract To"}</th>
+                <th className="px-4 py-3">{t("ui331")}</th>
+                <th className="px-4 py-3">{t("staff1083")}</th>
+                <th className="px-4 py-3">{t("staff1084")}</th>
                 <th className="px-4 py-3">{t("telegramId")}</th>
                 <th className="px-4 py-3">{t("actionsColumn")}</th>
-                {canManage && <th className="px-4 py-3 text-right pr-6">Settings</th>}
+                {canManage && <th className="px-4 py-3 text-right pr-6"> {t("staff926")} </th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-600">
               {paginatedEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={canManage ? 11 : 9} className="p-8 text-center text-slate-400 italic">
+                  <td colSpan={canManage ? 11 : 9} className="p-8 text-center text-slate-600 italic">
                     {t("noStaffFound")}
                   </td>
                 </tr>
@@ -1203,9 +1196,9 @@ export default function EmployeesPage() {
                 paginatedEmployees.map((emp) => (
                   <tr key={emp.id} className={`hover:bg-slate-50/30 transition-colors ${selectedEmpIds.includes(emp.id) ? "bg-blue-50/20" : ""}`}>
                     {canManage && (
-                      <td data-label="Auswählen" className="p-3 text-center">
+                      <td data-column="select" data-label={t("staffSelect")} className="p-3 text-center">
                         <button
-                          aria-label={`${emp.name} auswählen`}
+                          aria-label={t("staffSelectName").replace("{name}", emp.name)}
                           aria-pressed={selectedEmpIds.includes(emp.id)}
                           onClick={() => {
                             if (selectedEmpIds.includes(emp.id)) {
@@ -1224,7 +1217,7 @@ export default function EmployeesPage() {
                         </button>
                       </td>
                     )}
-                    <td data-label="Vorname" className="px-4 py-3">
+                    <td data-column="first" data-label={t("firstNameColumn")} className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs relative overflow-hidden shrink-0 shadow-sm">
                           <img
@@ -1248,7 +1241,7 @@ export default function EmployeesPage() {
                         </div>
                       </div>
                     </td>
-                    <td data-label="Nachname" className="px-4 py-3 font-semibold text-slate-800">
+                    <td data-label={t("lastNameColumn")} className="px-4 py-3 font-semibold text-slate-800">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span>{getLastName(emp.name)}</span>
                         {isGlobalWorkHoursHidden ? (
@@ -1273,63 +1266,63 @@ export default function EmployeesPage() {
                           <button
                             type="button"
                             onClick={() => handleQuickToggleIndividualVisibility(emp)}
-                            className="opacity-0 group-hover:opacity-100 hover:opacity-100 inline-flex items-center gap-1 text-[9px] font-medium text-slate-400 hover:text-amber-700 px-1 py-0.5 rounded transition-all cursor-pointer"
-                            title="Klicken zum Ausblenden der Stunden für diesen Mitarbeiter"
+                            className="opacity-0 group-hover:opacity-100 hover:opacity-100 inline-flex items-center gap-1 text-[9px] font-medium text-slate-600 hover:text-amber-700 px-1 py-0.5 rounded transition-all cursor-pointer"
+                            title={t("staff927")}
                           >
                             <EyeOff size={10} />
-                            <span className="hidden sm:inline">Stunden verbergen</span>
+                            <span className="hidden sm:inline"> {t("staff928")} </span>
                           </button>
                         )}
                       </div>
                     </td>
-                    <td data-label="Benutzername" className="px-4 py-3 font-mono text-xs text-slate-700">
-                      {emp.username}
+                    <td data-label={t("usernameLabel")} className="px-4 py-3 font-mono text-xs text-slate-700">
+                      <bdi dir="ltr">{emp.username}</bdi>
                     </td>
-                    <td data-label="Telefon" className="px-4 py-3 font-mono text-xs text-slate-400">
-                      {emp.phone}
+                    <td data-label={t("ui345")} className="px-4 py-3 font-mono text-xs text-slate-600">
+                      <bdi dir="ltr">{emp.phone}</bdi>
                     </td>
-                    <td data-label="E-Mail" className="px-4 py-3">
+                    <td data-column="email" data-label={t("email")} className="px-4 py-3">
                       {emp.email ? (
                         <a
                           href={`mailto:${emp.email}`}
                           className="text-xs text-blue-600 hover:underline font-mono flex items-center gap-1 group"
                           title={emp.email}
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 shrink-0 text-slate-400 group-hover:text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 shrink-0 text-slate-600 group-hover:text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                           </svg>
-                          <span className="max-w-[160px] truncate">{emp.email}</span>
+                          <span className="max-w-[160px] truncate"><bdi dir="ltr">{emp.email}</bdi></span>
                         </a>
                       ) : (
-                        <span className="text-slate-400 italic text-[11px]">— no email</span>
+                        <span className="text-slate-600 italic text-[11px]"> {t("staff929")} </span>
                       )}
                     </td>
-                    <td data-label="Treffpunkt" className="px-4 py-3 text-xs font-medium text-slate-700 max-w-[200px]" title={emp.address || emp.treffpunkt || ''}>
+                    <td data-column="meeting" data-label={t("ui331")} className="px-4 py-3 text-xs font-medium text-slate-700 max-w-[200px]" title={emp.address || emp.treffpunkt || ''}>
                       {emp.address || emp.treffpunkt ? (
                         <span className="flex items-center gap-1 text-slate-800 font-medium leading-tight">
                           <MapPin className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                           <span className="truncate">{emp.address || emp.treffpunkt}</span>
                         </span>
                       ) : (
-                        <span className="text-slate-400 italic text-[11px]">—</span>
+                        <span className="text-slate-600 italic text-[11px]">—</span>
                       )}
                     </td>
-                    <td data-label="Vertrag ab" suppressHydrationWarning className="px-4 py-3 font-mono text-xs text-slate-500">
-                      {emp.employmentStart ? new Date(emp.employmentStart).toLocaleDateString(language === "de" ? "de-DE" : "en-CA") : "—"}
+                    <td data-label={t("staff1083")} suppressHydrationWarning className="px-4 py-3 font-mono text-xs text-slate-600">
+                      {emp.employmentStart ? new Date(emp.employmentStart).toLocaleDateString(locale) : "—"}
                     </td>
-                    <td data-label="Vertrag bis" suppressHydrationWarning className="px-4 py-3 font-mono text-xs text-slate-500">
-                      {emp.employmentEnd ? new Date(emp.employmentEnd).toLocaleDateString(language === "de" ? "de-DE" : "en-CA") : (language === "de" ? "Unbefristet" : "Permanent")}
+                    <td data-label={t("staff1084")} suppressHydrationWarning className="px-4 py-3 font-mono text-xs text-slate-600">
+                      {emp.employmentEnd ? new Date(emp.employmentEnd).toLocaleDateString(locale) : (t("staff1082"))}
                     </td>
-                    <td data-label="Telegram ID" className="px-4 py-3 font-mono text-xs">
+                    <td data-label={t("telegramId")} className="px-4 py-3 font-mono text-xs">
                       {emp.telegramId ? (
                         <span className="text-blue-600 flex items-center gap-1 font-bold">
-                          <MessageSquare className="w-3.5 h-3.5 text-blue-500" /> {emp.telegramId}
+                          <MessageSquare className="w-3.5 h-3.5 text-blue-500" /> <bdi dir="ltr">{emp.telegramId}</bdi>
                         </span>
                       ) : (
-                        <span className="text-slate-400 italic">—</span>
+                        <span className="text-slate-600 italic">—</span>
                       )}
                     </td>
-                    <td data-label="Aktionen" className="px-4 py-3">
+                    <td data-column="actions" data-label={t("actionsColumn")} className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         {/* Bug#8 FIX: Only render links when employee has a phone number */}
                         {emp.phone ? (
@@ -1338,7 +1331,7 @@ export default function EmployeesPage() {
                               type="button"
                               onClick={() => openWhatsAppModal(emp)}
                               className="badge-premium badge-success hover:bg-emerald-100 font-bold transition-all cursor-pointer flex items-center gap-1"
-                              title="WhatsApp Nachricht oder Button-Nachricht senden"
+                              title={t("staff930")}
                             >
                               <span>WhatsApp</span>
                             </button>
@@ -1350,33 +1343,32 @@ export default function EmployeesPage() {
                             </a>
                           </>
                         ) : (
-                          <span className="text-slate-400 italic text-xs">No phone</span>
+                          <span className="text-slate-600 italic text-xs"> {t("staff931")} </span>
                         )}
                         {canManage && emp.email && (
                           <button
                             onClick={() => openEmailModal(emp)}
-                            title={`Send email to ${emp.email}`}
+                            title={t("staffEmailTo").replace("{email}", emp.email || "")}
                             className="badge-premium badge-neutral hover:bg-slate-200 font-bold transition-all flex items-center gap-1 cursor-pointer"
                           >
-                            <Mail className="w-3 h-3" /> Email
-                          </button>
+                            <Mail className="w-3 h-3" />  {t("email")} </button>
                         )}
                       </div>
                     </td>
                     {canManage && (
-                      <td data-label="Einstellungen" className="px-4 py-3 text-right pr-6">
+                      <td data-column="settings" data-label={t("staff926")} className="px-4 py-3 text-right pr-6">
                         <div className="inline-flex gap-1.5">
                           <button
-                            aria-label={`Mitarbeiter ${emp.name} bearbeiten`}
+                            aria-label={t("staffEditName").replace("{name}", emp.name)}
                             onClick={() => openEditModal(emp)}
-                            className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+                            className="p-1.5 text-slate-600 hover:text-blue-600 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            aria-label={`Mitarbeiter ${emp.name} löschen`}
+                            aria-label={t("staffDeleteName").replace("{name}", emp.name)}
                             onClick={() => handleDeactivate(emp.id, emp.name)}
-                            className="p-1.5 text-slate-400 hover:text-red-650 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                            className="p-1.5 text-slate-600 hover:text-red-650 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -1393,10 +1385,8 @@ export default function EmployeesPage() {
 
       {/* Pagination Pager */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white border border-slate-100 px-4 sm:px-6 py-4 rounded-xl shadow-sm">
-        <div className="text-slate-500 text-xs font-semibold">
-          {language === "de"
-            ? `Zeige ${filteredEmployees.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} bis ${Math.min(filteredEmployees.length, currentPage * itemsPerPage)} von ${filteredEmployees.length} Mitarbeitern`
-            : `Showing ${filteredEmployees.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} to ${Math.min(filteredEmployees.length, currentPage * itemsPerPage)} of ${filteredEmployees.length} employees`}
+        <div className="text-slate-600 text-xs font-semibold">
+          {t("staffShowing").replace("{from}", String(filteredEmployees.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1)).replace("{to}", String(Math.min(filteredEmployees.length, currentPage * itemsPerPage))).replace("{count}", String(filteredEmployees.length))}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -1405,10 +1395,10 @@ export default function EmployeesPage() {
             disabled={currentPage === 1}
             className="btn-secondary py-1 px-3 text-xs disabled:opacity-50 cursor-pointer"
           >
-            {language === "de" ? "Zurück" : "Previous"}
+            {t("staff1085")}
           </button>
           <span className="text-xs font-semibold text-slate-800 px-2">
-            {language === "de" ? `Seite ${currentPage} von ${totalPages}` : `Page ${currentPage} of ${totalPages}`}
+            {t("staffPager").replace("{page}", String(currentPage)).replace("{pages}", String(totalPages))}
           </span>
           <button
             type="button"
@@ -1416,7 +1406,7 @@ export default function EmployeesPage() {
             disabled={currentPage === totalPages}
             className="btn-secondary py-1 px-3 text-xs disabled:opacity-50 cursor-pointer"
           >
-            {language === "de" ? "Weiter" : "Next"}
+            {t("staff1086")}
           </button>
         </div>
       </div>
@@ -1430,16 +1420,15 @@ export default function EmployeesPage() {
               <div>
                 <h4 className="font-bold text-slate-800 text-base flex items-center gap-2">
                   <FileSpreadsheet className="w-5 h-5 text-blue-600" />
-                  Mitarbeiter Excel Import Verification
-                </h4>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {selectedFile ? selectedFile.name : "Import file analysis and row-by-row validation report"}
+                   {t("staff933")} </h4>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  {selectedFile ? selectedFile.name : t("staff1214")}
                 </p>
               </div>
               {!importLoading && !executeLoading && (
                 <button
                   onClick={() => setImportModalOpen(false)}
-                  className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-200/60 rounded-lg transition-colors cursor-pointer"
+                  className="text-slate-600 hover:text-slate-700 p-1.5 hover:bg-slate-200/60 rounded-lg transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1453,9 +1442,9 @@ export default function EmployeesPage() {
                 <div className="flex flex-col items-center justify-center gap-3 py-12">
                   <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
                   <p className="text-slate-700 font-semibold text-sm">
-                    {executeLoading ? "Importing valid employees into database..." : "Analyzing and validating Excel rows..."}
+                    {executeLoading ? t("staff1087") : t("staff1088")}
                   </p>
-                  <p className="text-slate-400 text-xs font-mono">Fault-tolerant row-by-row resolution active</p>
+                  <p className="text-slate-600 text-xs font-mono"> {t("staff934")} </p>
                 </div>
               )}
 
@@ -1464,7 +1453,7 @@ export default function EmployeesPage() {
                 <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
                   <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
                   <div>
-                    <h5 className="font-bold text-red-900 text-xs">Import Analysis Failed</h5>
+                    <h5 className="font-bold text-red-900 text-xs"> {t("staff935")} </h5>
                     <p className="text-red-800 text-xs mt-0.5">{importError}</p>
                   </div>
                 </div>
@@ -1477,27 +1466,26 @@ export default function EmployeesPage() {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
                       <span className="text-2xl font-black text-slate-800 font-mono">{previewData.summary?.totalRows ?? 0}</span>
-                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mt-1">Total Rows</span>
+                      <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider block mt-1"> {t("staff936")} </span>
                     </div>
                     <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
                       <span className="text-2xl font-black text-emerald-700 font-mono">{previewData.summary?.readyCount ?? 0}</span>
-                      <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider block mt-1">🟢 Ready</span>
+                      <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider block mt-1"> {t("staff937")} </span>
                     </div>
                     <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
                       <span className="text-2xl font-black text-amber-700 font-mono">{previewData.summary?.warningCount ?? 0}</span>
-                      <span className="text-[10px] text-amber-600 font-bold uppercase tracking-wider block mt-1">🟡 Warnings</span>
+                      <span className="text-[10px] text-amber-600 font-bold uppercase tracking-wider block mt-1"> {t("staff938")} </span>
                     </div>
                     <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-center">
                       <span className="text-2xl font-black text-rose-700 font-mono">{previewData.summary?.errorCount ?? 0}</span>
-                      <span className="text-[10px] text-rose-600 font-bold uppercase tracking-wider block mt-1">🔴 Errors (Skipped)</span>
+                      <span className="text-[10px] text-rose-600 font-bold uppercase tracking-wider block mt-1"> {t("staff939")} </span>
                     </div>
                   </div>
 
                   {/* Info Banner */}
                   <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-between text-xs text-blue-900 font-medium">
                     <span>
-                      Fault-tolerant import ready: <strong>{previewData.summary?.validCount ?? 0} valid rows</strong> will be imported into the database. Invalid rows will be safely skipped.
-                    </span>
+                       {t("staff940")} <strong>{previewData.summary?.validCount ?? 0}  {t("staff941")} </strong>  {t("staff942")} </span>
                   </div>
 
                   {/* Rows Validation Table */}
@@ -1505,30 +1493,30 @@ export default function EmployeesPage() {
                     <table className="w-full text-left text-xs">
                       <thead className="bg-slate-100 text-slate-600 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200 sticky top-0 z-10">
                         <tr>
-                          <th className="p-2.5 w-12 text-center">Row</th>
-                          <th className="p-2.5">Mitarbeiter Name</th>
-                          <th className="p-2.5">Benutzername</th>
-                          <th className="p-2.5">Rolle</th>
-                          <th className="p-2.5">Lager / Halle</th>
-                          <th className="p-2.5">Status</th>
-                          <th className="p-2.5">Diagnose & Details</th>
+                          <th className="p-2.5 w-12 text-center"> {t("staff943")} </th>
+                          <th className="p-2.5"> {t("staff944")} </th>
+                          <th className="p-2.5"> {t("usernameLabel")} </th>
+                          <th className="p-2.5"> {t("ui344")} </th>
+                          <th className="p-2.5"> {t("staff945")} </th>
+                          <th className="p-2.5"> {t("statusColumn")} </th>
+                          <th className="p-2.5"> {t("staff946")} </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {previewData.rows?.map((row: any) => {
                           let badgeBg = "bg-emerald-100 text-emerald-800 border-emerald-200";
-                          let statusIcon = "🟢 Ready";
+                          let statusIcon = t("staff937");
                           if (row.status === "WARNING") {
                             badgeBg = "bg-amber-100 text-amber-800 border-amber-200";
-                            statusIcon = "🟡 Warning";
+                            statusIcon = t("staff1090");
                           } else if (row.status === "ERROR") {
                             badgeBg = "bg-rose-100 text-rose-800 border-rose-200";
-                            statusIcon = "🔴 Error";
+                            statusIcon = t("staff1091");
                           }
 
                           return (
                             <tr key={row.row} className={row.status === "ERROR" ? "bg-rose-50/40" : "hover:bg-slate-50/80"}>
-                              <td className="p-2.5 font-mono text-center font-bold text-slate-500">{row.row}</td>
+                              <td className="p-2.5 font-mono text-center font-bold text-slate-600">{row.row}</td>
                               <td className="p-2.5 font-bold text-slate-800">{row.name}</td>
                               <td className="p-2.5 font-mono text-slate-600">{row.username || "—"}</td>
                               <td className="p-2.5">
@@ -1567,7 +1555,7 @@ export default function EmployeesPage() {
                                     ))}
                                   </div>
                                 ) : (
-                                  <span className="text-slate-400 text-[11px]">Valid</span>
+                                  <span className="text-slate-600 text-[11px]"> {t("staff947")} </span>
                                 )}
                               </td>
                             </tr>
@@ -1585,7 +1573,7 @@ export default function EmployeesPage() {
                   <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
                     <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
                     <div>
-                      <h5 className="font-bold text-emerald-950 text-sm">Import Successfully Executed</h5>
+                      <h5 className="font-bold text-emerald-950 text-sm"> {t("staff948")} </h5>
                       <p className="text-emerald-800 text-xs mt-0.5">{importResult.message}</p>
                     </div>
                   </div>
@@ -1593,31 +1581,31 @@ export default function EmployeesPage() {
                   <div className="grid grid-cols-3 gap-3">
                     <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
                       <span className="text-2xl font-black text-slate-800 font-mono">{importResult.summary?.totalProcessed ?? 0}</span>
-                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mt-1">Total Processed</span>
+                      <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider block mt-1"> {t("staff949")} </span>
                     </div>
                     <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
                       <span className="text-2xl font-black text-emerald-700 font-mono">{importResult.summary?.createdCount ?? 0}</span>
-                      <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider block mt-1">Imported</span>
+                      <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider block mt-1"> {t("staff950")} </span>
                     </div>
                     <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-center">
                       <span className="text-2xl font-black text-rose-700 font-mono">{importResult.summary?.skippedCount ?? 0}</span>
-                      <span className="text-[10px] text-rose-600 font-bold uppercase tracking-wider block mt-1">Skipped (Errors)</span>
+                      <span className="text-[10px] text-rose-600 font-bold uppercase tracking-wider block mt-1"> {t("staff951")} </span>
                     </div>
                   </div>
 
                   {/* Errors / Skipped List */}
                   {importResult.summary?.errors?.length > 0 && (
                     <div className="space-y-2">
-                      <h6 className="text-xs font-bold uppercase text-slate-500 tracking-wider">Skipped Rows Report</h6>
+                      <h6 className="text-xs font-bold uppercase text-slate-600 tracking-wider"> {t("staff952")} </h6>
                       <div className="max-h-48 overflow-y-auto space-y-2">
                         {importResult.summary.errors.map((err: any, i: number) => (
                           <div key={i} className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs space-y-1">
                             <div className="flex items-center justify-between font-bold text-rose-900">
-                              <span>Row {err.row}: {err.name || "Unknown"}</span>
+                              <span> {t("staff943")} {err.row}: {err.name || t("staff1089")}</span>
                               {err.column && <span className="bg-rose-200 text-rose-800 text-[10px] px-1.5 py-0.5 rounded font-mono">{err.column}</span>}
                             </div>
                             <p className="text-rose-800 text-[11px]">{err.reason}</p>
-                            {err.suggestedFix && <p className="text-rose-700 text-[10px] font-semibold">Suggested Fix: {err.suggestedFix}</p>}
+                            {err.suggestedFix && <p className="text-rose-700 text-[10px] font-semibold"> {t("staff953")} {err.suggestedFix}</p>}
                           </div>
                         ))}
                       </div>
@@ -1636,16 +1624,14 @@ export default function EmployeesPage() {
                       onClick={() => setImportModalOpen(false)}
                       className="px-4 py-2 border border-slate-300 hover:bg-slate-200/60 rounded-xl text-xs font-bold transition-colors cursor-pointer"
                     >
-                      Cancel
-                    </button>
+                       {t("ui336")} </button>
                     <button
                       onClick={handleExecuteImport}
                       disabled={!previewData || (previewData.summary?.validCount ?? 0) === 0}
                       className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm disabled:opacity-50 cursor-pointer flex items-center gap-2"
                     >
                       <CheckCircle2 className="w-4 h-4" />
-                      Import {previewData?.summary?.validCount ?? 0} Valid Employee(s)
-                    </button>
+                       {t("staff955")} {previewData?.summary?.validCount ?? 0}  {t("staff956")} </button>
                   </>
                 )}
 
@@ -1657,8 +1643,7 @@ export default function EmployeesPage() {
                     }}
                     className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
                   >
-                    Close & View Employees
-                  </button>
+                     {t("staff957")} </button>
                 )}
               </div>
             )}
@@ -1672,7 +1657,7 @@ export default function EmployeesPage() {
           <div className="responsive-form-panel bg-white border border-slate-100 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-scaleIn">
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
               <h4 className="font-bold text-sm text-slate-800">{t("addEmployee")}</h4>
-              <button aria-label="Schließen" onClick={() => setAddModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer">
+              <button aria-label={t("close")} onClick={() => setAddModalOpen(false)} className="text-slate-600 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -1687,23 +1672,23 @@ export default function EmployeesPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("firstNameColumn")}</label>
+                  <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">{t("firstNameColumn")}</label>
                   <input
                     type="text"
                     required
                     value={formVorname}
                     onChange={(e) => setFormVorname(e.target.value)}
-                    placeholder="e.g. Emil"
+                    placeholder={t("staff958")}
                     className="input-premium"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("lastNameColumn")}</label>
+                  <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">{t("lastNameColumn")}</label>
                   <input
                     type="text"
                     value={formNachname}
                     onChange={(e) => setFormNachname(e.target.value)}
-                    placeholder="e.g. Employee"
+                    placeholder={t("staff959")}
                     className="input-premium"
                   />
                 </div>
@@ -1711,9 +1696,9 @@ export default function EmployeesPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("phone")}</label>
+                  <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">{t("phone")}</label>
                   <input
-                    type="text"
+                    dir="ltr" type="text"
                     required
                     value={formPhone}
                     onChange={(e) => setFormPhone(e.target.value)}
@@ -1725,24 +1710,24 @@ export default function EmployeesPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("usernameLabel")}</label>
+                  <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">{t("usernameLabel")}</label>
                   <input
-                    type="text"
+                    dir="ltr" type="text"
                     required
                     value={formUsername}
                     onChange={(e) => setFormUsername(e.target.value)}
-                    placeholder="e.g. emilemployee"
+                    placeholder={t("staff960")}
                     className="input-premium"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("passwordLabel")}</label>
+                  <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">{t("passwordLabel")}</label>
                   <input
                     type="password"
                     required
                     value={formPassword}
                     onChange={(e) => setFormPassword(e.target.value)}
-                    placeholder="Password"
+                    placeholder={t("staff961")}
                     className="input-premium"
                   />
                 </div>
@@ -1750,12 +1735,12 @@ export default function EmployeesPage() {
 
               <div className="grid grid-cols-1 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("email")}</label>
+                  <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">{t("email")}</label>
                   <input
-                    type="email"
+                    dir="ltr" type="email"
                     value={formEmail}
                     onChange={(e) => setFormEmail(e.target.value)}
-                    placeholder="e.g. e.employee@logiflow.de"
+                    placeholder={t("staff962")}
                     className="input-premium"
                   />
                 </div>
@@ -1763,7 +1748,7 @@ export default function EmployeesPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{language === "de" ? "Vertrag ab (from)" : "Contract From"}</label>
+                  <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">{t("staff1083")}</label>
                   <input
                     type="date"
                     required
@@ -1773,7 +1758,7 @@ export default function EmployeesPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{language === "de" ? "Vertrag bis (to)" : "Contract To"}</label>
+                  <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">{t("staff1084")}</label>
                   <input
                     type="date"
                     value={formEmploymentEnd}
@@ -1785,7 +1770,7 @@ export default function EmployeesPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Warehouse Assignment</label>
+                  <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]"> {t("staff963")} </label>
                   <select
                     value={formWarehouse}
                     onChange={(e) => {
@@ -1794,21 +1779,21 @@ export default function EmployeesPage() {
                     }}
                     className="input-premium"
                   >
-                    <option value="">None</option>
+                    <option value=""> {t("staff964")} </option>
                     {warehouses.map(w => (
                       <option key={w.id} value={w.id}>{w.name}</option>
                     ))}
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Hall Assignment</label>
+                  <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]"> {t("staff965")} </label>
                   <select
                     value={formHall}
                     onChange={(e) => setFormHall(e.target.value)}
                     disabled={!formWarehouse}
                     className="input-premium"
                   >
-                    <option value="">None</option>
+                    <option value=""> {t("staff964")} </option>
                     {halls.filter(h => h.warehouseId === formWarehouse).map(h => (
                       <option key={h.id} value={h.id}>{h.name}</option>
                     ))}
@@ -1817,12 +1802,12 @@ export default function EmployeesPage() {
               </div>
 
               <div className="space-y-1.5 text-xs">
-                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("telegramId")}</label>
+                <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">{t("telegramId")}</label>
                 <input
-                  type="text"
+                  dir="ltr" type="text"
                   value={formTelegram}
                   onChange={(e) => setFormTelegram(e.target.value)}
-                  placeholder="e.g. @username"
+                  placeholder={t("staff966")}
                   className="input-premium"
                 />
               </div>
@@ -1833,7 +1818,7 @@ export default function EmployeesPage() {
                   <span className="text-xs font-bold text-slate-800 block">
                     {t("hideWorkHoursPerEmployee")}
                   </span>
-                  <span className="text-[11px] text-slate-500 block">
+                  <span className="text-[11px] text-slate-600 block">
                     {t("hideWorkHoursPerEmployeeDesc")}
                   </span>
                 </div>
@@ -1848,7 +1833,7 @@ export default function EmployeesPage() {
               <div className="responsive-modal-actions px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-wrap justify-end gap-3 -mx-6 -mb-6">
                 <button
                   type="button"
-                  aria-label="Schließen" onClick={() => setAddModalOpen(false)}
+                  aria-label={t("close")} onClick={() => setAddModalOpen(false)}
                   className="btn-secondary py-1.5 px-4 cursor-pointer text-xs"
                 >
                   {t("close")}
@@ -1858,7 +1843,7 @@ export default function EmployeesPage() {
                   disabled={formLoading}
                   className="btn-primary py-1.5 px-4 cursor-pointer text-xs"
                 >
-                  {formLoading ? "Saving..." : t("saveSettings")}
+                  {formLoading ? t("planning886") : t("saveSettings")}
                 </button>
               </div>
             </form>
@@ -1872,7 +1857,7 @@ export default function EmployeesPage() {
           <div className="responsive-form-panel bg-white border border-slate-100 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-scaleIn">
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
               <h4 className="font-bold text-sm text-slate-800">{t("editEmployee")}</h4>
-              <button aria-label="Schließen" onClick={() => setEditModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer">
+              <button aria-label={t("close")} onClick={() => setEditModalOpen(false)} className="text-slate-600 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -1887,7 +1872,7 @@ export default function EmployeesPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("firstNameColumn")}</label>
+                  <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">{t("firstNameColumn")}</label>
                   <input
                     type="text"
                     required
@@ -1897,7 +1882,7 @@ export default function EmployeesPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("lastNameColumn")}</label>
+                  <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">{t("lastNameColumn")}</label>
                   <input
                     type="text"
                     value={formNachname}
@@ -1909,9 +1894,9 @@ export default function EmployeesPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("usernameLabel")}</label>
+                  <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">{t("usernameLabel")}</label>
                   <input
-                    type="text"
+                    dir="ltr" type="text"
                     required
                     value={formUsername}
                     onChange={(e) => setFormUsername(e.target.value)}
@@ -1919,7 +1904,7 @@ export default function EmployeesPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("passwordLabel")} (Leave blank to keep current)</label>
+                  <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">{t("passwordLabel")}  {t("staff967")} </label>
                   <input
                     type="password"
                     value={formPassword}
@@ -1932,9 +1917,9 @@ export default function EmployeesPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("phone")}</label>
+                  <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">{t("phone")}</label>
                   <input
-                    type="text"
+                    dir="ltr" type="text"
                     required
                     value={formPhone}
                     onChange={(e) => setFormPhone(e.target.value)}
@@ -1942,9 +1927,9 @@ export default function EmployeesPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("email")}</label>
+                  <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">{t("email")}</label>
                   <input
-                    type="email"
+                    dir="ltr" type="email"
                     value={formEmail}
                     onChange={(e) => setFormEmail(e.target.value)}
                     className="input-premium"
@@ -1954,21 +1939,21 @@ export default function EmployeesPage() {
 
               <div className="grid grid-cols-1 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
-                    {language === "de" ? "Adresse (Wohnort)" : "Address"}
+                  <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">
+                    {t("staff1216")}
                   </label>
                   <input
                     type="text"
                     value={formTreffpunkt}
                     onChange={(e) => setFormTreffpunkt(e.target.value)}
-                    placeholder="z.B. Duisburg, Musterstr. 12"
+                    placeholder={t("staff968")}
                     className="input-premium"
                   />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{language === "de" ? "Vertrag ab (from)" : "Contract From"}</label>
+                  <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">{t("staff1083")}</label>
                   <input
                     type="date"
                     required
@@ -1978,7 +1963,7 @@ export default function EmployeesPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{language === "de" ? "Vertrag bis (to)" : "Contract To"}</label>
+                  <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">{t("staff1084")}</label>
                   <input
                     type="date"
                     value={formEmploymentEnd}
@@ -1989,12 +1974,12 @@ export default function EmployeesPage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">{t("telegramId")}</label>
+                  <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">{t("telegramId")}</label>
                   <input
-                    type="text"
+                    dir="ltr" type="text"
                     value={formTelegram}
                     onChange={(e) => setFormTelegram(e.target.value)}
-                    placeholder="e.g. @username"
+                    placeholder={t("staff966")}
                     className="input-premium"
                   />
                 </div>
@@ -2002,7 +1987,7 @@ export default function EmployeesPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Warehouse Assignment</label>
+                  <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]"> {t("staff963")} </label>
                   <select
                     value={formWarehouse}
                     onChange={(e) => {
@@ -2011,21 +1996,21 @@ export default function EmployeesPage() {
                     }}
                     className="input-premium"
                   >
-                    <option value="">None</option>
+                    <option value=""> {t("staff964")} </option>
                     {warehouses.map(w => (
                       <option key={w.id} value={w.id}>{w.name}</option>
                     ))}
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Hall Assignment</label>
+                  <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]"> {t("staff965")} </label>
                   <select
                     value={formHall}
                     onChange={(e) => setFormHall(e.target.value)}
                     disabled={!formWarehouse}
                     className="input-premium"
                   >
-                    <option value="">None</option>
+                    <option value=""> {t("staff964")} </option>
                     {halls.filter(h => h.warehouseId === formWarehouse).map(h => (
                       <option key={h.id} value={h.id}>{h.name}</option>
                     ))}
@@ -2035,15 +2020,15 @@ export default function EmployeesPage() {
 
               {userRole === "MANAGER" && (
                 <div className="space-y-1.5 text-xs">
-                  <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Role</label>
+                  <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]"> {t("ui344")} </label>
                   <select
                     value={formRole}
                     onChange={(e) => setFormRole(e.target.value)}
                     className="input-premium"
                   >
-                    <option value="EMPLOYEE">EMPLOYEE</option>
-                    <option value="ADMIN">ADMIN (Promote to Admin)</option>
-                    <option value="MANAGER">MANAGER (Promote to Manager)</option>
+                    <option value="EMPLOYEE"> {t("roleEmployee")} </option>
+                    <option value="ADMIN"> {t("staff971")} </option>
+                    <option value="MANAGER"> {t("staff972")} </option>
                   </select>
                 </div>
               )}
@@ -2055,7 +2040,7 @@ export default function EmployeesPage() {
                     <span className="text-xs font-bold text-slate-800 block">
                       {t("hideWorkHoursPerEmployee")}
                     </span>
-                    <span className="text-[11px] text-slate-500 block">
+                    <span className="text-[11px] text-slate-600 block">
                       {t("hideWorkHoursPerEmployeeDesc")}
                     </span>
                   </div>
@@ -2077,7 +2062,7 @@ export default function EmployeesPage() {
               <div className="responsive-modal-actions px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-wrap justify-end gap-3 -mx-6 -mb-6">
                 <button
                   type="button"
-                  aria-label="Schließen" onClick={() => setEditModalOpen(false)}
+                  aria-label={t("close")} onClick={() => setEditModalOpen(false)}
                   className="btn-secondary py-1.5 px-4 cursor-pointer text-xs"
                 >
                   {t("close")}
@@ -2087,7 +2072,7 @@ export default function EmployeesPage() {
                   disabled={formLoading}
                   className="btn-primary py-1.5 px-4 cursor-pointer text-xs"
                 >
-                  {formLoading ? "Saving..." : t("saveSettings")}
+                  {formLoading ? t("planning886") : t("saveSettings")}
                 </button>
               </div>
             </form>
@@ -2104,16 +2089,15 @@ export default function EmployeesPage() {
               <div>
                 <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
                   <Mail className="w-4 h-4 text-blue-600" />
-                  Send Email
-                </h4>
-                <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
-                  To: <span className="text-blue-600 font-mono">{emailTargetEmp.email}</span>
+                   {t("staff973")} </h4>
+                <p className="text-[10px] text-slate-600 font-semibold mt-0.5">
+                   {t("staff974")} <span className="text-blue-600 font-mono">{emailTargetEmp.email}</span>
                   {" — "}{emailTargetEmp.name}
                 </p>
               </div>
               <button
-                aria-label="Schließen" onClick={() => setEmailModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                aria-label={t("close")} onClick={() => setEmailModalOpen(false)}
+                className="text-slate-600 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2138,15 +2122,15 @@ export default function EmployeesPage() {
 
               {/* Subject */}
               <div className="space-y-1.5 text-xs">
-                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
-                  Subject <span className="text-red-500">*</span>
+                <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">
+                   {t("staff975")} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
                   value={emailSubject}
                   onChange={(e) => setEmailSubject(e.target.value)}
-                  placeholder="e.g. Shift Schedule Update"
+                  placeholder={t("staff976")}
                   maxLength={200}
                   className="input-premium"
                 />
@@ -2154,31 +2138,30 @@ export default function EmployeesPage() {
 
               {/* Message */}
               <div className="space-y-1.5 text-xs">
-                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
-                  Message <span className="text-red-500">*</span>
+                <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">
+                   {t("staff977")} <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   required
                   value={emailMessage}
                   onChange={(e) => setEmailMessage(e.target.value)}
-                  placeholder="Type your message here..."
+                  placeholder={t("staff978")}
                   rows={6}
                   maxLength={5000}
                   className="input-premium resize-y min-h-[120px]"
                 />
-                <p className="text-[9px] text-slate-400 text-right mt-1 font-semibold">{emailMessage.length}/5000</p>
+                <p className="text-[9px] text-slate-600 text-right mt-1 font-semibold">{emailMessage.length}/5000</p>
               </div>
 
               {/* Footer Actions */}
               <div className="responsive-modal-actions px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-wrap justify-end gap-3 -mx-6 -mb-6">
                 <button
                   type="button"
-                  aria-label="Schließen" onClick={() => setEmailModalOpen(false)}
+                  aria-label={t("close")} onClick={() => setEmailModalOpen(false)}
                   disabled={emailLoading}
                   className="btn-secondary py-1.5 px-4 cursor-pointer text-xs"
                 >
-                  Close
-                </button>
+                   {t("close")} </button>
                 <button
                   type="submit"
                   disabled={emailLoading}
@@ -2187,13 +2170,11 @@ export default function EmployeesPage() {
                   {emailLoading ? (
                     <>
                       <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Sending...
-                    </>
+                       {t("planning791")} </>
                   ) : (
                     <>
                       <Send className="w-3.5 h-3.5" />
-                      Send Email
-                    </>
+                       {t("staff973")} </>
                   )}
                 </button>
               </div>

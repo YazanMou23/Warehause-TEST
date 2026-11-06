@@ -1,4 +1,5 @@
-'use client';
+"use client";
+import { useTranslation } from "../i18n/LanguageContext";
 
 import React, { useState, useEffect } from 'react';
 import { QrCode, X, Download, Printer, Copy, CheckCircle, MapPin, Warehouse } from 'lucide-react';
@@ -15,6 +16,7 @@ interface QRCodeModalProps {
 }
 
 export default function QRCodeModal({ isOpen, onClose, hall }: QRCodeModalProps) {
+ const { t, language, isRTL } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [qrSvgString, setQrSvgString] = useState<string>('');
@@ -95,7 +97,7 @@ export default function QRCodeModal({ isOpen, onClose, hall }: QRCodeModalProps)
     if (!printWin) return;
     printWin.document.write(`
       <!DOCTYPE html>
-      <html>
+      <html lang="${language}" dir="${isRTL ? 'rtl' : 'ltr'}">
         <head>
           <title>QR Code - ${hall.name}</title>
           <style>
@@ -110,11 +112,11 @@ export default function QRCodeModal({ isOpen, onClose, hall }: QRCodeModalProps)
         </head>
         <body>
           <div class="card">
-            <div class="badge">EINGANG / AUSGANG SCAN</div>
+            <div class="badge">${t("inventory1558")}</div>
             <h1>${hall.name}</h1>
-            <h2>${hall.warehouseName || 'Logistiklager'}</h2>
+            <h2>${hall.warehouseName || t("inventory1559")}</h2>
             <div class="qr-box">${qrSvgString}</div>
-            <p>Mitarbeiter: QR-Code beim Betreten &amp; Verlassen der Halle scannen um Arbeitszeit zu erfassen.</p>
+            <p>${t("inventory1560")}</p>
           </div>
           <script>window.onload = function() { window.print(); window.close(); }<\/script>
         </body>
@@ -137,15 +139,14 @@ export default function QRCodeModal({ isOpen, onClose, hall }: QRCodeModalProps)
         {/* Header */}
         <div className="text-center space-y-1.5 pt-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 text-xs font-bold uppercase tracking-wider mb-1">
-            <QrCode size={14} /> Hallen QR-Code (Ein- &amp; Ausgang)
-          </div>
+            <QrCode size={14} />  {t("inventory1552")} </div>
           <h3 className="text-2xl font-bold text-white tracking-tight flex items-center justify-center gap-2">
             <MapPin size={20} className="text-blue-400" />
             {hall.name}
           </h3>
           <p className="text-xs text-slate-400 flex items-center justify-center gap-1">
             <Warehouse size={13} className="text-slate-500" />
-            {hall.warehouseName || 'Logistikzentrum'}
+            {hall.warehouseName || t("inventory1553")}
           </p>
         </div>
 
@@ -162,13 +163,13 @@ export default function QRCodeModal({ isOpen, onClose, hall }: QRCodeModalProps)
                 style={{ imageRendering: 'pixelated', display: 'block' }}
               />
               <p className="text-[11px] font-semibold text-slate-600 mt-2 font-mono text-center">
-                {hall.name} &bull; {hall.warehouseName || 'Lager'}
+                {hall.name} &bull; {hall.warehouseName || t("warehouse")}
               </p>
             </>
           ) : (
             <div className="flex flex-col items-center gap-3 py-10">
               <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-              <p className="text-xs text-slate-400">QR-Code wird generiert…</p>
+              <p className="text-xs text-slate-400"> {t("inventory1554")} </p>
             </div>
           )}
         </div>
@@ -176,11 +177,9 @@ export default function QRCodeModal({ isOpen, onClose, hall }: QRCodeModalProps)
         {/* Info Box */}
         <div className="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3.5 text-xs text-slate-300 space-y-1">
           <p className="font-semibold text-blue-300 flex items-center gap-1.5">
-            <CheckCircle size={14} /> Vorarbeiter &amp; Admin Info:
-          </p>
+            <CheckCircle size={14} />  {t("inventory1555")} </p>
           <p className="text-slate-400 leading-relaxed">
-            Diesen QR-Code am Halleneingang anbringen. Mitarbeiter scannen ihn mit der App beim Kommen (Einstempeln) und Gehen (Ausstempeln).
-          </p>
+             {t("inventory1556")} </p>
         </div>
 
         {/* Actions Bar */}
@@ -199,16 +198,16 @@ export default function QRCodeModal({ isOpen, onClose, hall }: QRCodeModalProps)
             className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-blue-600/30 hover:bg-blue-600/40 text-blue-200 border border-blue-400/30 text-xs font-semibold transition-all cursor-pointer disabled:opacity-40"
           >
             <Download size={14} />
-            <span>SVG Speichern</span>
+            <span> {t("inventory1557")} </span>
           </button>
 
           <button
             onClick={handlePrint}
             disabled={!qrSvgString}
-            className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-all shadow-md cursor-pointer disabled:opacity-40"
+            className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold transition-all shadow-md cursor-pointer disabled:opacity-40"
           >
             <Printer size={14} />
-            <span>Drucken</span>
+            <span> {t("attendance1064")} </span>
           </button>
         </div>
       </div>

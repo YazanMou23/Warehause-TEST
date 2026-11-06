@@ -14,9 +14,11 @@ import {
   ArrowRight,
   Warehouse,
 } from "lucide-react";
+import LanguageSelector from "../components/LanguageSelector";
 import { useTranslation } from "../i18n/LanguageContext";
 
 function ResetPasswordForm() {
+  const { t: tx, locale: uiLocale } = useTranslation();
   const { t, language } = useTranslation();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -52,11 +54,11 @@ function ResetPasswordForm() {
     setError("");
 
     if (password !== confirmPassword) {
-      setError(language === "de" ? "Die Passwörter stimmen nicht überein." : "Passwords do not match.");
+      setError(tx("passwordsDoNotMatch"));
       return;
     }
     if (password.length < 8) {
-      setError(language === "de" ? "Das Passwort muss mindestens 8 Zeichen lang sein." : "Password must be at least 8 characters long.");
+      setError(tx("passwordMinLength"));
       return;
     }
 
@@ -71,10 +73,10 @@ function ResetPasswordForm() {
         }
       );
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Something went wrong.");
+      if (!response.ok) throw new Error(data.message || tx("ui520"));
       setStatus("success");
     } catch (err: any) {
-      setError(err.message || "Failed to reset password.");
+      setError(err.message || tx("ui522"));
     } finally {
       setIsSubmitting(false);
     }
@@ -85,7 +87,7 @@ function ResetPasswordForm() {
       <div className="flex flex-col items-center gap-3">
         <Loader2 className="w-7 h-7 animate-spin text-[#1d4ed8]" />
         <p className="text-[#64748b] text-sm">
-          {language === "de" ? "Link wird überprüft..." : "Validating link..."}
+          {tx("ui258")}
         </p>
       </div>
     );
@@ -99,18 +101,16 @@ function ResetPasswordForm() {
             <AlertCircle className="w-6 h-6 text-red-500" />
           </div>
           <h1 className="text-xl font-black text-[#0f172a]">
-            {language === "de" ? "Ungültiger Link" : "Invalid Link"}
+            {tx("ui259")}
           </h1>
           <p className="text-[#64748b] text-sm">
-            {language === "de"
-              ? "Dieser Link ist abgelaufen oder wurde bereits verwendet."
-              : "This link has expired or has already been used."}
+            {tx("ui260")}
           </p>
           <button
             onClick={() => router.push("/login")}
             className="w-full bg-[#f1f5f9] hover:bg-[#e2e8f0] text-[#0f172a] font-semibold py-2.5 px-4 rounded-xl transition-colors mt-2"
           >
-            {language === "de" ? "Zurück zum Login" : "Back to Login"}
+            {tx("ui254")}
           </button>
         </div>
       </div>
@@ -125,18 +125,16 @@ function ResetPasswordForm() {
             <CheckCircle className="w-6 h-6 text-green-600" />
           </div>
           <h1 className="text-xl font-black text-[#0f172a]">
-            {language === "de" ? "Passwort aktualisiert" : "Password Updated"}
+            {tx("ui261")}
           </h1>
           <p className="text-[#64748b] text-sm">
-            {language === "de"
-              ? "Ihr Passwort wurde erfolgreich geändert."
-              : "Your password has been successfully changed."}
+            {tx("ui262")}
           </p>
           <button
             onClick={() => router.push("/login")}
             className="w-full bg-[#1d4ed8] hover:bg-[#1d4ed8] text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-blue-200 transition-all flex items-center justify-center gap-2"
           >
-            {language === "de" ? "Zum Login" : "Go to Login"} <ArrowRight className="w-4 h-4" />
+            {tx("ui263")} <ArrowRight className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -150,12 +148,10 @@ function ResetPasswordForm() {
           <Lock className="w-5 h-5 text-[#1d4ed8]" />
         </div>
         <h1 className="text-2xl font-black text-[#0f172a] tracking-tight">
-          {language === "de" ? "Neues Passwort" : "New Password"}
+          {tx("newPasswordLabel")}
         </h1>
         <p className="text-[#64748b] text-sm mt-1">
-          {language === "de"
-            ? `Hallo ${userName}, wählen Sie Ihr neues Passwort.`
-            : `Hello ${userName}, set your new password.`}
+          {userName}: {tx("chooseNewPassword")}
         </p>
       </div>
 
@@ -170,7 +166,7 @@ function ResetPasswordForm() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <label className="block text-xs font-bold text-[#374151] uppercase tracking-wider">
-              {language === "de" ? "Neues Passwort" : "New Password"}
+              {tx("newPasswordLabel")}
             </label>
             <div className="relative">
               <Key className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9ca3af]" />
@@ -194,7 +190,7 @@ function ResetPasswordForm() {
 
           <div className="space-y-1.5">
             <label className="block text-xs font-bold text-[#374151] uppercase tracking-wider">
-              {language === "de" ? "Passwort bestätigen" : "Confirm Password"}
+              {tx("confirmPasswordLabel")}
             </label>
             <div className="relative">
               <Key className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9ca3af]" />
@@ -215,9 +211,9 @@ function ResetPasswordForm() {
             className="w-full bg-[#1d4ed8] hover:bg-[#1d4ed8] disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-blue-200 transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
           >
             {isSubmitting ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> {language === "de" ? "Speichern..." : "Saving..."}</>
+              <><Loader2 className="w-4 h-4 animate-spin" /> {tx("ui264")}</>
             ) : (
-              language === "de" ? "Passwort speichern" : "Save Password"
+              tx("ui265")
             )}
           </button>
         </form>
@@ -227,6 +223,7 @@ function ResetPasswordForm() {
 }
 
 export default function ResetPasswordPage() {
+  const { t: tx, locale: uiLocale } = useTranslation();
   const { language, changeLanguage } = useTranslation();
 
   return (
@@ -234,14 +231,7 @@ export default function ResetPasswordPage() {
       {/* Language Switcher */}
       <div className="absolute top-5 right-5 flex items-center gap-2 bg-white border border-[#e2e8f0] px-3 py-1.5 rounded-lg shadow-sm z-10">
         <Globe className="w-3.5 h-3.5 text-[#64748b]" />
-        <select
-          value={language}
-          onChange={(e) => changeLanguage(e.target.value as any)}
-          className="bg-transparent text-xs font-semibold text-[#64748b] outline-none cursor-pointer"
-        >
-          <option value="de">DE</option>
-          <option value="en">EN</option>
-        </select>
+          <LanguageSelector />
       </div>
 
       {/* Brand */}
@@ -249,7 +239,7 @@ export default function ResetPasswordPage() {
         <div className="w-8 h-8 bg-[#1d4ed8] rounded-lg flex items-center justify-center">
           <Warehouse className="w-5 h-5 text-white" />
         </div>
-        <span className="font-black text-[#0f172a] text-lg">LogiFlow</span>
+        <span className="font-black text-[#0f172a] text-lg">{tx("appName")}</span>
       </div>
 
       <Suspense
@@ -263,8 +253,7 @@ export default function ResetPasswordPage() {
       </Suspense>
 
       <p className="text-center text-[11px] text-[#94a3b8] mt-8">
-        LogiFlow Warehouse Management System
-      </p>
+        {tx("ui245")}</p>
     </div>
   );
 }

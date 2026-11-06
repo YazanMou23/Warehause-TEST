@@ -1,4 +1,5 @@
 "use client";
+import { useTranslation } from "../../i18n/LanguageContext";
 
 import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -45,6 +46,7 @@ interface HallItem {
 }
 
 function HallsPageContent() {
+ const { t, locale } = useTranslation();
   const [halls, setHalls] = useState<HallItem[]>([]);
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>([]);
 
@@ -179,7 +181,7 @@ function HallsPageContent() {
       if (!res.ok) {
         const errJson = await res.json();
         const msg = Array.isArray(errJson.message) ? errJson.message.join(", ") : errJson.message;
-        throw new Error(msg || "Failed to create hall");
+        throw new Error(msg || t("inventory1378"));
       }
 
       setNewHallName("");
@@ -187,7 +189,7 @@ function HallsPageContent() {
       setCreateModalOpen(false);
       await fetchHalls();
     } catch (err: any) {
-      setCreateError(err.message || "Network error occurred.");
+      setCreateError(err.message || t("inventory1339"));
     } finally {
       setCreateLoading(false);
     }
@@ -220,14 +222,14 @@ function HallsPageContent() {
       if (!res.ok) {
         const errJson = await res.json();
         const msg = Array.isArray(errJson.message) ? errJson.message.join(", ") : errJson.message;
-        throw new Error(msg || "Failed to update hall");
+        throw new Error(msg || t("inventory1379"));
       }
 
       setEditModalOpen(false);
       setEditingHall(null);
       await fetchHalls();
     } catch (err: any) {
-        setEditError(err.message || "Network error occurred.");
+        setEditError(err.message || t("inventory1339"));
     } finally {
       setEditLoading(false);
     }
@@ -266,7 +268,7 @@ function HallsPageContent() {
       setQuickColorHall(null);
       await fetchHalls();
     } catch (err: any) {
-        setQuickColorError(err.message || "Could not update hall color.");
+        setQuickColorError(err.message || t("inventory1380"));
     } finally {
       setQuickColorLoading(false);
     }
@@ -317,11 +319,9 @@ function HallsPageContent() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-stack-md">
         <div>
           <h2 className="font-headline-lg font-bold tracking-tight text-on-surface">
-            Warehouse Halls
-          </h2>
+             {t("inventory1340")} </h2>
           <p className="text-on-surface-variant font-body-sm">
-            Configure logistics staging sectors, track utilization, and assign floor teams.
-          </p>
+             {t("inventory1341")} </p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -334,8 +334,7 @@ function HallsPageContent() {
               className="bg-primary text-on-primary px-5 py-2.5 rounded-lg font-label-md uppercase tracking-wider flex items-center gap-2 hover:bg-neutral-800 transition-colors shadow-sm"
             >
               <Plus className="w-4 h-4" />
-              Configure Staging Hall
-            </button>
+               {t("inventory1342")} </button>
           )}
         </div>
       </div>
@@ -347,16 +346,15 @@ function HallsPageContent() {
         <div className="flex flex-wrap items-center gap-3">
           {/* Warehouse Dropdown Filter */}
           <div className="relative">
-            <label className="block text-[10px] text-outline uppercase tracking-wider font-bold mb-1">
-              Filter by Facility
-            </label>
+            <label className="block text-[10px] text-on-surface-variant uppercase tracking-wider font-bold mb-1">
+               {t("inventory1343")} </label>
             <div className="relative">
               <select
                 value={selectedWhId}
                 onChange={(e) => setSelectedWhId(e.target.value)}
                 className="appearance-none bg-surface-container-low border border-outline-variant rounded-lg pl-3 pr-10 py-2 text-body-sm focus:ring-1 focus:ring-secondary focus:border-secondary outline-none text-on-surface font-medium cursor-pointer"
               >
-                <option value="">All Facilities</option>
+                <option value=""> {t("inventory1344")} </option>
                 {warehouses.map((wh) => (
                   <option key={wh.id} value={wh.id}>
                     {wh.name}
@@ -369,9 +367,8 @@ function HallsPageContent() {
 
           {/* Capacity Filters */}
           <div>
-            <label className="block text-[10px] text-outline uppercase tracking-wider font-bold mb-1">
-              Staging Capacity
-            </label>
+            <label className="block text-[10px] text-on-surface-variant uppercase tracking-wider font-bold mb-1">
+               {t("inventory1334")} </label>
             <div className="flex border border-outline-variant rounded-lg overflow-hidden bg-surface-container-low text-body-sm font-semibold">
               <button
                 onClick={() => setCapacityFilter("all")}
@@ -381,8 +378,7 @@ function HallsPageContent() {
                     : "hover:bg-surface-container-high text-on-surface-variant"
                 }`}
               >
-                All
-              </button>
+                 {t("filterAll")} </button>
               <button
                 onClick={() => setCapacityFilter("small")}
                 className={`px-3 py-2 border-r border-outline-variant last:border-0 transition-colors ${
@@ -390,10 +386,9 @@ function HallsPageContent() {
                     ? "bg-secondary text-white"
                     : "hover:bg-surface-container-high text-on-surface-variant"
                 }`}
-                title="Capacity <= 100 units"
+                title={t("inventory1345")}
               >
-                Small (≤100)
-              </button>
+                 {t("inventory1346")} </button>
               <button
                 onClick={() => setCapacityFilter("medium")}
                 className={`px-3 py-2 border-r border-outline-variant last:border-0 transition-colors ${
@@ -401,10 +396,9 @@ function HallsPageContent() {
                     ? "bg-secondary text-white"
                     : "hover:bg-surface-container-high text-on-surface-variant"
                 }`}
-                title="Capacity 101 to 300 units"
+                title={t("inventory1347")}
               >
-                Medium (101-300)
-              </button>
+                 {t("inventory1348")} </button>
               <button
                 onClick={() => setCapacityFilter("large")}
                 className={`px-3 py-2 border-r border-outline-variant last:border-0 transition-colors ${
@@ -412,18 +406,16 @@ function HallsPageContent() {
                     ? "bg-secondary text-white"
                     : "hover:bg-surface-container-high text-on-surface-variant"
                 }`}
-                title="Capacity > 300 units"
+                title={t("inventory1349")}
               >
-                Large (&gt;300)
-              </button>
+                 {t("inventory1350")} </button>
             </div>
           </div>
         </div>
 
-        <div className="text-right shrink-0">
-          <span className="text-[11px] font-mono text-outline font-semibold uppercase tracking-wider">
-            Showing {filteredHalls.length} of {halls.length} Zones
-          </span>
+        <div className="text-end shrink-0">
+          <span className="text-[11px] font-mono text-on-surface-variant font-semibold uppercase tracking-wider">
+             {t("inventory1351")} {filteredHalls.length}  {t("ui435")} {halls.length}  {t("inventory1352")} </span>
         </div>
       </div>
 
@@ -433,10 +425,10 @@ function HallsPageContent() {
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-secondary"></div>
         </div>
       ) : filteredHalls.length === 0 ? (
-        <div className="bg-white border border-outline-variant rounded-xl p-stack-lg text-center text-outline">
+        <div className="bg-white border border-outline-variant rounded-xl p-stack-lg text-center text-on-surface-variant">
           <GridIcon className="w-12 h-12 mx-auto mb-3 opacity-40" />
-          <h5 className="font-bold text-on-surface text-body-lg mb-1">No Hall Zones Found</h5>
-          <p className="text-body-sm">No staging halls match your filter selections.</p>
+          <h5 className="font-bold text-on-surface text-body-lg mb-1"> {t("inventory1353")} </h5>
+          <p className="text-body-sm"> {t("inventory1354")} </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-stack-md">
@@ -447,10 +439,10 @@ function HallsPageContent() {
             const occupancyPct = Math.round((containers.length / capacity) * 100);
 
             // Staging status
-            let statusLabel = "Active";
+            let statusLabel = t("active");
             let statusBadge = "bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400";
             if (occupancyPct > 85) {
-              statusLabel = "Full Load";
+              statusLabel = t("inventory1355");
               statusBadge = "bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400";
             } else if (users.length === 0) {
               statusLabel = "Unstaffed";
@@ -482,7 +474,7 @@ function HallsPageContent() {
                         <button
                           onClick={() => setSelectedQrHall(hall)}
                           className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-[10px] font-bold transition-all cursor-pointer border border-blue-200"
-                          title="QR-Code für Ein- & Ausgang anzeigen"
+                          title={t("inventory1356")}
                         >
                           <QrCode className="w-3 h-3" />
                           <span>QR-Code</span>
@@ -500,14 +492,14 @@ function HallsPageContent() {
                               setEditModalOpen(true);
                             }}
                             className="p-1 text-on-surface-variant hover:text-blue-600 hover:bg-blue-50 rounded transition-colors cursor-pointer"
-                            title="Edit Hall"
+                            title={t("inventory1357")}
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => setConfirmDeleteId(hall.id)}
                             className="p-1 text-on-surface-variant hover:text-error hover:bg-error-container/20 rounded transition-colors cursor-pointer"
-                            title="Delete Hall"
+                            title={t("inventory1358")}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -531,14 +523,14 @@ function HallsPageContent() {
                         color: hallColor,
                         borderColor: `${hallColor}40`,
                       }}
-                      title="Klicken, um Farbe anzupassen"
+                      title={t("inventory1359")}
                     >
                       <span className="w-2.5 h-2.5 rounded-full shadow-2xs" style={{ backgroundColor: hallColor }}></span>
                       <span>{hallColor}</span>
                       <Palette className="w-3 h-3 opacity-70 ml-0.5" />
                     </button>
                   </div>
-                  <p className="text-outline text-[12px] flex items-center gap-1 mb-4 font-semibold uppercase tracking-wider">
+                  <p className="text-on-surface-variant text-[12px] flex items-center gap-1 mb-4 font-semibold uppercase tracking-wider">
                     <WarehouseIcon className="w-3.5 h-3.5" />
                     {hall.warehouse?.name || "Duisburg Port Hub"}
                   </p>
@@ -546,18 +538,16 @@ function HallsPageContent() {
                   {/* Hall Details */}
                   <div className="grid grid-cols-2 gap-4 py-3 border-y border-outline-variant mb-4 text-xs font-semibold">
                     <div>
-                      <span className="text-[10px] text-outline uppercase tracking-wider block">Assigned Staff</span>
+                      <span className="text-[10px] text-on-surface-variant uppercase tracking-wider block"> {t("inventory1360")} </span>
                       <span className="font-mono text-body-md text-on-surface flex items-center gap-1.5 mt-1">
                         <Users className="w-3.5 h-3.5 text-secondary" />
-                        {users.length} Active
-                      </span>
+                        {users.length}  {t("active")} </span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-outline uppercase tracking-wider block">Containers</span>
+                      <span className="text-[10px] text-on-surface-variant uppercase tracking-wider block"> {t("containers")} </span>
                       <span className="font-mono text-body-md text-on-surface flex items-center gap-1.5 mt-1">
                         <Layers className="w-3.5 h-3.5 text-secondary" />
-                        {containers.length} Cargo
-                      </span>
+                        {containers.length}  {t("inventory1361")} </span>
                     </div>
                   </div>
                 </div>
@@ -566,9 +556,8 @@ function HallsPageContent() {
                 <div className="space-y-1 mt-2">
                   <div className="flex justify-between items-center text-[11px] font-semibold text-on-surface-variant">
                     <span className="flex items-center gap-1">
-                      <Percent className="w-3.5 h-3.5 text-outline" /> Occupancy Level
-                    </span>
-                    <span className="font-mono">{containers.length} / {capacity} Units</span>
+                      <Percent className="w-3.5 h-3.5 text-on-surface-variant" />  {t("inventory1362")} </span>
+                    <span className="font-mono">{containers.length} / {capacity}  {t("inventory1307")} </span>
                   </div>
                   <div className="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
                     <div
@@ -600,19 +589,17 @@ function HallsPageContent() {
               <X className="w-5 h-5" />
             </button>
 
-            <h3 className="font-bold text-body-lg text-on-surface mb-1">Configure Hall Staging Sector</h3>
+            <h3 className="font-bold text-body-lg text-on-surface mb-1"> {t("inventory1363")} </h3>
             <p className="text-on-surface-variant text-xs mb-4">
-              Add a new staging sector to an operational warehouse facility.
-            </p>
+               {t("inventory1364")} </p>
 
             <form onSubmit={handleCreateHall} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-1">
-                  Staging Sector Name
-                </label>
+                   {t("inventory1332")} </label>
                 <input
                   type="text"
-                  placeholder="e.g. Hall C - Cold Storage"
+                  placeholder={t("inventory1365")}
                   value={newHallName}
                   onChange={(e) => setNewHallName(e.target.value)}
                   className="w-full px-3.5 py-2 border border-outline-variant rounded-lg text-body-sm focus:ring-1 focus:ring-secondary focus:border-secondary outline-none bg-surface-container-low"
@@ -622,15 +609,14 @@ function HallsPageContent() {
 
               <div>
                 <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-1">
-                  Assign Warehouse Location
-                </label>
+                   {t("inventory1366")} </label>
                 <select
                   value={newHallWhId}
                   onChange={(e) => setNewHallWhId(e.target.value)}
                   className="w-full px-3.5 py-2 border border-outline-variant rounded-lg text-body-sm focus:ring-1 focus:ring-secondary focus:border-secondary outline-none bg-surface-container-low font-medium cursor-pointer"
                   required
                 >
-                  <option value="" disabled>Select Depot...</option>
+                  <option value="" disabled> {t("inventory1367")} </option>
                   {warehouses.map((wh) => (
                     <option key={wh.id} value={wh.id}>
                       {wh.name}
@@ -641,8 +627,7 @@ function HallsPageContent() {
 
               <div>
                 <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-1">
-                  Maximum Container Capacity
-                </label>
+                   {t("inventory1368")} </label>
                 <input
                   type="number"
                   placeholder="100"
@@ -657,7 +642,7 @@ function HallsPageContent() {
               <HallColorPicker
                 color={newHallColor}
                 onChange={setNewHallColor}
-                label="Hallen-Farbsystem & Customizing"
+                label={t("inventory1369")}
               />
 
               {createError && (
@@ -673,14 +658,13 @@ function HallsPageContent() {
                   onClick={() => setCreateModalOpen(false)}
                   className="px-4 py-2 border border-outline-variant hover:bg-surface-container-high rounded-lg text-label-md transition-colors"
                 >
-                  Cancel
-                </button>
+                   {t("ui336")} </button>
                 <button
                   type="submit"
                   disabled={createLoading}
                   className="px-4 py-2 bg-secondary text-white hover:bg-secondary-container rounded-lg text-label-md transition-colors font-bold disabled:opacity-50"
                 >
-                  {createLoading ? "Saving..." : "Configure Sector"}
+                  {createLoading ? "Saving..." : t("inventory1370")}
                 </button>
               </div>
             </form>
@@ -702,19 +686,17 @@ function HallsPageContent() {
               <X className="w-5 h-5" />
             </button>
 
-            <h3 className="font-bold text-body-lg text-on-surface mb-1">Edit Hall Staging Sector</h3>
+            <h3 className="font-bold text-body-lg text-on-surface mb-1"> {t("inventory1371")} </h3>
             <p className="text-on-surface-variant text-xs mb-4">
-              Update staging sector configurations and custom color assignment.
-            </p>
+               {t("inventory1372")} </p>
 
             <form onSubmit={handleEditHall} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-1">
-                  Staging Sector Name
-                </label>
+                   {t("inventory1332")} </label>
                 <input
                   type="text"
-                  placeholder="e.g. Hall C - Cold Storage"
+                  placeholder={t("inventory1365")}
                   value={editHallName}
                   onChange={(e) => setEditHallName(e.target.value)}
                   className="w-full px-3.5 py-2 border border-outline-variant rounded-lg text-body-sm focus:ring-1 focus:ring-secondary focus:border-secondary outline-none bg-surface-container-low"
@@ -724,15 +706,14 @@ function HallsPageContent() {
 
               <div>
                 <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-1">
-                  Assign Warehouse Location
-                </label>
+                   {t("inventory1366")} </label>
                 <select
                   value={editHallWhId}
                   onChange={(e) => setEditHallWhId(e.target.value)}
                   className="w-full px-3.5 py-2 border border-outline-variant rounded-lg text-body-sm focus:ring-1 focus:ring-secondary focus:border-secondary outline-none bg-surface-container-low font-medium cursor-pointer"
                   required
                 >
-                  <option value="" disabled>Select Depot...</option>
+                  <option value="" disabled> {t("inventory1367")} </option>
                   {warehouses.map((wh) => (
                     <option key={wh.id} value={wh.id}>
                       {wh.name}
@@ -743,8 +724,7 @@ function HallsPageContent() {
 
               <div>
                 <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-1">
-                  Maximum Container Capacity
-                </label>
+                   {t("inventory1368")} </label>
                 <input
                   type="number"
                   placeholder="100"
@@ -759,7 +739,7 @@ function HallsPageContent() {
               <HallColorPicker
                 color={editHallColor}
                 onChange={setEditHallColor}
-                label="Hallen-Farbsystem & Customizing"
+                label={t("inventory1369")}
               />
 
               {editError && (
@@ -778,14 +758,13 @@ function HallsPageContent() {
                   }}
                   className="px-4 py-2 border border-outline-variant hover:bg-surface-container-high rounded-lg text-label-md transition-colors cursor-pointer"
                 >
-                  Cancel
-                </button>
+                   {t("ui336")} </button>
                 <button
                   type="submit"
                   disabled={editLoading}
                   className="px-4 py-2 bg-secondary text-white hover:bg-secondary-container rounded-lg text-label-md transition-colors font-bold disabled:opacity-50 cursor-pointer"
                 >
-                  {editLoading ? "Saving..." : "Save Changes"}
+                  {editLoading ? "Saving..." : t("planning769")}
                 </button>
               </div>
             </form>
@@ -799,11 +778,9 @@ function HallsPageContent() {
           <div className="bg-white border border-outline-variant rounded-xl max-w-sm w-full p-stack-md shadow-2xl relative">
             <h3 className="font-bold text-body-lg text-on-surface mb-2 flex items-center gap-2">
               <AlertTriangle className="w-6 h-6 text-red-600 shrink-0" />
-              Remove Staging Sector?
-            </h3>
+               {t("inventory1373")} </h3>
             <p className="text-on-surface-variant text-xs mb-4">
-              This action soft-deactivates the staging sector. Active employees assigned to this sector will be unassigned.
-            </p>
+               {t("inventory1374")} </p>
 
             <div className="flex justify-end gap-2">
               <button
@@ -811,14 +788,13 @@ function HallsPageContent() {
                 onClick={() => setConfirmDeleteId(null)}
                 className="px-4 py-2 border border-outline-variant hover:bg-surface-container-high rounded-lg text-label-md transition-colors"
               >
-                Cancel
-              </button>
+                 {t("ui336")} </button>
               <button
                 onClick={handleDeleteHall}
                 disabled={deleteLoading}
                 className="px-4 py-2 bg-error text-white hover:bg-red-700 rounded-lg text-label-md transition-colors font-bold disabled:opacity-50"
               >
-                {deleteLoading ? "Processing..." : "Deactivate Sector"}
+                {deleteLoading ? "Processing..." : t("inventory1358")}
               </button>
             </div>
           </div>
@@ -847,7 +823,7 @@ function HallsPageContent() {
                 <Palette className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-bold text-body-lg text-on-surface">Farbe für Halle anpassen</h3>
+                <h3 className="font-bold text-body-lg text-on-surface"> {t("inventory1375")} </h3>
                 <p className="text-on-surface-variant text-xs">{quickColorHall.name}</p>
               </div>
             </div>
@@ -856,7 +832,7 @@ function HallsPageContent() {
               <HallColorPicker
                 color={quickColorHex}
                 onChange={setQuickColorHex}
-                label="Farbe auswählen oder neu gestalten"
+                label={t("inventory1376")}
               />
 
               {quickColorError && (
@@ -875,15 +851,14 @@ function HallsPageContent() {
                   }}
                   className="px-4 py-2 border border-outline-variant hover:bg-surface-container-high rounded-lg text-label-md transition-colors cursor-pointer"
                 >
-                  Abbrechen
-                </button>
+                   {t("ui336")} </button>
                 <button
                   type="submit"
                   disabled={quickColorLoading}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-label-md transition-colors font-bold disabled:opacity-50 cursor-pointer flex items-center gap-1.5 shadow-sm"
                 >
                   <Palette className="w-3.5 h-3.5" />
-                  {quickColorLoading ? "Wird gespeichert..." : "Farbe anwenden"}
+                  {quickColorLoading ? t("planning886") : t("inventory1377")}
                 </button>
               </div>
             </form>
@@ -909,6 +884,7 @@ function HallsPageContent() {
 }
 
 export default function HallsPage() {
+ const { t, locale } = useTranslation();
   return (
     <Suspense fallback={
       <div className="flex items-center justify-center min-h-[60vh]">

@@ -1,4 +1,6 @@
 "use client";
+import { documentStatusLabel } from "../../i18n/statusLabels";
+import { useTranslation } from "../../i18n/LanguageContext";
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -34,6 +36,7 @@ interface BatchSummary {
 }
 
 export default function DocumentsPage() {
+  const { t: tx } = useTranslation();
   const router = useRouter();
   const [batches, setBatches] = useState<BatchSummary[]>([]);
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
@@ -88,15 +91,12 @@ export default function DocumentsPage() {
         <div className="space-y-1">
           <div className="flex items-center space-x-2">
             <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-blue-500/10 text-blue-700 border border-blue-500/20">
-              Universal Document Capture & AI Engine
-            </span>
+              {tx("ui371")}</span>
           </div>
           <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
-            Dokumenten-Erfassung & KI-Pipeline
-          </h1>
+            {tx("ui372")}</h1>
           <p className="text-xs md:text-sm text-slate-600 max-w-2xl">
-            Erfasse Dokumente über WLAN-Scanner, Live-Kamera oder Datei-Upload in eine streng sequentielle KI-Verarbeitungswarteschlange mit automatischer CRM-Datenextraktion.
-          </p>
+            {tx("ui373")}</p>
         </div>
 
         <div className="flex items-center space-x-3">
@@ -106,7 +106,7 @@ export default function DocumentsPage() {
             className="flex items-center space-x-2 px-6 py-3.5 bg-gold hover:bg-gold-hover text-on-gold font-bold text-sm rounded-2xl shadow-sm  transition-all  "
           >
             <Plus className="w-5 h-5" />
-            <span>Dokumente erfassen</span>
+            <span>{tx("ui374")}</span>
           </button>
         </div>
       </div>
@@ -115,38 +115,38 @@ export default function DocumentsPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-1">
           <div className="flex items-center justify-between text-slate-600 text-xs">
-            <span>Gesamt erfasst</span>
+            <span>{tx("ui375")}</span>
             <Layers className="w-4 h-4 text-blue-700" />
           </div>
           <p className="text-2xl font-black text-slate-900">{totalIngested}</p>
-          <span className="text-[11px] text-slate-600">Dokumente in {batches.length} Stapeln</span>
+          <span className="text-[11px] text-slate-600">{tx("ui376")}{batches.length} {tx("ui377")}</span>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-1">
           <div className="flex items-center justify-between text-slate-600 text-xs">
-            <span>KI-Verarbeitet</span>
+            <span>{tx("ui378")}</span>
             <CheckCircle2 className="w-4 h-4 text-emerald-700" />
           </div>
           <p className="text-2xl font-black text-emerald-700">{totalCompleted}</p>
-          <span className="text-[11px] text-slate-600">Erfolgreich im CRM persistiert</span>
+          <span className="text-[11px] text-slate-600">{tx("ui379")}</span>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-1">
           <div className="flex items-center justify-between text-slate-600 text-xs">
-            <span>Aktive Warteschlangen</span>
+            <span>{tx("ui380")}</span>
             <Clock className="w-4 h-4 text-purple-700" />
           </div>
           <p className="text-2xl font-black text-purple-700">{activeBatchesCount}</p>
-          <span className="text-[11px] text-slate-600">Sequentielle Worker (Concurrency=1)</span>
+          <span className="text-[11px] text-slate-600">{tx("ui381")}</span>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-1">
           <div className="flex items-center justify-between text-slate-600 text-xs">
-            <span>Erfolgsquote</span>
+            <span>{tx("ui382")}</span>
             <TrendingUp className="w-4 h-4 text-cyan-700" />
           </div>
           <p className="text-2xl font-black text-cyan-700">{successRate}%</p>
-          <span className="text-[11px] text-slate-600">OCR & GPT-4o Validierung</span>
+          <span className="text-[11px] text-slate-600">{tx("ui383")}</span>
         </div>
       </div>
 
@@ -157,13 +157,13 @@ export default function DocumentsPage() {
           <div className="flex items-center justify-between pb-3 border-b border-slate-200">
             <div className="flex items-center space-x-2 text-sm font-bold text-slate-900">
               <FolderOpen className="w-4 h-4 text-blue-700" />
-              <span>Verarbeitungsstapel</span>
+              <span>{tx("ui384")}</span>
             </div>
             <button
               type="button"
               onClick={fetchBatches}
               className="p-1 text-slate-600 hover:text-slate-900 transition-colors"
-              title="Aktualisieren"
+              title={tx("planning827")}
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
@@ -195,14 +195,13 @@ export default function DocumentsPage() {
                           : "bg-blue-500/10 text-blue-700 border-blue-500/20 "
                       }`}
                     >
-                      {b.status}
+                      {documentStatusLabel(b.status, tx)}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between text-xs text-slate-600 mt-2">
                     <span>
-                      {b.completedCount}/{b.totalDocuments} fertig
-                    </span>
+                      {b.completedCount}/{b.totalDocuments} {tx("ui385")}</span>
                     <span>{new Date(b.createdAt).toLocaleDateString("de-DE")}</span>
                   </div>
                 </div>
@@ -212,14 +211,13 @@ export default function DocumentsPage() {
             {batches.length === 0 && !loading && (
               <div className="text-center py-12 text-slate-600 text-xs space-y-3">
                 <Layers className="w-8 h-8 mx-auto text-slate-600" />
-                <p>Noch keine Dokumentenstapel vorhanden.</p>
+                <p>{tx("ui386")}</p>
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(true)}
                   className="text-blue-700 hover:text-blue-700 font-semibold text-xs"
                 >
-                  Ersten Stapel anlegen →
-                </button>
+                  {tx("ui387")}</button>
               </div>
             )}
           </div>
@@ -237,19 +235,16 @@ export default function DocumentsPage() {
               <FileScan className="w-12 h-12 mx-auto text-slate-600" />
               <div className="space-y-1">
                 <p className="text-base font-semibold text-slate-900">
-                  Kein Dokumentenstapel ausgewählt
-                </p>
+                  {tx("ui388")}</p>
                 <p className="text-xs text-slate-600">
-                  Wähle einen Stapel aus der linken Liste oder erfasse neue Dokumente.
-                </p>
+                  {tx("ui389")}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(true)}
                 className="px-5 py-2.5 bg-gold hover:bg-gold-hover text-on-gold text-xs font-semibold rounded-xl transition-colors shadow-lg "
               >
-                + Neue Dokumente erfassen
-              </button>
+                {tx("ui390")}</button>
             </div>
           )}
         </div>

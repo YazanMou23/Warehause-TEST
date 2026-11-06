@@ -1,4 +1,5 @@
 "use client";
+import { useTranslation } from "../i18n/LanguageContext";
 
 import React, { useEffect, useRef, useState } from "react";
 import { CheckCircle2, AlertTriangle, Info, XCircle, HelpCircle, X } from "lucide-react";
@@ -30,7 +31,7 @@ const TYPE_CONFIG = {
     badgeBg: "#dcfce7",
     badgeText: "#15803d",
     badgeLabel: "Erfolg",
-    confirmBg: "#16a34a",
+    confirmBg: "#15803d",
     confirmHover: "#15803d",
     accent: "#16a34a",
     headerBorder: "#bbf7d0",
@@ -54,7 +55,7 @@ const TYPE_CONFIG = {
     badgeBg: "#fef3c7",
     badgeText: "#b45309",
     badgeLabel: "Achtung",
-    confirmBg: "#d97706",
+    confirmBg: "#b45309",
     confirmHover: "#b45309",
     accent: "#d97706",
     headerBorder: "#fde68a",
@@ -100,6 +101,8 @@ export default function CustomAlertModal({
   onClose,
 }: CustomAlertModalProps) {
   const cfg = TYPE_CONFIG[type] || TYPE_CONFIG.info;
+  const { t } = useTranslation();
+  const badgeLabel = t(({ success: "success", error: "ui526", warning: "inventory1605", info: "ui606", prompt: "inventory1606" } as const)[type]);
   const Icon = cfg.icon;
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -246,7 +249,7 @@ export default function CustomAlertModal({
                   marginBottom: "4px",
                 }}
               >
-                {cfg.badgeLabel}
+                {badgeLabel}
               </span>
               <h4
                 id="custom-alert-modal-title"
@@ -258,7 +261,7 @@ export default function CustomAlertModal({
                   lineHeight: "1.3",
                 }}
               >
-                {title || cfg.badgeLabel}
+                {title || badgeLabel}
               </h4>
             </div>
           </div>
@@ -288,7 +291,7 @@ export default function CustomAlertModal({
               (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
               (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8";
             }}
-            aria-label="Schließen"
+            aria-label={t("close")}
           >
             <X style={{ width: "16px", height: "16px" }} />
           </button>

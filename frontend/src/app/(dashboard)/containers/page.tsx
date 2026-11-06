@@ -1,4 +1,5 @@
 "use client";
+import { useTranslation } from "../../i18n/LanguageContext";
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -62,6 +63,7 @@ interface EmployeeData {
 }
 
 export default function ContainersPage() {
+ const { t, locale } = useTranslation();
   const [containers, setContainers] = useState<Container[]>([]);
   const [warehouses, setWarehouses] = useState<WarehouseData[]>([]);
   const [halls, setHalls] = useState<HallData[]>([]);
@@ -153,14 +155,14 @@ export default function ContainersPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.message || "Failed to update container");
+        throw new Error(data.message || t("inventory1411"));
       }
 
       setIsMoveModalOpen(false);
-      setMessage({ text: "Container erfolgreich aktualisiert!", type: "success" });
+      setMessage({ text: t("inventory1412"), type: "success" });
       loadData();
     } catch (err: any) {
-      setMessage({ text: err.message || "Fehler beim Aktualisieren des Containers.", type: "error" });
+      setMessage({ text: err.message || t("inventory1413"), type: "error" });
     } finally {
       setSubmitting(false);
     }
@@ -240,7 +242,7 @@ export default function ContainersPage() {
 
     if (newHallId === "create_new") {
       if (!inlineHallName.trim()) {
-        setMessage({ text: "Bitte geben Sie einen Namen für die neue Halle ein.", type: "error" });
+        setMessage({ text: t("inventory1414"), type: "error" });
         setSubmitting(false);
         return;
       }
@@ -269,7 +271,7 @@ export default function ContainersPage() {
         }]);
         targetHallId = hallData.id;
       } catch (err: any) {
-        setMessage({ text: err.message || "Halle konnte nicht erstellt werden.", type: "error" });
+        setMessage({ text: err.message || t("inventory1378"), type: "error" });
         setSubmitting(false);
         return;
       }
@@ -277,7 +279,7 @@ export default function ContainersPage() {
 
 
     if (!targetHallId) {
-      setMessage({ text: "Bitte wählen Sie eine Halle aus.", type: "error" });
+      setMessage({ text: t("inventory1415"), type: "error" });
       setSubmitting(false);
       return;
     }
@@ -302,15 +304,15 @@ export default function ContainersPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.message || "Failed to add container");
+        throw new Error(data.message || t("inventory1416"));
       }
 
       setIsModalOpen(false);
       resetAddForm();
-      setMessage({ text: "Container erfolgreich im System registriert!", type: "success" });
+      setMessage({ text: t("inventory1417"), type: "success" });
       loadData();
     } catch (err: any) {
-      setMessage({ text: err.message || "Fehler beim Erstellen des Containers.", type: "error" });
+      setMessage({ text: err.message || t("inventory1418"), type: "error" });
     } finally {
       setSubmitting(false);
     }
@@ -327,11 +329,11 @@ export default function ContainersPage() {
 
   const handleDeleteContainer = (id: string) => {
     showAlert({
-      title: "Container löschen",
-      message: "Möchten Sie diesen Container wirklich aus dem System löschen?",
+      title: t("inventory1419"),
+      message: t("inventory1420"),
       type: "warning",
-      confirmText: "Löschen",
-      cancelText: "Abbrechen",
+      confirmText: t("deleteEntry"),
+      cancelText: t("ui336"),
       onConfirm: async () => {
         const token = localStorage.getItem("accessToken");
         if (!token) return;
@@ -344,13 +346,13 @@ export default function ContainersPage() {
 
           if (!res.ok) {
             const data = await res.json();
-            throw new Error(data.message || "Failed to delete container");
+            throw new Error(data.message || t("inventory1421"));
           }
 
-          setMessage({ text: "Container erfolgreich ausgetragen.", type: "success" });
+          setMessage({ text: t("inventory1422"), type: "success" });
           loadData();
         } catch (err: any) {
-          setMessage({ text: err.message || "Fehler beim Löschen des Containers.", type: "error" });
+          setMessage({ text: err.message || t("inventory1423"), type: "error" });
         }
       },
     });
@@ -421,17 +423,15 @@ export default function ContainersPage() {
       {/* Title */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h3 className="text-2xl font-extrabold text-slate-800 tracking-tight">Container-Arbeitsverwaltung</h3>
-          <p className="text-slate-500 text-xs mt-1">
-            Verwalten Sie im System aktive Container, dokumentieren Sie Arbeitszeiten und teilen Sie Personal ein.
-          </p>
+          <h3 className="text-2xl font-extrabold text-slate-800 tracking-tight"> {t("inventory1381")} </h3>
+          <p className="text-slate-600 text-xs mt-1">
+             {t("inventory1382")} </p>
         </div>
         <button
           onClick={() => setIsModalOpen(true)}
           className="bg-[#1d4ed8] hover:bg-blue-700 text-white text-xs font-bold py-2.5 px-4 rounded-lg flex items-center gap-2 cursor-pointer shadow-sm"
         >
-          <Plus className="w-4 h-4" /> Container registrieren
-        </button>
+          <Plus className="w-4 h-4" />  {t("inventory1383")} </button>
       </div>
 
 
@@ -440,10 +440,10 @@ export default function ContainersPage() {
       <div className="bg-white border border-slate-100 p-5 rounded-xl shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
         {/* Search */}
         <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search className="w-4 h-4 absolute start-3 top-1/2 -translate-y-1/2 text-slate-600" />
           <input
             type="text"
-            placeholder="Containernummer suchen..."
+            placeholder={t("inventory1384")}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-10 pr-3 py-2 text-xs text-slate-700 outline-none focus:border-blue-400 transition-colors"
@@ -452,10 +452,9 @@ export default function ContainersPage() {
 
         {/* Status Filters */}
         <div className="flex items-center gap-2 self-start md:self-auto text-xs">
-          <Filter className="w-3.5 h-3.5 text-slate-400" />
-          <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-            Status:
-          </span>
+          <Filter className="w-3.5 h-3.5 text-slate-600" />
+          <span className="text-slate-600 font-bold uppercase tracking-wider text-[10px]">
+             {t("timesheet1208")} </span>
           <div className="bg-slate-50 p-1 rounded-lg border border-slate-100 flex gap-1">
             {["ALL", "FULL", "EMPTY"].map((status) => (
               <button
@@ -464,10 +463,10 @@ export default function ContainersPage() {
                 className={`px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
                   statusFilter === status
                     ? "bg-[#1d4ed8] text-white shadow-sm"
-                    : "text-slate-500 hover:bg-slate-100/55"
+                    : "text-slate-600 hover:bg-slate-100/55"
                 }`}
               >
-                {status === "ALL" ? "Alle" : status === "FULL" ? "Voll (Full)" : "Leer (Empty)"}
+                {status === "ALL" ? t("filterAll") : status === "FULL" ? t("inventory1386") : t("inventory1387")}
               </button>
             ))}
           </div>
@@ -477,22 +476,21 @@ export default function ContainersPage() {
       {/* Container Table */}
       <div className="bg-white border border-slate-100 rounded-xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-start border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                <th className="px-6 py-3">Containernummer</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Lagerort / Halle</th>
-                <th className="px-4 py-3">Arbeitsstunden / Personal</th>
-                <th className="px-6 py-3 text-right pr-6">Aktionen</th>
+              <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                <th className="px-6 py-3"> {t("inventory1388")} </th>
+                <th className="px-4 py-3"> {t("statusColumn")} </th>
+                <th className="px-4 py-3"> {t("inventory1389")} </th>
+                <th className="px-4 py-3"> {t("inventory1390")} </th>
+                <th className="px-6 py-3 text-end pr-6"> {t("actionsColumn")} </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs text-slate-600">
               {filteredContainers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-12 text-slate-400 italic">
-                    Keine registrierten Container gefunden.
-                  </td>
+                  <td colSpan={5} className="text-center py-12 text-slate-600 italic">
+                     {t("inventory1391")} </td>
                 </tr>
               ) : (
                 filteredContainers.map((c) => (
@@ -508,23 +506,23 @@ export default function ContainersPage() {
                             : "bg-slate-100 text-slate-600"
                         }`}
                       >
-                        {c.status}
+                        {c.status === "FULL" ? t("inventory1386") : t("inventory1387")}
                       </span>
                     </td>
                     <td className="px-4 py-3.5">
                       <div className="flex flex-col">
                         <span className="font-semibold text-slate-850">{c.warehouseName}</span>
-                        <span className="text-[10px] text-slate-400">{c.hallName}</span>
+                        <span className="text-[10px] text-slate-600">{c.hallName}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3.5 space-y-1">
                       <div className="flex items-center gap-1 text-slate-700 font-bold">
                         <Clock className="w-3.5 h-3.5 text-blue-600" />
-                        <span>{c.workedHours || 0} Std.</span>
+                        <span>{c.workedHours || 0}  {t("ui358")} </span>
                       </div>
                       <div className="flex flex-wrap gap-1 max-w-[200px]">
                         {!c.employees || c.employees.length === 0 ? (
-                          <span className="text-[10px] text-slate-400">Kein Personal</span>
+                          <span className="text-[10px] text-slate-600"> {t("inventory1392")} </span>
                         ) : (
                           c.employees.map((ref) => (
                             <span key={ref.employee.id} className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[9px]">
@@ -534,11 +532,11 @@ export default function ContainersPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-3.5 text-right pr-6 space-x-1.5">
+                    <td className="px-6 py-3.5 text-end pr-6 space-x-1.5">
                       <button
                         onClick={() => handleViewHistory(c)}
-                        className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer inline-flex"
-                        title="Verlauf / Audit Log ansehen"
+                        className="p-1.5 text-slate-600 hover:text-blue-600 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer inline-flex"
+                        title={t("inventory1393")}
                       >
                         <History className="w-3.5 h-3.5" />
                       </button>
@@ -554,15 +552,15 @@ export default function ContainersPage() {
                           setMoveAssignedEmployeeIds((c.employees || []).map((e) => e.employee.id));
                           setIsMoveModalOpen(true);
                         }}
-                        className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer inline-flex"
-                        title="Bearbeiten / Verschieben"
+                        className="p-1.5 text-slate-600 hover:text-blue-600 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer inline-flex"
+                        title={t("inventory1394")}
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => handleDeleteContainer(c.id)}
-                        className="p-1.5 text-slate-400 hover:text-red-650 rounded-lg hover:bg-red-50 transition-colors cursor-pointer inline-flex"
-                        title="Löschen"
+                        className="p-1.5 text-slate-600 hover:text-red-650 rounded-lg hover:bg-red-50 transition-colors cursor-pointer inline-flex"
+                        title={t("deleteEntry")}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -581,11 +579,10 @@ export default function ContainersPage() {
           <div className="max-w-md w-full bg-white border border-slate-100 rounded-2xl shadow-2xl overflow-hidden animate-scaleIn">
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
               <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-                <Package className="w-4 h-4 text-blue-600" /> Container registrieren (Worked Container)
-              </h4>
+                <Package className="w-4 h-4 text-blue-600" />  {t("inventory1395")} </h4>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                className="text-slate-600 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -594,9 +591,8 @@ export default function ContainersPage() {
             <form onSubmit={handleAddContainer} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
               {/* Container Number */}
               <div className="space-y-1.5 text-xs">
-                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
-                  Containernummer
-                </label>
+                <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">
+                   {t("inventory1388")} </label>
                 <input
                   type="text"
                   required
@@ -609,24 +605,22 @@ export default function ContainersPage() {
 
               {/* Status Select */}
               <div className="space-y-1.5 text-xs">
-                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
-                  Status
-                </label>
+                <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">
+                   {t("statusColumn")} </label>
                 <select
                   value={newStatus}
                   onChange={(e) => setNewStatus(e.target.value as any)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 outline-none"
                 >
-                  <option value="EMPTY">EMPTY</option>
-                  <option value="FULL">FULL</option>
+                  <option value="EMPTY">{t("inventory1387")}</option>
+                  <option value="FULL">{t("inventory1386")}</option>
                 </select>
               </div>
 
               {/* Worked Hours */}
               <div className="space-y-1.5 text-xs">
-                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
-                  Geleistete Arbeitsstunden (Worked Hours)
-                </label>
+                <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">
+                   {t("inventory1396")} </label>
                 <input
                   type="number"
                   step="0.1"
@@ -639,13 +633,12 @@ export default function ContainersPage() {
 
               {/* Notes */}
               <div className="space-y-1.5 text-xs">
-                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
-                  Notizen (Notes)
-                </label>
+                <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">
+                   {t("inventory1398")} </label>
                 <textarea
                   value={newNotes}
                   onChange={(e) => setNewNotes(e.target.value)}
-                  placeholder="Hinweise zur Ladung oder Bearbeitung..."
+                  placeholder={t("inventory1399")}
                   rows={2}
                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 outline-none resize-none"
                 />
@@ -653,9 +646,8 @@ export default function ContainersPage() {
 
               {/* Employee Assignment checkboxes */}
               <div className="space-y-1.5 text-xs">
-                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
-                  Mitarbeiter zuweisen (Assign Staff)
-                </label>
+                <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">
+                   {t("inventory1400")} </label>
                 <div className="max-h-28 overflow-y-auto border border-slate-100 rounded-lg p-2 divide-y divide-slate-50 bg-slate-50/50">
                   {employeesList.map((emp) => (
                     <label key={emp.id} className="flex items-center gap-2 py-1.5 px-1 cursor-pointer hover:bg-slate-100 rounded">
@@ -673,9 +665,8 @@ export default function ContainersPage() {
 
               {/* Warehouse Select */}
               <div className="space-y-1.5 text-xs">
-                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
-                  Lager (Warehouse)
-                </label>
+                <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">
+                   {t("warehouse")} </label>
                 <select
                   value={newWarehouseId}
                   onChange={(e) => setNewWarehouseId(e.target.value)}
@@ -691,33 +682,32 @@ export default function ContainersPage() {
 
               {/* Hall Select */}
               <div className="space-y-1.5 text-xs">
-                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
-                  Halle (Hall Staging)
-                </label>
+                <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">
+                   {t("planning716")} </label>
                 <select
                   value={newHallId}
                   onChange={(e) => setNewHallId(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 outline-none"
                 >
-                  <option value="" disabled>Halle auswählen...</option>
+                  <option value="" disabled> {t("inventory1401")} </option>
                   {filteredHalls.map((h) => (
                     <option key={h.id} value={h.id}>
                       {h.name}
                     </option>
                   ))}
-                  <option value="create_new" className="text-blue-600 font-bold">+ Neue Halle anlegen...</option>
+                  <option value="create_new" className="text-blue-600 font-bold"> {t("inventory1402")} </option>
                 </select>
               </div>
 
               {/* Inline Hall Form */}
               {newHallId === "create_new" && (
                 <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg space-y-2 text-xs">
-                  <span className="text-[10px] text-blue-600 font-bold uppercase tracking-wider block">Halle konfigurieren</span>
+                  <span className="text-[10px] text-blue-600 font-bold uppercase tracking-wider block"> {t("inventory1403")} </span>
                   <div className="space-y-1">
-                    <label className="text-[9px] font-bold text-slate-400 uppercase">Hallenname</label>
+                    <label className="text-[9px] font-bold text-slate-600 uppercase"> {t("inventory1332")} </label>
                     <input
                       type="text"
-                      placeholder="z.B. Halle D"
+                      placeholder={t("inventory1715")}
                       value={inlineHallName}
                       onChange={(e) => setInlineHallName(e.target.value)}
                       className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none"
@@ -725,7 +715,7 @@ export default function ContainersPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[9px] font-bold text-slate-400 uppercase">Kapazität</label>
+                    <label className="text-[9px] font-bold text-slate-600 uppercase"> {t("inventory1404")} </label>
                     <input
                       type="number"
                       placeholder="100"
@@ -745,14 +735,13 @@ export default function ContainersPage() {
                   onClick={() => setIsModalOpen(false)}
                   className="bg-slate-200 hover:bg-slate-350 text-slate-700 text-xs font-bold py-1.5 px-4 rounded-lg cursor-pointer transition-colors"
                 >
-                  Abbrechen
-                </button>
+                   {t("ui336")} </button>
                 <button
                   type="submit"
                   disabled={submitting || !newHallId || !newContainerNumber}
                   className="bg-[#1d4ed8] hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold py-1.5 px-4 rounded-lg cursor-pointer transition-colors"
                 >
-                  {submitting ? "Speichert..." : "Hinzufügen"}
+                  {submitting ? "Speichert..." : t("planning731")}
                 </button>
               </div>
             </form>
@@ -766,11 +755,10 @@ export default function ContainersPage() {
           <div className="max-w-md w-full bg-white border border-slate-100 rounded-2xl shadow-2xl overflow-hidden animate-scaleIn">
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
               <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-                <Package className="w-4 h-4 text-blue-650" /> Container bearbeiten / verlegen
-              </h4>
+                <Package className="w-4 h-4 text-blue-650" />  {t("inventory1405")} </h4>
               <button
                 onClick={() => setIsMoveModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                className="text-slate-600 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -779,9 +767,8 @@ export default function ContainersPage() {
             <form onSubmit={handleMoveContainer} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
               {/* Containernummer */}
               <div className="space-y-1.5 text-xs">
-                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
-                  Containernummer
-                </label>
+                <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">
+                   {t("inventory1388")} </label>
                 <input
                   type="text"
                   required
@@ -793,24 +780,22 @@ export default function ContainersPage() {
 
               {/* Status Select */}
               <div className="space-y-1.5 text-xs">
-                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
-                  Status
-                </label>
+                <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">
+                   {t("statusColumn")} </label>
                 <select
                   value={moveStatus}
                   onChange={(e) => setMoveStatus(e.target.value as any)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 outline-none"
                 >
-                  <option value="EMPTY">EMPTY</option>
-                  <option value="FULL">FULL</option>
+                  <option value="EMPTY">{t("inventory1387")}</option>
+                  <option value="FULL">{t("inventory1386")}</option>
                 </select>
               </div>
 
               {/* Worked Hours */}
               <div className="space-y-1.5 text-xs">
-                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
-                  Geleistete Stunden (Worked Hours)
-                </label>
+                <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">
+                   {t("inventory1397")} </label>
                 <input
                   type="number"
                   step="0.1"
@@ -823,13 +808,12 @@ export default function ContainersPage() {
 
               {/* Notes */}
               <div className="space-y-1.5 text-xs">
-                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
-                  Notizen (Notes)
-                </label>
+                <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">
+                   {t("inventory1398")} </label>
                 <textarea
                   value={moveNotes}
                   onChange={(e) => setMoveNotes(e.target.value)}
-                  placeholder="Bearbeitungsinformationen..."
+                  placeholder={t("inventory1714")}
                   rows={2}
                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 outline-none resize-none"
                 />
@@ -837,9 +821,8 @@ export default function ContainersPage() {
 
               {/* Employee Assignment checkboxes */}
               <div className="space-y-1.5 text-xs">
-                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
-                  Mitarbeiter zuweisen (Assign Staff)
-                </label>
+                <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">
+                   {t("inventory1400")} </label>
                 <div className="max-h-28 overflow-y-auto border border-slate-100 rounded-lg p-2 divide-y divide-slate-50 bg-slate-50/50">
                   {employeesList.map((emp) => (
                     <label key={emp.id} className="flex items-center gap-2 py-1.5 px-1 cursor-pointer hover:bg-slate-100 rounded">
@@ -857,9 +840,8 @@ export default function ContainersPage() {
 
               {/* Warehouse Select */}
               <div className="space-y-1.5 text-xs">
-                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
-                  Ziel-Lager (Warehouse)
-                </label>
+                <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">
+                   {t("inventory1406")} </label>
                 <select
                   value={moveWarehouseId}
                   onChange={(e) => handleMoveWarehouseChange(e.target.value)}
@@ -875,9 +857,8 @@ export default function ContainersPage() {
 
               {/* Hall Select */}
               <div className="space-y-1.5 text-xs">
-                <label className="block font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
-                  Ziel-Halle (Hall)
-                </label>
+                <label className="block font-semibold text-slate-600 uppercase tracking-widest text-[10px]">
+                   {t("inventory1407")} </label>
                 <select
                   value={moveHallId}
                   onChange={(e) => setMoveHallId(e.target.value)}
@@ -900,14 +881,13 @@ export default function ContainersPage() {
                   onClick={() => setIsMoveModalOpen(false)}
                   className="bg-slate-200 hover:bg-slate-350 text-slate-700 text-xs font-bold py-1.5 px-4 rounded-lg cursor-pointer transition-colors"
                 >
-                  Abbrechen
-                </button>
+                   {t("ui336")} </button>
                 <button
                   type="submit"
                   disabled={submitting || !moveHallId || !moveContainerNumber}
                   className="bg-[#1d4ed8] hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold py-1.5 px-4 rounded-lg cursor-pointer transition-colors"
                 >
-                  {submitting ? "Speichert..." : "Übernehmen"}
+                  {submitting ? "Speichert..." : t("apply")}
                 </button>
               </div>
             </form>
@@ -922,15 +902,14 @@ export default function ContainersPage() {
             <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <div>
                 <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
-                  <History className="w-4.5 h-4.5 text-blue-600" /> Container-Verlauf
-                </h4>
-                <p className="text-[10px] text-slate-400 font-bold font-mono mt-0.5 uppercase">
+                  <History className="w-4.5 h-4.5 text-blue-600" />  {t("inventory1408")} </h4>
+                <p className="text-[10px] text-slate-600 font-bold font-mono mt-0.5 uppercase">
                   {activeContainer.containerNumber}
                 </p>
               </div>
               <button
                 onClick={() => setIsHistoryOpen(false)}
-                className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-200 rounded-lg cursor-pointer"
+                className="text-slate-600 hover:text-slate-700 p-1.5 hover:bg-slate-200 rounded-lg cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -940,12 +919,11 @@ export default function ContainersPage() {
               {historyLoading ? (
                 <div className="flex flex-col items-center justify-center h-48 space-y-2">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  <span className="text-xs text-slate-400 font-bold">Verlauf wird geladen...</span>
+                  <span className="text-xs text-slate-600 font-bold"> {t("inventory1409")} </span>
                 </div>
               ) : historyLogs.length === 0 ? (
-                <div className="text-center py-12 text-slate-400 text-xs italic">
-                  Keine Verlaufsprotokolle für diesen Container gefunden.
-                </div>
+                <div className="text-center py-12 text-slate-600 text-xs italic">
+                   {t("inventory1410")} </div>
               ) : (
                 <div className="relative border-l border-slate-200 pl-4 space-y-4 py-2">
                   {historyLogs.map((log) => (
@@ -954,20 +932,20 @@ export default function ContainersPage() {
                       <span className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full bg-blue-600 border border-white" />
                       
                       <div className="bg-slate-50 border border-slate-100 p-3 rounded-lg space-y-1">
-                        <div className="flex items-center justify-between text-[9px] text-slate-400 font-bold">
+                        <div className="flex items-center justify-between text-[9px] text-slate-600 font-bold">
                           <span>
-                            {new Date(log.timestamp).toLocaleDateString("de-DE", {
+                            {new Date(log.timestamp).toLocaleDateString(locale, {
                               hour: "2-digit",
                               minute: "2-digit",
                             })}
                           </span>
                           <span className="flex items-center gap-0.5 text-slate-600">
                             <User className="w-2.5 h-2.5" />
-                            {log.user?.name || "System"}
+                            {log.user?.name || t("ui367")}
                           </span>
                         </div>
                         <p className="font-bold text-slate-750">{log.action.replace("_", " ")}</p>
-                        <p className="text-[11px] text-slate-500 leading-normal">{log.details}</p>
+                        <p className="text-[11px] text-slate-600 leading-normal">{log.details}</p>
                       </div>
                     </div>
                   ))}
@@ -980,8 +958,7 @@ export default function ContainersPage() {
                 onClick={() => setIsHistoryOpen(false)}
                 className="w-full bg-[#1d4ed8] hover:bg-blue-750 text-white font-bold text-xs py-2 rounded-lg cursor-pointer"
               >
-                Schließen
-              </button>
+                 {t("close")} </button>
             </div>
           </div>
         </div>
@@ -1002,12 +979,12 @@ export default function ContainersPage() {
             <AlertTriangle className="w-4.5 h-4.5 shrink-0 mt-0.5 text-red-650" />
           )}
           <div>
-            <p className="font-bold text-slate-800">{message.type === "success" ? "Erfolg" : "Fehler aufgetreten"}</p>
-            <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{message.text}</p>
+            <p className="font-bold text-slate-800">{message.type === "success" ? t("success") : "Fehler aufgetreten"}</p>
+            <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">{message.text}</p>
           </div>
           <button
             onClick={() => setMessage({ text: "", type: "" })}
-            className="text-slate-400 hover:text-slate-700 ml-auto p-0.5 rounded cursor-pointer"
+            className="text-slate-600 hover:text-slate-700 ml-auto p-0.5 rounded cursor-pointer"
           >
             <X className="w-3.5 h-3.5" />
           </button>

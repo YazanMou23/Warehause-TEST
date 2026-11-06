@@ -1,4 +1,5 @@
 "use client";
+import { useTranslation } from "../i18n/LanguageContext";
 
 import React, {
   createContext,
@@ -50,6 +51,7 @@ interface ActiveDialogState extends CustomAlertOptions {
 }
 
 export function DialogProvider({ children }: { children: React.ReactNode }) {
+  const { t: tx } = useTranslation();
   const [dialogState, setDialogState] = useState<ActiveDialogState>({
     isOpen: false,
     message: "",
@@ -74,7 +76,7 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
         resolverRef.current = () => resolve();
         setDialogState({
           isOpen: true,
-          title: opts.title || (opts.type === "error" ? "Fehler" : opts.type === "success" ? "Erfolg" : opts.type === "warning" ? "Hinweis" : "Information"),
+          title: opts.title || (opts.type === "error" ? tx("ui526") : opts.type === "success" ? tx("success") : opts.type === "warning" ? tx("ui606") : tx("ui607")),
           message: opts.message,
           type: opts.type || "info",
           confirmText: opts.confirmText || "OK",
@@ -90,7 +92,7 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
         });
       });
     },
-    []
+    [tx]
   );
 
   const showConfirm = useCallback(
@@ -102,11 +104,11 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
         resolverRef.current = (result: boolean) => resolve(Boolean(result));
         setDialogState({
           isOpen: true,
-          title: opts.title || "Bestätigung erforderlich",
+          title: opts.title || tx("ui608"),
           message: opts.message,
           type: opts.type || "warning",
-          confirmText: opts.confirmText || "Bestätigen",
-          cancelText: opts.cancelText || "Abbrechen",
+          confirmText: opts.confirmText || tx("ui609"),
+          cancelText: opts.cancelText || tx("ui336"),
           onConfirm: () => {
             resolve(true);
             resolverRef.current = null;
@@ -118,7 +120,7 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
         });
       });
     },
-    []
+    [tx]
   );
 
   const showPrompt = useCallback(
@@ -130,14 +132,14 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
         resolverRef.current = (result: string | null) => resolve(result);
         setDialogState({
           isOpen: true,
-          title: opts.title || "Eingabe erforderlich",
+          title: opts.title || tx("ui610"),
           message: opts.message,
           type: "prompt",
-          inputPlaceholder: opts.placeholder || "Bitte Text eingeben...",
+          inputPlaceholder: opts.placeholder || tx("enterText"),
           defaultValue: opts.defaultValue || "",
           inputType: opts.inputType || "text",
-          confirmText: opts.confirmText || "Übernehmen",
-          cancelText: opts.cancelText || "Abbrechen",
+          confirmText: opts.confirmText || tx("apply"),
+          cancelText: opts.cancelText || tx("ui336"),
           onConfirm: (inputValue?: string) => {
             resolve(inputValue !== undefined ? inputValue : "");
             resolverRef.current = null;
@@ -149,7 +151,7 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
         });
       });
     },
-    []
+    [tx]
   );
 
   // Safety layer: Intercept browser-native dialogs and route to custom dialogs
@@ -162,7 +164,7 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
 
     window.alert = (msg?: any) => {
       showAlert({
-        title: "Hinweis",
+        title: tx("ui606"),
         message: String(msg ?? ""),
         type: "info",
       });
@@ -170,7 +172,7 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
 
     window.confirm = (msg?: any) => {
       showAlert({
-        title: "Bestätigung",
+        title: tx("ui608"),
         message: String(msg ?? ""),
         type: "warning",
       });
@@ -180,7 +182,7 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
 
     window.prompt = (msg?: any, defaultVal?: string) => {
       showPrompt({
-        title: "Eingabe",
+        title: tx("ui610"),
         message: String(msg ?? ""),
         defaultValue: defaultVal || "",
       });

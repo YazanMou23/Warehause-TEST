@@ -84,6 +84,7 @@ interface PlanItem {
 }
 
 export default function DashboardPage() {
+  const { t: tx, locale: uiLocale } = useTranslation();
   const { t, language } = useTranslation();
   const [metrics, setMetrics] = useState<Metrics>({
     employeesCount: 0,
@@ -180,7 +181,7 @@ export default function DashboardPage() {
       } else {
         showAlert({
           title: t("errorOccurred"),
-          message: "Fehler beim Ändern der Sichtbarkeit",
+          message: t("staff899"),
           type: "error",
         });
       }
@@ -188,7 +189,7 @@ export default function DashboardPage() {
       console.error(e);
       showAlert({
         title: t("errorOccurred"),
-        message: "Verbindungsfehler beim Ändern der Sichtbarkeit",
+        message: t("staff900"),
         type: "error",
       });
     } finally {
@@ -302,11 +303,11 @@ export default function DashboardPage() {
   const handleBulkDeletePlans = () => {
     if (selectedPlanIds.length === 0) return;
     showAlert({
-      title: "Schichtpläne löschen",
-      message: `Sind Sie sicher, dass Sie die ${selectedPlanIds.length} ausgewählten Schichtpläne löschen möchten?`,
+      title: t("inventory1658"),
+      message: t("inventory1675").replace("{count}", String(selectedPlanIds.length)),
       type: "warning",
-      confirmText: "Löschen",
-      cancelText: "Abbrechen",
+      confirmText: tx("deleteEntry"),
+      cancelText: tx("ui336"),
       onConfirm: async () => {
         const token = localStorage.getItem("accessToken");
         try {
@@ -322,13 +323,13 @@ export default function DashboardPage() {
           if (res.ok) {
             setSelectedPlanIds([]);
             fetchPlans(selectedDate, showAllPlans);
-            showAlert({ title: "Erfolg", message: "Ausgewählte Schichtpläne wurden gelöscht.", type: "success" });
+            showAlert({ title: tx("success"), message: t("inventory1659"), type: "success" });
           } else {
-            showAlert({ title: "Fehler", message: "Schichtpläne konnten nicht gelöscht werden.", type: "error" });
+            showAlert({ title: tx("ui526"), message: t("inventory1660"), type: "error" });
           }
         } catch (e) {
           console.error(e);
-          showAlert({ title: "Fehler", message: "Fehler beim Löschen der Schichtpläne.", type: "error" });
+          showAlert({ title: tx("ui526"), message: t("inventory1661"), type: "error" });
         }
       },
     });
@@ -337,11 +338,11 @@ export default function DashboardPage() {
   const handleBulkDuplicatePlans = () => {
     if (selectedPlanIds.length === 0) return;
     showAlert({
-      title: "Schichtpläne duplizieren",
-      message: `Sind Sie sicher, dass Sie die ${selectedPlanIds.length} ausgewählten Schichtpläne duplizieren möchten?`,
+      title: t("inventory1662"),
+      message: t("inventory1676").replace("{count}", String(selectedPlanIds.length)),
       type: "info",
-      confirmText: "Duplizieren",
-      cancelText: "Abbrechen",
+      confirmText: tx("ui312"),
+      cancelText: tx("ui336"),
       onConfirm: async () => {
         const token = localStorage.getItem("accessToken");
         try {
@@ -357,13 +358,13 @@ export default function DashboardPage() {
           if (res.ok) {
             setSelectedPlanIds([]);
             fetchPlans(selectedDate, showAllPlans);
-            showAlert({ title: "Erfolg", message: "Schichtpläne wurden erfolgreich dupliziert.", type: "success" });
+            showAlert({ title: tx("success"), message: t("inventory1663"), type: "success" });
           } else {
-            showAlert({ title: "Fehler", message: "Schichtpläne konnten nicht dupliziert werden.", type: "error" });
+            showAlert({ title: tx("ui526"), message: t("inventory1664"), type: "error" });
           }
         } catch (e) {
           console.error(e);
-          showAlert({ title: "Fehler", message: "Fehler beim Duplizieren der Schichtpläne.", type: "error" });
+          showAlert({ title: tx("ui526"), message: t("inventory1665"), type: "error" });
         }
       },
     });
@@ -386,13 +387,13 @@ export default function DashboardPage() {
       if (res.ok) {
         setSelectedPlanIds([]);
         fetchPlans(selectedDate, showAllPlans);
-        showAlert({ title: "Erfolg", message: "Halle für ausgewählte Pläne erfolgreich geändert.", type: "success" });
+        showAlert({ title: tx("success"), message: t("inventory1666"), type: "success" });
       } else {
-        showAlert({ title: "Fehler", message: "Hallenänderung fehlgeschlagen.", type: "error" });
+        showAlert({ title: tx("ui526"), message: t("inventory1667"), type: "error" });
       }
     } catch (e) {
       console.error(e);
-      showAlert({ title: "Fehler", message: "Fehler beim Ändern der Halle.", type: "error" });
+      showAlert({ title: tx("ui526"), message: t("inventory1668"), type: "error" });
     }
   };
 
@@ -413,13 +414,13 @@ export default function DashboardPage() {
       if (res.ok) {
         setSelectedPlanIds([]);
         fetchPlans(selectedDate, showAllPlans);
-        showAlert({ title: "Erfolg", message: "Schicht für ausgewählte Pläne erfolgreich geändert.", type: "success" });
+        showAlert({ title: tx("success"), message: t("inventory1669"), type: "success" });
       } else {
-        showAlert({ title: "Fehler", message: "Schichtänderung fehlgeschlagen.", type: "error" });
+        showAlert({ title: tx("ui526"), message: t("inventory1670"), type: "error" });
       }
     } catch (e) {
       console.error(e);
-      showAlert({ title: "Fehler", message: "Fehler beim Ändern der Schicht.", type: "error" });
+      showAlert({ title: tx("ui526"), message: t("inventory1671"), type: "error" });
     }
   };
 
@@ -440,13 +441,13 @@ export default function DashboardPage() {
       if (res.ok) {
         setSelectedPlanIds([]);
         fetchPlans(selectedDate, showAllPlans);
-        showAlert({ title: "Erfolg", message: "Mitarbeiter erfolgreich für ausgewählte Pläne zugewiesen.", type: "success" });
+        showAlert({ title: tx("success"), message: t("inventory1672"), type: "success" });
       } else {
-        showAlert({ title: "Fehler", message: "Mitarbeiterzuweisung fehlgeschlagen.", type: "error" });
+        showAlert({ title: tx("ui526"), message: t("inventory1673"), type: "error" });
       }
     } catch (e) {
       console.error(e);
-      showAlert({ title: "Fehler", message: "Fehler beim Zuweisen der Mitarbeiter.", type: "error" });
+      showAlert({ title: tx("ui526"), message: t("inventory1674"), type: "error" });
     }
   };
 
@@ -468,15 +469,15 @@ export default function DashboardPage() {
           body: JSON.stringify({ employeeId: employeeInfo.id }),
         });
         if (res.ok) {
-          showAlert({ title: "Ausgestempelt", message: "Erfolgreich ausgestempelt!", type: "success", onConfirm: () => window.location.reload() });
+          showAlert({ title: tx("clockedOut"), message: tx("ui527"), type: "success", onConfirm: () => window.location.reload() });
         } else {
           const data = await res.json();
-          showAlert({ title: "Fehler", message: data.message || "Ausstempeln fehlgeschlagen.", type: "error" });
+          showAlert({ title: tx("ui526"), message: data.message || tx("ui528"), type: "error" });
         }
       } else {
         // Clock In
         if (!clockInWarehouseId || !clockInHallId) {
-          showAlert({ title: "Hinweis", message: "Bitte wählen Sie ein Lager und eine Halle zum Einstempeln aus.", type: "warning" });
+          showAlert({ title: t("ui606"), message: tx("ui529"), type: "warning" });
           setClockLoading(false);
           return;
         }
@@ -490,15 +491,15 @@ export default function DashboardPage() {
           }),
         });
         if (res.ok) {
-          showAlert({ title: "Eingestempelt", message: "Erfolgreich eingestempelt!", type: "success", onConfirm: () => window.location.reload() });
+          showAlert({ title: tx("clockedIn"), message: tx("ui530"), type: "success", onConfirm: () => window.location.reload() });
         } else {
           const data = await res.json();
-          showAlert({ title: "Fehler", message: data.message || "Einstempeln fehlgeschlagen.", type: "error" });
+          showAlert({ title: tx("ui526"), message: data.message || tx("ui531"), type: "error" });
         }
       }
     } catch (e) {
       console.error(e);
-      showAlert({ title: "Fehler", message: "Ein Fehler ist bei der Zeiterfassung aufgetreten.", type: "error" });
+      showAlert({ title: tx("ui526"), message: tx("ui532"), type: "error" });
     } finally {
       setClockLoading(false);
     }
@@ -550,17 +551,17 @@ export default function DashboardPage() {
 
         showAlert({
           title: data.action === 'CLOCK_OUT' ? '✅ Ausgestempelt' : '✅ Eingestempelt',
-          message: data.message || 'QR-Code Zeiterfassung erfolgreich!',
+          message: data.message || tx("ui533"),
           type: 'success',
         });
       } else {
         setIsQrScannerOpen(false);
-        showAlert({ title: "Fehler", message: data.message || "QR-Scan Zeiterfassung fehlgeschlagen.", type: "error" });
+        showAlert({ title: tx("ui526"), message: data.message || tx("ui534"), type: "error" });
       }
     } catch (e: any) {
       console.error(e);
       setIsQrScannerOpen(false);
-      showAlert({ title: "Fehler", message: e.message || "QR-Code konnte nicht verarbeitet werden.", type: "error" });
+      showAlert({ title: tx("ui526"), message: e.message || tx("ui535"), type: "error" });
     } finally {
       setClockLoading(false);
     }
@@ -607,22 +608,22 @@ export default function DashboardPage() {
           if (res.ok) {
             showAlert({
               title: t("success"),
-              message: "Zeiterfassungseintrag erfolgreich gelöscht.",
+              message: tx("ui536"),
               type: "success",
             });
             refreshEmployeeData();
           } else {
             const data = await res.json();
             showAlert({
-              title: "Fehler",
-              message: data.message || "Löschen fehlgeschlagen.",
+              title: tx("ui526"),
+              message: data.message || tx("ui537"),
               type: "error",
             });
           }
         } catch (e: any) {
           showAlert({
-            title: "Fehler",
-            message: e.message || "Fehler beim Löschen.",
+            title: tx("ui526"),
+            message: e.message || tx("ui538"),
             type: "error",
           });
         }
@@ -878,7 +879,7 @@ export default function DashboardPage() {
               <p className="text-slate-600 text-xs mt-1">
                 {t("welcomeBack")},{" "}
                 <span className="font-semibold text-slate-800">
-                  {employeeInfo?.name || "Mitarbeiter"}
+                  {employeeInfo?.name || tx("roleEmployee")}
                 </span>
                 . {t("manageShiftsDesc")}
               </p>
@@ -901,7 +902,7 @@ export default function DashboardPage() {
                 className="btn-secondary py-2.5 px-3.5 text-xs font-bold flex items-center gap-1.5 cursor-pointer hover:bg-slate-100"
               >
                 <Camera className="w-4 h-4 text-blue-600" />
-                <span>QR-Scan</span>
+                <span>{tx("sourceScan")}</span>
               </button>
             </div>
           </div>
@@ -916,11 +917,9 @@ export default function DashboardPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] uppercase font-extrabold tracking-wider bg-emerald-500 text-slate-950 px-2 py-0.5 rounded-full">
-                      ● Schicht läuft
-                    </span>
+                      {tx("ui272")}</span>
                     <span className="text-xs text-slate-300 font-medium">
-                      Seit {new Date(employeeSummary.activeShift.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} Uhr
-                    </span>
+                      {tx("ui273")}{new Date(employeeSummary.activeShift.clockIn).toLocaleTimeString(uiLocale, { hour12: false, hour: '2-digit', minute: '2-digit' })} {tx("ui274")}</span>
                   </div>
                   <p className="font-bold text-sm sm:text-base text-white mt-0.5">
                     {employeeSummary.activeShift.warehouseName} — {employeeSummary.activeShift.hallName}
@@ -941,11 +940,9 @@ export default function DashboardPage() {
                 ) : (
                   <div className="text-left sm:text-right">
                     <span className="text-[10px] text-emerald-300 uppercase font-bold tracking-wider block">
-                      Status
-                    </span>
+                      {tx("statusColumn")}</span>
                     <span className="text-xs font-extrabold text-emerald-400 bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-500/30">
-                      ● Schicht aktiv
-                    </span>
+                      {tx("ui275")}</span>
                   </div>
                 )}
                 <button
@@ -954,7 +951,7 @@ export default function DashboardPage() {
                   className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2.5 px-4 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
                 >
                   <Camera className="w-4 h-4" />
-                  <span>Ausstempeln</span>
+                  <span>{tx("ui276")}</span>
                 </button>
               </div>
             </div>
@@ -1057,28 +1054,28 @@ export default function DashboardPage() {
                       <p className="text-[10px] text-slate-600 uppercase tracking-wider font-bold">{t("today")}</p>
                       <p className="text-xl font-extrabold text-slate-900 font-mono mt-1">
                         {employeeSummary?.hoursSummary?.today || 0}
-                        <span className="text-xs font-normal text-slate-600">h</span>
+                        <span className="text-xs font-normal text-slate-600">{tx("ui277")}</span>
                       </p>
                     </div>
                     <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-3">
                       <p className="text-[10px] text-blue-600 uppercase tracking-wider font-bold">{t("thisWeek")}</p>
                       <p className="text-xl font-extrabold text-blue-700 font-mono mt-1">
                         {employeeSummary?.hoursSummary?.week || 0}
-                        <span className="text-xs font-normal text-blue-600">h</span>
+                        <span className="text-xs font-normal text-blue-600">{tx("ui277")}</span>
                       </p>
                     </div>
                     <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
                       <p className="text-[10px] text-slate-600 uppercase tracking-wider font-bold">{t("thisMonth")}</p>
                       <p className="text-xl font-extrabold text-slate-900 font-mono mt-1">
                         {employeeSummary?.hoursSummary?.month || 0}
-                        <span className="text-xs font-normal text-slate-600">h</span>
+                        <span className="text-xs font-normal text-slate-600">{tx("ui277")}</span>
                       </p>
                     </div>
                     <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
                       <p className="text-[10px] text-slate-600 uppercase tracking-wider font-bold">{t("totalHours")}</p>
                       <p className="text-xl font-extrabold text-slate-900 font-mono mt-1">
                         {employeeSummary?.hoursSummary?.total || 0}
-                        <span className="text-xs font-normal text-slate-600">h</span>
+                        <span className="text-xs font-normal text-slate-600">{tx("ui277")}</span>
                       </p>
                     </div>
                   </div>
@@ -1086,7 +1083,7 @@ export default function DashboardPage() {
                   {/* Weekly Progress bar against 40h standard */}
                   <div className="pt-2 border-t border-slate-100 space-y-1.5">
                     <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600">
-                      <span>Wochensoll (40h):</span>
+                      <span>{tx("ui278")}</span>
                       <span className="font-mono text-slate-800">
                         {Math.min(100, Math.round(((employeeSummary?.hoursSummary?.week || 0) / 40) * 100))}%
                       </span>
@@ -1109,25 +1106,23 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-between">
                     <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
                       <QrCode className="w-4 h-4 text-blue-600" />
-                      <span>QR-Code Zeiterfassung</span>
+                      <span>{tx("ui279")}</span>
                     </h4>
                     <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-100 text-blue-700">
-                      Ein- & Ausgang
-                    </span>
+                      {tx("ui280")}</span>
                   </div>
 
                   {employeeSummary?.activeShift ? (
                     <div className="space-y-3 text-center">
                       <p className="text-xs text-slate-600 leading-relaxed">
-                        Beim Verlassen der Halle den offiziellen QR-Code am Ausgang scannen.
-                      </p>
+                        {tx("ui281")}</p>
                       <button
                         onClick={() => setIsQrScannerOpen(true)}
                         disabled={clockLoading}
                         className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                       >
                         <Camera className="w-4 h-4" />
-                        <span>{clockLoading ? "Wird verarbeitet..." : "📷 QR-Code scannen (Ausstempeln)"}</span>
+                        <span>{clockLoading ? tx("ui523") : tx("ui524")}</span>
                       </button>
                     </div>
                   ) : (
@@ -1137,11 +1132,9 @@ export default function DashboardPage() {
                           <ScanLine className="w-6 h-6" />
                         </div>
                         <p className="font-bold text-slate-800 text-xs">
-                          Hallen QR-Code beim Eingang scannen
-                        </p>
+                          {tx("ui282")}</p>
                         <p className="text-[11px] text-slate-600 leading-normal">
-                          Scannen Sie den QR-Code am Halleneingang um Ihre Schicht zu starten.
-                        </p>
+                          {tx("ui283")}</p>
                       </div>
 
                       <button
@@ -1150,7 +1143,7 @@ export default function DashboardPage() {
                         className="w-full btn-primary py-3 text-xs font-bold shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer"
                       >
                         <Camera className="w-4 h-4" />
-                        <span>{clockLoading ? "Wird verarbeitet..." : "📷 QR-Code scannen (Einstempeln)"}</span>
+                        <span>{clockLoading ? tx("ui523") : tx("ui525")}</span>
                       </button>
                     </div>
                   )}
@@ -1172,7 +1165,7 @@ export default function DashboardPage() {
                       <span className="text-slate-600">{t("employmentStart")}</span>
                       <span suppressHydrationWarning className="font-semibold text-slate-800">
                         {employeeSummary?.employmentStart
-                          ? new Date(employeeSummary.employmentStart).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")
+                          ? new Date(employeeSummary.employmentStart).toLocaleDateString(uiLocale)
                           : "—"}
                       </span>
                     </div>
@@ -1203,11 +1196,11 @@ export default function DashboardPage() {
                   <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
                     <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-blue-600" />
-                      <span>{language === "de" ? "Geplante Schichten" : "Scheduled Shifts"}</span>
+                      <span>{tx("ui284")}</span>
                     </h5>
                     {employeeSummary?.plansUpcoming?.length > 0 && (
                       <span className="badge-premium badge-info text-[10px] font-bold">
-                        {employeeSummary.plansUpcoming.length} {language === "de" ? "Schicht(en)" : "Shift(s)"}
+                        {employeeSummary.plansUpcoming.length} {tx("ui285")}
                       </span>
                     )}
                   </div>
@@ -1216,7 +1209,7 @@ export default function DashboardPage() {
                     (!employeeSummary?.plansToday || employeeSummary.plansToday.length === 0) ? (
                       <div className="py-8 text-center text-slate-600 text-xs">
                         <Calendar className="w-7 h-7 text-slate-200 mx-auto mb-1.5" />
-                        <p>{language === "de" ? "Keine kommenden Schichten geplant." : "No upcoming shifts scheduled."}</p>
+                        <p>{tx("ui286")}</p>
                       </div>
                     ) : (
                       (employeeSummary?.plansUpcoming || [...(employeeSummary?.plansToday || []), ...(employeeSummary?.plansTomorrow || [])]).map((p: any) => {
@@ -1226,13 +1219,13 @@ export default function DashboardPage() {
                         tom.setDate(tom.getDate() + 1);
                         const tomStr = tom.toLocaleDateString('en-CA');
 
-                        let dateLabel = new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA");
+                        let dateLabel = new Date(p.date).toLocaleDateString(uiLocale);
                         let badgeClass = "bg-slate-100 text-slate-700 border-slate-200";
                         if (planDateStr === todayStr) {
-                          dateLabel = language === "de" ? "HEUTE" : "TODAY";
+                          dateLabel = tx("ui287");
                           badgeClass = "bg-blue-100 text-blue-800 border-blue-200 font-bold";
                         } else if (planDateStr === tomStr) {
-                          dateLabel = language === "de" ? "MORGEN" : "TOMORROW";
+                          dateLabel = tx("ui288");
                           badgeClass = "bg-amber-100 text-amber-800 border-amber-200 font-bold";
                         }
 
@@ -1244,7 +1237,7 @@ export default function DashboardPage() {
                                   {dateLabel}
                                 </span>
                                 <span suppressHydrationWarning className="text-[11px] font-mono text-slate-600">
-                                  {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
+                                  {new Date(p.date).toLocaleDateString(uiLocale)}
                                 </span>
                               </div>
                               {p.locations && Array.isArray(p.locations) && p.locations.length > 0 ? (
@@ -1252,9 +1245,9 @@ export default function DashboardPage() {
                                   {p.locations.map((loc: any, lidx: number) => (
                                     <span key={lidx} className="inline-flex items-center gap-1 bg-white text-slate-800 text-xs font-bold px-2 py-0.5 rounded border border-slate-200 shadow-2xs">
                                       <Warehouse className="w-3 h-3 text-blue-600 shrink-0" />
-                                      <span>{loc.warehouseName || loc.warehouse?.name || p.warehouseName || "Lager"}</span>
+                                      <span>{loc.warehouseName || loc.warehouse?.name || p.warehouseName || tx("warehouse")}</span>
                                       <span className="text-slate-300">|</span>
-                                      <span className="text-slate-600">{loc.hallName || loc.hall?.name || p.hallName || "Halle"}</span>
+                                      <span className="text-slate-600">{loc.hallName || loc.hall?.name || p.hallName || tx("halls")}</span>
                                     </span>
                                   ))}
                                 </div>
@@ -1266,7 +1259,7 @@ export default function DashboardPage() {
                               <div className="flex flex-wrap gap-2 mt-2">
                                 {p.shift && (
                                   <span className="flex items-center gap-1 text-[10px] font-semibold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-100">
-                                    <Clock className="w-3 h-3" /> {p.shift}
+                                    <Clock className="w-3 h-3" /> <bdi dir="ltr">{p.shift}</bdi>
                                   </span>
                                 )}
                                 {p.treffpunkt && (
@@ -1276,11 +1269,11 @@ export default function DashboardPage() {
                                 )}
                                 <span className="flex items-center gap-1 text-[10px] text-slate-600 font-semibold">
                                   <Users className="w-3 h-3 text-slate-600" />
-                                  {p.assignedEmployees?.length || 0} {language === "de" ? "Mitarbeiter" : "Staff"}
+                                  {p.assignedEmployees?.length || 0} {tx("roleEmployee")}
                                 </span>
                                 <span className="flex items-center gap-1 text-[10px] text-slate-600 font-semibold">
                                   <Package className="w-3 h-3 text-slate-600" />
-                                  {p.assignedContainers?.length || 0} {language === "de" ? "Container" : "Containers"}
+                                  {p.assignedContainers?.length || 0} {tx("containers")}
                                 </span>
                               </div>
                               {p.notes && (
@@ -1312,7 +1305,7 @@ export default function DashboardPage() {
                     </h5>
                     {employeeSummary?.plansHistory?.length > 0 && (
                       <span className="text-[10px] font-mono text-slate-600 font-semibold">
-                        {employeeSummary.plansHistory.length} {language === "de" ? "Einträge" : "Records"}
+                        {employeeSummary.plansHistory.length} {tx("ui289")}
                       </span>
                     )}
                   </div>
@@ -1330,14 +1323,14 @@ export default function DashboardPage() {
                             </span>
                             <div className="flex flex-wrap gap-2 mt-1 text-[10px] text-slate-600 font-semibold">
                               <span suppressHydrationWarning className="font-mono text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-                                {new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
+                                {new Date(p.date).toLocaleDateString(uiLocale)}
                               </span>
                               {p.shift && (
                                 <span className="font-mono text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
-                                  {p.shift}
+                                  <bdi dir="ltr">{p.shift}</bdi>
                                 </span>
                               )}
-                              <span>{p.assignedContainers?.length || 0} Container</span>
+                              <span>{p.assignedContainers?.length || 0} {tx("containers")}</span>
                             </div>
                           </div>
                           <button
@@ -1381,7 +1374,7 @@ export default function DashboardPage() {
                             <div key={r.id} className="p-4 space-y-2.5 hover:bg-slate-50/50 transition-colors">
                               <div className="flex items-center justify-between">
                                 <span suppressHydrationWarning className="font-bold text-xs text-slate-900 font-mono">
-                                  {new Date(r.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA", {
+                                  {new Date(r.date).toLocaleDateString(uiLocale, {
                                     weekday: "short",
                                     day: "2-digit",
                                     month: "2-digit",
@@ -1391,16 +1384,16 @@ export default function DashboardPage() {
                                 <div className="flex items-center gap-1.5">
                                   {isManual ? (
                                     <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full">
-                                      <span>Manuell</span>
+                                      <span>{tx("ui290")}</span>
                                     </span>
                                   ) : (
                                     <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">
                                       <QrCode className="w-3 h-3" />
-                                      <span>QR-Scan</span>
+                                      <span>{tx("sourceScan")}</span>
                                     </span>
                                   )}
                                   <span className="text-xs font-black font-mono bg-slate-100 text-slate-800 px-2 py-0.5 rounded-lg border border-slate-200">
-                                    {r.totalHours ? `${r.totalHours}h` : t("activeShiftLabel")}
+                                    {r.totalHours ? `${r.totalHours} ${tx("ui277")}` : t("activeShiftLabel")}
                                   </span>
                                 </div>
                               </div>
@@ -1413,25 +1406,24 @@ export default function DashboardPage() {
                               <div className="flex items-center justify-between text-[11px] font-mono text-slate-600 pt-1 border-t border-slate-100">
                                 <div className="flex items-center gap-2">
                                   <span>
-                                    {new Date(r.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    {new Date(r.clockIn).toLocaleTimeString(uiLocale, { hour12: false, hour: '2-digit', minute: '2-digit' })}
                                     {" → "}
-                                    {r.clockOut ? new Date(r.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "läuft"}
+                                    {r.clockOut ? new Date(r.clockOut).toLocaleTimeString(uiLocale, { hour12: false, hour: '2-digit', minute: '2-digit' }) : tx("active")}
                                   </span>
                                   {r.breakMinutes > 0 && (
                                     <span className="text-slate-600">
-                                      (Pause: {r.breakMinutes}m)
-                                    </span>
+                                      {tx("ui291")}{r.breakMinutes}{tx("ui292")}</span>
                                   )}
                                 </div>
 
                                 {isManual && (
                                   <button
                                     onClick={() => handleDeleteAttendanceEntry(r.id)}
-                                    className="text-red-500 hover:text-red-700 font-sans font-semibold text-[10px] flex items-center gap-1 cursor-pointer p-1 rounded hover:bg-red-50"
-                                    title="Löschen"
+                                    className="text-red-600 hover:text-red-700 font-sans font-semibold text-[10px] flex items-center gap-1 cursor-pointer p-1 rounded hover:bg-red-50"
+                                    title={tx("deleteEntry")}
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
-                                    <span>Löschen</span>
+                                    <span>{tx("deleteEntry")}</span>
                                   </button>
                                 )}
                               </div>
@@ -1447,11 +1439,11 @@ export default function DashboardPage() {
                             <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-600">
                               <th className="px-5 py-3 font-semibold">{t("date")}</th>
                               <th className="px-5 py-3 font-semibold">{t("warehouse")}</th>
-                              <th className="px-4 py-3 font-semibold">Zeitraum</th>
+                              <th className="px-4 py-3 font-semibold">{tx("ui293")}</th>
                               <th className="px-3 py-3 font-semibold text-center">{t("breakDuration")}</th>
                               <th className="px-4 py-3 font-semibold text-right">{t("totalHours")}</th>
-                              <th className="px-4 py-3 font-semibold text-center">Quelle</th>
-                              <th className="px-4 py-3 font-semibold text-right">Aktion</th>
+                              <th className="px-4 py-3 font-semibold text-center">{tx("ui294")}</th>
+                              <th className="px-4 py-3 font-semibold text-right">{tx("ui295")}</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 text-slate-600">
@@ -1460,27 +1452,26 @@ export default function DashboardPage() {
                               return (
                                 <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
                                   <td suppressHydrationWarning className="px-5 py-3 font-mono text-slate-800 font-semibold">
-                                    {new Date(r.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}
+                                    {new Date(r.date).toLocaleDateString(uiLocale)}
                                   </td>
                                   <td className="px-5 py-3 text-slate-700 font-medium">
                                     {r.warehouseName} — {r.hallName}
                                   </td>
                                   <td suppressHydrationWarning className="px-4 py-3 font-mono text-slate-600">
-                                    {new Date(r.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    {new Date(r.clockIn).toLocaleTimeString(uiLocale, { hour12: false, hour: '2-digit', minute: '2-digit' })}
                                     {" – "}
-                                    {r.clockOut ? new Date(r.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Aktiv"}
+                                    {r.clockOut ? new Date(r.clockOut).toLocaleTimeString(uiLocale, { hour12: false, hour: '2-digit', minute: '2-digit' }) : tx("active")}
                                   </td>
                                   <td className="px-3 py-3 font-mono text-center text-slate-600">
-                                    {r.breakMinutes ? `${r.breakMinutes}m` : "—"}
+                                    {r.breakMinutes ? `${r.breakMinutes} ${tx("ui360")}` : "—"}
                                   </td>
                                   <td className="px-4 py-3 font-mono text-right text-slate-900 font-bold">
-                                    {r.totalHours ? `${r.totalHours}h` : t("activeShiftLabel")}
+                                    {r.totalHours ? `${r.totalHours} ${tx("ui277")}` : t("activeShiftLabel")}
                                   </td>
                                   <td className="px-4 py-3 text-center">
                                     {isManual ? (
                                       <span className="inline-flex items-center text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full">
-                                        Manuell
-                                      </span>
+                                        {tx("ui290")}</span>
                                     ) : (
                                       <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">
                                         <QrCode className="w-3 h-3" />
@@ -1493,7 +1484,7 @@ export default function DashboardPage() {
                                       <button
                                         onClick={() => handleDeleteAttendanceEntry(r.id)}
                                         className="text-slate-600 hover:text-red-600 transition-colors p-1 rounded-md hover:bg-red-50 cursor-pointer inline-flex items-center"
-                                        title="Löschen"
+                                        title={tx("deleteEntry")}
                                       >
                                         <Trash2 className="w-4 h-4" />
                                       </button>
@@ -1533,7 +1524,7 @@ export default function DashboardPage() {
               className={`${isWorkHoursHidden ? "w-full" : ""} btn-secondary py-3 px-4 text-xs font-bold flex items-center justify-center gap-1.5 shrink-0`}
             >
               <Camera className="w-4 h-4 text-blue-600" />
-              <span>QR-Scan</span>
+              <span>{tx("sourceScan")}</span>
             </button>
           </div>
         </div>
@@ -1544,7 +1535,7 @@ export default function DashboardPage() {
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
               <h3 className="text-xl font-bold text-slate-800 tracking-tight">
-                {userRole === "MANAGER" ? t("roleManager") + " Dashboard" : t("operationalDashboard")}
+                {userRole === "MANAGER" ? t("inventory1677") : t("operationalDashboard")}
               </h3>
               <p className="text-slate-600 text-xs mt-1">
                 {t("statusOverview")}
@@ -1576,7 +1567,7 @@ export default function DashboardPage() {
                   <TrendingUp className="w-2.5 h-2.5 text-emerald-600" /> +2.4%
                 </span>
               </div>
-              <p className="text-[10px] text-slate-600 mt-1.5">Registered personnel</p>
+              <p className="text-[10px] text-slate-600 mt-1.5">{tx("ui296")}</p>
             </div>
 
             {/* Active Today */}
@@ -1595,7 +1586,7 @@ export default function DashboardPage() {
                   <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span> {t("live")}
                 </span>
               </div>
-              <p className="text-[10px] text-slate-600 mt-1.5">Currently clocked-in staff</p>
+              <p className="text-[10px] text-slate-600 mt-1.5">{tx("ui297")}</p>
             </div>
 
             {/* Containers Today */}
@@ -1611,7 +1602,7 @@ export default function DashboardPage() {
                   {metrics.containersCount}
                 </h4>
               </div>
-              <p className="text-[10px] text-slate-600 mt-1.5">Routed containers queue</p>
+              <p className="text-[10px] text-slate-600 mt-1.5">{tx("ui298")}</p>
             </div>
 
             {/* Active Halls */}
@@ -1627,7 +1618,7 @@ export default function DashboardPage() {
                   {metrics.hallsCount}
                 </h4>
               </div>
-              <p className="text-[10px] text-slate-600 mt-1.5">Assigned staging zones</p>
+              <p className="text-[10px] text-slate-600 mt-1.5">{tx("ui299")}</p>
             </div>
           </div>
 
@@ -1639,10 +1630,9 @@ export default function DashboardPage() {
                 <div>
                   <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
                     <Clock className="w-4 h-4 text-blue-600" />
-                    Mitarbeiter-Arbeitszeiten: Soll vs. Ist
-                  </h4>
+                    {tx("ui300")}</h4>
                   <p className="text-[11px] text-slate-600 mt-0.5">
-                    {analyticsData?.range?.label || "Aktueller Zeitraum"} (Soll: {analyticsTimeframe === 'weekly' ? '40h' : '160h'})
+                    {analyticsData?.range?.label || tx("ui539")} {tx("ui301")}{analyticsTimeframe === 'weekly' ? '40h' : '160h'})
                   </p>
                 </div>
                 <div className="flex bg-slate-100 p-1 rounded-xl shrink-0">
@@ -1653,8 +1643,7 @@ export default function DashboardPage() {
                       analyticsTimeframe === "weekly" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-800"
                     }`}
                   >
-                    Wöchentlich
-                  </button>
+                    {tx("ui302")}</button>
                   <button
                     type="button"
                     onClick={() => { setAnalyticsTimeframe("monthly"); fetchAnalytics("monthly"); }}
@@ -1662,8 +1651,7 @@ export default function DashboardPage() {
                       analyticsTimeframe === "monthly" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-800"
                     }`}
                   >
-                    Monatlich
-                  </button>
+                    {tx("ui303")}</button>
                 </div>
               </div>
 
@@ -1675,8 +1663,7 @@ export default function DashboardPage() {
                   </div>
                 ) : !analyticsData?.employeeStats || analyticsData.employeeStats.length === 0 ? (
                   <div className="text-center py-10 text-xs text-slate-600 italic">
-                    Keine Mitarbeiterdaten für diesen Zeitraum vorhanden.
-                  </div>
+                    {tx("ui304")}</div>
                 ) : (
                   analyticsData.employeeStats.map((emp: any) => {
                     const pct = Math.min(100, emp.percentage || 0);
@@ -1688,14 +1675,12 @@ export default function DashboardPage() {
                             <span className="font-extrabold text-slate-800">{emp.name}</span>
                             {emp.absenceDays > 0 && (
                               <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-200 px-1.5 py-0.2 rounded font-bold">
-                                {emp.absenceDays} Abwesenheit(en)
-                              </span>
+                                {emp.absenceDays} {tx("ui305")}</span>
                             )}
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="font-mono font-bold text-slate-800">
-                              {emp.ist.toFixed(1)} / {emp.soll.toFixed(0)} h
-                            </span>
+                              {emp.ist.toFixed(1)} / {emp.soll.toFixed(0)} {tx("ui277")}</span>
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                               isOvertime ? "bg-emerald-100 text-emerald-800 font-mono" : emp.ist > 0 ? "bg-blue-100 text-blue-800 font-mono" : "bg-slate-200 text-slate-600"
                             }`}>
@@ -1726,11 +1711,9 @@ export default function DashboardPage() {
                 <div>
                   <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
                     <Activity className="w-4 h-4 text-emerald-600" />
-                    Gesamtarbeitszeit aller Mitarbeiter
-                  </h4>
+                    {tx("ui306")}</h4>
                   <p className="text-[11px] text-slate-600 mt-0.5">
-                    Summierte Teamstunden & Auslastung im Zeitverlauf
-                  </p>
+                    {tx("ui307")}</p>
                 </div>
                 <div className="flex bg-slate-100 p-1 rounded-xl shrink-0">
                   <button
@@ -1740,8 +1723,7 @@ export default function DashboardPage() {
                       analyticsTimeframe === "weekly" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-800"
                     }`}
                   >
-                    Wöchentlich
-                  </button>
+                    {tx("ui302")}</button>
                   <button
                     type="button"
                     onClick={() => { setAnalyticsTimeframe("monthly"); fetchAnalytics("monthly"); }}
@@ -1749,30 +1731,27 @@ export default function DashboardPage() {
                       analyticsTimeframe === "monthly" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-800"
                     }`}
                   >
-                    Monatlich
-                  </button>
+                    {tx("ui303")}</button>
                 </div>
               </div>
 
               {/* Summary metrics header */}
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="bg-blue-50/70 border border-blue-100 p-2.5 rounded-xl">
-                  <p className="text-[10px] font-bold text-blue-800 uppercase tracking-wider">Gesamtstunden</p>
+                  <p className="text-[10px] font-bold text-blue-800 uppercase tracking-wider">{tx("totalHours")}</p>
                   <p className="text-lg font-mono font-extrabold text-blue-950 mt-0.5">
-                    {analyticsData?.summary?.totalIst?.toFixed(1) || "0.0"} h
-                  </p>
+                    {analyticsData?.summary?.totalIst?.toFixed(1) || "0.0"} {tx("ui277")}</p>
                 </div>
                 <div className="bg-emerald-50/70 border border-emerald-100 p-2.5 rounded-xl">
-                  <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">Aktive Mitarbeiter</p>
+                  <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">{tx("ui308")}</p>
                   <p className="text-lg font-mono font-extrabold text-emerald-950 mt-0.5">
                     {analyticsData?.summary?.activeEmployeesCount || 0}
                   </p>
                 </div>
                 <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
-                  <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Team Soll-Summe</p>
+                  <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">{tx("ui309")}</p>
                   <p className="text-lg font-mono font-extrabold text-slate-800 mt-0.5">
-                    {analyticsData?.summary?.totalSoll?.toFixed(0) || "0"} h
-                  </p>
+                    {analyticsData?.summary?.totalSoll?.toFixed(0) || "0"} {tx("ui277")}</p>
                 </div>
               </div>
 
@@ -1784,8 +1763,7 @@ export default function DashboardPage() {
                   </div>
                 ) : !analyticsData?.aggregatedTrend || analyticsData.aggregatedTrend.length === 0 ? (
                   <div className="text-center py-10 text-xs text-slate-600 italic">
-                    Keine Trenddaten für diesen Zeitraum vorhanden.
-                  </div>
+                    {tx("ui310")}</div>
                 ) : (
                   (() => {
                     const maxH = Math.max(...analyticsData.aggregatedTrend.map((t: any) => t.totalHours), 1);
@@ -1797,11 +1775,9 @@ export default function DashboardPage() {
                             <span className="font-semibold text-slate-700">{tItem.label}</span>
                             <div className="flex items-center gap-2">
                               <span className="text-[10px] text-slate-600">
-                                {tItem.activeCount} Mitarbeiter
-                              </span>
+                                {tItem.activeCount} {tx("roleEmployee")}</span>
                               <span className="font-mono font-bold text-slate-900">
-                                {tItem.totalHours.toFixed(1)} h
-                              </span>
+                                {tItem.totalHours.toFixed(1)} {tx("ui277")}</span>
                             </div>
                           </div>
                           <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
@@ -1896,7 +1872,7 @@ export default function DashboardPage() {
                         }}
                         className="bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer"
                       >
-                        {selectedPlanIds.length === plans.length ? "Keine auswählen" : "Alle auswählen"}
+                        {selectedPlanIds.length === plans.length ? tx("ui540") : tx("ui541")}
                       </button>
                     )}
 
@@ -1934,7 +1910,7 @@ export default function DashboardPage() {
                   <div className="bg-blue-50/50 border-b border-blue-150 px-6 py-4 flex flex-wrap items-center gap-3 text-xs animate-fadeIn">
                     <span className="text-blue-800 font-bold flex items-center gap-1.5 mr-2">
                       <Users className="w-4 h-4" />
-                      <span>{selectedPlanIds.length} Pläne ausgewählt:</span>
+                      <span>{selectedPlanIds.length} {tx("ui311")}</span>
                     </span>
 
                     {/* Bulk Delete */}
@@ -1942,24 +1918,21 @@ export default function DashboardPage() {
                       onClick={handleBulkDeletePlans}
                       className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-sm"
                     >
-                      <Trash2 className="w-3.5 h-3.5" /> Löschen
-                    </button>
+                      <Trash2 className="w-3.5 h-3.5" /> {tx("deleteEntry")}</button>
 
                     {/* Bulk Duplicate */}
                     <button
                       onClick={handleBulkDuplicatePlans}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-sm"
+                      className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-sm"
                     >
-                      Duplizieren
-                    </button>
+                      {tx("ui312")}</button>
 
                     {/* Bulk Assign Employees */}
                     <button
                       onClick={() => setBulkAssignEmployeesModalOpen(true)}
                       className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-sm"
                     >
-                      <Users className="w-3.5 h-3.5" /> Mitarbeiter zuweisen
-                    </button>
+                      <Users className="w-3.5 h-3.5" /> {tx("ui313")}</button>
 
                     {/* Bulk Change Hall */}
                     <select
@@ -1972,7 +1945,7 @@ export default function DashboardPage() {
                       className="bg-white border border-slate-200 px-3 py-1.5 rounded-lg font-bold text-slate-700 outline-none hover:border-slate-350 cursor-pointer"
                       defaultValue=""
                     >
-                      <option value="" disabled>Halle ändern...</option>
+                      <option value="" disabled>{tx("ui314")}</option>
                       {allHalls.map((h) => (
                         <option key={h.id} value={h.id}>{h.name}</option>
                       ))}
@@ -1989,10 +1962,10 @@ export default function DashboardPage() {
                       className="bg-white border border-slate-200 px-3 py-1.5 rounded-lg font-bold text-slate-700 outline-none hover:border-slate-350 cursor-pointer"
                       defaultValue=""
                     >
-                      <option value="" disabled>Schicht ändern...</option>
-                      <option value="FRUEH">Frühschicht</option>
-                      <option value="SPAET">Spätschicht</option>
-                      <option value="NACHT">Nachtschicht</option>
+                      <option value="" disabled>{tx("ui315")}</option>
+                      <option value="FRUEH">{tx("earlyShift")}</option>
+                      <option value="SPAET">{tx("lateShift")}</option>
+                      <option value="NACHT">{tx("nightShift")}</option>
                     </select>
 
                     {/* Clear selection */}
@@ -2000,8 +1973,7 @@ export default function DashboardPage() {
                       onClick={() => setSelectedPlanIds([])}
                       className="text-slate-600 hover:text-slate-800 font-bold ml-auto px-2 py-1 cursor-pointer"
                     >
-                      Auswahl aufheben
-                    </button>
+                      {tx("ui316")}</button>
                   </div>
                 )}
 
@@ -2020,10 +1992,10 @@ export default function DashboardPage() {
                       plans.map((p) => {
                         const isSelected = selectedPlanIds.includes(p.id);
                         const planDateStr = p.date ? p.date.split("T")[0] : "";
-                        const formattedDate = new Date(p.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA");
+                        const formattedDate = new Date(p.date).toLocaleDateString(uiLocale);
                         const locationsList = (p.locations && Array.isArray(p.locations) && p.locations.length > 0)
                           ? p.locations
-                          : [{ warehouseName: p.warehouseName || "Lager", hallName: p.hallName || "Halle" }];
+                          : [{ warehouseName: p.warehouseName || tx("warehouse"), hallName: p.hallName || tx("halls") }];
 
                         return (
                           <div
@@ -2058,7 +2030,7 @@ export default function DashboardPage() {
                                       }
                                     }}
                                     className="text-slate-300 hover:text-blue-600 shrink-0 transition-colors cursor-pointer mr-1"
-                                    title="Diesen Plan auswählen"
+                                    title={tx("ui542")}
                                   >
                                     {isSelected ? (
                                       <CheckSquare className="w-4 h-4 text-blue-600" />
@@ -2071,8 +2043,8 @@ export default function DashboardPage() {
                                 {/* Location Badges */}
                                 <div className="flex flex-wrap items-center gap-1.5">
                                   {locationsList.map((loc: any, idx: number) => {
-                                    const wName = loc.warehouseName || loc.warehouse?.name || p.warehouseName || "Lager";
-                                    const hName = loc.hallName || loc.hall?.name || p.hallName || "Halle";
+                                    const wName = loc.warehouseName || loc.warehouse?.name || p.warehouseName || tx("warehouse");
+                                    const hName = loc.hallName || loc.hall?.name || p.hallName || tx("halls");
                                     const hColor = loc.hall?.color || "#2563eb";
                                     return (
                                       <span
@@ -2082,7 +2054,7 @@ export default function DashboardPage() {
                                       >
                                         <Warehouse className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                                         <span>{wName}</span>
-                                        <span className="text-slate-300 font-normal">/</span>
+                                        <span className="text-slate-600 font-normal">/</span>
                                         <span className="text-slate-900 font-extrabold">{hName}</span>
                                       </span>
                                     );
@@ -2094,7 +2066,7 @@ export default function DashboardPage() {
                                 {p.shift && (
                                   <span className="inline-flex items-center gap-1 font-mono text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200/80 px-2.5 py-1 rounded-lg shadow-2xs">
                                     <Clock className="w-3.5 h-3.5 text-amber-600" />
-                                    <span>{p.shift}</span>
+                                    <span><bdi dir="ltr">{p.shift}</bdi></span>
                                   </span>
                                 )}
 
@@ -2114,14 +2086,14 @@ export default function DashboardPage() {
                               {p.treffpunkt && (
                                 <span className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs font-medium">
                                   <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                                  <span>Treffpunkt: <strong>{p.treffpunkt}</strong>{p.treffpunktTime ? ` (${p.treffpunktTime} Uhr)` : ""}</span>
+                                  <span>{tx("ui317")}<strong>{p.treffpunkt}</strong>{p.treffpunktTime ? ` (${p.treffpunktTime} Uhr)` : ""}</span>
                                 </span>
                               )}
 
                               {p.assignedContainers && p.assignedContainers.length > 0 && (
                                 <span className="inline-flex items-center gap-1.5 bg-purple-50 border border-purple-200/70 text-purple-900 px-2.5 py-1 rounded-lg font-bold shadow-2xs font-mono">
                                   <Package className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                                  <span>{p.assignedContainers.length} {language === "de" ? "Container" : "Containers"}</span>
+                                  <span>{p.assignedContainers.length} {tx("containers")}</span>
                                 </span>
                               )}
 
@@ -2136,7 +2108,7 @@ export default function DashboardPage() {
                             <div className="flex items-center justify-between gap-3 pt-2.5 mt-1 border-t border-slate-100">
                               <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg shadow-2xs">
                                 <Users className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                                <span>{p.assignedEmployees?.length || 0} {language === "de" ? "Mitarbeiter eingeteilt" : "Staff assigned"}</span>
+                                <span>{p.assignedEmployees?.length || 0} {tx("ui318")}</span>
                               </span>
 
                               <div className="flex items-center gap-2 shrink-0">
@@ -2157,20 +2129,20 @@ export default function DashboardPage() {
                                   href={`/planning?tab=confirmations&date=${planDateStr}`}
                                   onClick={(e) => e.stopPropagation()}
                                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200/80 rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer"
-                                  title="Rückmeldungen für diesen Tag ansehen"
+                                  title={tx("ui543")}
                                 >
                                   <UserCheck className="w-3.5 h-3.5 text-indigo-700" />
-                                  <span>{language === "de" ? "Rückmeldungen" : "Confirmations"}</span>
+                                  <span>{tx("ui319")}</span>
                                 </Link>
 
                                 <Link
                                   href={`/planning?planId=${p.id}&date=${planDateStr}`}
                                   onClick={(e) => e.stopPropagation()}
                                   className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
-                                  title="Diesen Schichtplan im Planungs-Editor bearbeiten"
+                                  title={tx("ui544")}
                                 >
                                   <Edit2 className="w-3.5 h-3.5" />
-                                  <span>{language === "de" ? "Bearbeiten" : "Edit"}</span>
+                                  <span>{tx("ui320")}</span>
                                 </Link>
                               </div>
                             </div>
@@ -2212,8 +2184,8 @@ export default function DashboardPage() {
                               .map(log => (
                                 <div key={log.id} className="text-xs p-3 bg-slate-50 border border-slate-100 rounded-lg flex flex-col gap-1">
                                   <div className="flex justify-between items-center">
-                                    <span className="font-semibold text-slate-800">{log.user?.name || "System"}</span>
-                                    <span suppressHydrationWarning className="text-[9px] text-slate-600 font-mono"> {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    <span className="font-semibold text-slate-800">{log.user?.name || tx("ui367")}</span>
+                                    <span suppressHydrationWarning className="text-[9px] text-slate-600 font-mono"> {new Date(log.timestamp).toLocaleTimeString(uiLocale, { hour12: false, hour: '2-digit', minute: '2-digit' })}</span>
                                   </div>
                                   <span className="text-slate-600 text-[11px] leading-relaxed">{log.details}</span>
                                 </div>
@@ -2236,8 +2208,8 @@ export default function DashboardPage() {
                               .map(log => (
                                 <div key={log.id} className="text-xs p-3 bg-slate-50 border border-slate-100 rounded-lg flex flex-col gap-1">
                                   <div className="flex justify-between items-center">
-                                    <span className="font-semibold text-slate-800">{log.user?.name || "System"}</span>
-                                    <span suppressHydrationWarning className="text-[9px] text-slate-600 font-mono"> {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    <span className="font-semibold text-slate-800">{log.user?.name || tx("ui367")}</span>
+                                    <span suppressHydrationWarning className="text-[9px] text-slate-600 font-mono"> {new Date(log.timestamp).toLocaleTimeString(uiLocale, { hour12: false, hour: '2-digit', minute: '2-digit' })}</span>
                                   </div>
                                   <span className="font-mono text-[9px] mt-0.5 uppercase text-blue-600 bg-blue-50 border border-blue-100/50 w-fit px-1.5 py-0.5 rounded font-bold">{log.action}</span>
                                   <span className="text-slate-600 text-[11px] leading-relaxed mt-1">{log.details}</span>
@@ -2254,23 +2226,23 @@ export default function DashboardPage() {
                 <div className="card-premium p-0 overflow-hidden flex flex-col justify-between">
                   <div>
                     <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                      <h5 className="font-bold text-sm text-slate-800">{language === "de" ? "Aktuelle Systemereignisse" : "Recent System Events"}</h5>
-                      <span className="badge-premium badge-info text-[9px] py-0.5 px-2">Operational</span>
+                      <h5 className="font-bold text-sm text-slate-800">{tx("ui321")}</h5>
+                      <span className="badge-premium badge-info text-[9px] py-0.5 px-2">{tx("ui322")}</span>
                     </div>
                     <div className="divide-y divide-slate-100">
                       <div className="px-6 py-4 flex justify-between items-center hover:bg-slate-50/30 transition-colors">
                         <div className="flex flex-col">
-                          <span className="text-xs font-bold text-slate-800">{language === "de" ? "Plan für Duisburg verarbeitet" : "Plan processed for Duisburg"}</span>
-                          <span className="text-[9px] text-slate-600 uppercase tracking-wider font-mono mt-0.5">System • {language === "de" ? "Gerade eben" : "Just Now"}</span>
+                          <span className="text-xs font-bold text-slate-800">{tx("ui323")}</span>
+                          <span className="text-[9px] text-slate-600 uppercase tracking-wider font-mono mt-0.5">{tx("ui324")}{tx("ui325")}</span>
                         </div>
                         <span className="badge-premium badge-success text-[9px] py-0.5 px-2">{t("success")}</span>
                       </div>
                       <div className="px-6 py-4 flex justify-between items-center hover:bg-slate-50/30 transition-colors">
                         <div className="flex flex-col">
-                          <span className="text-xs font-bold text-slate-800">{language === "de" ? "Neuer Mitarbeiter hinzugefügt" : "New Employee Added"}</span>
-                          <span className="text-[9px] text-slate-600 uppercase tracking-wider font-mono mt-0.5">Admin • {language === "de" ? "vor 1 Std." : "1h ago"}</span>
+                          <span className="text-xs font-bold text-slate-800">{tx("ui326")}</span>
+                          <span className="text-[9px] text-slate-600 uppercase tracking-wider font-mono mt-0.5">{tx("ui327")}{tx("ui328")}</span>
                         </div>
-                        <span className="badge-premium badge-neutral text-[9px] py-0.5 px-2">Audit</span>
+                        <span className="badge-premium badge-neutral text-[9px] py-0.5 px-2">{tx("ui329")}</span>
                       </div>
                     </div>
                   </div>
@@ -2310,10 +2282,10 @@ export default function DashboardPage() {
               <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl text-xs space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/60 pb-3">
                   <div>
-                    <span className="text-[10px] text-slate-600 uppercase tracking-widest block font-bold">{t("shiftDate")} & {language === "de" ? "Arbeitszeit" : "Shift Time"}</span>
+                    <span className="text-[10px] text-slate-600 uppercase tracking-widest block font-bold">{t("shiftDate")} & {tx("ui330")}</span>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span suppressHydrationWarning className="font-mono text-blue-600 font-bold bg-blue-100/50 px-2 py-0.5 rounded">
-                        {new Date(selectedPlanForView.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                        {new Date(selectedPlanForView.date).toLocaleDateString(uiLocale, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                       </span>
                       {selectedPlanForView.shift && (
                         <span className="inline-flex items-center gap-1 font-mono text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded shadow-2xs">
@@ -2325,7 +2297,7 @@ export default function DashboardPage() {
                   </div>
                   {selectedPlanForView.treffpunkt && (
                     <div>
-                      <span className="text-[10px] text-slate-600 uppercase tracking-widest block font-bold">{language === "de" ? "Treffpunkt" : "Meeting Point"}</span>
+                      <span className="text-[10px] text-slate-600 uppercase tracking-widest block font-bold">{tx("ui331")}</span>
                       <span className="font-semibold text-slate-800 mt-1 flex items-center gap-1 bg-amber-50 text-amber-800 px-2 py-0.5 rounded border border-amber-200/60">
                         <MapPin className="w-3.5 h-3.5 text-amber-600" />
                         {selectedPlanForView.treffpunkt} {selectedPlanForView.treffpunktTime ? `(${selectedPlanForView.treffpunktTime})` : ""}
@@ -2336,16 +2308,16 @@ export default function DashboardPage() {
 
                 <div>
                   <span className="text-[10px] text-slate-600 uppercase tracking-widest block font-bold mb-1.5">
-                    {language === "de" ? "Einsatzstandorte (Lager & Hallen)" : "Assigned Locations (Warehouses & Halls)"}
+                    {tx("ui332")}
                   </span>
                   {selectedPlanForView.locations && Array.isArray(selectedPlanForView.locations) && selectedPlanForView.locations.length > 0 ? (
                     <div className="flex flex-wrap gap-1.5">
                       {selectedPlanForView.locations.map((loc: any, idx: number) => (
                         <span key={idx} className="inline-flex items-center gap-1.5 bg-white text-slate-800 px-2.5 py-1 rounded-lg border border-slate-200 font-semibold shadow-2xs">
                           <Warehouse className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                          <span>{loc.warehouseName || loc.warehouse?.name || selectedPlanForView.warehouseName || "Lager"}</span>
+                          <span>{loc.warehouseName || loc.warehouse?.name || selectedPlanForView.warehouseName || tx("warehouse")}</span>
                           <span className="text-slate-300">|</span>
-                          <span className="text-slate-600">{loc.hallName || loc.hall?.name || selectedPlanForView.hallName || "Halle"}</span>
+                          <span className="text-slate-600">{loc.hallName || loc.hall?.name || selectedPlanForView.hallName || tx("halls")}</span>
                         </span>
                       ))}
                     </div>
@@ -2389,7 +2361,7 @@ export default function DashboardPage() {
                             <td className="px-4 py-2.5 font-medium text-slate-850">{emp.name}</td>
                             <td className="px-4 py-2.5">
                               <span className="badge-premium badge-info text-[9px] py-0.5 px-2">
-                                {emp.role}
+                                {emp.role === "ADMIN" ? t("staff924") : emp.role === "MANAGER" ? t("roleManager") : t("roleEmployee")}
                               </span>
                             </td>
                             <td className="px-4 py-2.5 font-mono text-slate-600">{emp.phone || "—"}</td>
@@ -2411,7 +2383,7 @@ export default function DashboardPage() {
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-100 text-slate-600">
                         <th className="px-4 py-2 font-semibold">{t("containerNumber")}</th>
-                        <th className="px-4 py-2 font-semibold">Status</th>
+                        <th className="px-4 py-2 font-semibold">{tx("statusColumn")}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -2429,7 +2401,7 @@ export default function DashboardPage() {
                                   ? "badge-warning" 
                                   : "badge-success"
                               }`}>
-                                {c.status}
+                                {c.status === "FULL" ? t("inventory1386") : c.status === "EMPTY" ? t("inventory1387") : c.status}
                               </span>
                             </td>
                           </tr>
@@ -2475,8 +2447,7 @@ export default function DashboardPage() {
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
               <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
                 <Users className="w-4.5 h-4.5 text-blue-500" />
-                Massen-Mitarbeiterzuweisung
-              </h4>
+                {tx("ui333")}</h4>
               <button
                 onClick={() => {
                   setBulkAssignEmployeesModalOpen(false);
@@ -2490,8 +2461,7 @@ export default function DashboardPage() {
 
             <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
               <p className="text-xs text-slate-600">
-                Wählen Sie die Mitarbeiter aus, die Sie allen {selectedPlanIds.length} ausgewählten Plänen zuweisen möchten:
-              </p>
+                {tx("ui334")}{selectedPlanIds.length} {tx("ui335")}</p>
               <div className="space-y-2">
                 {dashboardEmployees.map((emp) => {
                   const isChecked = bulkSelectedEmployeeIds.includes(emp.id);
@@ -2514,7 +2484,7 @@ export default function DashboardPage() {
                       />
                       <div>
                         <span className="font-semibold text-slate-800">{emp.name}</span>
-                        <span className="text-[10px] text-slate-450 block">{emp.role} {emp.hallName ? `• ${emp.hallName}` : ""}</span>
+                        <span className="text-[10px] text-slate-600 block">{emp.role === "ADMIN" ? t("staff924") : emp.role === "MANAGER" ? t("roleManager") : t("roleEmployee")} {emp.hallName ? `• ${emp.hallName}` : ""}</span>
                       </div>
                     </label>
                   );
@@ -2530,8 +2500,7 @@ export default function DashboardPage() {
                 }}
                 className="btn-secondary py-1.5 px-4 cursor-pointer text-xs"
               >
-                Abbrechen
-              </button>
+                {tx("ui336")}</button>
               <button
                 onClick={() => {
                   handleBulkAssignEmployeesPlans(bulkSelectedEmployeeIds);
@@ -2541,8 +2510,7 @@ export default function DashboardPage() {
                 className="btn-primary py-1.5 px-4 cursor-pointer text-xs"
                 disabled={bulkSelectedEmployeeIds.length === 0}
               >
-                Zuweisen
-              </button>
+                {tx("ui337")}</button>
             </div>
           </div>
         </div>
@@ -2551,54 +2519,54 @@ export default function DashboardPage() {
       {/* Print-Friendly Container */}
       {selectedPlanForView && (
         <div className="hidden print:block print:p-8 bg-white text-black min-h-screen">
-          <h1 className="text-2xl font-bold border-b pb-2 mb-4">LogiFlow Shift Operations Plan</h1>
+          <h1 className="text-2xl font-bold border-b pb-2 mb-4">{tx("ui338")}</h1>
           <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-            <div suppressHydrationWarning><strong>Date:</strong> {new Date(selectedPlanForView.date).toLocaleDateString(language === "de" ? "de-DE" : "en-CA")}</div>
-            {selectedPlanForView.shift && <div><strong>Shift Time:</strong> {selectedPlanForView.shift}</div>}
+            <div suppressHydrationWarning><strong>{tx("ui339")}</strong> {new Date(selectedPlanForView.date).toLocaleDateString(uiLocale)}</div>
+            {selectedPlanForView.shift && <div><strong>{tx("ui340")}</strong> {selectedPlanForView.shift}</div>}
             <div className="col-span-2">
-              <strong>Assigned Locations:</strong>{" "}
+              <strong>{tx("ui341")}</strong>{" "}
               {selectedPlanForView.locations && selectedPlanForView.locations.length > 0
                 ? selectedPlanForView.locations.map((l: any) => `${l.warehouseName || l.warehouse?.name || selectedPlanForView.warehouseName} (${l.hallName || l.hall?.name || selectedPlanForView.hallName})`).join(", ")
                 : `${selectedPlanForView.warehouseName} — ${selectedPlanForView.hallName}`}
             </div>
             {selectedPlanForView.treffpunkt && (
-              <div className="col-span-2"><strong>Meeting Point:</strong> {selectedPlanForView.treffpunkt} {selectedPlanForView.treffpunktTime ? `at ${selectedPlanForView.treffpunktTime}` : ""}</div>
+              <div className="col-span-2"><strong>{tx("ui342")}</strong> {selectedPlanForView.treffpunkt} {selectedPlanForView.treffpunktTime ? `at ${selectedPlanForView.treffpunktTime}` : ""}</div>
             )}
           </div>
           
-          <h2 className="text-lg font-semibold border-b pb-1 mb-2">Assigned Staff ({selectedPlanForView.assignedEmployees?.length || 0})</h2>
+          <h2 className="text-lg font-semibold border-b pb-1 mb-2">{tx("ui343")}{selectedPlanForView.assignedEmployees?.length || 0})</h2>
           <table className="w-full border-collapse mb-6 text-xs text-left text-black">
             <thead>
               <tr className="border-b border-black">
-                <th className="py-2">Name</th>
-                <th className="py-2">Role</th>
-                <th className="py-2">Phone</th>
+                <th className="py-2">{tx("nameColumn")}</th>
+                <th className="py-2">{tx("ui344")}</th>
+                <th className="py-2">{tx("ui345")}</th>
               </tr>
             </thead>
             <tbody>
               {selectedPlanForView.assignedEmployees?.map((emp, idx) => (
                 <tr key={idx} className="border-b border-black">
                   <td className="py-2 font-medium">{emp.name}</td>
-                  <td className="py-2">{emp.role}</td>
+                  <td className="py-2">{emp.role === "ADMIN" ? t("staff924") : emp.role === "MANAGER" ? t("roleManager") : t("roleEmployee")}</td>
                   <td className="py-2">{emp.phone || "—"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
 
-          <h2 className="text-lg font-semibold border-b pb-1 mb-2">Routed Containers ({selectedPlanForView.assignedContainers?.length || 0})</h2>
+          <h2 className="text-lg font-semibold border-b pb-1 mb-2">{tx("ui346")}{selectedPlanForView.assignedContainers?.length || 0})</h2>
           <table className="w-full border-collapse text-xs text-left text-black">
             <thead>
               <tr className="border-b border-black">
-                <th className="py-2">Container Number</th>
-                <th className="py-2">Status</th>
+                <th className="py-2">{tx("ui347")}</th>
+                <th className="py-2">{tx("statusColumn")}</th>
               </tr>
             </thead>
             <tbody>
               {selectedPlanForView.assignedContainers?.map((c, idx) => (
                 <tr key={idx} className="border-b border-black">
                   <td className="py-2 font-mono font-medium">{c.containerNumber}</td>
-                  <td className="py-2">{c.status}</td>
+                  <td className="py-2">{c.status === "FULL" ? t("inventory1386") : c.status === "EMPTY" ? t("inventory1387") : c.status}</td>
                 </tr>
               ))}
             </tbody>
@@ -2624,7 +2592,7 @@ export default function DashboardPage() {
           refreshEmployeeData();
           showAlert({
             title: t("success"),
-            message: "Arbeitszeit erfolgreich erfasst!",
+            message: tx("ui545"),
             type: "success",
           });
         }}

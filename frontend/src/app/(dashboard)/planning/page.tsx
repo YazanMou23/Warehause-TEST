@@ -1,4 +1,5 @@
 "use client";
+import { useTranslation } from "../../i18n/LanguageContext";
 
 import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -86,6 +87,7 @@ export interface EmployeeAbsenceItem {
 }
 
 function PlanningPageContent() {
+  const { t: tx, locale: uiLocale } = useTranslation();
   const [activePlanningTab, setActivePlanningTab] = useState<"plan" | "confirmations">("plan");
   const [date, setDate] = useState("");
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -183,6 +185,14 @@ function PlanningPageContent() {
     return `${startTime} - ${endTime}`;
   };
 
+  // Localized display only. getFormattedShift remains canonical for API writes.
+  const displayShift = (value: string) => value
+    .replace("Frühschicht", tx("earlyShift"))
+    .replace("Spätschicht", tx("lateShift"))
+    .replace("Nachtschicht", tx("nightShift"))
+    .replace("Benutzerdefiniert", tx("planning632"))
+    .replace(/offen/gi, tx("planning720"));
+
   const [planId, setPlanId] = useState<string | null>(null);
   const [lastSavedPlanId, setLastSavedPlanId] = useState<string | null>(null);
   const [allCreatedPlans, setAllCreatedPlans] = useState<any[]>([]);
@@ -238,7 +248,7 @@ function PlanningPageContent() {
         if (s2 === null || e2 === null) continue;
 
         if (s1 < e2 && e1 > s2) {
-          return `Überlappung zwischen Abschnitt ${i + 1} (${segments[i].startTime}-${segments[i].endTime}) und Abschnitt ${j + 1} (${segments[j].startTime}-${segments[j].endTime})`;
+          return tx("planningOverlap").replace("{first}", String(i + 1)).replace("{second}", String(j + 1));
         }
       }
     }
@@ -485,8 +495,8 @@ function PlanningPageContent() {
                 employeeId: id,
                 treffpunkt: plan.treffpunkt || "",
                 treffpunktTime: plan.treffpunktTime || "05:30",
-                startTime: plan.startTime ? new Date(plan.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:00",
-                endTime: plan.endTime ? new Date(plan.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "14:00",
+                startTime: plan.startTime ? new Date(plan.startTime).toLocaleTimeString('de-DE', { hour12: false, hour: '2-digit', minute: '2-digit' }) : "06:00",
+                endTime: plan.endTime ? new Date(plan.endTime).toLocaleTimeString('de-DE', { hour12: false, hour: '2-digit', minute: '2-digit' }) : "14:00",
                 notes: "",
                 order: 0,
               },
@@ -499,8 +509,8 @@ function PlanningPageContent() {
           setSelectedLocations(plan.locations.map((l: any) => ({
             warehouseId: l.warehouseId || l.warehouse?.id || "",
             hallId: l.hallId || l.hall?.id || "",
-            startTime: l.startTime || (plan.startTime ? new Date(plan.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:00"),
-            endTime: l.endTime || (plan.endTime ? new Date(plan.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "14:00"),
+            startTime: l.startTime || (plan.startTime ? new Date(plan.startTime).toLocaleTimeString('de-DE', { hour12: false, hour: '2-digit', minute: '2-digit' }) : "06:00"),
+            endTime: l.endTime || (plan.endTime ? new Date(plan.endTime).toLocaleTimeString('de-DE', { hour12: false, hour: '2-digit', minute: '2-digit' }) : "14:00"),
             isOpenEnd: Boolean(l.isOpenEnd),
             notes: l.notes || "",
           })));
@@ -508,8 +518,8 @@ function PlanningPageContent() {
           setSelectedLocations([{
             warehouseId: plan.warehouseId,
             hallId: plan.hallId,
-            startTime: plan.startTime ? new Date(plan.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:00",
-            endTime: plan.endTime ? new Date(plan.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "14:00",
+            startTime: plan.startTime ? new Date(plan.startTime).toLocaleTimeString('de-DE', { hour12: false, hour: '2-digit', minute: '2-digit' }) : "06:00",
+            endTime: plan.endTime ? new Date(plan.endTime).toLocaleTimeString('de-DE', { hour12: false, hour: '2-digit', minute: '2-digit' }) : "14:00",
             isOpenEnd: false,
             notes: "",
           }]);
@@ -541,17 +551,17 @@ function PlanningPageContent() {
       );
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.message || "Fehler beim Versenden der Benachrichtigungen");
+        throw new Error(data.message || tx("planning636"));
       }
       showAlert({
-        title: "E-Mails erfolgreich versendet",
-        message: "Der Schichtplan wurde per E-Mail an alle eingeteilten Mitarbeiter verschickt.",
+        title: tx("planning637"),
+        message: tx("planning638"),
         type: "success",
       });
     } catch (err: any) {
       showAlert({
-        title: "Fehler beim Versand",
-        message: err.message || "Benachrichtigungs-E-Mails konnten nicht gesendet werden.",
+        title: tx("planning639"),
+        message: err.message || tx("planning640"),
         type: "error",
       });
     } finally {
@@ -574,13 +584,13 @@ function PlanningPageContent() {
       );
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.message || "Fehler beim WhatsApp-Versand");
+        throw new Error(data.message || tx("planning641"));
       }
 
       if (data.failedCount === 0 && data.sentCount > 0) {
         showAlert({
-          title: "WhatsApp an alle gesendet",
-          message: `Schichtplan mit den 3 Rückmelde-Optionen (✅ Da / 🤒 Krank / 💬 Nachricht) wurde erfolgreich an alle ${data.sentCount} Mitarbeiter per WhatsApp zugestellt.`,
+          title: tx("planning642"),
+          message: tx("planningWhatsAppSent").replace("{count}", String(data.sentCount)),
           type: "success",
         });
       } else {
@@ -590,8 +600,8 @@ function PlanningPageContent() {
       }
     } catch (err: any) {
       showAlert({
-        title: "WhatsApp Hinweis",
-        message: err.message || "WhatsApp-Nachrichten konnten nicht über die API zugestellt werden.",
+        title: tx("planning643"),
+        message: err.message || tx("planning644"),
         type: "error",
       });
     } finally {
@@ -680,8 +690,8 @@ function PlanningPageContent() {
     if (!assignedEmployeeIds.includes(empId) && isAbsent) {
       const absRecord = absences.find((a) => a.employeeId === empId);
       showAlert({
-        title: "⚠️ Mitarbeiter als abwesend markiert",
-        message: `Dieser Mitarbeiter ist am ${date} als "${absRecord?.status === 'KRANK' ? 'Krank' : absRecord?.status === 'NICHT_GEARBEITET' ? 'Nicht gearbeitet' : 'Abwesend'}" markiert. Möchten Sie ihn dennoch einplanen?`,
+        title: tx("planning645"),
+        message: tx("planningAbsentWarning").replace("{date}", date).replace("{status}", absRecord?.status === "KRANK" ? tx("planning646") : absRecord?.status === "NICHT_GEARBEITET" ? tx("planning647") : tx("planning648")),
         type: "warning",
       });
     }
@@ -785,8 +795,8 @@ function PlanningPageContent() {
     setContainerCountInput("");
     applyShiftString("Frühschicht");
     showAlert({
-      title: "Bearbeitung beendet",
-      message: "Der Editor wurde auf den Neuanlage-Modus zurückgesetzt.",
+      title: tx("planning652"),
+      message: tx("planning653"),
       type: "info",
     });
   };
@@ -794,11 +804,11 @@ function PlanningPageContent() {
   const handleDeletePlan = async (idToDelete: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     showAlert({
-      title: "Plan löschen?",
-      message: "Möchten Sie diesen Schichtplan wirklich unwiderruflich löschen?",
+      title: tx("planning654"),
+      message: tx("planning655"),
       type: "warning",
-      confirmText: "Ja, Plan löschen",
-      cancelText: "Abbrechen",
+      confirmText: tx("planning656"),
+      cancelText: tx("ui336"),
       onConfirm: async () => {
         const token = localStorage.getItem("accessToken");
         if (!token) return;
@@ -814,7 +824,7 @@ function PlanningPageContent() {
             );
             if (!res.ok) {
               const err = await res.json();
-              throw new Error(err.message || "Fehler beim Löschen des Plans");
+              throw new Error(err.message || tx("planning657"));
             }
 
           setAllCreatedPlans((prev) => prev.filter((p: any) => p.id !== idToDelete));
@@ -823,14 +833,14 @@ function PlanningPageContent() {
           }
 
           showAlert({
-            title: "Plan gelöscht",
-            message: "Der Schichtplan wurde erfolgreich entfernt.",
+            title: tx("planning658"),
+            message: tx("planning659"),
             type: "success",
           });
         } catch (err: any) {
           showAlert({
-            title: "Fehler",
-            message: err.message || "Plan konnte nicht gelöscht werden",
+            title: tx("ui526"),
+            message: err.message || tx("planning660"),
             type: "error",
           });
         } finally {
@@ -847,24 +857,24 @@ function PlanningPageContent() {
     // CLIENT-SIDE VALIDATION
     if (selectedLocations.length === 0) {
       showAlert({
-        title: "⚠️ Keine Halle ausgewählt",
-        message: "Bitte wählen Sie mindestens ein Lager und eine Halle für diesen Schichtplan aus.",
+        title: tx("planning661"),
+        message: tx("planning662"),
         type: "error",
       });
       return;
     }
     if (!date) {
       showAlert({
-        title: "⚠️ Kein Datum gewählt",
-        message: "Bitte wählen Sie ein gültiges Datum für den Schichtplan.",
+        title: tx("planning663"),
+        message: tx("planning664"),
         type: "error",
       });
       return;
     }
     if (shiftPreset === "Benutzerdefiniert" && (!startTime || (!endTimeOpen && !endTime))) {
       showAlert({
-        title: "⚠️ Unvollständige Arbeitszeit",
-        message: "Bitte geben Sie gültige Uhrzeiten (Von / Bis) für Ihre benutzerdefinierte Schicht an.",
+        title: tx("planning665"),
+        message: tx("planningValidTimes"),
         type: "error",
       });
       return;
@@ -877,8 +887,8 @@ function PlanningPageContent() {
       if (overlapErr) {
         const empName = employees.find((e) => e.id === empId)?.name || empId;
         showAlert({
-          title: `⚠️ Zeitüberschneidung bei ${empName}`,
-          message: `${overlapErr}. Bitte passen Sie die Arbeitszeiten der Abschnitte so an, dass sie sich nicht überschneiden.`,
+          title: tx("planningOverlapTitle").replace("{name}", empName),
+          message: overlapErr + ". " + tx("planningOverlapHelp"),
           type: "error",
         });
         return;
@@ -964,7 +974,7 @@ function PlanningPageContent() {
 
         const data = await res.json();
         if (!res.ok) {
-          throw new Error(data.message || "Fehler beim Speichern des Schichtplans");
+          throw new Error(data.message || tx("planning666"));
         }
 
         const savedPlanId = data.id || planId;
@@ -988,8 +998,8 @@ function PlanningPageContent() {
         setContainerCountInput("");
 
         showAlert({
-          title: "Erfolg!",
-          message: planId ? "Schichtplan wurde erfolgreich aktualisiert." : "Neuer Schichtplan wurde erfolgreich erstellt!",
+          title: tx("planning667"),
+          message: planId ? tx("planning668") : tx("planning669"),
           type: "success",
         });
 
@@ -998,8 +1008,8 @@ function PlanningPageContent() {
         }, 300);
       } catch (err: any) {
         showAlert({
-          title: "Fehler beim Speichern",
-          message: err.message || "Es ist ein unerwarteter Fehler aufgetreten.",
+          title: tx("planning670"),
+          message: err.message || tx("planning671"),
           type: "error",
         });
       } finally {
@@ -1067,7 +1077,7 @@ function PlanningPageContent() {
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.message || "Fehler beim Speichern der Abwesenheit");
+        throw new Error(err.message || tx("planning676"));
       }
 
       const saved = await res.json();
@@ -1078,14 +1088,14 @@ function PlanningPageContent() {
 
       setAbsenceModalOpen(false);
       showAlert({
-        title: "Status gespeichert",
-        message: `Abwesenheitsstatus für ${selectedEmployeeForAbsence.name} wurde erfolgreich aktualisiert.`,
+        title: tx("planning677"),
+        message: tx("planningAbsenceSaved").replace("{name}", selectedEmployeeForAbsence.name),
         type: "success",
       });
     } catch (err: any) {
       showAlert({
-        title: "Fehler",
-        message: err.message || "Status konnte nicht gespeichert werden.",
+        title: tx("ui526"),
+        message: err.message || tx("planning678"),
         type: "error",
       });
     } finally {
@@ -1110,20 +1120,20 @@ function PlanningPageContent() {
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.message || "Fehler beim Entfernen der Abwesenheit");
+        throw new Error(err.message || tx("planning679"));
       }
 
       setAbsences((prev) => prev.filter((a) => a.employeeId !== selectedEmployeeForAbsence.id));
       setAbsenceModalOpen(false);
       showAlert({
-        title: "Status entfernt",
-        message: `Abwesenheit für ${selectedEmployeeForAbsence.name} wurde aufgehoben.`,
+        title: tx("planning680"),
+        message: tx("planningAbsenceRemoved").replace("{name}", selectedEmployeeForAbsence.name),
         type: "success",
       });
     } catch (err: any) {
       showAlert({
-        title: "Fehler",
-        message: err.message || "Abwesenheit konnte nicht gelöscht werden.",
+        title: tx("ui526"),
+        message: err.message || tx("planning681"),
         type: "error",
       });
     } finally {
@@ -1187,8 +1197,8 @@ function PlanningPageContent() {
             employeeId: id,
             treffpunkt: plan.treffpunkt || "Büro",
             treffpunktTime: plan.treffpunktTime || "05:30",
-            startTime: plan.startTime ? new Date(plan.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:00",
-            endTime: plan.endTime ? new Date(plan.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "14:00",
+            startTime: plan.startTime ? new Date(plan.startTime).toLocaleTimeString('de-DE', { hour12: false, hour: '2-digit', minute: '2-digit' }) : "06:00",
+            endTime: plan.endTime ? new Date(plan.endTime).toLocaleTimeString('de-DE', { hour12: false, hour: '2-digit', minute: '2-digit' }) : "14:00",
             notes: "",
             order: 0,
           },
@@ -1201,8 +1211,8 @@ function PlanningPageContent() {
       setSelectedLocations(plan.locations.map((l: any) => ({
         warehouseId: l.warehouseId || l.warehouse?.id || "",
         hallId: l.hallId || l.hall?.id || "",
-        startTime: l.startTime || (plan.startTime ? new Date(plan.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:00"),
-        endTime: l.endTime || (plan.endTime ? new Date(plan.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "14:00"),
+        startTime: l.startTime || (plan.startTime ? new Date(plan.startTime).toLocaleTimeString('de-DE', { hour12: false, hour: '2-digit', minute: '2-digit' }) : "06:00"),
+        endTime: l.endTime || (plan.endTime ? new Date(plan.endTime).toLocaleTimeString('de-DE', { hour12: false, hour: '2-digit', minute: '2-digit' }) : "14:00"),
         isOpenEnd: Boolean(l.isOpenEnd),
         notes: l.notes || "",
       })));
@@ -1210,8 +1220,8 @@ function PlanningPageContent() {
       setSelectedLocations([{
         warehouseId: plan.warehouseId,
         hallId: plan.hallId,
-        startTime: plan.startTime ? new Date(plan.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:00",
-        endTime: plan.endTime ? new Date(plan.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "14:00",
+        startTime: plan.startTime ? new Date(plan.startTime).toLocaleTimeString('de-DE', { hour12: false, hour: '2-digit', minute: '2-digit' }) : "06:00",
+        endTime: plan.endTime ? new Date(plan.endTime).toLocaleTimeString('de-DE', { hour12: false, hour: '2-digit', minute: '2-digit' }) : "14:00",
         isOpenEnd: false,
         notes: "",
       }]);
@@ -1226,11 +1236,9 @@ function PlanningPageContent() {
         <div>
           <h3 className="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
             <Layers className="w-7 h-7 text-blue-600" />
-            Schichtplanung & Treffpunkte
-          </h3>
-          <p className="text-slate-500 text-xs mt-1">
-            Schichten einteilen, WhatsApp-Nachrichten versenden &amp; Echtzeit-Rückmeldungen (🟢 Da / 🔴 Krank) überwachen.
-          </p>
+            {tx("planning682")}</h3>
+          <p className="text-slate-600 text-xs mt-1">
+            {tx("planning683")}</p>
         </div>
 
         {/* Tab Switcher */}
@@ -1245,7 +1253,7 @@ function PlanningPageContent() {
             }`}
           >
             <Layers className="w-4 h-4" />
-            <span>1. Schichtplan-Editor</span>
+            <span>{tx("planning684")}</span>
           </button>
           <button
             type="button"
@@ -1257,7 +1265,7 @@ function PlanningPageContent() {
             }`}
           >
             <UserCheck className="w-4 h-4 text-emerald-600" />
-            <span>2. Rückmeldungsliste (🟢/🔴 Wer kommt)</span>
+            <span>{tx("planning685")}</span>
           </button>
         </div>
       </div>
@@ -1276,7 +1284,7 @@ function PlanningPageContent() {
             <Clock className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Aktive Schichten</p>
+            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">{tx("planning686")}</p>
             <p className="text-lg font-extrabold text-slate-800">{allCreatedPlans.length}</p>
           </div>
         </div>
@@ -1286,7 +1294,7 @@ function PlanningPageContent() {
             <Users className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Eingeplante Mit.</p>
+            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">{tx("planning687")}</p>
             <p className="text-lg font-extrabold text-slate-800">{uniqueScheduledEmployeeIds.size} / {totalEmployeesCount}</p>
           </div>
         </div>
@@ -1296,7 +1304,7 @@ function PlanningPageContent() {
             <AlertTriangle className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Verfügbare Mit.</p>
+            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">{tx("planning688")}</p>
             <p className="text-lg font-extrabold text-slate-800">{unscheduledEmployeesCount}</p>
           </div>
         </div>
@@ -1306,7 +1314,7 @@ function PlanningPageContent() {
             <Package className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Container am Tag</p>
+            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">{tx("planning689")}</p>
             <p className="text-lg font-extrabold text-slate-800">{totalContainersToday}</p>
           </div>
         </div>
@@ -1321,14 +1329,12 @@ function PlanningPageContent() {
             </div>
             <div>
               <h4 className="text-sm font-bold text-blue-950 flex items-center gap-2">
-                Bearbeitungsmodus aktiv: Schichtplan wird geändert
-                <span className="text-[10px] font-mono bg-blue-200 text-blue-900 px-2 py-0.5 rounded font-bold">
-                  ID: {planId}
+                {tx("planning690")}<span className="text-[10px] font-mono bg-blue-200 text-blue-900 px-2 py-0.5 rounded font-bold">
+                  {tx("planning691")}{planId}
                 </span>
               </h4>
               <p className="text-xs text-blue-700 mt-0.5">
-                Sie ändern einen bereits gebuchten Schichtplan. Wenn Sie abbrechen, wird der Editor auf eine Neuanlage zurückgesetzt.
-              </p>
+                {tx("planning692")}</p>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -1337,15 +1343,13 @@ function PlanningPageContent() {
               onClick={handleCancelEdit}
               className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-bold border border-slate-300 shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              <RotateCcw className="w-3.5 h-3.5" /> Neu erstellen / Abbrechen
-            </button>
+              <RotateCcw className="w-3.5 h-3.5" /> {tx("planning693")}</button>
             <button
               type="button"
               onClick={() => handleDeletePlan(planId)}
               className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              <Trash2 className="w-3.5 h-3.5" /> Plan löschen
-            </button>
+              <Trash2 className="w-3.5 h-3.5" /> {tx("planning694")}</button>
           </div>
         </div>
       )}
@@ -1355,11 +1359,10 @@ function PlanningPageContent() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {/* Date Selector */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-              Datum (Shift Date) *
-            </label>
+            <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
+              {tx("planning695")}</label>
             <div className="relative">
-              <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" />
               <input
                 type="date"
                 value={date}
@@ -1371,9 +1374,8 @@ function PlanningPageContent() {
 
           {/* Shift Preset & Exact Time Section */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-              Standard-Schichtvorlage (Preset) *
-            </label>
+            <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
+              {tx("planning696")}</label>
             <select
               value={shiftPreset}
               onChange={(e) => {
@@ -1383,12 +1385,12 @@ function PlanningPageContent() {
                 else if (val === "Spätschicht") { setStartTime("14:00"); setEndTime("22:00"); setEndTimeOpen(false); }
                 else if (val === "Nachtschicht") { setStartTime("22:00"); setEndTime("06:00"); setEndTimeOpen(false); }
               }}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white transition-colors shadow-sm"
+              dir="ltr" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white transition-colors shadow-sm"
             >
-              <option value="Frühschicht">Frühschicht (06:00 - 14:00 Uhr)</option>
-              <option value="Spätschicht">Spätschicht (14:00 - 22:00 Uhr)</option>
-              <option value="Nachtschicht">Nachtschicht (22:00 - 06:00 Uhr)</option>
-              <option value="Benutzerdefiniert">Benutzerdefiniert (Eigene Zeiten)</option>
+              <option value="Frühschicht">{tx("planning697")}</option>
+              <option value="Spätschicht">{tx("planning698")}</option>
+              <option value="Nachtschicht">{tx("planning699")}</option>
+              <option value="Benutzerdefiniert">{tx("planning700")}</option>
             </select>
           </div>
         </div>
@@ -1396,13 +1398,11 @@ function PlanningPageContent() {
         {/* Multi-Location Selection */}
         <div className="space-y-3 pt-2">
           <div className="flex items-center justify-between">
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+            <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
               <WarehouseIcon className="w-3.5 h-3.5 text-blue-600" />
-              Einsatz-Standorte / Hallen auswählen (Multi-Location Selection) *
-            </label>
+              {tx("planning701")}</label>
             <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
-              {selectedLocations.length} ausgewählt
-            </span>
+              {selectedLocations.length} {tx("planning702")}</span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
@@ -1411,7 +1411,7 @@ function PlanningPageContent() {
               return (
                 <div key={wh.id} className="border border-slate-200 rounded-xl p-3.5 bg-slate-50/50 space-y-2">
                   <p className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
-                    <WarehouseIcon className="w-3.5 h-3.5 text-slate-500" />
+                    <WarehouseIcon className="w-3.5 h-3.5 text-slate-600" />
                     {wh.name}
                   </p>
                   <div className="space-y-1.5">
@@ -1453,22 +1453,20 @@ function PlanningPageContent() {
             <div>
               <p className="text-xs font-extrabold text-blue-950 uppercase tracking-wider flex items-center gap-1.5">
                 <Clock className="w-4 h-4 text-blue-600" />
-                Ebene 1: Offizieller Schichtplan — Master-Arbeitszeit
-              </p>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Definiert den offiziellen Haupt-Zeitrahmen für diesen Tag. Individuelle Treffpunkte und Arbeitszeit-Abschnitte werden direkt pro Mitarbeiter zugeordnet.
-              </p>
+                {tx("planning703")}</p>
+              <p className="text-[11px] text-slate-600 mt-0.5">
+                {tx("planning704")}</p>
             </div>
             <span className={`text-xs font-mono font-extrabold px-3 py-1 rounded-full border shadow-2xs shrink-0 ${
               endTimeOpen ? "bg-amber-100 text-amber-950 border-amber-300" : "bg-blue-600 text-white border-blue-700"
             }`}>
-              Offiziell: {getFormattedShift()}
+              {tx("planning705")}<bdi dir="ltr">{displayShift(getFormattedShift())}</bdi>
             </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-4 pt-1">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-700">Plan-Beginn:</span>
+              <span className="text-xs font-bold text-slate-700">{tx("planning706")}</span>
               <input
                 type="time"
                 value={startTime}
@@ -1481,11 +1479,10 @@ function PlanningPageContent() {
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-700">Plan-Ende:</span>
+              <span className="text-xs font-bold text-slate-700">{tx("planning707")}</span>
               {endTimeOpen ? (
                 <span className="px-3.5 py-1.5 bg-amber-100 text-amber-950 border-2 border-amber-300 rounded-xl text-xs font-extrabold font-mono shadow-2xs">
-                  Offen (Open End)
-                </span>
+                  {tx("planning708")}</span>
               ) : (
                 <input
                   type="time"
@@ -1513,7 +1510,7 @@ function PlanningPageContent() {
                 }}
                 className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
               />
-              <span className="text-xs font-bold text-slate-700">Offenes Schichtende (Open End)</span>
+              <span className="text-xs font-bold text-slate-700">{tx("planning709")}</span>
             </label>
           </div>
         </div>
@@ -1524,11 +1521,9 @@ function PlanningPageContent() {
             <div>
               <p className="text-xs font-extrabold text-emerald-950 uppercase tracking-wider flex items-center gap-1.5">
                 <Layers className="w-4 h-4 text-emerald-600" />
-                Ebene 2: Hallen-Arbeitszeiten & Schichtfenster pro Halle
-              </p>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Jede Halle kann einen eigenen Einsatzzeitraum haben (z. B. Halle X: 08:00–12:00, Halle Y: 12:00–13:00). Überschreibt nicht die Master-Arbeitszeit.
-              </p>
+                {tx("planning710")}</p>
+              <p className="text-[11px] text-slate-600 mt-0.5">
+                {tx("planning711")}</p>
             </div>
             {selectedLocations.length > 0 && (
               <button
@@ -1546,16 +1541,14 @@ function PlanningPageContent() {
                 className="text-[11px] font-bold bg-white text-emerald-800 hover:bg-emerald-100/70 px-3 py-1 rounded-xl border border-emerald-300 shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
               >
                 <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                Master-Zeiten auf alle Hallen anwenden
-              </button>
+                {tx("planning712")}</button>
             )}
           </div>
 
           {selectedLocations.length === 0 ? (
             <div className="bg-white/80 border border-dashed border-emerald-300 rounded-xl p-4 text-center">
-              <p className="text-xs text-slate-500">
-                Wählen Sie oben im Bereich <strong>Einsatzorte</strong> mindestens eine Halle aus, um hallenspezifische Arbeitszeiten festzulegen.
-              </p>
+              <p className="text-xs text-slate-600">
+                {tx("planning713")}<strong>{tx("planning714")}</strong> {tx("planning715")}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
@@ -1580,18 +1573,18 @@ function PlanningPageContent() {
                         <span className="text-xs font-extrabold text-slate-900">
                           {hObj?.name || "Halle"}
                         </span>
-                        <span className="text-[11px] text-slate-500">
+                        <span className="text-[11px] text-slate-600">
                           ({wObj?.name || "Lager"})
                         </span>
                       </div>
                       <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
-                        {locOpen ? "Offenes Ende" : `${locHours?.toFixed(1)} h`}
+                        {locOpen ? tx("planning717") : `${locHours?.toFixed(1)} h`}
                       </span>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] font-bold text-slate-600">Von:</span>
+                        <span className="text-[11px] font-bold text-slate-600">{tx("planning718")}</span>
                         <input
                           type="time"
                           value={locStart}
@@ -1603,11 +1596,10 @@ function PlanningPageContent() {
                       </div>
 
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] font-bold text-slate-600">Bis:</span>
+                        <span className="text-[11px] font-bold text-slate-600">{tx("planning719")}</span>
                         {locOpen ? (
                           <span className="px-2.5 py-1 bg-amber-50 text-amber-900 border border-amber-300 rounded-lg text-xs font-mono font-bold shadow-2xs">
-                            Offen
-                          </span>
+                            {tx("planning720")}</span>
                         ) : (
                           <input
                             type="time"
@@ -1629,7 +1621,7 @@ function PlanningPageContent() {
                           }
                           className="w-3.5 h-3.5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                         />
-                        <span className="text-[11px] font-bold text-slate-700">Offenes Ende</span>
+                        <span className="text-[11px] font-bold text-slate-700">{tx("planning717")}</span>
                       </label>
                     </div>
                   </div>
@@ -1641,14 +1633,13 @@ function PlanningPageContent() {
 
         {/* Notes TextArea */}
         <div className="space-y-1.5">
-          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-            Notizen / Anweisungen (Notes & Special Instructions)
-          </label>
+          <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
+            {tx("planning721")}</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
-            placeholder="Besondere Anweisungen, Sicherheitsbestimmungen oder Hinweise eintragen..."
+            placeholder={tx("planning722")}
             className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-colors resize-none shadow-2xs"
           />
         </div>
@@ -1657,31 +1648,27 @@ function PlanningPageContent() {
       {/* Container Input Section */}
       <div className="bg-white border border-slate-100 p-6 rounded-xl shadow-sm space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-            Geplante Container (Planned Containers)
-          </label>
+          <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+            {tx("planning723")}</label>
           {assignedContainerNumbers.length > 0 && (
             <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-800 border border-blue-200 px-3 py-1 rounded-full text-[11px] font-bold">
               <Package className="w-3.5 h-3.5" />
-              {assignedContainerNumbers.length} Container zugewiesen
-            </span>
+              {assignedContainerNumbers.length} {tx("planning724")}</span>
           )}
         </div>
 
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
-          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+          <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
             <Package className="w-3.5 h-3.5 text-blue-500" />
-            Schnellzuweisung: Anzahl Container
-          </p>
-          <p className="text-[10px] text-slate-400">
-            Geben Sie die Anzahl an — Platzhalter-IDs werden automatisch generiert (z. B. PLAN-001, PLAN-002 …)
-          </p>
+            {tx("planning725")}</p>
+          <p className="text-[10px] text-slate-600">
+            {tx("planning726")}</p>
           <div className="flex gap-2 max-w-xs">
             <input
               type="number"
               min="1"
               max="999"
-              placeholder="z.B. 5"
+              placeholder={tx("planning727")}
               value={containerCountInput}
               onChange={(e) => setContainerCountInput(e.target.value)}
               onKeyDown={(e) => {
@@ -1718,20 +1705,18 @@ function PlanningPageContent() {
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
             >
               <Package className="w-3.5 h-3.5" />
-              Generieren
-            </button>
+              {tx("planning728")}</button>
           </div>
         </div>
 
         {/* Manual Container Number Entry */}
         <div>
-          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-            Manuelle Eingabe (Container-Nummer)
-          </p>
+          <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-2">
+            {tx("planning729")}</p>
           <div className="flex flex-col sm:flex-row gap-2 max-w-lg min-w-0">
             <input
               type="text"
-              placeholder="z.B. MSCU1284920 (Containernummer)"
+              placeholder={tx("planning730")}
               value={typedContainerNumber}
               onChange={(e) => setTypedContainerNumber(e.target.value)}
               onKeyDown={(e) => {
@@ -1757,15 +1742,14 @@ function PlanningPageContent() {
               }}
               className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2 rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer"
             >
-              Hinzufügen
-            </button>
+              {tx("planning731")}</button>
           </div>
         </div>
 
         {assignedContainerNumbers.length > 0 && (
           <div className="space-y-2 pt-2">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              Zugewiesene Container ({assignedContainerNumbers.length})
+            <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+              {tx("ui346")}{assignedContainerNumbers.length})
             </p>
             <div className="flex flex-wrap gap-2">
               {assignedContainerNumbers.map((cNum) => (
@@ -1777,7 +1761,7 @@ function PlanningPageContent() {
                   <button
                     type="button"
                     onClick={() => setAssignedContainerNumbers((prev) => prev.filter((num) => num !== cNum))}
-                    className="text-slate-400 hover:text-red-600 transition-colors p-0.5 rounded-full hover:bg-slate-200 cursor-pointer"
+                    className="text-slate-600 hover:text-red-600 transition-colors p-0.5 rounded-full hover:bg-slate-200 cursor-pointer"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -1795,14 +1779,14 @@ function PlanningPageContent() {
             <div>
               <h4 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
                 <MapPin className="w-5 h-5 text-blue-600" />
-                Ebene 2: Mitarbeiter-Einsatzplanung — Individuelle Treffpunkte & Abschnitte ({assignedEmployeeIds.length})
+                {tx("planning732")}{assignedEmployeeIds.length})
               </h4>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Jeder Mitarbeiter kann einen oder mehrere Treffpunkte & Arbeitszeit-Abschnitte haben. Offizieller Plan: <strong className="text-slate-800 font-mono">{getFormattedShift()}</strong>
+              <p className="text-xs text-slate-600 mt-0.5">
+                {tx("planning733")}<strong className="text-slate-800 font-mono"><bdi dir="ltr">{displayShift(getFormattedShift())}</bdi></strong>
               </p>
             </div>
             <span className="text-xs bg-amber-100 text-amber-950 border border-amber-300 px-3 py-1.5 rounded-xl font-bold shadow-2xs shrink-0">
-              ⚠️ Treffzeit (Abholung) ist <strong>keine Arbeitszeit</strong>
+              {tx("planning734")}<strong>{tx("planning735")}</strong>
             </span>
           </div>
 
@@ -1847,27 +1831,25 @@ function PlanningPageContent() {
                                 : "bg-slate-200 text-slate-800"
                             }`}
                           >
-                            {emp.role === "TEAM_LEADER" ? "Vorarbeiter" : "Mitarbeiter"}
+                            {emp.role === "TEAM_LEADER" ? tx("planning736") : tx("roleEmployee")}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-500 font-mono mt-0.5">{emp.phone || "Keine Telefonnummer"}</p>
+                        <p className="text-xs text-slate-600 font-mono mt-0.5"><bdi dir="ltr">{emp.phone || tx("planning737")}</bdi></p>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-3">
                       <div className="text-right">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                          Netto-Arbeitszeit
-                        </span>
+                        <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block">
+                          {tx("netHours")}</span>
                         <span className="text-sm font-mono font-extrabold text-blue-950 bg-blue-100/90 px-3 py-1 rounded-xl border border-blue-300 inline-block mt-0.5">
-                          {totalHours.toFixed(2)} h (Treffzeit exkl.)
-                        </span>
+                          {totalHours.toFixed(2)} {tx("planning738")}</span>
                       </div>
                       <button
                         type="button"
                         onClick={() => toggleEmployee(emp.id)}
-                        className="text-slate-400 hover:text-red-600 p-2 rounded-xl hover:bg-slate-200 transition-colors cursor-pointer"
-                        title="Mitarbeiter aus Schichtplan entfernen"
+                        className="text-slate-600 hover:text-red-600 p-2 rounded-xl hover:bg-slate-200 transition-colors cursor-pointer"
+                        title={tx("planning739")}
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -1887,8 +1869,7 @@ function PlanningPageContent() {
                     <div className="bg-amber-100/90 text-amber-950 border border-amber-300 px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-2xs">
                       <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                       <span>
-                        Hinweis: Einzelne Abschnitte weichen vom offiziellen Plan-Zeitrahmen ({getFormattedShift()}) ab.
-                      </span>
+                        {tx("planning740")}<bdi dir="ltr">{displayShift(getFormattedShift())}</bdi>{tx("planning741")}</span>
                     </div>
                   )}
 
@@ -1896,14 +1877,14 @@ function PlanningPageContent() {
                   <div className="overflow-x-auto">
                     <div className="min-w-[680px] space-y-2">
                       {/* Table Column Headers */}
-                      <div className="grid grid-cols-[36px_140px_1fr_110px_110px_90px_40px] gap-2 px-2 py-1 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider items-center">
+                      <div className="grid grid-cols-[36px_140px_1fr_110px_110px_90px_40px] gap-2 px-2 py-1 text-[10px] font-extrabold text-slate-600 uppercase tracking-wider items-center">
                         <div className="text-center">#</div>
-                        <div className="text-amber-800">⏰ Treffzeit</div>
-                        <div>📍 Treffpunkt / Einsatzort</div>
-                        <div>Von (Arbeit)</div>
-                        <div>Bis (Arbeit)</div>
-                        <div className="text-right">Netto (h)</div>
-                        <div className="text-center">Aktion</div>
+                        <div className="text-amber-800">{tx("planning742")}</div>
+                        <div>{tx("planning743")}</div>
+                        <div>{tx("planning744")}</div>
+                        <div>{tx("planning745")}</div>
+                        <div className="text-right">{tx("planning746")}</div>
+                        <div className="text-center">{tx("ui295")}</div>
                       </div>
 
                       {segs.map((seg, idx) => {
@@ -1930,7 +1911,7 @@ function PlanningPageContent() {
                                 value={seg.treffpunktTime || ""}
                                 onChange={(e) => handleUpdateSegment(emp.id, idx, "treffpunktTime", e.target.value)}
                                 className="w-full bg-amber-50/80 border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-amber-950 outline-none focus:border-amber-500 focus:bg-white font-mono"
-                                title="Treffzeit (wird nicht zur Arbeitszeit gezählt)"
+                                title={tx("planning747")}
                               />
                             </div>
 
@@ -1938,7 +1919,7 @@ function PlanningPageContent() {
                             <div className="relative">
                               <input
                                 type="text"
-                                placeholder="z.B. Büro, Baustelle A, Hall X..."
+                                placeholder={tx("planning748")}
                                 value={seg.treffpunkt}
                                 onChange={(e) => handleUpdateSegment(emp.id, idx, "treffpunkt", e.target.value)}
                                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500 focus:bg-white"
@@ -1969,8 +1950,7 @@ function PlanningPageContent() {
                             {/* Duration Badge */}
                             <div className="text-right">
                               <span className="font-mono font-extrabold text-xs bg-slate-100 text-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 inline-block">
-                                {segHours.toFixed(1)} h
-                              </span>
+                                {segHours.toFixed(1)} {tx("ui277")}</span>
                             </div>
 
                             {/* Remove Action */}
@@ -1979,13 +1959,13 @@ function PlanningPageContent() {
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveSegment(emp.id, idx)}
-                                  className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
-                                  title="Abschnitt löschen"
+                                  className="text-slate-600 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                                  title={tx("planning749")}
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               ) : (
-                                <span className="text-slate-200 text-xs">—</span>
+                                <span className="text-slate-600 text-xs">—</span>
                               )}
                             </div>
                           </div>
@@ -2001,10 +1981,9 @@ function PlanningPageContent() {
                       onClick={() => handleAddSegmentForEmployee(emp.id)}
                       className="text-xs font-bold text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-300 px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
                     >
-                      <Plus className="w-3.5 h-3.5" /> + Treffpunkt / Arbeitszeit hinzufügen
-                    </button>
-                    <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
-                      <span className="font-semibold text-slate-400">Schnell-Treffpunkte:</span>
+                      <Plus className="w-3.5 h-3.5" /> {tx("planning750")}</button>
+                    <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-600">
+                      <span className="font-semibold text-slate-600">{tx("planning751")}</span>
                       {["Büro", "Baustelle A", "Baustelle B"].map((preset) => (
                         <button
                           key={preset}
@@ -2017,7 +1996,7 @@ function PlanningPageContent() {
                           }}
                           className="px-2 py-0.5 bg-white border border-slate-200 hover:border-blue-400 hover:text-blue-600 rounded-md text-[10px] font-medium transition-colors cursor-pointer"
                         >
-                          {preset}
+                          {preset === "Büro" ? tx("planning649") : preset === "Baustelle A" ? tx("planning650") : tx("planning651")}
                         </button>
                       ))}
                     </div>
@@ -2034,24 +2013,21 @@ function PlanningPageContent() {
         <div className="p-4 border-b border-slate-100 bg-slate-50/80 flex flex-col sm:flex-row justify-between sm:items-center gap-2">
           <div>
             <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-              <Users className="w-4 h-4 text-blue-600" /> Mitarbeiter-Zuweisung & Status-Erfassung
-            </h5>
-            <p className="text-[11px] text-slate-500 mt-0.5">
-              Wählen Sie Mitarbeiter aus oder erfassen Sie Abwesenheiten (Nicht gearbeitet / Krank / Abwesend).
-            </p>
+              <Users className="w-4 h-4 text-blue-600" /> {tx("planning752")}</h5>
+            <p className="text-[11px] text-slate-600 mt-0.5">
+              {tx("planning753")}</p>
           </div>
           <span className="font-mono text-xs bg-blue-50 text-blue-800 px-3 py-1 rounded-full font-bold border border-blue-200 self-start sm:self-auto">
-            {assignedEmployeeIds.length} ausgewählt
-          </span>
+            {assignedEmployeeIds.length} {tx("planning702")}</span>
         </div>
 
         {/* Search Bar */}
         <div className="p-3 border-b border-slate-100 bg-white">
           <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-600 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Mitarbeiter suchen (Name, Telefon, Rolle)..."
+              placeholder={tx("planning754")}
               value={employeeSearchTerm}
               onChange={(e) => setEmployeeSearchTerm(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-10 pr-3 py-2 text-xs font-medium text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-colors shadow-2xs"
@@ -2071,9 +2047,8 @@ function PlanningPageContent() {
 
             if (sortedFiltered.length === 0) {
               return (
-                <div className="text-center py-8 text-slate-400 text-xs italic">
-                  Keine Mitarbeiter für "{employeeSearchTerm}" gefunden.
-                </div>
+                <div className="text-center py-8 text-slate-600 text-xs italic">
+                  {tx("planning755")}{employeeSearchTerm}{tx("planning756")}</div>
               );
             }
 
@@ -2120,17 +2095,17 @@ function PlanningPageContent() {
                             {absenceRecord.status === "KRANK" ? (
                               <>
                                 <HeartPulse className="w-3 h-3 text-amber-700" />
-                                <span>🟡 Krank</span>
+                                <span>{tx("planning758")}</span>
                               </>
                             ) : absenceRecord.status === "NICHT_GEARBEITET" ? (
                               <>
                                 <UserX className="w-3 h-3 text-red-700" />
-                                <span>🔴 Nicht gearbeitet</span>
+                                <span>{tx("planning759")}</span>
                               </>
                             ) : (
                               <>
                                 <HelpCircle className="w-3 h-3 text-blue-700" />
-                                <span>🔵 Abwesend ({absenceRecord.reason || "Grund"})</span>
+                                <span>{tx("planning760")}{absenceRecord.reason || tx("planning761")})</span>
                               </>
                             )}
                           </span>
@@ -2139,11 +2114,11 @@ function PlanningPageContent() {
                         {existingShiftsForEmp.length > 0 && (
                           <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-800 border border-slate-300 font-bold rounded-full flex items-center gap-1">
                             <ShieldAlert className="w-3 h-3 text-amber-600" />
-                            Bereits heute eingeplant ({existingShiftsForEmp.join(", ")})
+                            {tx("planning762")}{existingShiftsForEmp.join(", ")})
                           </span>
                         )}
                       </div>
-                      <p className="text-[11px] text-slate-400 font-mono mt-0.5">{emp.phone || "Keine Telefonnummer"}</p>
+                      <p className="text-[11px] text-slate-600 font-mono mt-0.5"><bdi dir="ltr">{emp.phone || tx("planning737")}</bdi></p>
                     </div>
                   </div>
 
@@ -2153,10 +2128,10 @@ function PlanningPageContent() {
                       type="button"
                       onClick={(e) => openAbsenceModal(emp, e)}
                       className="px-2.5 py-1 text-[11px] font-bold rounded-lg border bg-white hover:bg-slate-100 text-slate-700 border-slate-200 shadow-2xs transition-colors flex items-center gap-1"
-                      title="Abwesenheitsstatus für diesen Mitarbeiter erfassen"
+                      title={tx("planning763")}
                     >
-                      <UserX className="w-3 h-3 text-slate-500" />
-                      <span>{absenceRecord ? "Status bearbeiten" : "Status / Abwesend"}</span>
+                      <UserX className="w-3 h-3 text-slate-600" />
+                      <span>{absenceRecord ? tx("planning764") : tx("planningStatusAbsent")}</span>
                     </button>
 
                     <span
@@ -2166,7 +2141,7 @@ function PlanningPageContent() {
                           : "bg-slate-100 text-slate-700 border-slate-200"
                       }`}
                     >
-                      {emp.role === "TEAM_LEADER" ? "Vorarbeiter" : "Mitarbeiter"}
+                      {emp.role === "TEAM_LEADER" ? tx("planning736") : tx("roleEmployee")}
                     </span>
                   </div>
                 </div>
@@ -2180,11 +2155,10 @@ function PlanningPageContent() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-slate-800 text-white p-6 rounded-xl shadow-lg">
         <div>
           <p className="text-sm font-extrabold text-white flex items-center gap-2">
-            {planId ? "Bestehender Schichtplan wird aktualisiert" : "Neuer Schichtplan-Entwurf wird angelegt"}
+            {planId ? tx("planning765") : tx("planning766")}
           </p>
-          <p className="text-xs text-slate-300 mt-1">
-            {selectedLocations.length} Standort(e) und {assignedEmployeeIds.length} Mitarbeiter sind für diese Schicht ausgewählt.
-          </p>
+          <p className="text-xs text-slate-200 mt-1">
+            {selectedLocations.length} {tx("planning767")}{assignedEmployeeIds.length} {tx("planning768")}</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -2194,8 +2168,7 @@ function PlanningPageContent() {
               onClick={handleCancelEdit}
               className="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold px-5 py-2.5 rounded-lg transition-all cursor-pointer"
             >
-              Abbrechen
-            </button>
+              {tx("ui336")}</button>
           )}
           <button
             onClick={handleSavePlan}
@@ -2207,7 +2180,7 @@ function PlanningPageContent() {
             ) : (
               <Save className="w-4 h-4" />
             )}
-            <span>{planId ? "Änderungen speichern" : "Plan speichern & benachrichtigen"}</span>
+            <span>{planId ? tx("planning769") : tx("planning770")}</span>
           </button>
         </div>
       </div>
@@ -2218,21 +2191,20 @@ function PlanningPageContent() {
           <div>
             <h4 className="font-extrabold text-slate-800 text-base flex items-center gap-2">
               <Calendar className="w-5 h-5 text-blue-600" />
-              Erstellte Schichtpläne am {date} ({displayedPlans.length})
+              {tx("planning771")}{date} ({displayedPlans.length})
             </h4>
-            <p className="text-slate-500 text-xs mt-0.5">
-              Übersicht aller aktiven Schichtpläne mit zugeordneten Hallen, Mitarbeitern und individuellen Treffpunkten
-            </p>
+            <p className="text-slate-600 text-xs mt-0.5">
+              {tx("planning772")}</p>
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 min-w-0 w-full sm:w-auto">
-            <span className="text-xs font-bold text-slate-500 shrink-0">Filter Lager:</span>
+            <span className="text-xs font-bold text-slate-600 shrink-0">{tx("planning773")}</span>
             <select
               value={filterWarehouseId}
               onChange={(e) => setFilterWarehouseId(e.target.value)}
               className="min-w-0 w-full sm:w-auto sm:max-w-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-2xs"
             >
-              <option value="ALL">Alle Lager zeigen</option>
+              <option value="ALL">{tx("planning774")}</option>
               {warehouses.map((w) => (
                 <option key={w.id} value={w.id}>{w.name}</option>
               ))}
@@ -2241,9 +2213,8 @@ function PlanningPageContent() {
         </div>
 
         {displayedPlans.length === 0 ? (
-          <div className="p-8 text-center text-slate-400 text-xs italic bg-slate-50/60 rounded-xl border border-dashed border-slate-200">
-            Noch keine Schichtpläne für dieses Datum und den gewählten Filter erstellt.
-          </div>
+          <div className="p-8 text-center text-slate-600 text-xs italic bg-slate-50/60 rounded-xl border border-dashed border-slate-200">
+            {tx("planning775")}</div>
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             {displayedPlans.map((plan: any) => {
@@ -2289,7 +2260,7 @@ function PlanningPageContent() {
                       <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
                         <span className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5 bg-blue-50 text-blue-900 px-3 py-1.5 rounded-lg border border-blue-200 shadow-2xs font-mono">
                           <Clock className="w-3.5 h-3.5 text-blue-600" />
-                          <span>{plan.shift || "Schicht"}</span>
+                          <span><bdi dir="ltr">{displayShift(plan.shift || tx("planning757"))}</bdi></span>
                         </span>
                       </div>
                     </div>
@@ -2298,12 +2269,12 @@ function PlanningPageContent() {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5 bg-blue-50 text-blue-900 px-3 py-1.5 rounded-lg border border-blue-200 shadow-2xs">
                         <Clock className="w-3.5 h-3.5 text-blue-600" />
-                        Offizielle Arbeitszeit: {plan.shift || "Schicht"}
+                        {tx("planning776")}<bdi dir="ltr">{displayShift(plan.shift || tx("planning757"))}</bdi>
                       </span>
 
                       {plan.treffpunktTime && (
                         <span className="px-3 py-1.5 bg-amber-50 text-amber-900 font-mono text-xs font-bold rounded-lg border border-amber-200 shadow-2xs">
-                          ⏰ Standard-Treff: {plan.treffpunktTime}
+                          {tx("planning777")}{plan.treffpunktTime}
                         </span>
                       )}
                       {plan.treffpunkt && (
@@ -2317,9 +2288,9 @@ function PlanningPageContent() {
                     {/* Level 2: Hall-Specific Working Times */}
                     {planLocations && planLocations.length > 0 && (
                       <div className="space-y-1.5 pt-1">
-                        <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                        <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1">
                           <Layers className="w-3.5 h-3.5 text-emerald-600" />
-                          Hallen-Arbeitszeiten ({planLocations.length}):
+                          {tx("planning778")}{planLocations.length}):
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {planLocations.map((loc: any, lIdx: number) => {
@@ -2327,8 +2298,8 @@ function PlanningPageContent() {
                             const locHall = halls.find((h) => h.id === (loc.hallId || loc.hall?.id));
                             const hName = locHall?.name || loc.hallName || "Halle";
                             const hColor = locHall?.color || loc.hall?.color || "#10b981";
-                            const lStart = loc.startTime || (plan.startTime ? new Date(plan.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:00");
-                            const lEnd = loc.isOpenEnd ? "Offen" : (loc.endTime || (plan.endTime ? new Date(plan.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "14:00"));
+                            const lStart = loc.startTime || (plan.startTime ? new Date(plan.startTime).toLocaleTimeString('de-DE', { hour12: false, hour: '2-digit', minute: '2-digit' }) : "06:00");
+                            const lEnd = loc.isOpenEnd ? tx("planning720") : (loc.endTime || (plan.endTime ? new Date(plan.endTime).toLocaleTimeString('de-DE', { hour12: false, hour: '2-digit', minute: '2-digit' }) : "14:00"));
                             const lHours = loc.isOpenEnd ? null : calculateSegmentHours(lStart, lEnd);
 
                             return (
@@ -2340,14 +2311,14 @@ function PlanningPageContent() {
                                 <div className="flex items-center gap-1.5 overflow-hidden">
                                   <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: hColor }} />
                                   <span className="font-extrabold text-slate-900 truncate">{hName}</span>
-                                  <span className="text-[10px] text-slate-500 truncate">({wName})</span>
+                                  <span className="text-[10px] text-slate-600 truncate">({wName})</span>
                                 </div>
                                 <div className="flex items-center gap-1.5 shrink-0">
                                   <span className="font-mono text-[11px] font-bold text-emerald-950 bg-white px-2 py-0.5 rounded border border-emerald-200">
                                     {lStart} – {lEnd}
                                   </span>
                                   {lHours !== null && lHours > 0 && (
-                                    <span className="text-[10px] font-mono text-emerald-700">({lHours.toFixed(1)}h)</span>
+                                    <span className="text-[10px] font-mono text-emerald-700">({lHours.toFixed(1)}{tx("ui362")}</span>
                                   )}
                                 </div>
                               </div>
@@ -2359,9 +2330,9 @@ function PlanningPageContent() {
 
                     {/* Employees with Segments Breakdown Table */}
                     <div className="space-y-2 pt-1">
-                      <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                      <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1">
                         <Users className="w-3.5 h-3.5 text-blue-600" />
-                        Mitarbeiter-Einsätze & Treffpunkte ({plan.assignedEmployees?.length || 0}):
+                        {tx("planning779")}{plan.assignedEmployees?.length || 0}):
                       </p>
                       <div className="space-y-2">
                         {plan.assignedEmployees && plan.assignedEmployees.length > 0 ? (
@@ -2379,7 +2350,7 @@ function PlanningPageContent() {
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
                                     <span className="font-extrabold text-slate-900">{emp.name}</span>
-                                    <span className="text-[10px] font-mono text-slate-500">{emp.phone || ""}</span>
+                                    <span className="text-[10px] font-mono text-slate-600"><bdi dir="ltr">{emp.phone || ""}</bdi></span>
                                     {emp.phone && (
                                       <button
                                         type="button"
@@ -2388,14 +2359,13 @@ function PlanningPageContent() {
                                           setWhatsAppModalOpen(true);
                                         }}
                                         className="px-2 py-0.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 text-[10px] font-bold rounded-md transition flex items-center gap-1 cursor-pointer"
-                                        title="WhatsApp Nachricht an diesen Mitarbeiter senden"
+                                        title={tx("planning780")}
                                       >
-                                        💬 WhatsApp
-                                      </button>
+                                        {tx("planning781")}</button>
                                     )}
                                   </div>
                                   <span className="text-[11px] font-bold font-mono text-blue-900 bg-blue-100 px-2.5 py-0.5 rounded-lg border border-blue-200">
-                                    Gesamt: {totalEmpHours > 0 ? `${totalEmpHours.toFixed(1)} h` : (plan.shift || "Master")}
+                                    {tx("planning782")}{totalEmpHours > 0 ? `${totalEmpHours.toFixed(1)} h` : (plan.shift || "Master")}
                                   </span>
                                 </div>
                                 {empSegs.length > 0 ? (
@@ -2403,10 +2373,10 @@ function PlanningPageContent() {
                                     <table className="w-full text-left text-[11px] border border-slate-200 rounded-lg overflow-hidden bg-white">
                                       <thead>
                                         <tr className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
-                                          <th className="py-1 px-2.5">Treffzeit</th>
-                                          <th className="py-1 px-2.5">Treffpunkt</th>
-                                          <th className="py-1 px-2.5">Arbeitszeit</th>
-                                          <th className="py-1 px-2.5 text-right">Netto-Stunden</th>
+                                          <th className="py-1 px-2.5">{tx("planning784")}</th>
+                                          <th className="py-1 px-2.5">{tx("ui331")}</th>
+                                          <th className="py-1 px-2.5">{tx("ui330")}</th>
+                                          <th className="py-1 px-2.5 text-right">{tx("planning785")}</th>
                                         </tr>
                                       </thead>
                                       <tbody className="divide-y divide-slate-100">
@@ -2433,13 +2403,13 @@ function PlanningPageContent() {
                                     </table>
                                   </div>
                                 ) : (
-                                  <span className="text-[10px] text-slate-400 italic">Folgt der offiziellen Master-Schichtzeit</span>
+                                  <span className="text-[10px] text-slate-600 italic">{tx("planning786")}</span>
                                 )}
                               </div>
                             );
                           })
                         ) : (
-                          <span className="text-slate-400 italic text-[11px]">Keine Mitarbeiter zugewiesen</span>
+                          <span className="text-slate-600 italic text-[11px]">{tx("planning787")}</span>
                         )}
                       </div>
                     </div>
@@ -2447,9 +2417,9 @@ function PlanningPageContent() {
                     {/* Containers */}
                     {plan.assignedContainers && plan.assignedContainers.length > 0 && (
                       <div className="space-y-1 pt-1">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                          <Package className="w-3 h-3 text-slate-400" />
-                          Container ({plan.assignedContainers.length}):
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1">
+                          <Package className="w-3 h-3 text-slate-600" />
+                          {tx("planning788")}{plan.assignedContainers.length}):
                         </p>
                         <div className="flex flex-wrap gap-1">
                           {plan.assignedContainers.map((cont: any) => (
@@ -2475,7 +2445,7 @@ function PlanningPageContent() {
                   <div className="pt-3.5 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-3 mt-4 bg-slate-50/70 -mx-5 -mb-5 p-4 rounded-b-2xl">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-2xs">
                       <Users className="w-4 h-4 text-blue-600" />
-                      <span>{plan.assignedEmployees?.length || 0} Mitarbeiter eingeteilt</span>
+                      <span>{plan.assignedEmployees?.length || 0} {tx("ui318")}</span>
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap">
@@ -2484,10 +2454,10 @@ function PlanningPageContent() {
                         type="button"
                         onClick={() => handleStartEditPlan(plan)}
                         className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
-                        title="Diesen Schichtplan im Planungs-Editor oben laden"
+                        title={tx("planning789")}
                       >
                         <Edit2 className="w-3.5 h-3.5" />
-                        <span>Bearbeiten</span>
+                        <span>{tx("ui320")}</span>
                       </button>
 
                       {/* WhatsApp to all button */}
@@ -2495,17 +2465,17 @@ function PlanningPageContent() {
                         type="button"
                         disabled={isSendingWhatsAppForPlanId === plan.id}
                         onClick={() => handleSendPlanWhatsApp(plan.id)}
-                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
-                        title="Schichtplan mit 3 Optionen per WhatsApp an alle Mitarbeiter senden"
+                        className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+                        title={tx("planning790")}
                       >
                         {isSendingWhatsAppForPlanId === plan.id ? (
                           <>
                             <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                            <span>Sendet...</span>
+                            <span>{tx("planning791")}</span>
                           </>
                         ) : (
                           <>
-                            <span>💬 WhatsApp an alle</span>
+                            <span>{tx("planning792")}</span>
                           </>
                         )}
                       </button>
@@ -2519,10 +2489,10 @@ function PlanningPageContent() {
                           setActivePlanningTab("confirmations");
                         }}
                         className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200/80 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                        title="Rückmeldungsliste für diesen Tag öffnen (🟢 Da / 🔴 Krank)"
+                        title={tx("planningOpenResponses")}
                       >
                         <UserCheck className="w-3.5 h-3.5 text-indigo-700" />
-                        <span>Rückmeldungen</span>
+                        <span>{tx("ui319")}</span>
                       </button>
 
                       {/* Resend Email button */}
@@ -2530,7 +2500,7 @@ function PlanningPageContent() {
                         type="button"
                         disabled={isResendingEmailForPlanId === plan.id}
                         onClick={() => handleResendPlanNotification(plan.id)}
-                        title="Dienstplan-E-Mails an alle Mitarbeiter erneut senden"
+                        title={tx("planning793")}
                         className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
                       >
                         {isResendingEmailForPlanId === plan.id ? (
@@ -2538,15 +2508,15 @@ function PlanningPageContent() {
                         ) : (
                           <Mail className="w-3.5 h-3.5 text-slate-600" />
                         )}
-                        <span>E-Mail</span>
+                        <span>{tx("email")}</span>
                       </button>
 
                       {/* Delete button */}
                       <button
                         type="button"
                         onClick={(e) => handleDeletePlan(plan.id, e)}
-                        title="Schichtplan löschen"
-                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer ml-1"
+                        title={tx("planning794")}
+                        className="p-1.5 text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer ml-1"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -2568,16 +2538,15 @@ function PlanningPageContent() {
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <h4 className="text-base font-extrabold text-slate-900">
-                  Status & Abwesenheit erfassen
-                </h4>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">
-                  Für: <strong className="text-slate-800">{selectedEmployeeForAbsence.name}</strong> am <strong>{date}</strong>
+                  {tx("planning795")}</h4>
+                <p className="text-xs text-slate-600 font-medium mt-0.5">
+                  {tx("planning796")}<strong className="text-slate-800">{selectedEmployeeForAbsence.name}</strong> {tx("planning797")}<strong>{date}</strong>
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setAbsenceModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                className="text-slate-600 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2585,9 +2554,8 @@ function PlanningPageContent() {
 
             {/* Status Selection */}
             <div className="space-y-2">
-              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                Status auswählen *
-              </label>
+              <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
+                {tx("planning798")}</label>
               <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
@@ -2599,7 +2567,7 @@ function PlanningPageContent() {
                   }`}
                 >
                   <UserX className="w-5 h-5 text-red-600" />
-                  <span>Nicht gearbeitet</span>
+                  <span>{tx("planning647")}</span>
                 </button>
 
                 <button
@@ -2612,7 +2580,7 @@ function PlanningPageContent() {
                   }`}
                 >
                   <HeartPulse className="w-5 h-5 text-amber-600" />
-                  <span>Krank</span>
+                  <span>{tx("planning646")}</span>
                 </button>
 
                 <button
@@ -2625,7 +2593,7 @@ function PlanningPageContent() {
                   }`}
                 >
                   <HelpCircle className="w-5 h-5 text-blue-600" />
-                  <span>Abwesend (Grund)</span>
+                  <span>{tx("planning799")}</span>
                 </button>
               </div>
             </div>
@@ -2634,24 +2602,23 @@ function PlanningPageContent() {
             {absenceStatusInput === "ABWESEND_GRUND" && (
               <div className="space-y-3 p-3.5 bg-blue-50/50 rounded-xl border border-blue-200/80 animate-fadeIn">
                 <label className="text-[11px] font-bold text-blue-950 uppercase tracking-wider block">
-                  Grund der Abwesenheit *
-                </label>
+                  {tx("planning800")}</label>
                 <select
                   value={absenceReasonCategory}
                   onChange={(e) => setAbsenceReasonCategory(e.target.value)}
                   className="w-full bg-white border border-blue-300 rounded-lg px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-blue-500"
                 >
-                  <option value="Arzttermin">Arzttermin</option>
-                  <option value="Privater Termin">Privater Termin</option>
-                  <option value="Behördentermin">Behördentermin</option>
-                  <option value="Urlaub">Urlaub</option>
-                  <option value="Sonstiger Grund">Sonstiger Grund (Manuelle Angabe)</option>
+                  <option value="Arzttermin">{tx("planning631")}</option>
+                  <option value="Privater Termin">{tx("planning672")}</option>
+                  <option value="Behördentermin">{tx("planning673")}</option>
+                  <option value="Urlaub">{tx("planning674")}</option>
+                  <option value="Sonstiger Grund">{tx("planning801")}</option>
                 </select>
 
                 {absenceReasonCategory === "Sonstiger Grund" && (
                   <input
                     type="text"
-                    placeholder="Spezifischen Grund eingeben..."
+                    placeholder={tx("planning802")}
                     value={absenceCustomReason}
                     onChange={(e) => setAbsenceCustomReason(e.target.value)}
                     className="w-full bg-white border border-blue-300 rounded-lg px-3 py-2 text-xs text-slate-800 outline-none focus:border-blue-500"
@@ -2662,14 +2629,13 @@ function PlanningPageContent() {
 
             {/* Notes Input */}
             <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                Zusätzliche Notizen / Bemerkung
-              </label>
+              <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
+                {tx("planning803")}</label>
               <textarea
                 rows={2}
                 value={absenceNotesInput}
                 onChange={(e) => setAbsenceNotesInput(e.target.value)}
-                placeholder="Optionale Notiz zur Abwesenheit..."
+                placeholder={tx("planning804")}
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 outline-none focus:border-blue-500 resize-none"
               />
             </div>
@@ -2683,8 +2649,7 @@ function PlanningPageContent() {
                   disabled={isSavingAbsence}
                   className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Trash2 className="w-3.5 h-3.5" /> Abwesenheit entfernen
-                </button>
+                  <Trash2 className="w-3.5 h-3.5" /> {tx("planning805")}</button>
               ) : (
                 <div />
               )}
@@ -2695,8 +2660,7 @@ function PlanningPageContent() {
                   onClick={() => setAbsenceModalOpen(false)}
                   className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
                 >
-                  Abbrechen
-                </button>
+                  {tx("ui336")}</button>
                 <button
                   type="button"
                   onClick={handleSaveAbsence}
@@ -2708,7 +2672,7 @@ function PlanningPageContent() {
                   ) : (
                     <Check className="w-3.5 h-3.5" />
                   )}
-                  <span>Status speichern</span>
+                  <span>{tx("planning806")}</span>
                 </button>
               </div>
             </div>
@@ -2742,26 +2706,23 @@ function PlanningPageContent() {
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <h4 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                  <span>💬 WhatsApp-Versandbericht</span>
+                  <span>{tx("planning807")}</span>
                   {whatsAppReportData.sentCount > 0 && (
                     <span className="text-xs bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-bold">
-                      {whatsAppReportData.sentCount} zugestellt
-                    </span>
+                      {whatsAppReportData.sentCount} {tx("planning808")}</span>
                   )}
                   {whatsAppReportData.failedCount > 0 && (
                     <span className="text-xs bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full font-bold">
-                      {whatsAppReportData.failedCount} per WhatsApp Web
-                    </span>
+                      {whatsAppReportData.failedCount} {tx("planning809")}</span>
                   )}
                 </h4>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Für Mitarbeiter, die nicht automatisch über die API erreicht werden konnten, können Sie den Schichtplan direkt mit 1 Klick per WhatsApp Web senden.
-                </p>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  {tx("planning810")}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setWhatsAppReportModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                className="text-slate-600 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2772,7 +2733,7 @@ function PlanningPageContent() {
                 <div key={idx} className="p-3 flex items-center justify-between gap-3 bg-white hover:bg-slate-50/60">
                   <div className="flex flex-col">
                     <span className="text-xs font-extrabold text-slate-900">{r.name}</span>
-                    <span className="text-[11px] font-mono text-slate-500">{r.phone || "Keine Nummer"}</span>
+                    <span className="text-[11px] font-mono text-slate-600">{r.phone || "Keine Nummer"}</span>
                     {r.error && (
                       <span className="text-[10px] text-amber-700 font-medium">{r.error}</span>
                     )}
@@ -2781,21 +2742,19 @@ function PlanningPageContent() {
                   <div className="shrink-0 flex items-center gap-2">
                     {r.success ? (
                       <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md">
-                        ✓ Zugestellt
-                      </span>
+                        {tx("planning812")}</span>
                     ) : r.waLink ? (
                       <a
                         href={r.waLink}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5"
+                        className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5"
                       >
                         <span>WhatsApp Web</span>
                       </a>
                     ) : (
                       <span className="text-xs font-semibold text-rose-600 bg-rose-50 px-2 py-1 rounded">
-                        Keine Nummer
-                      </span>
+                        {tx("planning811")}</span>
                     )}
                   </div>
                 </div>
@@ -2808,8 +2767,7 @@ function PlanningPageContent() {
                 onClick={() => setWhatsAppReportModalOpen(false)}
                 className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm"
               >
-                Schließen
-              </button>
+                {tx("close")}</button>
             </div>
           </div>
         </div>
