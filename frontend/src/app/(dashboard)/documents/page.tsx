@@ -103,7 +103,7 @@ export default function DocumentsPage() {
           <button
             type="button"
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center space-x-2 px-6 py-3.5 bg-blue-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm rounded-2xl shadow-sm  transition-all  "
+            className="flex items-center space-x-2 px-6 py-3.5 bg-gold hover:bg-gold-hover text-on-gold font-bold text-sm rounded-2xl shadow-sm  transition-all  "
           >
             <Plus className="w-5 h-5" />
             <span>Dokumente erfassen</span>
@@ -246,7 +246,7 @@ export default function DocumentsPage() {
               <button
                 type="button"
                 onClick={() => setIsModalOpen(true)}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl transition-colors shadow-lg "
+                className="px-5 py-2.5 bg-gold hover:bg-gold-hover text-on-gold text-xs font-semibold rounded-xl transition-colors shadow-lg "
               >
                 + Neue Dokumente erfassen
               </button>

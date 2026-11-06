@@ -215,16 +215,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     return (
       /* Dark navy sidebar — enterprise SaaS standard (Vercel/Linear style) */
-      <div className="flex flex-col h-full bg-[#0b0f19] text-[#94a3b8] border-r border-[#1e293b]">
+      <div className="flex flex-col h-full bg-[#163969] text-[#b6c4d8] border-r border-[#1e293b]">
         
         {/* Brand */}
-        <div className="px-6 py-5 flex items-center gap-3 border-b border-[#111827]">
-          <div className="w-8 h-8 flex items-center justify-center rounded-lg shrink-0 shadow-lg shadow-[#20354d]/10 overflow-hidden">
+        <div className="px-6 py-5 flex items-center gap-3 border-b border-[#20487c]">
+          <div className="w-8 h-8 flex items-center justify-center rounded-lg shrink-0 shadow-lg shadow-[#234f87]/10 overflow-hidden">
             <img src="/icon.png" alt="LogiFlow" className="w-8 h-8 object-cover rounded-lg" />
           </div>
           <div>
             <h1 className="font-extrabold text-white tracking-tight leading-none text-sm">LogiFlow</h1>
-            <p className="text-[#94a3b8] text-[10px] uppercase font-bold tracking-wider mt-1">WMS Portal</p>
+            <p className="text-[#b6c4d8] text-[10px] uppercase font-bold tracking-wider mt-1">WMS Portal</p>
           </div>
         </div>
 
@@ -235,7 +235,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             if (sectionLinks.length === 0) return null;
             return (
               <div key={sec.id} className="space-y-1">
-                <span className="text-[10px] font-bold tracking-widest text-[#94a3b8] uppercase px-3 block mb-1.5">
+                <span className="text-[10px] font-bold tracking-widest text-[#b6c4d8] uppercase px-3 block mb-1.5">
                   {sec.title}
                 </span>
                 <div className="space-y-0.5">
@@ -249,11 +249,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         onClick={() => setMobileMenuOpen(false)}
                         className={`flex items-center gap-2.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all group ${
                           isActive
-                            ? "bg-[#20354d] text-white shadow-sm shadow-[#20354d]/10"
-                            : "text-[#9ca3af] hover:bg-[#111827] hover:text-white"
+                            ? "bg-gold text-on-gold shadow-sm"
+                            : "text-[#b6c4d8] hover:bg-[#20487c] hover:text-white"
                         }`}
                       >
-                        <Icon className={`w-4 h-4 shrink-0 transition-colors ${isActive ? "text-white" : "text-[#94a3b8] group-hover:text-white"}`} />
+                        <Icon className={`w-4 h-4 shrink-0 transition-colors ${isActive ? "text-on-gold" : "text-[#b6c4d8] group-hover:text-white"}`} />
                         <span className="flex-1">{t(getTranslationKey(link.name))}</span>
                       </Link>
                     );
@@ -265,12 +265,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
 
         {/* User + Logout */}
-        <div className="p-4 border-t border-[#111827] bg-[#070a12] space-y-2">
+        <div className="p-4 border-t border-[#20487c] bg-[#12315e] space-y-2">
           <Link
             href="/profile"
-            className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#111827] transition-colors"
+            className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#20487c] transition-colors"
           >
-            <div className="w-8 h-8 rounded-full bg-[#20354d] flex items-center justify-center font-bold text-xs text-white shrink-0 overflow-hidden relative shadow-inner">
+            <div className="w-8 h-8 rounded-full bg-[#234f87] flex items-center justify-center font-bold text-xs text-white shrink-0 overflow-hidden relative shadow-inner">
               {mounted && userId && (
                 <img
                   src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${userId}/photo?t=${photoTrigger}`}
@@ -285,7 +285,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-bold text-white truncate">{userName}</p>
-              <p className="text-[9px] text-[#94a3b8] uppercase tracking-wider font-extrabold mt-0.5">
+              <p className="text-[9px] text-[#b6c4d8] uppercase tracking-wider font-extrabold mt-0.5">
                 {userRole === "MANAGER" ? t("roleManager") : userRole === "ADMIN" ? t("roleAdmin") : t("roleEmployee")}
               </p>
             </div>
@@ -302,7 +302,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </a>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-[#94a3b8] hover:bg-red-950/20 hover:text-red-400 rounded-lg transition-colors cursor-pointer"
+            className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-[#b6c4d8] hover:bg-red-950/20 hover:text-red-400 rounded-lg transition-colors cursor-pointer"
           >
             <LogOut className="w-4 h-4 shrink-0" />
             <span>{t("logout")}</span>
@@ -332,7 +332,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const breadcrumbs = getBreadcrumbs();
 
   return (
-    <div className="flex h-screen bg-[#f8fafc] text-[#0f172a]" suppressHydrationWarning>
+    <div className="flex h-screen bg-[#f2efe9] text-[#0f172a]" suppressHydrationWarning>
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex lg:w-[260px] lg:flex-col fixed inset-y-0 z-40 print:hidden">
         <SidebarContent />
@@ -448,7 +448,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               href="/profile"
               className="flex items-center gap-2.5 p-1 rounded-lg hover:bg-slate-50 transition-colors"
             >
-              <div className="w-7 h-7 rounded-full bg-[#20354d] text-white flex items-center justify-center font-bold text-xs overflow-hidden relative shadow-sm">
+              <div className="w-7 h-7 rounded-full bg-[#234f87] text-white flex items-center justify-center font-bold text-xs overflow-hidden relative shadow-sm">
                 {mounted && userId && (
                   <img
                     src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${userId}/photo?t=${photoTrigger}`}
