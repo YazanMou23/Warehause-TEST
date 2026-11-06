@@ -9,16 +9,16 @@
   ═══════════════════════════════════════════════ */
 
   /* ── Primary Brand (Navy Blue) ── */
-  --color-primary: #1e3a8a;
+  --color-primary: #17243a;
   --color-on-primary: #ffffff;
-  --color-primary-container: #dbeafe;
-  --color-on-primary-container: #1e3a8a;
+  --color-primary-container: #e5e9ef;
+  --color-on-primary-container: #17243a;
 
   /* ── Action / CTA Blue ── */
-  --color-secondary: #1d4ed8;
+  --color-secondary: #20354d;
   --color-on-secondary: #ffffff;
-  --color-secondary-container: #eff6ff;
-  --color-on-secondary-container: #1e40af;
+  --color-secondary-container: #eef1f5;
+  --color-on-secondary-container: #20354d;
 
   /* ── Background & Surface System ── */
   --color-background: #f8fafc;
@@ -35,7 +35,7 @@
   --color-surface-container-highest: #cbd5e1;
 
   /* ── Text & Border ── */
-  --color-on-surface-variant: #64748b;
+  --color-on-surface-variant: #526174;
   --color-outline: #94a3b8;
   --color-outline-variant: #e2e8f0;
 
@@ -45,10 +45,50 @@
   --color-error-container: #fef2f2;
   --color-on-error-container: #991b1b;
 
-  --color-tertiary: #7c3aed;
+  --color-tertiary: #806029;
   --color-on-tertiary: #ffffff;
-  --color-tertiary-container: #ede9fe;
-  --color-on-tertiary-container: #5b21b6;
+  --color-tertiary-container: #f5efdf;
+  --color-on-tertiary-container: #694b1e;
+
+  /* Shared accent scales: navy actions, muted gold highlights. Semantic
+     green/red remain separate for success and error states. */
+  --color-blue-50: #f0f3f6;
+  --color-blue-100: #e1e7ed;
+  --color-blue-200: #c8d2dd;
+  --color-blue-300: #a3b4c7;
+  --color-blue-400: #788fa9;
+  --color-blue-500: #4a6683;
+  --color-blue-600: #20354d;
+  --color-blue-700: #172a40;
+  --color-blue-800: #142237;
+  --color-blue-900: #101d2f;
+  --color-blue-950: #0b1422;
+  --color-indigo-50: #f0f3f6;
+  --color-indigo-100: #e1e7ed;
+  --color-indigo-200: #c8d2dd;
+  --color-indigo-300: #a3b4c7;
+  --color-indigo-400: #788fa9;
+  --color-indigo-500: #4a6683;
+  --color-indigo-600: #20354d;
+  --color-indigo-700: #172a40;
+  --color-indigo-800: #142237;
+  --color-indigo-900: #101d2f;
+  --color-indigo-950: #0b1422;
+  --color-purple-50: #faf7ef;
+  --color-purple-100: #f5efdf;
+  --color-purple-200: #e7d8b4;
+  --color-purple-300: #d4be8d;
+  --color-purple-400: #bd9d5e;
+  --color-purple-500: #987337;
+  --color-purple-600: #806029;
+  --color-purple-700: #694b1e;
+  --color-purple-800: #543c1b;
+  --color-purple-900: #41301b;
+  --color-purple-950: #2b2116;
+  --color-cyan-400: #788fa9;
+  --color-cyan-500: #4a6683;
+  --color-cyan-600: #20354d;
+  --color-cyan-700: #172a40;
 
   /* ── Spacing & Radii ── */
   --radius-sm: 0.125rem;
@@ -94,7 +134,7 @@ body {
   cursor: pointer;
 
   &:hover {
-    background-color: #1e40af;
+    background-color: var(--color-blue-700);
   }
   &:disabled {
     opacity: 0.5;
@@ -389,4 +429,18 @@ html {
   .employee-card-table td[colspan] { grid-column: 1 / -1; }
   .employee-card-table td[data-label="Auswählen"] { display: flex; align-items: center; justify-content: space-between; }
   .employee-card-table td[data-label="Auswählen"]::before { margin: 0; }
+}
+
+/* Keyboard focus is visible on both light content and dark navigation. */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid #987337;
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
