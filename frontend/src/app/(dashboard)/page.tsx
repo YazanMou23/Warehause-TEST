@@ -966,7 +966,7 @@ export default function DashboardPage() {
               onClick={() => setEmployeeActiveTab("overview")}
               className={`flex-1 py-2 rounded-lg text-center transition-all cursor-pointer flex items-center justify-center gap-1 ${
                 employeeActiveTab === "overview"
-                  ? "bg-white text-blue-900 shadow-xs font-extrabold"
+                  ? "bg-gold text-on-gold shadow-xs font-extrabold"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -976,7 +976,7 @@ export default function DashboardPage() {
               onClick={() => setEmployeeActiveTab("shifts")}
               className={`flex-1 py-2 rounded-lg text-center transition-all cursor-pointer flex items-center justify-center gap-1 ${
                 employeeActiveTab === "shifts"
-                  ? "bg-white text-blue-900 shadow-xs font-extrabold"
+                  ? "bg-gold text-on-gold shadow-xs font-extrabold"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -992,7 +992,7 @@ export default function DashboardPage() {
                 onClick={() => setEmployeeActiveTab("logs")}
                 className={`flex-1 py-2 rounded-lg text-center transition-all cursor-pointer flex items-center justify-center gap-1 ${
                   employeeActiveTab === "logs"
-                    ? "bg-white text-blue-900 shadow-xs font-extrabold"
+                    ? "bg-gold text-on-gold shadow-xs font-extrabold"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
@@ -1008,7 +1008,7 @@ export default function DashboardPage() {
               onClick={() => setEmployeeActiveTab("profile")}
               className={`flex-1 py-2 rounded-lg text-center transition-all cursor-pointer flex items-center justify-center gap-1 ${
                 employeeActiveTab === "profile"
-                  ? "bg-white text-blue-900 shadow-xs font-extrabold"
+                  ? "bg-gold text-on-gold shadow-xs font-extrabold"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >

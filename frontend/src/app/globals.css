@@ -9,35 +9,35 @@
   ═══════════════════════════════════════════════ */
 
   /* ── Primary Brand (Navy Blue) ── */
-  --color-primary: #17243a;
+  --color-primary: #173e75;
   --color-on-primary: #ffffff;
-  --color-primary-container: #e5e9ef;
-  --color-on-primary-container: #17243a;
+  --color-primary-container: #e6edf6;
+  --color-on-primary-container: #173e75;
 
   /* ── Action / CTA Blue ── */
-  --color-secondary: #20354d;
+  --color-secondary: #234f87;
   --color-on-secondary: #ffffff;
-  --color-secondary-container: #eef1f5;
-  --color-on-secondary-container: #20354d;
+  --color-secondary-container: #e9eff7;
+  --color-on-secondary-container: #234f87;
 
   /* ── Background & Surface System ── */
-  --color-background: #f8fafc;
+  --color-background: #f2efe9;
   --color-on-background: #0f172a;
   --color-surface: #ffffff;
   --color-on-surface: #0f172a;
 
-  --color-surface-dim: #f1f5f9;
+  --color-surface-dim: #eae6df;
   --color-surface-bright: #ffffff;
   --color-surface-container-lowest: #ffffff;
-  --color-surface-container-low: #f8fafc;
-  --color-surface-container: #f1f5f9;
-  --color-surface-container-high: #e2e8f0;
+  --color-surface-container-low: #f2efe9;
+  --color-surface-container: #eae6df;
+  --color-surface-container-high: #dcd6cd;
   --color-surface-container-highest: #cbd5e1;
 
   /* ── Text & Border ── */
   --color-on-surface-variant: #526174;
   --color-outline: #94a3b8;
-  --color-outline-variant: #e2e8f0;
+  --color-outline-variant: #dcd6cd;
 
   /* ── Semantic ── */
   --color-error: #dc2626;
@@ -52,28 +52,28 @@
 
   /* Shared accent scales: navy actions, muted gold highlights. Semantic
      green/red remain separate for success and error states. */
-  --color-blue-50: #f0f3f6;
-  --color-blue-100: #e1e7ed;
-  --color-blue-200: #c8d2dd;
-  --color-blue-300: #a3b4c7;
-  --color-blue-400: #788fa9;
-  --color-blue-500: #4a6683;
-  --color-blue-600: #20354d;
-  --color-blue-700: #172a40;
-  --color-blue-800: #142237;
-  --color-blue-900: #101d2f;
-  --color-blue-950: #0b1422;
-  --color-indigo-50: #f0f3f6;
-  --color-indigo-100: #e1e7ed;
-  --color-indigo-200: #c8d2dd;
-  --color-indigo-300: #a3b4c7;
-  --color-indigo-400: #788fa9;
-  --color-indigo-500: #4a6683;
-  --color-indigo-600: #20354d;
-  --color-indigo-700: #172a40;
-  --color-indigo-800: #142237;
-  --color-indigo-900: #101d2f;
-  --color-indigo-950: #0b1422;
+  --color-blue-50: #edf2f8;
+  --color-blue-100: #dce6f3;
+  --color-blue-200: #c0d1e7;
+  --color-blue-300: #99b4d5;
+  --color-blue-400: #6687b1;
+  --color-blue-500: #406a9b;
+  --color-blue-600: #234f87;
+  --color-blue-700: #1d447a;
+  --color-blue-800: #173b6b;
+  --color-blue-900: #12315e;
+  --color-blue-950: #0c2448;
+  --color-indigo-50: #edf2f8;
+  --color-indigo-100: #dce6f3;
+  --color-indigo-200: #c0d1e7;
+  --color-indigo-300: #99b4d5;
+  --color-indigo-400: #6687b1;
+  --color-indigo-500: #406a9b;
+  --color-indigo-600: #234f87;
+  --color-indigo-700: #1d447a;
+  --color-indigo-800: #173b6b;
+  --color-indigo-900: #12315e;
+  --color-indigo-950: #0c2448;
   --color-purple-50: #faf7ef;
   --color-purple-100: #f5efdf;
   --color-purple-200: #e7d8b4;
@@ -85,10 +85,17 @@
   --color-purple-800: #543c1b;
   --color-purple-900: #41301b;
   --color-purple-950: #2b2116;
-  --color-cyan-400: #788fa9;
-  --color-cyan-500: #4a6683;
-  --color-cyan-600: #20354d;
-  --color-cyan-700: #172a40;
+  --color-cyan-400: #6687b1;
+  --color-cyan-500: #406a9b;
+  --color-cyan-600: #234f87;
+  --color-cyan-700: #1d447a;
+
+  --color-gold: #c9a34d;
+  --color-gold-hover: #bc953e;
+  --color-on-gold: #182c49;
+  --color-slate-50: #f7f4ee;
+  --color-slate-100: #efebe4;
+  --color-slate-200: #e1dbd1;
 
   /* ── Spacing & Radii ── */
   --radius-sm: 0.125rem;
@@ -120,8 +127,8 @@ body {
 
 /* ── Enterprise SaaS Utilities ── */
 @utility btn-primary {
-  background-color: var(--color-secondary);
-  color: var(--color-on-secondary);
+  background-color: var(--color-gold);
+  color: var(--color-on-gold);
   font-weight: 600;
   padding: 0.5rem 1rem;
   border-radius: 0.5rem;
@@ -134,7 +141,7 @@ body {
   cursor: pointer;
 
   &:hover {
-    background-color: var(--color-blue-700);
+    background-color: var(--color-gold-hover);
   }
   &:disabled {
     opacity: 0.5;
@@ -145,7 +152,7 @@ body {
 @utility btn-secondary {
   background-color: #ffffff;
   color: #334155;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #dcd6cd;
   font-weight: 600;
   padding: 0.5rem 1rem;
   border-radius: 0.5rem;
@@ -158,7 +165,7 @@ body {
   cursor: pointer;
 
   &:hover {
-    background-color: #f8fafc;
+    background-color: #f2efe9;
     color: #0f172a;
     border-color: #cbd5e1;
   }
@@ -170,7 +177,7 @@ body {
 
 @utility card-premium {
   background-color: #ffffff;
-  border: 1px solid #f1f5f9;
+  border: 1px solid #eae6df;
   border-radius: 0.75rem;
   padding: 1.5rem;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
@@ -178,7 +185,7 @@ body {
 
   &:hover {
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-    border-color: #e2e8f0;
+    border-color: #dcd6cd;
   }
 }
 
@@ -198,7 +205,7 @@ body {
     box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.1);
   }
   &:disabled {
-    background-color: #f1f5f9;
+    background-color: #eae6df;
     color: #64748b;
     opacity: 0.7;
   }
@@ -236,9 +243,9 @@ body {
   border-color: #e0f2fe;
 }
 @utility badge-neutral {
-  background-color: #f8fafc;
+  background-color: #f2efe9;
   color: #475569;
-  border-color: #f1f5f9;
+  border-color: #eae6df;
 }
 
 
