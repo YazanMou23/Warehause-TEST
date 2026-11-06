@@ -327,7 +327,7 @@ export default function WorkHoursVisibilityToggle({
 
     return (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/65 backdrop-blur-sm animate-in fade-in duration-200"
+        className="responsive-modal fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/65 backdrop-blur-sm animate-in fade-in duration-200"
         onClick={() => setIsModalOpen(false)}
       >
         <div

@@ -708,7 +708,7 @@ export default function AttendancePage() {
                 setSelectedCell(null);
                 setExpandedEmployeeId(null);
               }}
-              className={`flex-1 sm:flex-initial text-center py-2 px-6 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer ${
+              className={`flex-1 min-w-0 sm:flex-initial text-center py-2 px-2 sm:px-6 rounded-xl font-bold text-xs uppercase tracking-normal sm:tracking-wider transition-all cursor-pointer ${
                 timeframe === mode
                   ? "bg-secondary text-white shadow-md scale-[1.02]"
                   : "text-slate-500 hover:text-slate-800"
@@ -965,7 +965,7 @@ export default function AttendancePage() {
                     Keine Zeiterfassungsdaten für die ausgewählten Filter gefunden.
                   </div>
                 ) : (
-                  <table className="w-full text-left border-collapse">
+                  <table className="w-full text-left border-collapse mobile-card-table">
                     <thead>
                       <tr className="bg-slate-50 border-b border-outline-variant text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                         <th className="px-6 py-3.5">Mitarbeiter</th>
@@ -989,7 +989,7 @@ export default function AttendancePage() {
                               isSelected ? "bg-blue-50/70" : ""
                             }`}
                           >
-                            <td className="px-6 py-4 font-semibold text-slate-900">
+                            <td data-label="Mitarbeiter" className="px-6 py-4 font-semibold text-slate-900">
                               <div className="flex items-center gap-3">
                                 <div className="w-7 h-7 rounded-full bg-blue-50 text-secondary flex items-center justify-center font-bold text-xs">
                                   {record.employeeName.split(" ").map((n) => n[0]).join("")}
@@ -1000,18 +1000,18 @@ export default function AttendancePage() {
                                 </div>
                               </div>
                             </td>
-                            <td className="px-4 py-4 font-mono text-xs text-slate-600">
+                            <td data-label="Datum" className="px-4 py-4 font-mono text-xs text-slate-600">
                               {formatDateLabel(record.date)} ({getGermanWeekdayLabel(record.date)})
                             </td>
-                            <td className="px-4 py-4 font-mono text-xs">
+                            <td data-label="Von - Bis" className="px-4 py-4 font-mono text-xs">
                               {registeredClock(record.clockIn,record.source)} – {record.clockOut ? registeredClock(record.clockOut,record.source) : "Offen"}
                             </td>
-                            <td className="px-4 py-4 font-mono text-xs text-slate-500">{record.breakMinutes} Min.</td>
-                            <td className="px-4 py-4 font-mono font-bold text-secondary">
+                            <td data-label="Pause" className="px-4 py-4 font-mono text-xs text-slate-500">{record.breakMinutes} Min.</td>
+                            <td data-label="Gesamt" className="px-4 py-4 font-mono font-bold text-secondary">
                               {record.totalHours !== null ? `${record.totalHours.toFixed(2)} h` : "—"}
                             </td>
-                            <td className="px-4 py-4 font-sans text-xs text-slate-500">{record.warehouseName} ({record.hallName})</td>
-                            <td className="px-4 py-4 text-xs font-mono">
+                            <td data-label="Einsatzort" className="px-4 py-4 font-sans text-xs text-slate-500">{record.warehouseName} ({record.hallName})</td>
+                            <td data-label="Quelle" className="px-4 py-4 text-xs font-mono">
                               <span
                                 className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                                   record.source === "SCAN"
@@ -1022,7 +1022,7 @@ export default function AttendancePage() {
                                 {record.source === "SCAN" ? "SCAN" : "MANUELL"}
                               </span>
                             </td>
-                            <td className="px-6 py-4 text-right print:hidden">
+                            <td data-label="Aktionen" className="px-6 py-4 text-right print:hidden">
                               <div className="inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                                 {record.timesheetId && (
                                   <>
@@ -1059,7 +1059,7 @@ export default function AttendancePage() {
 
                       {displayAbsences.map((abs) => (
                         <tr key={`abs-${abs.id}`} className="bg-slate-50/60 opacity-85">
-                          <td className="px-6 py-3.5 font-semibold text-slate-700">
+                          <td data-label="Mitarbeiter" className="px-6 py-3.5 font-semibold text-slate-700">
                             <div className="flex items-center gap-2">
                               <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-[10px]">
                                 {abs.employeeName.split(" ").map((n) => n[0]).join("")}
@@ -1067,8 +1067,8 @@ export default function AttendancePage() {
                               {abs.employeeName}
                             </div>
                           </td>
-                          <td className="px-4 py-3.5 font-mono text-xs">{formatDateLabel(abs.date)}</td>
-                          <td className="px-4 py-3.5" colSpan={2}>
+                          <td data-label="Datum" className="px-4 py-3.5 font-mono text-xs">{formatDateLabel(abs.date)}</td>
+                          <td data-label="Status" className="px-4 py-3.5" colSpan={2}>
                             <span
                               className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
                                 abs.status === "KRANK"
@@ -1085,8 +1085,8 @@ export default function AttendancePage() {
                                 : `🔵 Abwesend (${abs.reason || "Grund"})`}
                             </span>
                           </td>
-                          <td className="px-4 py-3.5 font-mono font-bold text-slate-400">0.00 h</td>
-                          <td className="px-4 py-3.5 text-xs text-slate-400 italic" colSpan={3}>
+                          <td data-label="Gesamt" className="px-4 py-3.5 font-mono font-bold text-slate-400">0.00 h</td>
+                          <td data-label="Hinweis" className="px-4 py-3.5 text-xs text-slate-400 italic" colSpan={3}>
                             Abwesend (0 Std. Arbeitszeit)
                           </td>
                         </tr>
@@ -1098,8 +1098,8 @@ export default function AttendancePage() {
             )}
 
             {timeframe === "weekly" && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse min-w-[800px]">
+              <div className="overflow-x-auto mobile-card-scroll">
+                <table className="w-full text-left border-collapse min-w-[800px] mobile-card-table weekly-card-table">
                   <thead>
                     <tr className="bg-slate-50 border-b border-outline-variant text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                       <th className="px-6 py-3.5">Mitarbeiter</th>
@@ -1126,7 +1126,7 @@ export default function AttendancePage() {
                         let linkedTsId: string | null = null;
                         return (
                           <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
-                            <td className="px-6 py-4 font-semibold text-slate-800">
+                            <td data-label="Mitarbeiter" className="px-6 py-4 font-semibold text-slate-800">
                               <div className="flex items-center gap-2">
                                 <div className="w-6 h-6 rounded-full bg-blue-50 text-secondary flex items-center justify-center font-bold text-[10px]">
                                   {emp.name.split(" ").map((n) => n[0]).join("")}
@@ -1146,8 +1146,12 @@ export default function AttendancePage() {
                                 if (cellRecord.timesheetId) linkedTsId = cellRecord.timesheetId;
                               }
                               return (
-                                <td
+                                <td data-label={getGermanWeekdayLabel(dayStr) + " " + formatDateLabel(dayStr)}
                                   key={dayStr}
+                                  tabIndex={0}
+                                  role="button"
+                                  aria-label={`${emp.name}, ${formatDateLabel(dayStr)} bearbeiten`}
+                                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleCellSelect(emp.id, dayStr); } }}
                                   onClick={() => handleCellSelect(emp.id, dayStr)}
                                   className={`px-2 py-4 text-center font-mono text-xs cursor-pointer select-none transition-all ${
                                     isSelected
@@ -1180,10 +1184,10 @@ export default function AttendancePage() {
                                 </td>
                               );
                             })}
-                            <td className="px-4 py-4 text-center font-mono font-bold text-secondary">
+                            <td data-label="Gesamt" className="px-4 py-4 text-center font-mono font-bold text-secondary">
                               {weeklySum > 0 ? `${weeklySum.toFixed(1)} h` : "—"}
                             </td>
-                            <td className="px-6 py-4 text-right print:hidden" onClick={(e) => e.stopPropagation()}>
+                            <td data-label="Aktionen" className="px-6 py-4 text-right print:hidden" onClick={(e) => e.stopPropagation()}>
                               {linkedTsId ? (
                                 <div className="inline-flex gap-2">
                                   <button
@@ -1453,7 +1457,7 @@ export default function AttendancePage() {
 
       {selectedCell && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
+          className="responsive-modal fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
           onClick={(e) => { if (e.target === e.currentTarget) setSelectedCell(null); }}
         >
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden">

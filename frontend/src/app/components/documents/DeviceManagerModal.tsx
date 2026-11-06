@@ -549,7 +549,7 @@ export default function DeviceManagerModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          className="responsive-modal fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}
         >
           <motion.div
