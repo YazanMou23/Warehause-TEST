@@ -206,7 +206,7 @@ export default function ProcessingQueueView({
 
   if (loading && !batch) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 space-y-4 text-slate-400">
+      <div className="flex flex-col items-center justify-center py-20 space-y-4 text-slate-600">
         <RefreshCw className="w-8 h-8 animate-spin text-blue-500" />
         <p className="text-sm">Lade sequentielle KI-Verarbeitungswarteschlange...</p>
       </div>
@@ -215,8 +215,8 @@ export default function ProcessingQueueView({
 
   if (errorMsg && !batch) {
     return (
-      <div className="p-6 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl text-center space-y-3">
-        <AlertCircle className="w-8 h-8 mx-auto text-red-400" />
+      <div className="p-6 bg-red-500/10 border border-red-500/20 text-red-700 rounded-2xl text-center space-y-3">
+        <AlertCircle className="w-8 h-8 mx-auto text-red-700" />
         <p className="text-sm font-semibold">{errorMsg}</p>
         <button
           type="button"
@@ -256,31 +256,31 @@ export default function ProcessingQueueView({
   const getSourceIcon = (source: UniversalDocumentItem["source"]) => {
     switch (source) {
       case "SCANNER":
-        return <Printer className="w-3.5 h-3.5 text-blue-400" />;
+        return <Printer className="w-3.5 h-3.5 text-blue-700" />;
       case "CAMERA":
-        return <Camera className="w-3.5 h-3.5 text-purple-400" />;
+        return <Camera className="w-3.5 h-3.5 text-purple-700" />;
       default:
-        return <Upload className="w-3.5 h-3.5 text-emerald-400" />;
+        return <Upload className="w-3.5 h-3.5 text-emerald-700" />;
     }
   };
 
   return (
     <div className="space-y-6">
       {/* Batch Status Header & Progress Card */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center space-x-3">
-              <h2 className="text-xl font-bold text-slate-100">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-xl font-bold text-slate-900">
                 {batch.title || `Stapel #${batch.batchNumber}`}
               </h2>
               <span
                 className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${
                   batch.status === "COMPLETED"
-                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                    ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
                     : batch.status === "PAUSED"
-                    ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                    : "bg-blue-500/10 text-blue-400 border-blue-500/20 animate-pulse"
+                    ? "bg-amber-500/10 text-amber-800 border-amber-500/20"
+                    : "bg-blue-500/10 text-blue-700 border-blue-500/20 "
                 }`}
               >
                 {batch.status === "COMPLETED"
@@ -290,7 +290,7 @@ export default function ProcessingQueueView({
                   : "Sequentielle KI-Verarbeitung aktiv"}
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-slate-600 mt-1">
               Strikte sequentielle Verarbeitung: Dokument N muss vollständig abgeschlossen & in der Datenbank gespeichert sein, bevor Dokument N+1 startet.
             </p>
           </div>
@@ -302,7 +302,7 @@ export default function ProcessingQueueView({
                 type="button"
                 onClick={handlePause}
                 disabled={actionLoading === "pause"}
-                className="flex items-center space-x-1.5 px-3.5 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-semibold transition-colors"
+                className="flex items-center space-x-1.5 px-3.5 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-800 border border-amber-500/30 rounded-xl text-xs font-semibold transition-colors"
               >
                 <Pause className="w-3.5 h-3.5" />
                 <span>Anhalten</span>
@@ -314,7 +314,7 @@ export default function ProcessingQueueView({
                 type="button"
                 onClick={handleResume}
                 disabled={actionLoading === "resume"}
-                className="flex items-center space-x-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold transition-colors shadow-lg shadow-blue-600/20"
+                className="flex items-center space-x-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold transition-colors shadow-lg "
               >
                 <Play className="w-3.5 h-3.5" />
                 <span>Fortsetzen</span>
@@ -324,7 +324,7 @@ export default function ProcessingQueueView({
             <button
               type="button"
               onClick={onNewBatchClick}
-              className="flex items-center space-x-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-medium transition-colors"
+              className="flex items-center space-x-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-200 rounded-xl text-xs font-medium transition-colors"
             >
               <span>+ Neuer Stapel</span>
             </button>
@@ -333,18 +333,18 @@ export default function ProcessingQueueView({
 
         {/* Progress Bar */}
         <div className="space-y-2">
-          <div className="flex justify-between text-xs font-medium text-slate-300">
+          <div className="flex flex-wrap gap-2 justify-between text-xs font-medium text-slate-900">
             <span>
-              Verarbeitet: <b className="text-white">{completed}</b> von <b className="text-white">{total}</b> Dokumenten ({percent}%)
+              Verarbeitet: <b className="text-slate-900">{completed}</b> von <b className="text-slate-900">{total}</b> Dokumenten ({percent}%)
             </span>
             <span>
-              Fehlgeschlagen: <b className="text-red-400">{batch.failedCount}</b> | Übersprungen: <b className="text-slate-400">{batch.skippedCount}</b>
+              Fehlgeschlagen: <b className="text-red-700">{batch.failedCount}</b> | Übersprungen: <b className="text-slate-600">{batch.skippedCount}</b>
             </span>
           </div>
 
-          <div className="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800 p-0.5">
+          <div className="w-full h-3 bg-white rounded-full overflow-hidden border border-slate-200 p-0.5">
             <div
-              className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-emerald-500 rounded-full transition-all duration-500 ease-out"
+              className="h-full bg-blue-600 rounded-full transition-all duration-500 ease-out"
               style={{ width: `${percent}%` }}
             />
           </div>
@@ -353,31 +353,31 @@ export default function ProcessingQueueView({
 
       {/* ACTIVE DOCUMENT IN PROGRESS (Single Concurrency Worker) */}
       {activeDoc && (
-        <div className="bg-gradient-to-br from-blue-950/40 via-slate-900 to-slate-900 border-2 border-blue-500/60 rounded-2xl p-5 shadow-2xl relative overflow-hidden">
+        <div className="bg-blue-50 border-2 border-blue-500/60 rounded-2xl p-5 shadow-sm relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-blue-900/40">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center animate-pulse">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-700 border border-blue-500/30 flex items-center justify-center ">
                 <Sparkles className="w-5 h-5" />
               </div>
               <div>
                 <div className="flex items-center space-x-2">
-                  <span className="text-[11px] px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold uppercase tracking-wider">
+                  <span className="text-[11px] px-2 py-0.5 rounded bg-blue-500/20 text-blue-700 border border-blue-500/30 font-bold uppercase tracking-wider">
                     Aktuell in Verarbeitung (Dokument #{activeDoc.queuePosition})
                   </span>
-                  <span className="flex items-center space-x-1 text-xs text-slate-400">
+                  <span className="flex items-center space-x-1 text-xs text-slate-600">
                     {getSourceIcon(activeDoc.source)}
                     <span className="capitalize">{activeDoc.source.toLowerCase().replace("_", " ")}</span>
                   </span>
                 </div>
-                <h3 className="text-base font-bold text-white mt-1">{activeDoc.originalFileName}</h3>
+                <h3 className="text-base font-bold text-slate-900 mt-1">{activeDoc.originalFileName}</h3>
               </div>
             </div>
 
             <div className="text-right">
-              <span className="text-xs text-slate-400 block">{activeDoc.pageCount} Seite(n)</span>
-              <span className="text-xs text-blue-400 font-medium">Sprache: {activeDoc.ocrLanguage?.toUpperCase() || "DE"}</span>
+              <span className="text-xs text-slate-600 block">{activeDoc.pageCount} Seite(n)</span>
+              <span className="text-xs text-blue-700 font-medium">Sprache: {activeDoc.ocrLanguage?.toUpperCase() || "DE"}</span>
             </div>
           </div>
 
@@ -387,19 +387,19 @@ export default function ProcessingQueueView({
             <div
               className={`p-3 rounded-xl border transition-all ${
                 activeDoc.status === "OCR_PROCESSING"
-                  ? "bg-blue-600/20 border-blue-500 text-white shadow-lg shadow-blue-600/10"
-                  : "bg-slate-950/50 border-slate-800/80 text-slate-400"
+                  ? "bg-blue-600/20 border-blue-500 text-slate-900 shadow-lg "
+                  : "bg-white border-slate-200 text-slate-600"
               }`}
             >
               <div className="flex items-center space-x-2">
                 <RefreshCw
                   className={`w-4 h-4 ${
-                    activeDoc.status === "OCR_PROCESSING" ? "animate-spin text-blue-400" : "text-emerald-400"
+                    activeDoc.status === "OCR_PROCESSING" ? "animate-spin text-blue-700" : "text-emerald-700"
                   }`}
                 />
                 <span className="font-semibold text-xs">1. OCR-Textextraktion</span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">
+              <p className="text-[11px] text-slate-600 mt-1">
                 {activeDoc.status === "OCR_PROCESSING" ? "Liest Dokumentinhalte..." : "OCR abgeschlossen"}
               </p>
             </div>
@@ -408,21 +408,21 @@ export default function ProcessingQueueView({
             <div
               className={`p-3 rounded-xl border transition-all ${
                 activeDoc.status === "AI_ANALYZING"
-                  ? "bg-purple-600/20 border-purple-500 text-white shadow-lg shadow-purple-600/10"
+                  ? "bg-purple-600/20 border-purple-500 text-slate-900 shadow-lg shadow-purple-600/10"
                   : ["PERSISTING", "COMPLETED"].includes(activeDoc.status)
-                  ? "bg-slate-950/50 border-slate-800/80 text-slate-400"
-                  : "bg-slate-950/20 border-slate-800/40 text-slate-600"
+                  ? "bg-white border-slate-200 text-slate-600"
+                  : "bg-white border-slate-200 text-slate-600"
               }`}
             >
               <div className="flex items-center space-x-2">
                 <Sparkles
                   className={`w-4 h-4 ${
-                    activeDoc.status === "AI_ANALYZING" ? "animate-spin text-purple-400" : "text-purple-400"
+                    activeDoc.status === "AI_ANALYZING" ? "animate-spin text-purple-700" : "text-purple-700"
                   }`}
                 />
                 <span className="font-semibold text-xs">2. KI-Analyse & Klassifikation</span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">
+              <p className="text-[11px] text-slate-600 mt-1">
                 {activeDoc.status === "AI_ANALYZING"
                   ? "Extrahiert CRM-Daten mit GPT-4o..."
                   : "Warten auf OCR"}
@@ -433,19 +433,19 @@ export default function ProcessingQueueView({
             <div
               className={`p-3 rounded-xl border transition-all ${
                 activeDoc.status === "PERSISTING"
-                  ? "bg-emerald-600/20 border-emerald-500 text-white shadow-lg shadow-emerald-600/10"
-                  : "bg-slate-950/20 border-slate-800/40 text-slate-600"
+                  ? "bg-emerald-600/20 border-emerald-500 text-slate-900 shadow-lg shadow-emerald-600/10"
+                  : "bg-white border-slate-200 text-slate-600"
               }`}
             >
               <div className="flex items-center space-x-2">
                 <CheckCircle2
                   className={`w-4 h-4 ${
-                    activeDoc.status === "PERSISTING" ? "animate-spin text-emerald-400" : "text-slate-500"
+                    activeDoc.status === "PERSISTING" ? "animate-spin text-emerald-700" : "text-slate-600"
                   }`}
                 />
                 <span className="font-semibold text-xs">3. CRM-Persistierung</span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">
+              <p className="text-[11px] text-slate-600 mt-1">
                 {activeDoc.status === "PERSISTING"
                   ? "Speichert Datensätze in PostgreSQL..."
                   : "Abschließender Schritt"}
@@ -457,37 +457,37 @@ export default function ProcessingQueueView({
 
       {/* WAITING QUEUE LIST */}
       {queuedDocs.length > 0 && (
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-3">
-          <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
+          <div className="flex items-center justify-between text-xs font-bold text-slate-900">
             <span>Warteschlange ({queuedDocs.length} wartend)</span>
-            <span className="text-slate-500">Werden der Reihe nach verarbeitet</span>
+            <span className="text-slate-600">Werden der Reihe nach verarbeitet</span>
           </div>
 
           <div className="space-y-2">
             {queuedDocs.map((doc) => (
               <div
                 key={doc.id}
-                className="flex items-center justify-between p-3 bg-slate-950/40 border border-slate-800/80 rounded-xl text-xs"
+                className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl text-xs"
               >
-                <div className="flex items-center space-x-3">
-                  <span className="w-6 h-6 rounded-full bg-slate-800 text-slate-400 font-bold flex items-center justify-center text-[11px]">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-600 font-bold flex items-center justify-center text-[11px]">
                     #{doc.queuePosition}
                   </span>
                   <div className="flex items-center space-x-1.5">
                     {getSourceIcon(doc.source)}
-                    <span className="font-medium text-slate-200">{doc.originalFileName}</span>
+                    <span className="font-medium text-slate-900">{doc.originalFileName}</span>
                   </div>
-                  <span className="text-slate-500">• {doc.pageCount} Seite(n)</span>
+                  <span className="text-slate-600">• {doc.pageCount} Seite(n)</span>
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400">
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-600">
                     Wartend
                   </span>
                   <button
                     type="button"
                     onClick={() => handleSkip(doc.id)}
-                    className="text-slate-500 hover:text-slate-300 transition-colors p-1"
+                    className="text-slate-600 hover:text-slate-900 transition-colors p-1"
                     title="Überspringen"
                   >
                     <SkipForward className="w-3.5 h-3.5" />
@@ -501,10 +501,10 @@ export default function ProcessingQueueView({
 
       {/* COMPLETED DOCUMENTS WITH EXTRACTED CRM DATA */}
       {completedDocs.length > 0 && (
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-4">
-          <div className="flex items-center justify-between text-sm font-bold text-slate-200">
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+          <div className="flex items-center justify-between text-sm font-bold text-slate-900">
             <div className="flex items-center space-x-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-700" />
               <span>Erfolgreich verarbeitete CRM-Dokumente ({completedDocs.length})</span>
             </div>
           </div>
@@ -517,47 +517,47 @@ export default function ProcessingQueueView({
               return (
                 <div
                   key={doc.id}
-                  className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden transition-all hover:border-slate-700"
+                  className="bg-white border border-slate-200 rounded-xl overflow-hidden transition-all hover:border-slate-200"
                 >
                   {/* Summary Bar */}
                   <div
                     onClick={() => setExpandedDocId(isExpanded ? null : doc.id)}
-                    className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer bg-slate-950 hover:bg-slate-900/50 transition-colors"
+                    className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer bg-white hover:bg-white transition-colors"
                   >
-                    <div className="flex items-center space-x-3 min-w-0">
-                      <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg shrink-0">
+                    <div className="flex flex-wrap items-center gap-3 min-w-0">
+                      <div className="p-2 bg-emerald-500/10 text-emerald-700 rounded-lg shrink-0">
                         <FileText className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                          <span className="font-bold text-sm text-slate-100 truncate">
+                          <span className="font-bold text-sm text-slate-900 truncate">
                             {res.companyName || doc.originalFileName}
                           </span>
-                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-blue-500/10 text-blue-700 border border-blue-500/20">
                             {res.documentType || "DOKUMENT"}
                           </span>
                           {res.totalAmount && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/10 text-emerald-700 border border-emerald-500/20">
                               {res.totalAmount.toFixed(2)} {res.currency || "EUR"}
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-slate-400 mt-0.5 truncate max-w-lg">
+                        <p className="text-xs text-slate-600 mt-0.5 truncate max-w-lg">
                           {res.summary || "Dokument erfolgreich extrahiert und zugeordnet."}
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-3 shrink-0 text-xs text-slate-400">
+                    <div className="flex flex-wrap items-center gap-3 shrink-0 text-xs text-slate-600">
                       {res.documentDate && (
                         <span className="flex items-center space-x-1">
-                          <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                          <Calendar className="w-3.5 h-3.5 text-slate-600" />
                           <span>{res.documentDate}</span>
                         </span>
                       )}
                       <button
                         type="button"
-                        className="p-1 text-slate-400 hover:text-white"
+                        className="p-1 text-slate-600 hover:text-slate-900"
                       >
                         {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                       </button>
@@ -566,24 +566,24 @@ export default function ProcessingQueueView({
 
                   {/* Expanded CRM Structured Details */}
                   {isExpanded && (
-                    <div className="p-5 border-t border-slate-800/80 bg-slate-900/30 space-y-4">
+                    <div className="p-5 border-t border-slate-200 bg-white space-y-4">
                       {/* Grid of Key CRM Attributes */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                        <div className="p-3 bg-slate-950 rounded-lg border border-slate-800">
-                          <span className="text-slate-500 block mb-0.5">Unternehmen / Aussteller</span>
-                          <span className="font-semibold text-slate-200">{res.companyName || "—"}</span>
+                        <div className="p-3 bg-white rounded-lg border border-slate-200">
+                          <span className="text-slate-600 block mb-0.5">Unternehmen / Aussteller</span>
+                          <span className="font-semibold text-slate-900">{res.companyName || "—"}</span>
                         </div>
-                        <div className="p-3 bg-slate-950 rounded-lg border border-slate-800">
-                          <span className="text-slate-500 block mb-0.5">Kontaktperson / Mitarbeiter</span>
-                          <span className="font-semibold text-slate-200">{res.contactPerson || "—"}</span>
+                        <div className="p-3 bg-white rounded-lg border border-slate-200">
+                          <span className="text-slate-600 block mb-0.5">Kontaktperson / Mitarbeiter</span>
+                          <span className="font-semibold text-slate-900">{res.contactPerson || "—"}</span>
                         </div>
-                        <div className="p-3 bg-slate-950 rounded-lg border border-slate-800">
-                          <span className="text-slate-500 block mb-0.5">Referenz- / Belegnummer</span>
-                          <span className="font-semibold text-slate-200">{res.referenceNumber || "—"}</span>
+                        <div className="p-3 bg-white rounded-lg border border-slate-200">
+                          <span className="text-slate-600 block mb-0.5">Referenz- / Belegnummer</span>
+                          <span className="font-semibold text-slate-900">{res.referenceNumber || "—"}</span>
                         </div>
-                        <div className="p-3 bg-slate-950 rounded-lg border border-slate-800">
-                          <span className="text-slate-500 block mb-0.5">Gesamtbetrag</span>
-                          <span className="font-semibold text-emerald-400">
+                        <div className="p-3 bg-white rounded-lg border border-slate-200">
+                          <span className="text-slate-600 block mb-0.5">Gesamtbetrag</span>
+                          <span className="font-semibold text-emerald-700">
                             {res.totalAmount ? `${res.totalAmount.toFixed(2)} ${res.currency || "EUR"}` : "—"}
                           </span>
                         </div>
@@ -591,8 +591,8 @@ export default function ProcessingQueueView({
 
                       {/* Matched Entities Notification */}
                       {res.matchedEntities && Object.keys(res.matchedEntities).length > 0 && (
-                        <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-xs text-blue-300 flex items-center space-x-2">
-                          <Sparkles className="w-4 h-4 text-blue-400 shrink-0" />
+                        <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-xs text-blue-700 flex items-center space-x-2">
+                          <Sparkles className="w-4 h-4 text-blue-700 shrink-0" />
                           <span>
                             <b>CRM-Zuordnung:</b> Automatisch verknüpft mit{" "}
                             {res.matchedEntities.employee && `Mitarbeiter "${res.matchedEntities.employee.name}"`}
@@ -605,10 +605,10 @@ export default function ProcessingQueueView({
                       {/* Line Items Table if extracted */}
                       {res.lineItems && res.lineItems.length > 0 && (
                         <div className="space-y-1.5">
-                          <span className="text-xs font-semibold text-slate-300">Positionen / Einzelposten</span>
-                          <div className="rounded-lg border border-slate-800 overflow-hidden">
+                          <span className="text-xs font-semibold text-slate-900">Positionen / Einzelposten</span>
+                          <div className="rounded-lg border border-slate-200 overflow-hidden">
                             <table className="w-full text-left text-xs">
-                              <thead className="bg-slate-950 text-slate-400">
+                              <thead className="bg-white text-slate-600">
                                 <tr>
                                   <th className="p-2">Beschreibung</th>
                                   <th className="p-2 text-right">Menge</th>
@@ -616,7 +616,7 @@ export default function ProcessingQueueView({
                                   <th className="p-2 text-right">Gesamt</th>
                                 </tr>
                               </thead>
-                              <tbody className="divide-y divide-slate-800 text-slate-200">
+                              <tbody className="divide-y divide-slate-800 text-slate-900">
                                 {res.lineItems.map((item: any, i: number) => (
                                   <tr key={i}>
                                     <td className="p-2">{item.description}</td>
@@ -637,7 +637,7 @@ export default function ProcessingQueueView({
                           href={`${API_URL}/documents/documents/${doc.id}/file`}
                           target="_blank"
                           rel="noreferrer"
-                          className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg transition-colors"
+                          className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-900 text-xs font-medium rounded-lg transition-colors"
                         >
                           <Eye className="w-3.5 h-3.5" />
                           <span>Originaldokument öffnen</span>
@@ -655,7 +655,7 @@ export default function ProcessingQueueView({
       {/* ISSUES / FAILED DOCUMENTS */}
       {issueDocs.length > 0 && (
         <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-5 space-y-3">
-          <div className="flex items-center space-x-2 text-sm font-bold text-red-400">
+          <div className="flex items-center space-x-2 text-sm font-bold text-red-700">
             <AlertCircle className="w-4 h-4" />
             <span>Fehlgeschlagene oder übersprungene Dokumente ({issueDocs.length})</span>
           </div>
@@ -664,11 +664,11 @@ export default function ProcessingQueueView({
             {issueDocs.map((doc) => (
               <div
                 key={doc.id}
-                className="flex items-center justify-between p-3.5 bg-slate-950 rounded-xl border border-red-500/20 text-xs"
+                className="flex items-center justify-between p-3.5 bg-white rounded-xl border border-red-500/20 text-xs"
               >
                 <div>
-                  <span className="font-semibold text-slate-200">{doc.originalFileName}</span>
-                  <p className="text-red-400 text-[11px] mt-0.5">
+                  <span className="font-semibold text-slate-900">{doc.originalFileName}</span>
+                  <p className="text-red-700 text-[11px] mt-0.5">
                     {doc.errorMessage || (doc.status === "SKIPPED" ? "Manuell übersprungen" : "Verarbeitungsfehler")}
                   </p>
                 </div>
@@ -678,7 +678,7 @@ export default function ProcessingQueueView({
                     type="button"
                     onClick={() => handleRetry(doc.id)}
                     disabled={actionLoading === doc.id}
-                    className="flex items-center space-x-1 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg text-xs font-medium transition-colors"
+                    className="flex items-center space-x-1 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-700 border border-blue-500/30 rounded-lg text-xs font-medium transition-colors"
                   >
                     <RotateCcw className="w-3 h-3" />
                     <span>Wiederholen</span>
@@ -688,7 +688,7 @@ export default function ProcessingQueueView({
                       type="button"
                       onClick={() => handleSkip(doc.id)}
                       disabled={actionLoading === doc.id}
-                      className="flex items-center space-x-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition-colors"
+                      className="flex items-center space-x-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-900 rounded-lg text-xs font-medium transition-colors"
                     >
                       <SkipForward className="w-3 h-3" />
                       <span>Überspringen</span>

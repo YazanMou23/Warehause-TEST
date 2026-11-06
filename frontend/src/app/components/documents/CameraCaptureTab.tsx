@@ -210,12 +210,12 @@ export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTab
       <canvas ref={canvasRef} className="hidden" />
 
       {/* Camera Viewfinder & Controls */}
-      <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 space-y-4">
+      <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4">
         {/* Device Switcher & Settings */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center space-x-2">
-            <Camera className="w-5 h-5 text-purple-400" />
-            <h3 className="font-semibold text-slate-100 text-sm">Live-Kamera Erfassung</h3>
+            <Camera className="w-5 h-5 text-purple-700" />
+            <h3 className="font-semibold text-slate-900 text-sm">Live-Kamera Erfassung</h3>
           </div>
 
           <div className="flex items-center space-x-3 w-full sm:w-auto">
@@ -226,7 +226,7 @@ export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTab
                   setSelectedDeviceId(e.target.value);
                   startCamera(e.target.value);
                 }}
-                className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-purple-500"
+                className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-purple-500"
               >
                 {devices.map((d, i) => (
                   <option key={d.deviceId || i} value={d.deviceId}>
@@ -236,21 +236,21 @@ export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTab
               </select>
             )}
 
-            <label className="flex items-center space-x-1.5 text-xs text-slate-300 cursor-pointer">
+            <label className="flex items-center space-x-1.5 text-xs text-slate-900 cursor-pointer">
               <input
                 type="checkbox"
                 checked={autoEnhance}
                 onChange={(e) => setAutoEnhance(e.target.checked)}
-                className="rounded border-slate-700 text-purple-600 focus:ring-0 bg-slate-950"
+                className="rounded border-slate-200 text-purple-600 focus:ring-0 bg-white"
               />
-              <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+              <Sparkles className="w-3.5 h-3.5 text-purple-700" />
               <span>Auto-Kontrast</span>
             </label>
           </div>
         </div>
 
         {/* Viewfinder Frame */}
-        <div className="relative aspect-video max-h-[380px] w-full bg-black rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center">
+        <div className="relative aspect-video max-h-[380px] w-full bg-black rounded-xl overflow-hidden border border-slate-200 flex items-center justify-center">
           <video
             ref={videoRef}
             playsInline
@@ -261,7 +261,7 @@ export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTab
           {/* Document Framing Overlay Guide */}
           {cameraActive && (
             <div className="absolute inset-6 border-2 border-dashed border-purple-500/50 rounded-lg pointer-events-none flex items-center justify-center">
-              <div className="absolute top-2 left-2 text-[10px] bg-black/60 px-2 py-0.5 rounded text-purple-300 backdrop-blur-sm">
+              <div className="absolute top-2 left-2 text-[10px] bg-black/60 px-2 py-0.5 rounded text-white backdrop-blur-sm">
                 Dokument im Rahmen platzieren
               </div>
             </div>
@@ -269,10 +269,10 @@ export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTab
 
           {!cameraActive && (
             <div className="text-center p-6 space-y-3">
-              <div className="w-12 h-12 rounded-full bg-purple-500/10 text-purple-400 flex items-center justify-center mx-auto border border-purple-500/20">
+              <div className="w-12 h-12 rounded-full bg-purple-500/10 text-purple-300 flex items-center justify-center mx-auto border border-purple-500/20">
                 <Camera className="w-6 h-6" />
               </div>
-              <p className="text-xs text-slate-400 max-w-sm">
+              <p className="text-xs text-slate-200 max-w-sm">
                 {cameraError || "Kamera ist nicht aktiv."}
               </p>
               <button
@@ -292,7 +292,7 @@ export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTab
             <button
               type="button"
               onClick={capturePhoto}
-              className="flex items-center space-x-2 px-8 py-3 bg-purple-600 hover:bg-purple-500 text-white font-medium text-sm rounded-full shadow-lg shadow-purple-600/30 transition-all active:scale-95"
+              className="flex items-center space-x-2 px-8 py-3 bg-purple-600 hover:bg-purple-500 text-white font-medium text-sm rounded-full shadow-lg shadow-purple-600/30 transition-all "
             >
               <Camera className="w-5 h-5" />
               <span>Foto aufnehmen (Seite {capturedPages.length + 1})</span>
@@ -301,8 +301,8 @@ export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTab
         )}
 
         {qualityWarning && (
-          <div className="flex items-center space-x-2 p-3 bg-amber-500/10 border border-amber-500/20 text-amber-300 rounded-lg text-xs">
-            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+          <div className="flex items-center space-x-2 p-3 bg-amber-500/10 border border-amber-500/20 text-amber-700 rounded-lg text-xs">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-700" />
             <span>{qualityWarning}</span>
           </div>
         )}
@@ -310,10 +310,10 @@ export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTab
 
       {/* Captured Pages Strip */}
       {capturedPages.length > 0 && (
-        <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-4 space-y-3">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2 text-sm font-semibold text-slate-200">
-              <Layers className="w-4 h-4 text-purple-400" />
+            <div className="flex items-center space-x-2 text-sm font-semibold text-slate-900">
+              <Layers className="w-4 h-4 text-purple-700" />
               <span>Aufgenommene Seiten ({capturedPages.length})</span>
             </div>
 
@@ -323,7 +323,7 @@ export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTab
                 value={documentTitle}
                 onChange={(e) => setDocumentTitle(e.target.value)}
                 placeholder="Dokumentenname"
-                className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:border-purple-500"
+                className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-900 focus:outline-none focus:border-purple-500"
               />
             </div>
           </div>
@@ -333,7 +333,7 @@ export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTab
             {capturedPages.map((page) => (
               <div
                 key={page.pageNumber}
-                className="relative group rounded-lg overflow-hidden border border-slate-800 bg-slate-950"
+                className="relative group rounded-lg overflow-hidden border border-slate-200 bg-white"
               >
                 <img
                   src={page.base64Data}
@@ -356,7 +356,7 @@ export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTab
           </div>
 
           {/* Action Bar */}
-          <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-800">
+          <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-200">
             <button
               type="button"
               onClick={handleFinishDocument}

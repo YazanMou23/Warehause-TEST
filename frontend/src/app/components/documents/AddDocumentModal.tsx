@@ -142,16 +142,16 @@ export default function AddDocumentModal({
 
   return (
     <div className="responsive-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-sm overflow-hidden">
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-white">
           <div className="flex items-center space-x-3">
-            <div className="p-2.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-xl">
+            <div className="p-2.5 bg-blue-500/10 text-blue-700 border border-blue-500/20 rounded-xl">
               <FilePlus className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-100">Dokumente erfassen & KI-Verarbeitung</h2>
-              <p className="text-xs text-slate-400">
+              <h2 className="text-lg font-bold text-slate-900">Dokumente erfassen & KI-Verarbeitung</h2>
+              <p className="text-xs text-slate-600">
                 Wähle Hardware-Scanner, Kamera oder Datei-Upload. Alle Quellen fließen in die sequentielle KI-Warteschlange.
               </p>
             </div>
@@ -160,21 +160,21 @@ export default function AddDocumentModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
+            className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Modal Tabs */}
-        <div className="px-6 pt-4 border-b border-slate-800 bg-slate-950/30 flex space-x-2">
+        <div className="px-6 pt-4 border-b border-slate-200 bg-white flex space-x-2">
           <button
             type="button"
             onClick={() => setActiveTab("upload")}
             className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-colors border-b-2 ${
               activeTab === "upload"
-                ? "border-blue-500 text-blue-400 bg-slate-900"
-                : "border-transparent text-slate-400 hover:text-slate-200"
+                ? "border-blue-500 text-blue-700 bg-white"
+                : "border-transparent text-slate-600 hover:text-slate-900"
             }`}
           >
             <UploadCloud className="w-4 h-4" />
@@ -186,8 +186,8 @@ export default function AddDocumentModal({
             onClick={() => setActiveTab("scanner")}
             className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-colors border-b-2 ${
               activeTab === "scanner"
-                ? "border-blue-500 text-blue-400 bg-slate-900"
-                : "border-transparent text-slate-400 hover:text-slate-200"
+                ? "border-blue-500 text-blue-700 bg-white"
+                : "border-transparent text-slate-600 hover:text-slate-900"
             }`}
           >
             <Printer className="w-4 h-4" />
@@ -199,8 +199,8 @@ export default function AddDocumentModal({
             onClick={() => setActiveTab("camera")}
             className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-colors border-b-2 ${
               activeTab === "camera"
-                ? "border-blue-500 text-blue-400 bg-slate-900"
-                : "border-transparent text-slate-400 hover:text-slate-200"
+                ? "border-blue-500 text-blue-700 bg-white"
+                : "border-transparent text-slate-600 hover:text-slate-900"
             }`}
           >
             <Camera className="w-4 h-4" />
@@ -211,7 +211,7 @@ export default function AddDocumentModal({
         {/* Modal Scrollable Body */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
           {errorMessage && (
-            <div className="flex items-center space-x-2 p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-xs">
+            <div className="flex items-center space-x-2 p-3 bg-red-500/10 border border-red-500/20 text-red-700 rounded-lg text-xs">
               <AlertTriangle className="w-4 h-4 shrink-0" />
               <span>{errorMessage}</span>
             </div>

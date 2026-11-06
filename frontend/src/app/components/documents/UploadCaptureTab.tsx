@@ -195,26 +195,26 @@ export default function UploadCaptureTab({ onFilesAdded }: UploadCaptureTabProps
         className={`border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all ${
           isDragging
             ? "border-blue-500 bg-blue-500/10 scale-[1.01]"
-            : "border-slate-800 hover:border-slate-700 bg-slate-900/40 hover:bg-slate-900/60"
+            : "border-slate-200 hover:border-slate-200 bg-white hover:bg-white"
         }`}
       >
         <div className="flex flex-col items-center space-y-4">
-          <div className="w-16 h-16 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center shadow-lg shadow-blue-500/10">
+          <div className="w-16 h-16 rounded-full bg-blue-500/10 text-blue-700 border border-blue-500/20 flex items-center justify-center shadow-lg ">
             <UploadCloud className="w-8 h-8" />
           </div>
 
           <div className="space-y-1 max-w-md">
-            <p className="text-base font-semibold text-slate-100">
+            <p className="text-base font-semibold text-slate-900">
               Dateien hier ablegen oder zum Durchsuchen klicken
             </p>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-600">
               Unterstützt mehrseitige PDFs, hochauflösende Dokumentfotos (JPG, PNG, WEBP) bis 25 MB pro Datei.
             </p>
           </div>
 
           <button
             type="button"
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-medium transition-colors"
+            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-200 rounded-lg text-xs font-medium transition-colors"
           >
             Dateien auswählen
           </button>
@@ -222,13 +222,13 @@ export default function UploadCaptureTab({ onFilesAdded }: UploadCaptureTabProps
       </div>
 
       {loading && (
-        <div className="text-center py-2 text-xs text-blue-400 animate-pulse">
+        <div className="text-center py-2 text-xs text-blue-700 ">
           Dateien werden vorbereitet...
         </div>
       )}
 
       {errorMsg && (
-        <div className="flex items-center space-x-2 p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-xs">
+        <div className="flex items-center space-x-2 p-3 bg-red-500/10 border border-red-500/20 text-red-700 rounded-lg text-xs">
           <AlertTriangle className="w-4 h-4 shrink-0" />
           <span>{errorMsg}</span>
         </div>
