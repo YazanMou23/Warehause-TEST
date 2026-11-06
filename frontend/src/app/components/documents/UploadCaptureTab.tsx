@@ -1,4 +1,5 @@
 "use client";
+import { useTranslation } from "../../i18n/LanguageContext";
 
 import React, { useState, useRef } from "react";
 import { UploadCloud, FileText, Image as ImageIcon, CheckCircle2, AlertTriangle, X } from "lucide-react";
@@ -15,6 +16,7 @@ interface UploadCaptureTabProps {
 }
 
 export default function UploadCaptureTab({ onFilesAdded }: UploadCaptureTabProps) {
+  const { t: tx } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
@@ -72,7 +74,7 @@ export default function UploadCaptureTab({ onFilesAdded }: UploadCaptureTabProps
           // processing pipeline reads and OCRs every page one by one.
           const rendered = await convertPdfToPageImages(file);
           if (rendered.length === 0) {
-            throw new Error("Das PDF enthält keine lesbaren Seiten.");
+            throw new Error(tx("ui585"));
           }
           pages = rendered;
           // Pages are rendered as JPEG images for OCR; keeping this as the
@@ -159,7 +161,7 @@ export default function UploadCaptureTab({ onFilesAdded }: UploadCaptureTabProps
         canvas.height = Math.floor(viewport.height);
         const context = canvas.getContext("2d");
         if (!context) {
-          throw new Error("Canvas-Rendering wird nicht unterstützt.");
+          throw new Error(tx("ui586"));
         }
         context.fillStyle = "#ffffff";
         context.fillRect(0, 0, canvas.width, canvas.height);
@@ -205,26 +207,22 @@ export default function UploadCaptureTab({ onFilesAdded }: UploadCaptureTabProps
 
           <div className="space-y-1 max-w-md">
             <p className="text-base font-semibold text-slate-900">
-              Dateien hier ablegen oder zum Durchsuchen klicken
-            </p>
+              {tx("ui504")}</p>
             <p className="text-xs text-slate-600">
-              Unterstützt mehrseitige PDFs, hochauflösende Dokumentfotos (JPG, PNG, WEBP) bis 25 MB pro Datei.
-            </p>
+              {tx("ui505")}</p>
           </div>
 
           <button
             type="button"
             className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-200 rounded-lg text-xs font-medium transition-colors"
           >
-            Dateien auswählen
-          </button>
+            {tx("ui506")}</button>
         </div>
       </div>
 
       {loading && (
         <div className="text-center py-2 text-xs text-blue-700 ">
-          Dateien werden vorbereitet...
-        </div>
+          {tx("ui507")}</div>
       )}
 
       {errorMsg && (

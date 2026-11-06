@@ -1,4 +1,5 @@
 "use client";
+import { useTranslation } from "../../i18n/LanguageContext";
 
 import React, { useState, useRef, useEffect } from "react";
 import {
@@ -31,6 +32,7 @@ interface CameraCaptureTabProps {
 }
 
 export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTabProps) {
+  const { t: tx } = useTranslation();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -58,7 +60,7 @@ export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTab
   const initCameraDevices = async () => {
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
-        throw new Error("Kamerazugriff wird von diesem Browser nicht unterstützt.");
+        throw new Error(tx("ui554"));
       }
 
       const allDevices = await navigator.mediaDevices.enumerateDevices();
@@ -78,7 +80,7 @@ export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTab
         startCamera();
       }
     } catch (err: any) {
-      setCameraError(err.message || "Kamera konnte nicht initialisiert werden.");
+      setCameraError(err.message || tx("ui555"));
     }
   };
 
@@ -105,7 +107,7 @@ export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTab
     } catch (err: any) {
       setCameraActive(false);
       setCameraError(
-        "Kamerazugriff verweigert oder keine Kamera verfügbar. Bitte erlaube den Zugriff im Browser."
+        tx("ui556")
       );
     }
   };
@@ -154,7 +156,7 @@ export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTab
     // Simple blur check (variance of Laplacian on small sample)
     const isBlurry = checkSimpleBlur(ctx, canvas.width, canvas.height);
     if (isBlurry) {
-      setQualityWarning("Hinweis: Das aufgenommene Foto wirkt etwas unscharf. Für beste OCR-Ergebnisse ruhig halten.");
+      setQualityWarning(tx("ui557"));
     } else {
       setQualityWarning("");
     }
@@ -215,7 +217,7 @@ export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTab
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center space-x-2">
             <Camera className="w-5 h-5 text-purple-700" />
-            <h3 className="font-semibold text-slate-900 text-sm">Live-Kamera Erfassung</h3>
+            <h3 className="font-semibold text-slate-900 text-sm">{tx("ui396")}</h3>
           </div>
 
           <div className="flex items-center space-x-3 w-full sm:w-auto">
@@ -244,7 +246,7 @@ export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTab
                 className="rounded border-slate-200 text-purple-600 focus:ring-0 bg-white"
               />
               <Sparkles className="w-3.5 h-3.5 text-purple-700" />
-              <span>Auto-Kontrast</span>
+              <span>{tx("ui397")}</span>
             </label>
           </div>
         </div>
@@ -262,8 +264,7 @@ export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTab
           {cameraActive && (
             <div className="absolute inset-6 border-2 border-dashed border-purple-500/50 rounded-lg pointer-events-none flex items-center justify-center">
               <div className="absolute top-2 left-2 text-[10px] bg-black/60 px-2 py-0.5 rounded text-white backdrop-blur-sm">
-                Dokument im Rahmen platzieren
-              </div>
+                {tx("ui398")}</div>
             </div>
           )}
 
@@ -273,15 +274,14 @@ export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTab
                 <Camera className="w-6 h-6" />
               </div>
               <p className="text-xs text-slate-200 max-w-sm">
-                {cameraError || "Kamera ist nicht aktiv."}
+                {cameraError || tx("ui558")}
               </p>
               <button
                 type="button"
                 onClick={() => startCamera(selectedDeviceId)}
                 className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-medium rounded-lg transition-colors"
               >
-                Kamera starten
-              </button>
+                {tx("ui399")}</button>
             </div>
           )}
         </div>
@@ -295,7 +295,7 @@ export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTab
               className="flex items-center space-x-2 px-8 py-3 bg-purple-600 hover:bg-purple-500 text-white font-medium text-sm rounded-full shadow-lg shadow-purple-600/30 transition-all "
             >
               <Camera className="w-5 h-5" />
-              <span>Foto aufnehmen (Seite {capturedPages.length + 1})</span>
+              <span>{tx("ui400")}{capturedPages.length + 1})</span>
             </button>
           </div>
         )}
@@ -314,7 +314,7 @@ export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTab
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2 text-sm font-semibold text-slate-900">
               <Layers className="w-4 h-4 text-purple-700" />
-              <span>Aufgenommene Seiten ({capturedPages.length})</span>
+              <span>{tx("ui401")}{capturedPages.length})</span>
             </div>
 
             <div className="flex items-center space-x-2">
@@ -341,13 +341,13 @@ export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTab
                   className="w-full h-28 object-cover"
                 />
                 <div className="absolute top-1.5 left-1.5 bg-black/70 px-1.5 py-0.5 rounded text-[10px] text-white">
-                  Seite {page.pageNumber}
+                  {tx("ui402")}{page.pageNumber}
                 </div>
                 <button
                   type="button"
                   onClick={() => removePage(page.pageNumber)}
                   className="absolute top-1.5 right-1.5 bg-red-600/80 hover:bg-red-600 text-white p-1 rounded transition-opacity opacity-0 group-hover:opacity-100"
-                  title="Seite löschen"
+                  title={tx("ui559")}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -363,7 +363,7 @@ export default function CameraCaptureTab({ onDocumentCreated }: CameraCaptureTab
               className="flex items-center space-x-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition-colors shadow-lg shadow-emerald-600/20"
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>Dokument fertigstellen ({capturedPages.length} Seiten)</span>
+              <span>{tx("ui403")}{capturedPages.length} {tx("ui404")}</span>
             </button>
           </div>
         </div>
