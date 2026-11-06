@@ -219,12 +219,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         
         {/* Brand */}
         <div className="px-6 py-5 flex items-center gap-3 border-b border-[#111827]">
-          <div className="w-8 h-8 flex items-center justify-center rounded-lg shrink-0 shadow-lg shadow-[#1d4ed8]/10 overflow-hidden">
+          <div className="w-8 h-8 flex items-center justify-center rounded-lg shrink-0 shadow-lg shadow-[#20354d]/10 overflow-hidden">
             <img src="/icon.png" alt="LogiFlow" className="w-8 h-8 object-cover rounded-lg" />
           </div>
           <div>
             <h1 className="font-extrabold text-white tracking-tight leading-none text-sm">LogiFlow</h1>
-            <p className="text-[#4b5563] text-[10px] uppercase font-bold tracking-wider mt-1">WMS Portal</p>
+            <p className="text-[#94a3b8] text-[10px] uppercase font-bold tracking-wider mt-1">WMS Portal</p>
           </div>
         </div>
 
@@ -235,7 +235,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             if (sectionLinks.length === 0) return null;
             return (
               <div key={sec.id} className="space-y-1">
-                <span className="text-[10px] font-bold tracking-widest text-[#4b5563] uppercase px-3 block mb-1.5">
+                <span className="text-[10px] font-bold tracking-widest text-[#94a3b8] uppercase px-3 block mb-1.5">
                   {sec.title}
                 </span>
                 <div className="space-y-0.5">
@@ -249,11 +249,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         onClick={() => setMobileMenuOpen(false)}
                         className={`flex items-center gap-2.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all group ${
                           isActive
-                            ? "bg-[#1d4ed8] text-white shadow-sm shadow-[#1d4ed8]/10"
+                            ? "bg-[#20354d] text-white shadow-sm shadow-[#20354d]/10"
                             : "text-[#9ca3af] hover:bg-[#111827] hover:text-white"
                         }`}
                       >
-                        <Icon className={`w-4 h-4 shrink-0 transition-colors ${isActive ? "text-white" : "text-[#4b5563] group-hover:text-white"}`} />
+                        <Icon className={`w-4 h-4 shrink-0 transition-colors ${isActive ? "text-white" : "text-[#94a3b8] group-hover:text-white"}`} />
                         <span className="flex-1">{t(getTranslationKey(link.name))}</span>
                       </Link>
                     );
@@ -270,7 +270,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             href="/profile"
             className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#111827] transition-colors"
           >
-            <div className="w-8 h-8 rounded-full bg-[#1d4ed8] flex items-center justify-center font-bold text-xs text-white shrink-0 overflow-hidden relative shadow-inner">
+            <div className="w-8 h-8 rounded-full bg-[#20354d] flex items-center justify-center font-bold text-xs text-white shrink-0 overflow-hidden relative shadow-inner">
               {mounted && userId && (
                 <img
                   src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${userId}/photo?t=${photoTrigger}`}
@@ -285,7 +285,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-bold text-white truncate">{userName}</p>
-              <p className="text-[9px] text-[#4b5563] uppercase tracking-wider font-extrabold mt-0.5">
+              <p className="text-[9px] text-[#94a3b8] uppercase tracking-wider font-extrabold mt-0.5">
                 {userRole === "MANAGER" ? t("roleManager") : userRole === "ADMIN" ? t("roleAdmin") : t("roleEmployee")}
               </p>
             </div>
@@ -294,15 +294,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             href="/Kunden_Handbuch_Warehouse_Management.html"
             target="_blank"
             rel="noopener noreferrer"
-            className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-blue-400 bg-blue-950/40 hover:bg-blue-900/50 hover:text-blue-300 rounded-lg transition-colors cursor-pointer border border-blue-800/40"
+            className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-slate-300 bg-blue-950/40 hover:bg-blue-900/50 hover:text-white rounded-lg transition-colors cursor-pointer border border-blue-800/40"
             title="Kunden-Präsentation & Handbuch öffnen"
           >
-            <BookOpen className="w-4 h-4 shrink-0 text-blue-400" />
+            <BookOpen className="w-4 h-4 shrink-0 text-slate-300" />
             <span>Kunden-Handbuch</span>
           </a>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-[#4b5563] hover:bg-red-950/20 hover:text-red-400 rounded-lg transition-colors cursor-pointer"
+            className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-[#94a3b8] hover:bg-red-950/20 hover:text-red-400 rounded-lg transition-colors cursor-pointer"
           >
             <LogOut className="w-4 h-4 shrink-0" />
             <span>{t("logout")}</span>
@@ -448,7 +448,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               href="/profile"
               className="flex items-center gap-2.5 p-1 rounded-lg hover:bg-slate-50 transition-colors"
             >
-              <div className="w-7 h-7 rounded-full bg-[#1d4ed8] text-white flex items-center justify-center font-bold text-xs overflow-hidden relative shadow-sm">
+              <div className="w-7 h-7 rounded-full bg-[#20354d] text-white flex items-center justify-center font-bold text-xs overflow-hidden relative shadow-sm">
                 {mounted && userId && (
                   <img
                     src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${userId}/photo?t=${photoTrigger}`}
