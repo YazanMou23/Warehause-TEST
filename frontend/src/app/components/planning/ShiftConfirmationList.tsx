@@ -1,4 +1,5 @@
 "use client";
+import { useTranslation } from "../../i18n/LanguageContext";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
@@ -61,6 +62,7 @@ export default function ShiftConfirmationList({
   initialDate,
   onClose,
 }: ShiftConfirmationListProps) {
+  const { t: tx, locale: uiLocale } = useTranslation();
   const { alert: showAlert } = useDialog();
 
   // Filters - use local date formatting to prevent timezone shift
@@ -221,8 +223,8 @@ export default function ShiftConfirmationList({
 
       if (res.ok) {
         showAlert({
-          title: "Status aktualisiert",
-          message: `Der Rückmeldungsstatus für ${editingRecord.employeeName} wurde auf "${editStatus}" gesetzt.`,
+          title: tx("planning813"),
+          message: tx("planningStatusUpdated").replace("{name}", editingRecord.employeeName),
           type: "success",
         });
         setEditingRecord(null);
@@ -230,14 +232,14 @@ export default function ShiftConfirmationList({
       } else {
         const errData = await res.json();
         showAlert({
-          title: "Fehler",
+          title: tx("ui526"),
           message: errData.message || "Status konnte nicht geändert werden.",
           type: "error",
         });
       }
     } catch (err: any) {
       showAlert({
-        title: "Netzwerkfehler",
+        title: tx("planning815"),
         message: err.message,
         type: "error",
       });
@@ -266,15 +268,15 @@ export default function ShiftConfirmationList({
       const data = await res.json();
       if (res.ok && data.success) {
         showAlert({
-          title: "WhatsApp versendet",
-          message: `Schichtbenachrichtigung mit den 3 Optionen wurde erfolgreich an ${rec.employeeName} (${rec.employeePhone}) gesendet.`,
+          title: tx("planning816"),
+          message: tx("planningNotificationSent").replace("{name}", rec.employeeName).replace("{phone}", rec.employeePhone),
           type: "success",
         });
         fetchConfirmations(true);
       } else {
         showAlert({
-          title: "WhatsApp Hinweis",
-          message: data.error || (data.waLink ? "Kein Meta API Key aktiv. Fallback Link wurde bereitgestellt." : "Nachricht konnte nicht zugestellt werden."),
+          title: tx("planning643"),
+          message: data.error || (data.waLink ? tx("planning817") : tx("planning818")),
           type: "info",
         });
         if (data.waLink) {
@@ -283,7 +285,7 @@ export default function ShiftConfirmationList({
       }
     } catch (err: any) {
       showAlert({
-        title: "Fehler beim WhatsApp-Versand",
+        title: tx("planning641"),
         message: err.message,
         type: "error",
       });
@@ -322,20 +324,19 @@ export default function ShiftConfirmationList({
           <div>
             <div className="flex items-center gap-2.5 flex-wrap">
               <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">
-                Schicht-Rückmeldungen &amp; Anwesenheitsliste
-              </h2>
+                {tx("planning819")}</h2>
               <button
                 type="button"
                 onClick={() => setAutoSync(!autoSync)}
                 className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 transition cursor-pointer ${
                   autoSync
                     ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                    : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
+                    : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
                 }`}
                 title={
                   autoSync
-                    ? "Live-Sync aktiv: Prüft alle 4 Sekunden automatisch auf WhatsApp-Antworten. Klicken zum Pausieren."
-                    : "Live-Sync pausiert. Klicken zum Aktivieren."
+                    ? tx("planning820")
+                    : tx("planning821")
                 }
               >
                 <span
@@ -343,12 +344,11 @@ export default function ShiftConfirmationList({
                     autoSync ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
                   }`}
                 />
-                <span>{autoSync ? "Live-Sync aktiv (4s)" : "Sync pausiert"}</span>
+                <span>{autoSync ? tx("planning822") : tx("planning823")}</span>
               </button>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Wer kommt (🟢), wer ist krank / abwesend (🔴) und Rückmeldungsgrund in der letzten Spalte.
-            </p>
+            <p className="text-xs text-slate-600 mt-0.5">
+              {tx("planning824")}</p>
           </div>
         </div>
 
@@ -357,29 +357,29 @@ export default function ShiftConfirmationList({
             type="button"
             onClick={() => setShowWebhookGuide(!showWebhookGuide)}
             className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-            title="Meta Webhook Konfigurations-Anleitung"
+            title={tx("planning825")}
           >
             <HelpCircle className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Webhook Info</span>
+            <span>{tx("planning826")}</span>
           </button>
           <button
             type="button"
             onClick={() => fetchConfirmations(true)}
             disabled={refreshing}
             className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs disabled:opacity-50"
-            title="Aktualisieren"
+            title={tx("planning827")}
           >
             <RefreshCw
               className={`w-3.5 h-3.5 text-slate-600 ${refreshing ? "animate-spin text-emerald-600" : ""}`}
             />
-            <span>Aktualisieren</span>
+            <span>{tx("planning827")}</span>
           </button>
           {onClose && (
             <button
               type="button"
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition"
-              title="Schließen"
+              className="p-2 text-slate-600 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition"
+              title={tx("close")}
             >
               <X className="w-5 h-5" />
             </button>
@@ -394,16 +394,15 @@ export default function ShiftConfirmationList({
             <div className="space-y-1">
               <div className="flex items-center gap-2 font-bold text-sm text-indigo-900">
                 <Shield className="w-4 h-4 text-emerald-600" />
-                <span>Meta WhatsApp Cloud API — Webhook Live-Sync Konfiguration</span>
+                <span>{tx("planning828")}</span>
               </div>
               <p className="text-slate-600 leading-relaxed max-w-3xl">
-                Damit Antworten von Mitarbeitern (z. B. 1, 2, 3 oder individuelle Texte wie „5“) in Echtzeit hier in der Anwesenheitsliste ankommen, muss der Webhook in Meta für Entwickler abonniert sein:
-              </p>
+                {tx("planning829")}</p>
             </div>
             <button
               type="button"
               onClick={() => setShowWebhookGuide(false)}
-              className="text-slate-400 hover:text-slate-700 p-1"
+              className="text-slate-600 hover:text-slate-700 p-1"
             >
               <X className="w-4 h-4" />
             </button>
@@ -411,20 +410,19 @@ export default function ShiftConfirmationList({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
             <div className="bg-white p-3.5 rounded-xl border border-indigo-200/80 font-mono text-[11px] space-y-1.5 shadow-2xs">
-              <div className="text-slate-500 font-bold uppercase text-[10px]">Callback URL (in Meta eintragen):</div>
+              <div className="text-slate-600 font-bold uppercase text-[10px]">{tx("planning830")}</div>
               <div className="text-emerald-700 select-all font-semibold">https://warehause-test.onrender.com/messaging/webhook</div>
-              <div className="text-slate-500 font-bold uppercase text-[10px] mt-2">Verifizierungs-Token (Verify Token):</div>
-              <div className="text-amber-800 font-semibold">Selbst gewählter Wert — als WHATSAPP_WEBHOOK_VERIFY_TOKEN auf Render setzen und denselben Wert in Meta eintragen (wird hier nicht mehr angezeigt)</div>
+              <div className="text-slate-600 font-bold uppercase text-[10px] mt-2">{tx("planning831")}</div>
+              <div className="text-amber-800 font-semibold">{tx("planning832")}</div>
             </div>
 
             <div className="bg-amber-50/80 p-3.5 rounded-xl border border-amber-200 text-amber-900 text-xs space-y-1.5 shadow-2xs">
               <div className="font-extrabold text-amber-900 flex items-center gap-1.5">
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>Wichtigster Schritt: Webhook-Feld „messages“ abonnieren</span>
+                <span>{tx("planning833")}</span>
               </div>
               <p className="leading-relaxed text-[11px] text-amber-800">
-                In der Meta Console unter <strong>WhatsApp &gt; Konfiguration &gt; Webhook-Felder</strong> auf <strong>„Verwalten“</strong> klicken und die Checkbox bei <strong>„messages“</strong> aktivieren! Ohne dieses Feld leitet Meta keine eingehenden Antworten weiter.
-              </p>
+                {tx("planning834")}<strong>{tx("planning835")}</strong> {tx("planning836")}<strong>{tx("planning837")}</strong> {tx("planning838")}<strong>{tx("planning839")}</strong> {tx("planning840")}</p>
             </div>
           </div>
         </div>
@@ -434,7 +432,7 @@ export default function ShiftConfirmationList({
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 p-4 bg-slate-50/60 border-b border-slate-200">
         <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">Gesamt Eingeteilt</span>
+            <span className="text-xs font-bold text-slate-600">{tx("planning841")}</span>
             <span className="text-base">👥</span>
           </div>
           <div className="mt-1 text-2xl font-black text-slate-900">{stats.total}</div>
@@ -444,8 +442,7 @@ export default function ShiftConfirmationList({
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              Ich bin da (🟢)
-            </span>
+              {tx("planning842")}</span>
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="mt-1 text-2xl font-black text-emerald-700">{stats.confirmedCount}</div>
@@ -455,8 +452,7 @@ export default function ShiftConfirmationList({
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-red-800 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-red-500" />
-              Ich bin krank (🔴)
-            </span>
+              {tx("planning843")}</span>
             <XCircle className="w-4 h-4 text-red-600" />
           </div>
           <div className="mt-1 text-2xl font-black text-red-700">{stats.sickCount}</div>
@@ -466,8 +462,7 @@ export default function ShiftConfirmationList({
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-amber-800 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-amber-500" />
-              Ausstehend (🟡)
-            </span>
+              {tx("planning844")}</span>
             <Clock className="w-4 h-4 text-amber-600" />
           </div>
           <div className="mt-1 text-2xl font-black text-amber-700">{stats.pendingCount}</div>
@@ -477,8 +472,7 @@ export default function ShiftConfirmationList({
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-blue-800 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-blue-500" />
-              Custom Nachricht
-            </span>
+              {tx("planning845")}</span>
             <MessageSquare className="w-4 h-4 text-blue-600" />
           </div>
           <div className="mt-1 text-2xl font-black text-blue-700">{stats.customCount}</div>
@@ -490,7 +484,7 @@ export default function ShiftConfirmationList({
         {/* Date Selector & Shortcuts */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
-            <Calendar className="w-4 h-4 text-slate-500 shrink-0" />
+            <Calendar className="w-4 h-4 text-slate-600 shrink-0" />
             <input
               type="date"
               value={selectedDate}
@@ -505,15 +499,13 @@ export default function ShiftConfirmationList({
               onClick={() => setDateRelative(0)}
               className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 transition shadow-2xs cursor-pointer"
             >
-              Heute
-            </button>
+              {tx("today")}</button>
             <button
               type="button"
               onClick={() => setDateRelative(1)}
               className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 transition shadow-2xs cursor-pointer"
             >
-              Morgen
-            </button>
+              {tx("planning846")}</button>
           </div>
         </div>
 
@@ -525,7 +517,7 @@ export default function ShiftConfirmationList({
             onChange={(e) => setSelectedWarehouseId(e.target.value)}
             className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:outline-hidden focus:border-blue-500 transition shadow-2xs"
           >
-            <option value="ALL">🏢 Alle Lager</option>
+            <option value="ALL">{tx("planning847")}</option>
             {warehouses.map((w) => (
               <option key={w.id} value={w.id}>
                 {w.name}
@@ -536,10 +528,10 @@ export default function ShiftConfirmationList({
           {/* Status Tabs */}
           <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200">
             {[
-              { id: "ALL", label: "Alle" },
-              { id: "CONFIRMED", label: "🟢 Da" },
-              { id: "SICK", label: "🔴 Krank" },
-              { id: "PENDING", label: "🟡 Offen" },
+              { id: "ALL", label: tx("filterAll") },
+              { id: "CONFIRMED", label: tx("planning848") },
+              { id: "SICK", label: tx("planning849") },
+              { id: "PENDING", label: tx("planning850") },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -558,10 +550,10 @@ export default function ShiftConfirmationList({
 
           {/* Search Input */}
           <div className="relative min-w-[200px]">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" />
             <input
               type="text"
-              placeholder="Name, Grund..."
+              placeholder={tx("planning851")}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-2xs"
@@ -575,7 +567,7 @@ export default function ShiftConfirmationList({
         {loading ? (
           <div className="py-20 flex flex-col items-center justify-center gap-3">
             <div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-600 rounded-full animate-spin" />
-            <span className="text-xs font-bold text-slate-500">Lade Rückmeldungen für {selectedDate}...</span>
+            <span className="text-xs font-bold text-slate-600">{tx("planning852")}{selectedDate}...</span>
           </div>
         ) : records.length === 0 ? (
           <div className="py-20 text-center flex flex-col items-center justify-center p-6 bg-white">
@@ -583,26 +575,23 @@ export default function ShiftConfirmationList({
               📭
             </div>
             <h3 className="text-sm font-bold text-slate-800">
-              Keine Schichteinteilungen für diesen Tag gefunden
-            </h3>
-            <p className="text-xs text-slate-500 mt-1 max-w-sm">
-              Für das ausgewählte Datum ({selectedDate}) liegen keine aktiven Schichtzuweisungen oder passende Filterergebnisse vor.
-            </p>
+              {tx("planning853")}</h3>
+            <p className="text-xs text-slate-600 mt-1 max-w-sm">
+              {tx("planning854")}{selectedDate}{tx("planning855")}</p>
           </div>
         ) : (
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-slate-50/90 text-slate-600 font-extrabold uppercase tracking-wider text-[11px] border-b border-slate-200">
-                <th className="py-3 px-4 w-12 text-center">Status</th>
-                <th className="py-3 px-4">Mitarbeiter</th>
-                <th className="py-3 px-4">Datum &amp; Schicht</th>
-                <th className="py-3 px-4">Einsatzort &amp; Halle</th>
-                <th className="py-3 px-4">Treffpunkt &amp; Zeit</th>
-                <th className="py-3 px-4">Kanal / Zeit</th>
+                <th className="py-3 px-4 w-12 text-center">{tx("statusColumn")}</th>
+                <th className="py-3 px-4">{tx("roleEmployee")}</th>
+                <th className="py-3 px-4">{tx("planning856")}</th>
+                <th className="py-3 px-4">{tx("planning857")}</th>
+                <th className="py-3 px-4">{tx("planning858")}</th>
+                <th className="py-3 px-4">{tx("planning859")}</th>
                 <th className="py-3 px-4 font-black text-slate-900 bg-slate-100/70 border-l border-slate-200">
-                  Grund / Rückmeldung (Letzte Spalte)
-                </th>
-                <th className="py-3 px-4 text-right">Aktionen</th>
+                  {tx("planning860")}</th>
+                <th className="py-3 px-4 text-right">{tx("actionsColumn")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
@@ -622,22 +611,22 @@ export default function ShiftConfirmationList({
                     {/* 1. Status Icon Column */}
                     <td className="py-3 px-4 text-center">
                       {isConfirmed && (
-                        <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-300 shadow-2xs" title="Bestätigt (Ich bin da)">
+                        <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-300 shadow-2xs" title={tx("planning861")}>
                           <span className="text-base leading-none">🟢</span>
                         </div>
                       )}
                       {isSick && (
-                        <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-red-100 text-red-700 border border-red-300 shadow-2xs" title="Krank / Abwesend (Ich bin krank)">
+                        <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-red-100 text-red-700 border border-red-300 shadow-2xs" title={tx("planning879")}>
                           <span className="text-base leading-none">🔴</span>
                         </div>
                       )}
                       {isCustom && (
-                        <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-700 border border-blue-300 shadow-2xs" title="Eigene Rückmeldung">
+                        <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-700 border border-blue-300 shadow-2xs" title={tx("planning862")}>
                           <span className="text-base leading-none">💬</span>
                         </div>
                       )}
                       {isPending && (
-                        <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-amber-100 text-amber-700 border border-amber-300 shadow-2xs" title="Ausstehend / Noch keine Rückmeldung">
+                        <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-amber-100 text-amber-700 border border-amber-300 shadow-2xs" title={tx("planning867")}>
                           <span className="text-base leading-none">🟡</span>
                         </div>
                       )}
@@ -657,9 +646,9 @@ export default function ShiftConfirmationList({
                           <div className="font-extrabold text-slate-900 leading-tight">
                             {rec.employeeName}
                           </div>
-                          <div className="text-[11px] font-mono text-slate-500 flex items-center gap-1 mt-0.5">
-                            <Phone className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span>{rec.employeePhone || "Keine Nummer"}</span>
+                          <div className="text-[11px] font-mono text-slate-600 flex items-center gap-1 mt-0.5">
+                            <Phone className="w-3 h-3 text-slate-600 shrink-0" />
+                            <span><bdi dir="ltr">{rec.employeePhone || tx("planning811")}</bdi></span>
                           </div>
                         </div>
                       </div>
@@ -668,9 +657,9 @@ export default function ShiftConfirmationList({
                     {/* 3. Date & Shift Column */}
                     <td className="py-3 px-4">
                       <div className="font-bold text-slate-900">{rec.formattedDate}</div>
-                      <div className="text-[11px] font-mono text-slate-500 flex items-center gap-1 mt-0.5">
-                        <Clock className="w-3 h-3 text-slate-400 shrink-0" />
-                        <span>{rec.shiftTime}</span>
+                      <div className="text-[11px] font-mono text-slate-600 flex items-center gap-1 mt-0.5">
+                        <Clock className="w-3 h-3 text-slate-600 shrink-0" />
+                        <bdi dir="ltr">{rec.shiftTime}</bdi>
                       </div>
                     </td>
 
@@ -700,7 +689,7 @@ export default function ShiftConfirmationList({
                         <span>{rec.treffpunkt}</span>
                       </div>
                       <div className="text-[11px] font-mono font-bold text-amber-800 mt-0.5">
-                        {rec.treffpunktTime && rec.treffpunktTime !== "-" ? `Treff: ${rec.treffpunktTime} Uhr` : "Keine Treffzeit"}
+                        {rec.treffpunktTime && rec.treffpunktTime !== "-" ? <>{tx("planning784")}: <bdi dir="ltr">{rec.treffpunktTime}</bdi></> : tx("planning863")}
                       </div>
                     </td>
 
@@ -710,21 +699,20 @@ export default function ShiftConfirmationList({
                         <div>
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
                             {rec.responseChannel === "WHATSAPP_BUTTON"
-                              ? "💬 WhatsApp Button"
+                              ? tx("planning864")
                               : rec.responseChannel === "WHATSAPP_TEXT"
-                              ? "💬 WhatsApp Text"
-                              : "👤 Manuell"}
+                              ? tx("planning865")
+                              : tx("planning866")}
                           </span>
-                          <div className="text-[10px] text-slate-400 mt-1 font-mono">
-                            {new Date(rec.respondedAt).toLocaleTimeString("de-DE", {
-                              hour: "2-digit",
+                          <div className="text-[10px] text-slate-600 mt-1 font-mono">
+                            {new Date(rec.respondedAt).toLocaleTimeString(uiLocale, {
+                              hour12: false, hour: "2-digit",
                               minute: "2-digit",
                             })}{" "}
-                            Uhr
-                          </div>
+                            {tx("ui274")}</div>
                         </div>
                       ) : (
-                        <span className="text-[10px] text-slate-400 italic">Noch ausstehend</span>
+                        <span className="text-[10px] text-slate-600 italic">{tx("planning867")}</span>
                       )}
                     </td>
 
@@ -735,30 +723,29 @@ export default function ShiftConfirmationList({
                           <XCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
                           <div>
                             <div className="font-extrabold text-red-950">
-                              {rec.reason || "Krank gemeldet"}
+                              {rec.reason || tx("planning868")}
                             </div>
                             <div className="text-[10px] text-red-700 font-normal mt-0.5">
-                              Einsatz entfällt • Im Abwesenheitsregister erfasst
-                            </div>
+                              {tx("planning869")}</div>
                           </div>
                         </div>
                       ) : isConfirmed ? (
                         <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-xs font-bold flex items-center gap-2 shadow-2xs">
                           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                          <span>{rec.reason || "Schicht zugesagt („Ich bin da“)"}</span>
+                          <span>{rec.reason || tx("planning870")}</span>
                         </div>
                       ) : isCustom ? (
                         <div className="p-2.5 bg-blue-50 border border-blue-200 text-blue-900 rounded-xl text-xs flex items-start gap-2 shadow-2xs">
                           <MessageSquare className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                           <div>
-                            <div className="font-extrabold text-blue-900">Mitarbeiter-Nachricht:</div>
+                            <div className="font-extrabold text-blue-900">{tx("planning871")}</div>
                             <div className="italic mt-0.5 text-blue-950 font-medium">„{rec.reason}“</div>
                           </div>
                         </div>
                       ) : (
-                        <div className="p-2.5 bg-slate-50 border border-slate-200 text-slate-500 rounded-xl text-xs italic flex items-center gap-2">
+                        <div className="p-2.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-xl text-xs italic flex items-center gap-2">
                           <Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                          <span>Wartet auf Rückmeldung des Mitarbeiters</span>
+                          <span>{tx("planning872")}</span>
                         </div>
                       )}
                     </td>
@@ -775,7 +762,7 @@ export default function ShiftConfirmationList({
                             setEditReason(rec.reason || "");
                           }}
                           className="p-1.5 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition cursor-pointer"
-                          title="Status manuell anpassen"
+                          title={tx("planning873")}
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
@@ -785,8 +772,8 @@ export default function ShiftConfirmationList({
                           type="button"
                           disabled={sendingWaId === `${rec.planId}_${rec.employeeId}`}
                           onClick={() => handleResendWhatsApp(rec)}
-                          className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-2xs disabled:opacity-50 cursor-pointer"
-                          title="WhatsApp Benachrichtigung mit 3 Optionen senden"
+                          className="px-2.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-2xs disabled:opacity-50 cursor-pointer"
+                          title={tx("planning874")}
                         >
                           {sendingWaId === `${rec.planId}_${rec.employeeId}` ? (
                             <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
@@ -800,8 +787,8 @@ export default function ShiftConfirmationList({
                         <button
                           type="button"
                           onClick={() => openDirectWhatsApp(rec)}
-                          className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 border border-slate-200 rounded-xl transition cursor-pointer"
-                          title="In WhatsApp Web öffnen"
+                          className="p-1.5 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 border border-slate-200 rounded-xl transition cursor-pointer"
+                          title={tx("planning875")}
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
                         </button>
@@ -823,12 +810,12 @@ export default function ShiftConfirmationList({
             <div className="flex items-center justify-between pb-4 border-b border-slate-200">
               <div className="flex items-center gap-2">
                 <Edit3 className="w-5 h-5 text-emerald-600" />
-                <h3 className="font-bold text-base text-slate-900">Status manuell anpassen</h3>
+                <h3 className="font-bold text-base text-slate-900">{tx("planning873")}</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setEditingRecord(null)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+                className="text-slate-600 hover:text-slate-600 p-1 rounded-lg"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -837,15 +824,14 @@ export default function ShiftConfirmationList({
             <div className="mt-4 space-y-4">
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
                 <div className="font-extrabold text-slate-900">{editingRecord.employeeName}</div>
-                <div className="text-slate-500 mt-0.5">
+                <div className="text-slate-600 mt-0.5">
                   {editingRecord.warehouseName} ({editingRecord.hallName}) • {editingRecord.formattedDate}
                 </div>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Neuer Schicht-Status:
-                </label>
+                  {tx("planning876")}</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -855,11 +841,11 @@ export default function ShiftConfirmationList({
                     }}
                     className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
                       editStatus === "CONFIRMED"
-                        ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                        ? "bg-emerald-700 text-white border-emerald-700 shadow-sm"
                         : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
                     }`}
                   >
-                    <span>🟢 Ich bin da</span>
+                    <span>{tx("planning878")}</span>
                   </button>
 
                   <button
@@ -874,7 +860,7 @@ export default function ShiftConfirmationList({
                         : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
                     }`}
                   >
-                    <span>🔴 Ich bin krank</span>
+                    <span>{tx("planning880")}</span>
                   </button>
 
                   <button
@@ -889,7 +875,7 @@ export default function ShiftConfirmationList({
                         : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
                     }`}
                   >
-                    <span>💬 Custom Nachricht</span>
+                    <span>{tx("planning882")}</span>
                   </button>
 
                   <button
@@ -900,24 +886,23 @@ export default function ShiftConfirmationList({
                     }}
                     className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
                       editStatus === "PENDING"
-                        ? "bg-amber-600 text-white border-amber-600 shadow-sm"
+                        ? "bg-amber-700 text-white border-amber-700 shadow-sm"
                         : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
                     }`}
                   >
-                    <span>🟡 Offen (Reset)</span>
+                    <span>{tx("planning883")}</span>
                   </button>
                 </div>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Grund / Bemerkung (Erscheint in der letzten Spalte):
-                </label>
+                  {tx("planning884")}</label>
                 <textarea
                   rows={3}
                   value={editReason}
                   onChange={(e) => setEditReason(e.target.value)}
-                  placeholder="z. B. Krankmeldung telefonisch, Arzttermin, oder Verspätung..."
+                  placeholder={tx("planning885")}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
@@ -928,15 +913,14 @@ export default function ShiftConfirmationList({
                   onClick={() => setEditingRecord(null)}
                   className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
                 >
-                  Abbrechen
-                </button>
+                  {tx("ui336")}</button>
                 <button
                   type="button"
                   disabled={savingEdit}
                   onClick={handleSaveManualStatus}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm disabled:opacity-50 cursor-pointer"
+                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm disabled:opacity-50 cursor-pointer"
                 >
-                  {savingEdit ? "Speichert..." : "Status speichern"}
+                  {savingEdit ? tx("planning886") : tx("planning806")}
                 </button>
               </div>
             </div>
