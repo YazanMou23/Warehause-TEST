@@ -43,7 +43,7 @@ export default function WorkHoursVisibilityToggle({
   onVisibilityChange,
   className = "",
 }: WorkHoursVisibilityToggleProps) {
-  const { t, language } = useTranslation();
+  const { t, locale } = useTranslation();
 
   // State
   const [isGlobalHidden, setIsGlobalHidden] = useState<boolean>(false);
@@ -203,12 +203,8 @@ export default function WorkHoursVisibilityToggle({
 
       if (res.ok) {
         const msg = nextVal
-          ? (language === "de"
-              ? `Arbeitszeiten für ${employee.name} ausgeblendet.`
-              : `Work hours hidden for ${employee.name}.`)
-          : (language === "de"
-              ? `Arbeitszeiten für ${employee.name} sichtbar geschaltet.`
-              : `Work hours visible for ${employee.name}.`);
+          ? (t("staffHiddenName").replace("{name}", employee.name))
+          : (t("staffVisibleName").replace("{name}", employee.name));
         showToast(msg);
 
         // Broadcast to other tabs/components
@@ -223,7 +219,7 @@ export default function WorkHoursVisibilityToggle({
           prev.map((emp) => (emp.id === employee.id ? { ...emp, hideWorkHours: !nextVal } : emp))
         );
         const err = await res.json().catch(() => ({}));
-        alert(err.message || "Fehler beim Umschalten der Sichtbarkeit.");
+        alert(err.message || t("staff1104"));
       }
     } catch (e) {
       console.error("Failed to toggle employee visibility:", e);
@@ -231,7 +227,7 @@ export default function WorkHoursVisibilityToggle({
       setEmployees((prev) =>
         prev.map((emp) => (emp.id === employee.id ? { ...emp, hideWorkHours: !nextVal } : emp))
       );
-      alert("Verbindungsfehler beim Ändern der Sichtbarkeit.");
+      alert(t("staff1105"));
     } finally {
       setTogglingEmployeeId(null);
     }
@@ -262,22 +258,18 @@ export default function WorkHoursVisibilityToggle({
 
       if (res.ok) {
         const msg = hide
-          ? (language === "de"
-              ? "Arbeitszeiten für alle Mitarbeiter ausgeblendet."
-              : "Work hours hidden for all employees.")
-          : (language === "de"
-              ? "Arbeitszeiten für alle Mitarbeiter sichtbar geschaltet."
-              : "Work hours visible for all employees.");
+          ? (t("staff1106"))
+          : (t("staff1107"));
         showToast(msg);
       } else {
         // Refresh from server to ensure accurate state
         fetchEmployeesData();
-        alert("Fehler bei der Massenaktualisierung.");
+        alert(t("staff1108"));
       }
     } catch (e) {
       console.error("Bulk visibility toggle failed:", e);
       fetchEmployeesData();
-      alert("Verbindungsfehler bei der Massenaktualisierung.");
+      alert(t("staff1109"));
     } finally {
       setBulkActionLoading(false);
     }
@@ -314,9 +306,9 @@ export default function WorkHoursVisibilityToggle({
 
   if (loadingInitial) {
     return (
-      <div className={`flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-400 ${className}`}>
+      <div className={`flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 ${className}`}>
         <Loader2 className="w-3.5 h-3.5 animate-spin" />
-        <span className="text-[11px] font-medium">Laden...</span>
+        <span className="text-[11px] font-medium"> {t("staff996")} </span>
       </div>
     );
   }
@@ -347,10 +339,9 @@ export default function WorkHoursVisibilityToggle({
                   </h3>
                   <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    Realtime
-                  </span>
+                     {t("staff997")} </span>
                 </div>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                   {t("manageVisibilityModalDesc")}
                 </p>
               </div>
@@ -359,7 +350,7 @@ export default function WorkHoursVisibilityToggle({
             <button
               type="button"
               onClick={() => setIsModalOpen(false)}
-              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              className="p-1.5 text-slate-600 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -377,7 +368,7 @@ export default function WorkHoursVisibilityToggle({
                 <span className="w-2 h-2 rounded-full bg-amber-500" />
                 <span>{hiddenEmployeesCount} {t("employeesCountHidden")}</span>
               </div>
-              <div className="text-slate-400 text-[11px] font-medium hidden sm:inline">
+              <div className="text-slate-600 text-[11px] font-medium hidden sm:inline">
                 ({totalEmployees} {t("filterAll")})
               </div>
             </div>
@@ -409,19 +400,19 @@ export default function WorkHoursVisibilityToggle({
           <div className="p-3 sm:p-4 border-b border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
             {/* Search Input */}
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t("searchEmployeesPlaceholder")}
-                className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none transition-all"
+                className="w-full ps-9 pr-8 py-2 text-xs bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none transition-all"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-600 p-0.5 rounded cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -463,15 +454,15 @@ export default function WorkHoursVisibilityToggle({
           {/* Employees List */}
           <div className="flex-1 overflow-y-auto divide-y divide-slate-100 p-2 sm:p-3 max-h-[50vh]">
             {loadingEmployees ? (
-              <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-400">
+              <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-600">
                 <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
-                <span className="text-xs">Mitarbeiter werden geladen...</span>
+                <span className="text-xs"> {t("staff998")} </span>
               </div>
             ) : filteredEmployees.length === 0 ? (
-              <div className="py-12 text-center text-slate-400">
+              <div className="py-12 text-center text-slate-600">
                 <Users className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                <p className="text-xs font-semibold text-slate-600">Keine Mitarbeiter gefunden</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Versuchen Sie einen anderen Suchbegriff oder Filter.</p>
+                <p className="text-xs font-semibold text-slate-600"> {t("staff999")} </p>
+                <p className="text-[11px] text-slate-600 mt-0.5"> {t("staff1000")} </p>
               </div>
             ) : (
               filteredEmployees.map((emp) => {
@@ -505,8 +496,8 @@ export default function WorkHoursVisibilityToggle({
                           <span className="font-bold text-xs sm:text-sm text-slate-900 truncate">
                             {emp.name}
                           </span>
-                          <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">
-                            @{emp.username}
+                          <span className="text-[10px] text-slate-600 font-mono hidden sm:inline">
+                            @<bdi dir="ltr">{emp.username}</bdi>
                           </span>
                         </div>
 
@@ -547,7 +538,7 @@ export default function WorkHoursVisibilityToggle({
                           }`}
                         >
                           {isToggling ? (
-                            <Loader2 className="w-3 h-3 animate-spin text-slate-500" />
+                            <Loader2 className="w-3 h-3 animate-spin text-slate-600" />
                           ) : !isHidden ? (
                             <Eye className="w-3 h-3 text-emerald-600" />
                           ) : (
@@ -563,7 +554,7 @@ export default function WorkHoursVisibilityToggle({
           </div>
 
           {/* Modal Footer */}
-          <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-500">
+          <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-600">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
               <span>{t("realtimeSyncNotice")}</span>
@@ -574,8 +565,7 @@ export default function WorkHoursVisibilityToggle({
               onClick={() => setIsModalOpen(false)}
               className="w-full sm:w-auto px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold rounded-xl transition-all shadow-xs cursor-pointer"
             >
-              Fertig
-            </button>
+               {t("staff1001")} </button>
           </div>
         </div>
       </div>
@@ -608,7 +598,7 @@ export default function WorkHoursVisibilityToggle({
               )}
             </span>
             <div className="text-left leading-none">
-              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">
+              <span className="text-[9px] text-slate-600 font-bold uppercase tracking-wider block mb-0.5">
                 {t("workHoursVisibilityTitle")}
               </span>
               <span
@@ -617,10 +607,8 @@ export default function WorkHoursVisibilityToggle({
                 }`}
               >
                 {hiddenEmployeesCount > 0
-                  ? `${hiddenEmployeesCount} ${language === "de" ? "gesperrt" : "hidden"}`
-                  : language === "de"
-                  ? "Alle sichtbar"
-                  : "All visible"}
+                  ? t("staffHiddenCount").replace("{count}", String(hiddenEmployeesCount))
+                  : t("staff1219")}
               </span>
             </div>
           </div>
@@ -632,7 +620,7 @@ export default function WorkHoursVisibilityToggle({
             title={t("manageIndividualVisibility")}
             className="ml-1 text-xs font-bold px-2.5 py-1.5 rounded-lg border bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 text-slate-700 border-slate-200 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
           >
-            <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
+            <SlidersHorizontal className="w-3.5 h-3.5 text-slate-600" />
             <span className="hidden sm:inline text-[11px] font-extrabold">
               {t("manageIndividualVisibility")}
             </span>
@@ -683,14 +671,12 @@ export default function WorkHoursVisibilityToggle({
                   }`}
                 >
                   {hiddenEmployeesCount > 0
-                    ? `${hiddenEmployeesCount} von ${totalEmployees} ausgeblendet`
-                    : "Alle Mitarbeiter sichtbar"}
+                    ? t("staffHiddenTotal").replace("{count}", String(hiddenEmployeesCount)).replace("{total}", String(totalEmployees))
+                    : t("staff1220")}
                 </span>
               </div>
               <p className="text-xs text-slate-600 mt-1 leading-relaxed max-w-xl">
-                {language === "de"
-                  ? "Steuern Sie für jeden Mitarbeiter individuell in Echtzeit, ob Arbeitszeiten, Stundenstatistiken und Stundenzettel im Mitarbeiter-Portal sichtbar sind."
-                  : "Control individually and in real-time whether each employee can see work hours, stats, and timesheets in their portal."}
+                {t("staff1221")}
               </p>
             </div>
           </div>

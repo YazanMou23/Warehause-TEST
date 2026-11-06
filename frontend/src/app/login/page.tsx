@@ -117,7 +117,7 @@ export default function LoginPage() {
 
   return (
     <div
-      className="min-h-screen bg-[#f8fafc] flex"
+      className="min-h-screen bg-background flex"
       suppressHydrationWarning
     >
       {/* ── Left Panel — Branding ── */}

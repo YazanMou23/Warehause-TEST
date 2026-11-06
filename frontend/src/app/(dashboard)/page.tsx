@@ -2054,7 +2054,7 @@ export default function DashboardPage() {
                                       >
                                         <Warehouse className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                                         <span>{wName}</span>
-                                        <span className="text-slate-300 font-normal">/</span>
+                                        <span className="text-slate-600 font-normal">/</span>
                                         <span className="text-slate-900 font-extrabold">{hName}</span>
                                       </span>
                                     );

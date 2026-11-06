@@ -39,7 +39,7 @@ interface Admin {
 }
 
 export default function AdminsPage() {
-  const { t, language } = useTranslation();
+  const { t, locale } = useTranslation();
   const [admins, setAdmins] = useState<Admin[]>([]);
   const [selectedAdminIds, setSelectedAdminIds] = useState<string[]>([]);
   const [alertConfig, setAlertConfig] = useState<CustomAlertOptions>({
@@ -204,10 +204,10 @@ export default function AdminsPage() {
         loadAdmins();
       } else {
         const err = await res.json();
-        setFormError(err.message || "Failed to add admin");
+        setFormError(err.message || t("staff1102"));
       }
     } catch (err: any) {
-      setFormError(err.message || "Network error occurred.");
+      setFormError(err.message || t("staff1094"));
     } finally {
       setFormLoading(false);
     }
@@ -251,10 +251,10 @@ export default function AdminsPage() {
         loadAdmins();
       } else {
         const err = await res.json();
-        setFormError(err.message || "Failed to update admin");
+        setFormError(err.message || t("staff1103"));
       }
     } catch (err: any) {
-      setFormError(err.message || "Network error occurred.");
+      setFormError(err.message || t("staff1094"));
     } finally {
       setFormLoading(false);
     }
@@ -262,11 +262,11 @@ export default function AdminsPage() {
 
   const handleDeactivate = (id: string, name: string) => {
     showAlert({
-      title: "Administrator deaktivieren",
-      message: language === "de" ? `Sind Sie sicher, dass Sie den Administrator ${name} deaktivieren möchten?` : `Are you sure you want to deactivate admin ${name}?`,
+      title: t("staff981"),
+      message: t("staffDeactivateAdminQuestion").replace("{name}", name),
       type: "warning",
-      confirmText: language === "de" ? "Deaktivieren" : "Deactivate",
-      cancelText: language === "de" ? "Abbrechen" : "Cancel",
+      confirmText: t("staff982"),
+      cancelText: t("ui336"),
       onConfirm: async () => {
         const token = localStorage.getItem("accessToken");
         try {
@@ -277,13 +277,13 @@ export default function AdminsPage() {
 
           if (res.ok) {
             loadAdmins();
-            showAlert({ title: "Deaktiviert", message: "Administrator wurde erfolgreich deaktiviert.", type: "success" });
+            showAlert({ title: t("staff983"), message: t("staff984"), type: "success" });
           } else {
-            showAlert({ title: "Fehler", message: "Deaktivierung des Administrators fehlgeschlagen.", type: "error" });
+            showAlert({ title: t("ui526"), message: t("staff985"), type: "error" });
           }
         } catch (e) {
           console.error(e);
-          showAlert({ title: "Fehler", message: "Fehler bei der Deaktivierung.", type: "error" });
+          showAlert({ title: t("ui526"), message: t("staff986"), type: "error" });
         }
       },
     });
@@ -292,11 +292,11 @@ export default function AdminsPage() {
   const handleBulkDeactivate = () => {
     if (selectedAdminIds.length === 0) return;
     showAlert({
-      title: "Administratoren deaktivieren",
-      message: language === "de" ? `Sind Sie sicher, dass Sie die ${selectedAdminIds.length} ausgewählten Administratoren deaktivieren möchten?` : `Are you sure you want to deactivate the ${selectedAdminIds.length} selected admin(s)?`,
+      title: t("staff987"),
+      message: t("staffDeactivateAdminsQuestion").replace("{count}", String(selectedAdminIds.length)),
       type: "warning",
-      confirmText: language === "de" ? "Deaktivieren" : "Deactivate",
-      cancelText: language === "de" ? "Abbrechen" : "Cancel",
+      confirmText: t("staff982"),
+      cancelText: t("ui336"),
       onConfirm: async () => {
         const token = localStorage.getItem("accessToken");
         try {
@@ -312,13 +312,13 @@ export default function AdminsPage() {
           if (res.ok) {
             setSelectedAdminIds([]);
             loadAdmins();
-            showAlert({ title: "Deaktiviert", message: "Ausgewählte Administratoren wurden erfolgreich deaktiviert.", type: "success" });
+            showAlert({ title: t("staff983"), message: t("staff988"), type: "success" });
           } else {
-            showAlert({ title: "Fehler", message: "Deaktivierung der Administratoren fehlgeschlagen.", type: "error" });
+            showAlert({ title: t("ui526"), message: t("staff989"), type: "error" });
           }
         } catch (e) {
           console.error(e);
-          showAlert({ title: "Fehler", message: "Fehler bei der Deaktivierung.", type: "error" });
+          showAlert({ title: t("ui526"), message: t("staff986"), type: "error" });
         }
       },
     });
@@ -351,14 +351,14 @@ export default function AdminsPage() {
           onClick={() => router.push("/")}
           className="bg-primary text-on-primary px-5 py-2 rounded-lg font-label-md hover:bg-neutral-800 transition-colors shadow-sm cursor-pointer"
         >
-          {language === "de" ? "Zum Dashboard" : "Back to Dashboard"}
+          {t("staff1217")}
         </button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-stack-lg animate-fadeIn text-on-background">
+    <div className="space-y-stack-lg text-on-background">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -379,13 +379,13 @@ export default function AdminsPage() {
       {/* Search & Actions Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-outline-variant p-stack-md rounded-lg shadow-sm">
         <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 text-outline absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-slate-600 absolute start-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder={language === "de" ? "Suche nach Name, Benutzername oder Telefon..." : "Search by name, username or phone..."}
+            placeholder={t("staff1218")}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-surface-container-low border border-outline-variant rounded-lg text-body-sm outline-none focus:ring-1 focus:ring-secondary focus:border-transparent text-on-surface"
+            className="w-full ps-9 pe-4 py-2 bg-surface-container-low border border-outline-variant rounded-lg text-body-sm outline-none focus:ring-1 focus:ring-secondary focus:border-transparent text-on-surface"
           />
         </div>
 
@@ -404,7 +404,7 @@ export default function AdminsPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-surface-container-low border-b border-outline-variant text-[#cbd5e1] font-semibold">
+              <tr className="bg-surface-container-low border-b border-outline-variant text-slate-600 font-semibold">
                 <th className="p-3 text-center w-12">
                   <button
                     onClick={() => {
@@ -414,7 +414,7 @@ export default function AdminsPage() {
                         setSelectedAdminIds(filteredAdmins.map((a) => a.id));
                       }
                     }}
-                    className="text-outline hover:text-secondary"
+                    className="text-slate-600 hover:text-secondary"
                   >
                     {selectedAdminIds.length === filteredAdmins.length && filteredAdmins.length > 0 ? (
                       <CheckSquare className="w-4 h-4 inline" />
@@ -428,13 +428,13 @@ export default function AdminsPage() {
                 <th className="px-4 py-3">{t("phone")}</th>
                 <th className="px-4 py-3">{t("employmentStart")}</th>
                 <th className="px-4 py-3">{t("telegramId")}</th>
-                <th className="px-4 py-3 text-right">Settings</th>
+                <th className="px-4 py-3 text-right"> {t("staff926")} </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant text-body-sm text-on-surface">
               {filteredAdmins.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-outline italic">
+                  <td colSpan={7} className="p-8 text-center text-slate-600 italic">
                     {t("noAdminsFound")}
                   </td>
                 </tr>
@@ -450,7 +450,7 @@ export default function AdminsPage() {
                             setSelectedAdminIds(prev => [...prev, admin.id]);
                           }
                         }}
-                        className="text-outline hover:text-secondary cursor-pointer"
+                        className="text-slate-600 hover:text-secondary cursor-pointer"
                       >
                         {selectedAdminIds.includes(admin.id) ? (
                           <CheckSquare className="w-4 h-4 text-secondary inline" />
@@ -480,26 +480,26 @@ export default function AdminsPage() {
                         </div>
                         <div>
                           <span className="font-semibold text-on-surface block leading-tight">{admin.name}</span>
-                          {admin.email && <span className="text-[10px] text-outline">{admin.email}</span>}
+                          {admin.email && <span className="text-[10px] text-slate-600"><bdi dir="ltr">{admin.email}</bdi></span>}
                         </div>
                       </div>
                     </td>
                     <td className="px-4 py-3.5 font-mono text-[12.5px] text-on-surface">
-                      {admin.username}
+                      <bdi dir="ltr">{admin.username}</bdi>
                     </td>
-                    <td className="px-4 py-3.5 font-mono text-[12.5px] text-outline">
-                      {admin.phone}
+                    <td className="px-4 py-3.5 font-mono text-[12.5px] text-slate-600">
+                      <bdi dir="ltr">{admin.phone}</bdi>
                     </td>
                     <td className="px-4 py-3.5 font-mono text-[12.5px]">
-                      {admin.employmentStart ? new Date(admin.employmentStart).toLocaleDateString(language === "de" ? "de-DE" : "en-CA") : "—"}
+                      {admin.employmentStart ? new Date(admin.employmentStart).toLocaleDateString(locale) : "—"}
                     </td>
                     <td className="px-4 py-3.5 font-mono text-[12px]">
                       {admin.telegramId ? (
                         <span className="text-secondary flex items-center gap-1 font-bold">
-                          <MessageSquare className="w-3.5 h-3.5" /> {admin.telegramId}
+                          <MessageSquare className="w-3.5 h-3.5" /> <bdi dir="ltr">{admin.telegramId}</bdi>
                         </span>
                       ) : (
-                        <span className="text-outline italic">—</span>
+                        <span className="text-slate-600 italic">—</span>
                       )}
                     </td>
                     <td className="px-4 py-3.5 text-right">
@@ -547,20 +547,20 @@ export default function AdminsPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("nameColumn")}</label>
+                  <label className="block text-xs font-bold uppercase text-slate-200 tracking-wider">{t("nameColumn")}</label>
                   <input
                     type="text"
                     required
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
-                    placeholder="e.g. Sarah Coordinator"
+                    placeholder={t("staff990")}
                     className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("phone")}</label>
+                  <label className="block text-xs font-bold uppercase text-slate-200 tracking-wider">{t("phone")}</label>
                   <input
-                    type="text"
+                    dir="ltr" type="text"
                     required
                     value={formPhone}
                     onChange={(e) => setFormPhone(e.target.value)}
@@ -572,24 +572,24 @@ export default function AdminsPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("usernameLabel")}</label>
+                  <label className="block text-xs font-bold uppercase text-slate-200 tracking-wider">{t("usernameLabel")}</label>
                   <input
-                    type="text"
+                    dir="ltr" type="text"
                     required
                     value={formUsername}
                     onChange={(e) => setFormUsername(e.target.value)}
-                    placeholder="e.g. sarahadmin"
+                    placeholder={t("staff991")}
                     className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("passwordLabel")}</label>
+                  <label className="block text-xs font-bold uppercase text-slate-200 tracking-wider">{t("passwordLabel")}</label>
                   <input
                     type="password"
                     required
                     value={formPassword}
                     onChange={(e) => setFormPassword(e.target.value)}
-                    placeholder="Password"
+                    placeholder={t("staff961")}
                     className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
                   />
                 </div>
@@ -597,17 +597,17 @@ export default function AdminsPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("email")}</label>
+                  <label className="block text-xs font-bold uppercase text-slate-200 tracking-wider">{t("email")}</label>
                   <input
-                    type="email"
+                    dir="ltr" type="email"
                     value={formEmail}
                     onChange={(e) => setFormEmail(e.target.value)}
-                    placeholder="e.g. s.admin@logiflow.de"
+                    placeholder={t("staff992")}
                     className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("employmentStart")}</label>
+                  <label className="block text-xs font-bold uppercase text-slate-200 tracking-wider">{t("employmentStart")}</label>
                   <input
                     type="date"
                     required
@@ -620,23 +620,23 @@ export default function AdminsPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">Role</label>
+                  <label className="block text-xs font-bold uppercase text-slate-200 tracking-wider"> {t("ui344")} </label>
                   <select
                     value={formRole}
                     onChange={(e) => setFormRole(e.target.value)}
                     className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
                   >
-                    <option value="ADMIN">ADMIN</option>
-                    <option value="MANAGER">MANAGER</option>
+                    <option value="ADMIN"> {t("staff924")} </option>
+                    <option value="MANAGER"> {t("roleManager")} </option>
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("telegramId")}</label>
+                  <label className="block text-xs font-bold uppercase text-slate-200 tracking-wider">{t("telegramId")}</label>
                   <input
-                    type="text"
+                    dir="ltr" type="text"
                     value={formTelegram}
                     onChange={(e) => setFormTelegram(e.target.value)}
-                    placeholder="e.g. @username"
+                    placeholder={t("staff966")}
                     className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
                   />
                 </div>
@@ -644,7 +644,7 @@ export default function AdminsPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">Warehouse Assignment</label>
+                  <label className="block text-xs font-bold uppercase text-slate-200 tracking-wider"> {t("staff963")} </label>
                   <select
                     value={formWarehouse}
                     onChange={(e) => {
@@ -653,21 +653,21 @@ export default function AdminsPage() {
                     }}
                     className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
                   >
-                    <option value="">None</option>
+                    <option value=""> {t("staff964")} </option>
                     {warehouses.map(w => (
                       <option key={w.id} value={w.id}>{w.name}</option>
                     ))}
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">Hall Assignment</label>
+                  <label className="block text-xs font-bold uppercase text-slate-200 tracking-wider"> {t("staff965")} </label>
                   <select
                     value={formHall}
                     onChange={(e) => setFormHall(e.target.value)}
                     disabled={!formWarehouse}
                     className="w-full px-3.5 py-2 border border-[#334155] disabled:opacity-50 focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
                   >
-                    <option value="">None</option>
+                    <option value=""> {t("staff964")} </option>
                     {halls.filter(h => h.warehouseId === formWarehouse).map(h => (
                       <option key={h.id} value={h.id}>{h.name}</option>
                     ))}
@@ -688,7 +688,7 @@ export default function AdminsPage() {
                   disabled={formLoading}
                   className="px-4 py-2 bg-secondary text-white font-bold rounded-lg text-sm hover:bg-secondary/90 disabled:opacity-50 cursor-pointer"
                 >
-                  {formLoading ? "Saving..." : t("saveSettings")}
+                  {formLoading ? t("planning886") : t("saveSettings")}
                 </button>
               </div>
             </form>
@@ -717,7 +717,7 @@ export default function AdminsPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("nameColumn")}</label>
+                  <label className="block text-xs font-bold uppercase text-slate-200 tracking-wider">{t("nameColumn")}</label>
                   <input
                     type="text"
                     required
@@ -727,9 +727,9 @@ export default function AdminsPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("phone")}</label>
+                  <label className="block text-xs font-bold uppercase text-slate-200 tracking-wider">{t("phone")}</label>
                   <input
-                    type="text"
+                    dir="ltr" type="text"
                     required
                     value={formPhone}
                     onChange={(e) => setFormPhone(e.target.value)}
@@ -740,9 +740,9 @@ export default function AdminsPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("usernameLabel")}</label>
+                  <label className="block text-xs font-bold uppercase text-slate-200 tracking-wider">{t("usernameLabel")}</label>
                   <input
-                    type="text"
+                    dir="ltr" type="text"
                     required
                     value={formUsername}
                     onChange={(e) => setFormUsername(e.target.value)}
@@ -750,7 +750,7 @@ export default function AdminsPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("passwordLabel")} (Leave blank to keep current)</label>
+                  <label className="block text-xs font-bold uppercase text-slate-200 tracking-wider">{t("passwordLabel")}  {t("staff967")} </label>
                   <input
                     type="password"
                     value={formPassword}
@@ -763,16 +763,16 @@ export default function AdminsPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("email")}</label>
+                  <label className="block text-xs font-bold uppercase text-slate-200 tracking-wider">{t("email")}</label>
                   <input
-                    type="email"
+                    dir="ltr" type="email"
                     value={formEmail}
                     onChange={(e) => setFormEmail(e.target.value)}
                     className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("employmentStart")}</label>
+                  <label className="block text-xs font-bold uppercase text-slate-200 tracking-wider">{t("employmentStart")}</label>
                   <input
                     type="date"
                     required
@@ -785,21 +785,21 @@ export default function AdminsPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">Role</label>
+                  <label className="block text-xs font-bold uppercase text-slate-200 tracking-wider"> {t("ui344")} </label>
                   <select
                     value={formRole}
                     onChange={(e) => setFormRole(e.target.value)}
                     className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
                   >
-                    <option value="ADMIN">ADMIN</option>
-                    <option value="MANAGER">MANAGER</option>
-                    <option value="EMPLOYEE">EMPLOYEE (Demote to Employee)</option>
+                    <option value="ADMIN"> {t("staff924")} </option>
+                    <option value="MANAGER"> {t("roleManager")} </option>
+                    <option value="EMPLOYEE"> {t("staff995")} </option>
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">{t("telegramId")}</label>
+                  <label className="block text-xs font-bold uppercase text-slate-200 tracking-wider">{t("telegramId")}</label>
                   <input
-                    type="text"
+                    dir="ltr" type="text"
                     value={formTelegram}
                     onChange={(e) => setFormTelegram(e.target.value)}
                     className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
@@ -809,7 +809,7 @@ export default function AdminsPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">Warehouse Assignment</label>
+                  <label className="block text-xs font-bold uppercase text-slate-200 tracking-wider"> {t("staff963")} </label>
                   <select
                     value={formWarehouse}
                     onChange={(e) => {
@@ -818,21 +818,21 @@ export default function AdminsPage() {
                     }}
                     className="w-full px-3.5 py-2 border border-[#334155] focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
                   >
-                    <option value="">None</option>
+                    <option value=""> {t("staff964")} </option>
                     {warehouses.map(w => (
                       <option key={w.id} value={w.id}>{w.name}</option>
                     ))}
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase text-on-surface-variant tracking-wider">Hall Assignment</label>
+                  <label className="block text-xs font-bold uppercase text-slate-200 tracking-wider"> {t("staff965")} </label>
                   <select
                     value={formHall}
                     onChange={(e) => setFormHall(e.target.value)}
                     disabled={!formWarehouse}
                     className="w-full px-3.5 py-2 border border-[#334155] disabled:opacity-50 focus:border-secondary rounded-lg text-body-sm outline-none bg-[#0f1117] text-white"
                   >
-                    <option value="">None</option>
+                    <option value=""> {t("staff964")} </option>
                     {halls.filter(h => h.warehouseId === formWarehouse).map(h => (
                       <option key={h.id} value={h.id}>{h.name}</option>
                     ))}
@@ -853,7 +853,7 @@ export default function AdminsPage() {
                   disabled={formLoading}
                   className="px-4 py-2 bg-secondary text-white font-bold rounded-lg text-sm hover:bg-secondary/90 disabled:opacity-50 cursor-pointer"
                 >
-                  {formLoading ? "Saving..." : t("saveSettings")}
+                  {formLoading ? t("planning886") : t("saveSettings")}
                 </button>
               </div>
             </form>

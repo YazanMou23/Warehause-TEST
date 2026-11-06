@@ -4,9 +4,9 @@ User-facing interface languages: German (`de`), Arabic (`ar`), Turkish (`tr`), U
 
 Arabic sets `<html lang="ar" dir="rtl">`, mirrors the navigation drawer and desktop offset, uses Arabic-capable system fonts and logical positions. Times, identifiers and dates retain unambiguous numeric order. No database migration or data rewrite is involved.
 
-Covered: shared navigation/catalog and dialogs, language selectors, login/reset, profile, worker dashboard/hours/QR scanner, Documents capture/queue copy, and admin planning/shift responses. User-provided names, notes, filenames and server-provided errors are not rewritten or translated. English OCR document-language selection remains available as an input-processing option, not an English interface.
+Covered: shared navigation/catalog and dialogs, language selectors, login/reset, profile, worker dashboard/hours/QR scanner, Documents capture/queue copy, admin planning/shift responses, employees/admins, and work-hours visibility controls. User-provided names, notes, filenames and server-provided errors are not rewritten or translated. English OCR document-language selection remains available as an input-processing option, not an English interface.
 
-Not yet translated end-to-end: employees/admins, attendance, timesheets, warehouses/halls/containers/container lists, chat and reports. They use translated shared labels but retain page-specific hardcoded copy. Legal policy pages and exported CSV headers are not translated by this change. Do not describe this foundation as complete app translation.
+Not yet translated end-to-end: attendance, timesheets, warehouses/halls/containers/container lists, chat and reports. They use translated shared labels but retain page-specific hardcoded copy. Legal policy pages and exported CSV headers are not translated by this change. Do not describe this foundation as complete app translation.
 
 ## Verify
 
@@ -31,3 +31,14 @@ Planning editor and shift confirmation list now use the four-language catalog, i
 `planning-languages-phase-3.cjs` captures each language at four widths: initial editor, lower editor, selected employee/night preset, absence modal, populated confirmation list and manual status modal. It verifies canonical preset values and blocks live writes/sends. Editor tables can scroll horizontally inside their own containers on phones. No save, delete, send, API payload or webhook setting is changed by this batch.
 
 Planning runner commands use `scripts/planning-languages-phase-3.cjs` with the same LANGUAGES, NODE_PATH, CHROME_PATH and DESIGN_OUTPUT environment settings as above. The final batch produced 96 screenshots (six states, four languages, four widths).
+
+
+## Employees/admins batch
+
+Employee and admin lists, add/edit forms, email-composer chrome, import preview chrome, confirmation dialogs, pagination, sorting and visibility controls use the four-language catalog. Role codes, API payload keys, CSV columns and print/export templates remain unchanged. User names, contact values and server-returned diagnostics stay in their original form. Email/WhatsApp message content is never translated or sent automatically.
+
+Run `scripts/staff-languages-phase-3.cjs` with the same environment settings. It captures employee/admin lists, both add/edit forms and employee visibility modal, four languages at four widths (112 screenshots). It verifies the mailto recipient and canonical employee role controls. All external writes are blocked. Import upload/execution, real saves, emails and visibility mutations are not exercised; no claim of live save/import verification. Admin tables retain internal horizontal scrolling on narrow screens.
+
+## Cooler shared background
+
+Shared canvas is now #F1F5F9, white cards and #F8FAFC pale surfaces. Login and the dashboard shell use the shared background token instead of their earlier hardcoded backgrounds. Navy/gold accents remain unchanged. Dashboard calendar labels and initials were darkened after the populated contrast check. Checked dashboard/planning/worker/Documents/login at 390 and 1440px with synthetic fixtures; sampled leaf text passes 4.5:1. This is not a full accessibility certification.
