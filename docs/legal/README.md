@@ -7,6 +7,7 @@ Rechtsanwältin / einem Rechtsanwalt oder Datenschutzberater prüfen lassen.
 - `avv-vorlage.md` - Auftragsverarbeitungsvertrag nach Art. 28 DSGVO (Vorlage, Kunde = Verantwortlicher, Anbieter = Auftragsverarbeiter)
 - `unterauftragsverarbeiter.md` - Liste der Dienstleister, Stand aus dem Code
 - `datenschutzerklaerung-kunden-vorlage.md` - Textbausteine, die der Kunde (Verantwortlicher) für seine Mitarbeitenden verwenden kann
+- `mitarbeiterblatt-datenschutzhinweis.md` - Einseitiges Blatt für Beschäftigte: Datenschutzhinweis mit Kenntnisnahme (Teil A) und freiwillige, widerrufliche Einwilligung (Teil B)
 - Seiten in der App: `/impressum`, `/datenschutz`, `/datenloeschung`
 
 ## Was aus dem Code belegt ist
