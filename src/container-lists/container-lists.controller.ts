@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { ContainerExtractorService } from './container-extractor.service';
 import { ContainerListsService } from './container-lists.service';
 import { CreateContainerListDto, UpdateContainerListDto } from './dto/container-list.dto';
@@ -54,6 +55,7 @@ export class ContainerListsController {
       cb(null, true);
     },
   }))
+  @Throttle({ default: { limit: 20, ttl: 60_000 } }) // OCR/AI endpoints cost money per call
   async extractDraft(
     @UploadedFile() file: Express.Multer.File,
     @Body('site') site?: string,

@@ -14,6 +14,7 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('auth')
 export class AuthController {
@@ -22,6 +23,7 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } }) // 5 login attempts/min per IP
   async login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
   }
@@ -62,6 +64,7 @@ export class AuthController {
    */
   @Public()
   @Post('forgot-password')
+  @Throttle({ default: { limit: 3, ttl: 300_000 } }) // 3 reset mails per 5 min per IP
   @HttpCode(HttpStatus.OK)
   async forgotPassword(@Body('email') email: string) {
     return this.authService.forgotPassword(email);
@@ -73,6 +76,7 @@ export class AuthController {
    */
   @Public()
   @Get('validate-reset-token')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   async validateResetToken(@Query('token') token: string) {
     return this.authService.validateResetToken(token);
@@ -85,6 +89,7 @@ export class AuthController {
    */
   @Public()
   @Post('reset-password')
+  @Throttle({ default: { limit: 5, ttl: 300_000 } })
   @HttpCode(HttpStatus.OK)
   async resetPassword(
     @Body('token') token: string,

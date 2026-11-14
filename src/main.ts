@@ -8,6 +8,11 @@ dns.setDefaultResultOrder('ipv4first');
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
 
+  // Render (and any reverse proxy) forwards the client IP via X-Forwarded-For.
+  // Trust the first proxy hop so per-IP rate limiting buckets real clients
+  // instead of one shared proxy IP.
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+
   // Enable global validation pipe
   app.useGlobalPipes(
     new ValidationPipe({
