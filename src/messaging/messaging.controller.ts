@@ -16,6 +16,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
+import { SkipThrottle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import {
   SendWhatsAppDto,
@@ -40,6 +41,7 @@ export class MessagingController {
    */
   @Get('webhook')
   @Public()
+  @SkipThrottle() // Meta must always reach the verification endpoint
   verifyWebhook(
     @Query('hub.mode') mode: string,
     @Query('hub.verify_token') token: string,
@@ -67,6 +69,7 @@ export class MessagingController {
    */
   @Post('webhook')
   @Public()
+  @SkipThrottle() // Meta retries must never be dropped; HMAC signature is the gate
   @HttpCode(HttpStatus.OK)
   async handleWebhook(
     @Body() body: any,

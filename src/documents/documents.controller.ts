@@ -14,6 +14,7 @@ import {
   UploadedFiles,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { DocumentsService } from './documents.service';
 import { DocumentQueueService, DocumentQueueEvent } from './document-queue.service';
@@ -96,6 +97,7 @@ export class DocumentsController {
    * POST /documents/ingest/upload
    */
   @Post('ingest/upload')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } }) // OCR/AI endpoints cost money per call
   @UseGuards(JwtAuthGuard)
   @UseInterceptors(FilesInterceptor('files', 50, {
     limits: { fileSize: 15 * 1024 * 1024 }, // per file

@@ -19,6 +19,8 @@ import { NotificationModule } from './notification/notification.module';
 import { DocumentsModule } from './documents/documents.module';
 import { SettingsModule } from './settings/settings.module';
 import { ContainerListsModule } from './container-lists/container-lists.module';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 
 @Module({
   imports: [
@@ -43,8 +45,23 @@ import { ContainerListsModule } from './container-lists/container-lists.module';
     DocumentsModule,
     SettingsModule,
     ContainerListsModule,
+    // Global rate limiting: generous default per IP (Render sets X-Forwarded-For;
+    // main.ts enables `trust proxy` so this tracks real clients). Sensitive
+    // endpoints override with stricter @Throttle(...); Meta webhook endpoints
+    // use @SkipThrottle() so inbound worker messages are never dropped.
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60_000, // 1 minute window
+        limit: 300, // generous default for the dashboard UI
+      },
+    ]),
   ],
   controllers: [AppController],
-  providers: [],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}
