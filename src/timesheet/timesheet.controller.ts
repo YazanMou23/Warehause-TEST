@@ -44,7 +44,17 @@ export class TimesheetController {
    * idempotent per page so retries / refresh never create duplicate records.
    */
   @Post('scan')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', {
+    limits: { fileSize: 15 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      const mime: string = file.mimetype ?? '';
+      const nameOk = file.originalname?.toLowerCase().endsWith('.pdf') ?? false;
+      if (!mime.startsWith('image/') && mime !== 'application/pdf' && !nameOk) {
+        return cb(new BadRequestException('Nur Bild- oder PDF-Dateien sind erlaubt.'), false);
+      }
+      cb(null, true);
+    },
+  }))
   async scan(
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() currentUser: any,

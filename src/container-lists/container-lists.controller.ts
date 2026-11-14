@@ -19,9 +19,14 @@ import { ContainerExtractorService } from './container-extractor.service';
 import { ContainerListsService } from './container-lists.service';
 import { CreateContainerListDto, UpdateContainerListDto } from './dto/container-list.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { Role } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @Controller('container-lists')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(Role.MANAGER, Role.ADMIN)
 export class ContainerListsController {
   constructor(
     private readonly extractorService: ContainerExtractorService,
@@ -37,8 +42,18 @@ export class ContainerListsController {
    * STRICT: Saves NOTHING to the database.
    */
   @Post('extract')
-  @UseGuards(JwtAuthGuard)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', {
+    limits: { fileSize: 15 * 1024 * 1024 }, // 15 MB, same as timesheet scans
+    fileFilter: (req, file, cb) => {
+      const mime: string = file.mimetype ?? '';
+      const nameOk = file.originalname?.toLowerCase().endsWith('.pdf') ?? false;
+      const ok = mime.startsWith('image/') || mime.startsWith('text/') || mime === 'application/pdf' || nameOk;
+      if (!ok) {
+        return cb(new BadRequestException('Nur Bild-, PDF- oder CSV-Dateien sind erlaubt.'), false);
+      }
+      cb(null, true);
+    },
+  }))
   async extractDraft(
     @UploadedFile() file: Express.Multer.File,
     @Body('site') site?: string,
@@ -55,7 +70,6 @@ export class ContainerListsController {
    * Save a reviewed and confirmed container list to the database.
    */
   @Post()
-  @UseGuards(JwtAuthGuard)
   async create(
     @Body() dto: CreateContainerListDto,
     @CurrentUser('id') userId?: string,
@@ -68,7 +82,6 @@ export class ContainerListsController {
    * List all saved container lists with pagination and optional site filter.
    */
   @Get()
-  @UseGuards(JwtAuthGuard)
   async findAll(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -84,7 +97,6 @@ export class ContainerListsController {
    * Get single container list with all its rows.
    */
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
   async findOne(@Param('id') id: string) {
     return this.listsService.findOne(id);
   }
@@ -94,7 +106,6 @@ export class ContainerListsController {
    * Update container list metadata and/or rows.
    */
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateContainerListDto,
@@ -107,7 +118,6 @@ export class ContainerListsController {
    * Remove a container list.
    */
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
   async remove(@Param('id') id: string) {
     return this.listsService.remove(id);
   }
@@ -117,7 +127,6 @@ export class ContainerListsController {
    * Export reviewed list to the site's original Excel template.
    */
   @Get(':id/export/xlsx')
-  @UseGuards(JwtAuthGuard)
   async exportXlsx(@Param('id') id: string, @Res() res: Response) {
     const result = await this.listsService.exportXlsx(id);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -129,7 +138,6 @@ export class ContainerListsController {
    * Export reviewed list to PDF.
    */
   @Get(':id/export/pdf')
-  @UseGuards(JwtAuthGuard)
   async exportPdf(@Param('id') id: string, @Res() res: Response) {
     const result = await this.listsService.exportPdf(id);
     res.setHeader('Content-Type', 'application/pdf');
