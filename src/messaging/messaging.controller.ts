@@ -113,7 +113,7 @@ export class MessagingController {
    * Diagnostic check of Meta WhatsApp Cloud API credentials
    */
   @Get('check-connection')
-  @Public()
+  @Roles(Role.MANAGER, Role.ADMIN)
   async checkConnection() {
     return this.messagingService.checkConnection();
   }
@@ -123,7 +123,7 @@ export class MessagingController {
    * Subscribe Meta App to the WhatsApp Business Account so incoming messages and button clicks are delivered
    */
   @Get('sync-waba')
-  @Public()
+  @Roles(Role.MANAGER, Role.ADMIN)
   async syncWaba(@Query('wabaId') wabaId?: string) {
     return this.messagingService.syncWabaWebhookSubscription(wabaId);
   }

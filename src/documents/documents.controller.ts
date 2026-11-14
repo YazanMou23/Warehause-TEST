@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Post,
@@ -96,7 +97,17 @@ export class DocumentsController {
    */
   @Post('ingest/upload')
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(FilesInterceptor('files', 50))
+  @UseInterceptors(FilesInterceptor('files', 50, {
+    limits: { fileSize: 15 * 1024 * 1024 }, // per file
+    fileFilter: (req, file, cb) => {
+      const mime: string = file.mimetype ?? '';
+      const nameOk = file.originalname?.toLowerCase().endsWith('.pdf') ?? false;
+      if (!mime.startsWith('image/') && mime !== 'application/pdf' && !nameOk) {
+        return cb(new BadRequestException('Nur Bild- oder PDF-Dateien sind erlaubt.'), false);
+      }
+      cb(null, true);
+    },
+  }))
   async uploadFiles(
     @CurrentUser() user: any,
     @UploadedFiles() files: Express.Multer.File[],
