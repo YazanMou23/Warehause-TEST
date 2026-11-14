@@ -15,6 +15,7 @@ import {
   Res,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { TimesheetService } from './timesheet.service';
 import { TimesheetExportService } from './timesheet-export.service';
@@ -55,6 +56,7 @@ export class TimesheetController {
       cb(null, true);
     },
   }))
+  @Throttle({ default: { limit: 20, ttl: 60_000 } }) // OCR/AI endpoints cost money per call
   async scan(
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() currentUser: any,
