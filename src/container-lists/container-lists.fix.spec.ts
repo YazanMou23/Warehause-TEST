@@ -26,13 +26,24 @@ describe('container-lists hardening fixes', () => {
   });
 
   describe('1. route guards', () => {
-    it('protects extract, findAll and findOne with JwtAuthGuard', () => {
+    it('protects extract, findAll and findOne with JwtAuthGuard (method- or controller-level)', () => {
       const proto = ContainerListsController.prototype as any;
+      const classGuards = Reflect.getMetadata(GUARDS_METADATA, ContainerListsController) || [];
       for (const method of ['extractDraft', 'findAll', 'findOne']) {
-        const guards = Reflect.getMetadata(GUARDS_METADATA, proto[method]) || [];
+        const methodGuards = Reflect.getMetadata(GUARDS_METADATA, proto[method]) || [];
+        const guards = [...methodGuards, ...classGuards];
         const hasJwt = guards.some((g: any) => g === JwtAuthGuard || g?.name === 'JwtAuthGuard' || g?.metatype === JwtAuthGuard);
         expect(hasJwt).toBe(true);
       }
+    });
+
+    it('requires MANAGER or ADMIN role on the controller (RolesGuard + Roles)', () => {
+      const classGuards = Reflect.getMetadata(GUARDS_METADATA, ContainerListsController) || [];
+      const hasRolesGuard = classGuards.some((g: any) => g?.name === 'RolesGuard' || g?.metatype?.name === 'RolesGuard');
+      expect(hasRolesGuard).toBe(true);
+      const roles = Reflect.getMetadata('roles', ContainerListsController) || [];
+      expect(roles).toEqual(expect.arrayContaining(['MANAGER', 'ADMIN']));
+      expect(roles).not.toContain('EMPLOYEE');
     });
   });
 

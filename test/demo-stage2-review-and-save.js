@@ -64,7 +64,9 @@ async function runStage2Demo() {
   const jwt = require('jsonwebtoken');
   const token = jwt.sign(
     { sub: '891a81cb-93b7-4281-a1e8-19c046b07090', id: '891a81cb-93b7-4281-a1e8-19c046b07090', username: 'akdeniz_akif', role: 'ADMIN' },
-    process.env.JWT_SECRET || 'super-secret-logiflow-jwt-key-2026'
+    process.env.JWT_SECRET
+  // No fallback: the API requires JWT_SECRET, so this demo does too.
+  ?? (() => { throw new Error('Set JWT_SECRET in the environment to run this demo script.'); })()
   );
 
   const savePayload = {
