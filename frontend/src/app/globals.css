@@ -438,6 +438,13 @@ html {
   .employee-card-table td[data-label="Auswählen"]::before { margin: 0; }
 }
 
+/* Pointer/touch button focus has no extra outline. Keep keyboard focus visible.
+   Normal button borders, input focus and validation styles are unchanged. */
+button:focus:not(:focus-visible),
+[role="button"]:focus:not(:focus-visible) {
+  outline: none !important;
+}
+
 /* Keyboard focus is visible on both light content and dark navigation. */
 :where(button, a, input, select, textarea, [tabindex]):focus-visible {
   outline: 3px solid #987337;

@@ -15,6 +15,24 @@ interface MessageRecord {
   respondedAt?: string | null;
   responseChannel?: string | null;
 }
+// Preserve the sender's text and line breaks. Each line determines its own base
+// direction, instead of inheriting the UI language or the first line's direction.
+function MessageText({ text }: { text: string }) {
+  return (
+    <>
+      {text.split('\n').map((line, index) => (
+        <span
+          key={index}
+          dir="auto"
+          className="block min-h-[1lh] whitespace-pre-wrap text-start [unicode-bidi:plaintext]"
+        >
+          {line || '\u00a0'}
+        </span>
+      ))}
+    </>
+  );
+}
+
 export default function ConfirmationMessage({
   record,
 }: {
@@ -22,7 +40,6 @@ export default function ConfirmationMessage({
 }) {
   const { t, locale } = useTranslation();
   const [open, setOpen] = useState(false);
-  const close = useRef<HTMLButtonElement>(null);
   const opener = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -30,7 +47,7 @@ export default function ConfirmationMessage({
     const previous = document.body.style.overflow;
     const trigger = opener.current;
     document.body.style.overflow = 'hidden';
-    close.current?.focus();
+    panel.current?.focus();
     const key = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
       if (event.key === 'Tab') {
@@ -39,7 +56,11 @@ export default function ConfirmationMessage({
         if (!buttons?.length) return;
         const first = buttons[0],
           last = buttons[buttons.length - 1];
-        if (event.shiftKey && document.activeElement === first) {
+        if (
+          event.shiftKey &&
+          (document.activeElement === first ||
+            document.activeElement === panel.current)
+        ) {
           event.preventDefault();
           last.focus();
         } else if (!event.shiftKey && document.activeElement === last) {
@@ -94,12 +115,9 @@ export default function ConfirmationMessage({
         </div>
         {received && (
           <>
-            <p
-              dir="auto"
-              className="mt-1 line-clamp-3 whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
-            >
-              {record.messageText}
-            </p>
+            <div className="mt-1 line-clamp-3 break-words [overflow-wrap:anywhere]">
+              <MessageText text={record.messageText || ''} />
+            </div>
             <button
               ref={opener}
               type="button"
@@ -121,10 +139,12 @@ export default function ConfirmationMessage({
           >
             <div
               ref={panel}
+              tabIndex={-1}
+              style={{ outline: 'none' }}
               role="dialog"
               aria-modal="true"
               aria-label={t('confirmationMessageView')}
-              className="flex max-h-[85dvh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+              className="outline-none flex max-h-[85dvh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
             >
               <div className="flex items-start justify-between gap-3 border-b border-slate-200 p-4">
                 <div>
@@ -136,13 +156,12 @@ export default function ConfirmationMessage({
                   </p>
                 </div>
                 <button
-                  ref={close}
                   type="button"
-                  className="btn-secondary h-9 w-9 shrink-0 p-0"
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center border-0 bg-transparent p-0 text-[#c9a34d] shadow-none outline-none hover:text-[#a17d2f] focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a17d2f]"
                   aria-label={t('close')}
                   onClick={() => setOpen(false)}
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-5 w-5" strokeWidth={2.25} />
                 </button>
               </div>
               <div className="overflow-y-auto p-4">
@@ -159,12 +178,9 @@ export default function ConfirmationMessage({
                   </p>
                   <p className="mt-1">{t('confirmationMessageRecordedTime')}</p>
                 </div>
-                <p
-                  dir="auto"
-                  className="mt-4 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-900 [overflow-wrap:anywhere]"
-                >
-                  {record.messageText}
-                </p>
+                <div className="mt-4 break-words text-sm leading-7 text-slate-900 [overflow-wrap:anywhere]">
+                  <MessageText text={record.messageText || ''} />
+                </div>
               </div>
               <div className="flex justify-end border-t border-slate-200 p-4">
                 <button
