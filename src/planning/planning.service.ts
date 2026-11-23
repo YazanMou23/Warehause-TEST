@@ -11,6 +11,9 @@ import { MessagingService } from '../messaging/messaging.service';
 export class PlanningService {
   private readonly logger = new Logger(PlanningService.name);
 
+  // Plan notices are WhatsApp + in-app only. Auth and custom email are unchanged.
+  private readonly planEmailsEnabled: boolean = false;
+
   private readonly standardInclude = {
     locations: {
       include: {
@@ -243,7 +246,7 @@ export class PlanningService {
         })
         .catch(() => {});
 
-      if (emp.email) {
+      if (this.planEmailsEnabled && emp.email) {
         const shiftTime = updatedPlan.shift || (updatedPlan.startTime && updatedPlan.endTime ? `${new Date(updatedPlan.startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} - ${new Date(updatedPlan.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'Standardschicht');
         const warehousesList = (updatedPlan.locations && updatedPlan.locations.length > 0)
           ? updatedPlan.locations.map((loc: any) => `${loc.warehouseName || 'Lager'} (${loc.hallName || 'Halle'})`)
@@ -286,7 +289,7 @@ export class PlanningService {
         })
         .catch(() => {});
 
-      if (emp.email) {
+      if (this.planEmailsEnabled && emp.email) {
         const shiftTime = plan.shift || (plan.startTime && plan.endTime ? `${new Date(plan.startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} - ${new Date(plan.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'Standardschicht');
         const warehousesList = (plan.locations && plan.locations.length > 0)
           ? plan.locations.map((loc: any) => `${loc.warehouseName || 'Lager'} (${loc.hallName || 'Halle'})`)
@@ -649,7 +652,7 @@ export class PlanningService {
           this.logger.error(`Notification DB error for user ${employee.id}: ${err.message}`);
         });
 
-      if (targetEmail) {
+      if (this.planEmailsEnabled && targetEmail) {
         const planDetails = {
           employeeName: empName,
           date: formattedDate,

@@ -27,6 +27,9 @@ import {
   UserX,
   HelpCircle,
   Shield,
+  Users,
+  ClipboardList,
+  Inbox,
 } from "lucide-react";
 import { API_URL } from "../../../config/api";
 import { useDialog } from "../DialogProvider";
@@ -251,7 +254,7 @@ export default function ShiftConfirmationList({
   // Resend WhatsApp to single employee
   const handleResendWhatsApp = async (rec: ConfirmationRecord) => {
     const token = localStorage.getItem("accessToken") || localStorage.getItem("token");
-    if (!token) return;
+    if (!token || sendingWaId !== null) return;
 
     const opKey = `${rec.planId}_${rec.employeeId}`;
     setSendingWaId(opKey);
@@ -268,16 +271,16 @@ export default function ShiftConfirmationList({
       const data = await res.json();
       if (res.ok && data.success) {
         showAlert({
-          title: tx("planning816"),
-          message: tx("planningNotificationSent").replace("{name}", rec.employeeName).replace("{phone}", rec.employeePhone),
-          type: "success",
+          title: tx("planWaAcceptedTitle"),
+          message: tx("planWaAcceptedMessage").replace("{name}", rec.employeeName).replace("{phone}", rec.employeePhone),
+          type: "info",
         });
         fetchConfirmations(true);
       } else {
         showAlert({
           title: tx("planning643"),
-          message: data.error || (data.waLink ? tx("planning817") : tx("planning818")),
-          type: "info",
+          message: data.error || (data.waLink ? tx("planWaManualFallback") : tx("planWaFailed")),
+          type: data.waLink ? "warning" : "error",
         });
         if (data.waLink) {
           window.open(data.waLink, "_blank");
@@ -317,9 +320,9 @@ export default function ShiftConfirmationList({
     <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden flex flex-col">
       {/* Header Bar */}
       <div className="p-5 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
+        <div className="flex items-center gap-3.5 min-w-0">
           <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-2xl shadow-2xs">
-            📋
+            <ClipboardList className="w-6 h-6 text-emerald-700" aria-hidden="true" />
           </div>
           <div>
             <div className="flex items-center gap-2.5 flex-wrap">
@@ -433,7 +436,7 @@ export default function ShiftConfirmationList({
         <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-600">{tx("planning841")}</span>
-            <span className="text-base">👥</span>
+            <Users className="w-4 h-4 text-slate-600" aria-hidden="true" />
           </div>
           <div className="mt-1 text-2xl font-black text-slate-900">{stats.total}</div>
         </div>
@@ -526,23 +529,24 @@ export default function ShiftConfirmationList({
           </select>
 
           {/* Status Tabs */}
-          <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200">
+          <div className="inline-flex flex-wrap max-w-full p-1 bg-slate-100 rounded-xl border border-slate-200">
             {[
-              { id: "ALL", label: tx("filterAll") },
-              { id: "CONFIRMED", label: tx("planning848") },
-              { id: "SICK", label: tx("planning849") },
-              { id: "PENDING", label: tx("planning850") },
+              { id: "ALL", label: tx("filterAll"), icon: Filter },
+              { id: "CONFIRMED", label: tx("planning848"), icon: CheckCircle2 },
+              { id: "SICK", label: tx("planning849"), icon: XCircle },
+              { id: "PENDING", label: tx("planning850"), icon: Clock },
             ].map((tab) => (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setStatusFilter(tab.id)}
-                className={`px-3 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
+                className={`px-3 py-1 text-xs font-bold rounded-lg transition cursor-pointer inline-flex items-center gap-1.5 ${
                   statusFilter === tab.id
                     ? "bg-white text-slate-900 shadow-2xs"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
+                <tab.icon className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
                 {tab.label}
               </button>
             ))}
@@ -572,7 +576,7 @@ export default function ShiftConfirmationList({
         ) : records.length === 0 ? (
           <div className="py-20 text-center flex flex-col items-center justify-center p-6 bg-white">
             <div className="w-16 h-16 rounded-2xl bg-slate-100 border border-slate-200/80 flex items-center justify-center text-3xl mb-3 shadow-2xs">
-              📭
+              <Inbox className="w-7 h-7 text-slate-500" aria-hidden="true" />
             </div>
             <h3 className="text-sm font-bold text-slate-800">
               {tx("planning853")}</h3>
@@ -612,22 +616,22 @@ export default function ShiftConfirmationList({
                     <td className="py-3 px-4 text-center">
                       {isConfirmed && (
                         <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-300 shadow-2xs" title={tx("planning861")}>
-                          <span className="text-base leading-none">🟢</span>
+                          <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
                         </div>
                       )}
                       {isSick && (
                         <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-red-100 text-red-700 border border-red-300 shadow-2xs" title={tx("planning879")}>
-                          <span className="text-base leading-none">🔴</span>
+                          <XCircle className="w-4 h-4" aria-hidden="true" />
                         </div>
                       )}
                       {isCustom && (
                         <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-700 border border-blue-300 shadow-2xs" title={tx("planning862")}>
-                          <span className="text-base leading-none">💬</span>
+                          <MessageSquare className="w-4 h-4" aria-hidden="true" />
                         </div>
                       )}
                       {isPending && (
                         <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-amber-100 text-amber-700 border border-amber-300 shadow-2xs" title={tx("planning867")}>
-                          <span className="text-base leading-none">🟡</span>
+                          <Clock className="w-4 h-4" aria-hidden="true" />
                         </div>
                       )}
                     </td>
@@ -751,8 +755,8 @@ export default function ShiftConfirmationList({
                     </td>
 
                     {/* 8. Action Buttons Column */}
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                    <td className="py-3 px-2 text-right">
+                      <div className="flex items-center justify-end gap-2 whitespace-nowrap">
                         {/* Status Edit Button */}
                         <button
                           type="button"
@@ -761,36 +765,39 @@ export default function ShiftConfirmationList({
                             setEditStatus(rec.status);
                             setEditReason(rec.reason || "");
                           }}
-                          className="p-1.5 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition cursor-pointer"
+                          className="btn-secondary h-9 w-9 shrink-0 p-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                          aria-label={tx("planning873")}
                           title={tx("planning873")}
                         >
-                          <Edit3 className="w-3.5 h-3.5" />
+                          <Edit3 className="w-4 h-4" />
                         </button>
 
                         {/* WhatsApp Send Button */}
                         <button
                           type="button"
-                          disabled={sendingWaId === `${rec.planId}_${rec.employeeId}`}
+                          disabled={sendingWaId !== null || !rec.employeePhone?.trim()}
+                          aria-busy={sendingWaId === `${rec.planId}_${rec.employeeId}`}
                           onClick={() => handleResendWhatsApp(rec)}
-                          className="px-2.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-2xs disabled:opacity-50 cursor-pointer"
+                          className="btn-primary h-9 px-3 shrink-0 whitespace-nowrap text-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                           title={tx("planning874")}
                         >
                           {sendingWaId === `${rec.planId}_${rec.employeeId}` ? (
-                            <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                            <div className="w-3.5 h-3.5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
                           ) : (
-                            <Send className="w-3.5 h-3.5" />
+                            <Send className="w-4 h-4 shrink-0" />
                           )}
-                          <span>WhatsApp</span>
+                          <span>{sendingWaId === `${rec.planId}_${rec.employeeId}` ? tx("planWaSending") : tx("planWaSend")}</span>
                         </button>
 
                         {/* wa.me direct open fallback */}
                         <button
                           type="button"
                           onClick={() => openDirectWhatsApp(rec)}
-                          className="p-1.5 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 border border-slate-200 rounded-xl transition cursor-pointer"
+                          className="btn-secondary h-9 w-9 shrink-0 p-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                          aria-label={tx("planning875")}
                           title={tx("planning875")}
                         >
-                          <ExternalLink className="w-3.5 h-3.5" />
+                          <ExternalLink className="w-4 h-4" />
                         </button>
 
                       </div>
