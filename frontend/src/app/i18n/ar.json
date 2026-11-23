@@ -1726,5 +1726,6 @@
   "planWaManualFallback": "لم يتم الإرسال. يتوفر رابط واتساب للإرسال اليدوي.",
   "planWaFailed": "تعذر تنفيذ طلب الإرسال.",
   "planWaSending": "جارٍ الإرسال …",
-  "planWaSend": "إرسال واتساب"
+  "planWaSend": "إرسال واتساب",
+  "planningAllHalls": "جميع القاعات"
 }

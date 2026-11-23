@@ -1726,5 +1726,6 @@
   "planWaManualFallback": "Gönderilmedi. Elle göndermek için WhatsApp bağlantısı var.",
   "planWaFailed": "Gönderim isteği başarısız oldu.",
   "planWaSending": "Gönderiliyor …",
-  "planWaSend": "WhatsApp gönder"
+  "planWaSend": "WhatsApp gönder",
+  "planningAllHalls": "Tüm salonlar"
 }

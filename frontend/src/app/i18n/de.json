@@ -1726,5 +1726,6 @@
   "planWaManualFallback": "Nicht gesendet. Ein manueller WhatsApp-Link ist verfügbar.",
   "planWaFailed": "Die Versand-Anfrage ist fehlgeschlagen.",
   "planWaSending": "Wird gesendet …",
-  "planWaSend": "WhatsApp senden"
+  "planWaSend": "WhatsApp senden",
+  "planningAllHalls": "Alle Hallen"
 }

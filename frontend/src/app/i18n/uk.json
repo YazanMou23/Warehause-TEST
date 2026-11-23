@@ -1726,5 +1726,6 @@
   "planWaManualFallback": "Не надіслано. Доступне посилання для ручного надсилання у WhatsApp.",
   "planWaFailed": "Запит надсилання не виконано.",
   "planWaSending": "Надсилання …",
-  "planWaSend": "Надіслати WhatsApp"
+  "planWaSend": "Надіслати WhatsApp",
+  "planningAllHalls": "Усі зали"
 }
