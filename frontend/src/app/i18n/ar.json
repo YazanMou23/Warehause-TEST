@@ -1727,5 +1727,12 @@
   "planWaFailed": "تعذر تنفيذ طلب الإرسال.",
   "planWaSending": "جارٍ الإرسال …",
   "planWaSend": "إرسال واتساب",
-  "planningAllHalls": "جميع القاعات"
+  "planningAllHalls": "جميع القاعات",
+  "confirmationMessageReceived": "وصلت رسالة",
+  "confirmationMessageAwaiting": "تم اختيار رسالة، بانتظار النص",
+  "confirmationMessageEmpty": "لا توجد رسالة محفوظة",
+  "confirmationMessageView": "عرض الرسالة",
+  "confirmationMessageUnknownTime": "الوقت غير محدد",
+  "confirmationMessageUnknownChannel": "القناة غير محددة",
+  "confirmationMessageRecordedTime": "وقت الرد المسجل"
 }

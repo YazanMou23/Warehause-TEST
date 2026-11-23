@@ -1727,5 +1727,12 @@
   "planWaFailed": "Запит надсилання не виконано.",
   "planWaSending": "Надсилання …",
   "planWaSend": "Надіслати WhatsApp",
-  "planningAllHalls": "Усі зали"
+  "planningAllHalls": "Усі зали",
+  "confirmationMessageReceived": "Повідомлення отримано",
+  "confirmationMessageAwaiting": "Обрано повідомлення, очікується текст",
+  "confirmationMessageEmpty": "Немає збереженого повідомлення",
+  "confirmationMessageView": "Переглянути повідомлення",
+  "confirmationMessageUnknownTime": "Час не вказано",
+  "confirmationMessageUnknownChannel": "Канал не вказано",
+  "confirmationMessageRecordedTime": "Збережений час відповіді"
 }

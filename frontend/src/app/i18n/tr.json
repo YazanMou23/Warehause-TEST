@@ -1727,5 +1727,12 @@
   "planWaFailed": "Gönderim isteği başarısız oldu.",
   "planWaSending": "Gönderiliyor …",
   "planWaSend": "WhatsApp gönder",
-  "planningAllHalls": "Tüm salonlar"
+  "planningAllHalls": "Tüm salonlar",
+  "confirmationMessageReceived": "Mesaj alındı",
+  "confirmationMessageAwaiting": "Mesaj seçildi, metin bekleniyor",
+  "confirmationMessageEmpty": "Kayıtlı mesaj yok",
+  "confirmationMessageView": "Mesajı görüntüle",
+  "confirmationMessageUnknownTime": "Saat belirtilmedi",
+  "confirmationMessageUnknownChannel": "Kanal belirtilmedi",
+  "confirmationMessageRecordedTime": "Kayıtlı yanıt zamanı"
 }

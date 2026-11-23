@@ -31,6 +31,7 @@ import {
   ClipboardList,
   Inbox,
 } from "lucide-react";
+import ConfirmationMessage from "./ConfirmationMessage";
 import { API_URL } from "../../../config/api";
 import { useDialog } from "../DialogProvider";
 
@@ -52,6 +53,8 @@ export interface ConfirmationRecord {
   treffpunktTime: string;
   status: "CONFIRMED" | "SICK" | "CUSTOM_RESPONSE" | "PENDING";
   reason?: string | null;
+  messageState?: "NONE" | "AWAITING_TEXT" | "RECEIVED" | "EMPTY";
+  messageText?: string | null;
   respondedAt?: string | null;
   responseChannel?: string | null;
 }
@@ -767,7 +770,7 @@ export default function ShiftConfirmationList({
                           <XCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
                           <div>
                             <div className="font-extrabold text-red-950">
-                              {rec.reason || tx("planning868")}
+                              {rec.messageState && rec.messageState !== "NONE" ? tx("planning868") : rec.reason || tx("planning868")}
                             </div>
                             <div className="text-[10px] text-red-700 font-normal mt-0.5">
                               {tx("planning869")}</div>
@@ -776,22 +779,18 @@ export default function ShiftConfirmationList({
                       ) : isConfirmed ? (
                         <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-xs font-bold flex items-center gap-2 shadow-2xs">
                           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                          <span>{rec.reason || tx("planning870")}</span>
+                          <span>{rec.messageState && rec.messageState !== "NONE" ? tx("planning870") : rec.reason || tx("planning870")}</span>
                         </div>
-                      ) : isCustom ? (
-                        <div className="p-2.5 bg-blue-50 border border-blue-200 text-blue-900 rounded-xl text-xs flex items-start gap-2 shadow-2xs">
-                          <MessageSquare className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                          <div>
-                            <div className="font-extrabold text-blue-900">{tx("planning871")}</div>
-                            <div className="italic mt-0.5 text-blue-950 font-medium">„{rec.reason}“</div>
-                          </div>
-                        </div>
-                      ) : (
+                      ) : isCustom ? null : (
                         <div className="p-2.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-xl text-xs italic flex items-center gap-2">
                           <Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                           <span>{tx("planning872")}</span>
                         </div>
                       )}
+                      <ConfirmationMessage record={rec.messageState ? rec : { ...rec,
+                        messageState: !isCustom ? "NONE" : rec.reason === "Wartet auf individuelle Textnachricht" && rec.responseChannel !== "WHATSAPP_TEXT" ? "AWAITING_TEXT" : rec.reason?.trim() ? "RECEIVED" : "EMPTY",
+                        messageText: rec.reason,
+                      }} />
                     </td>
 
                     {/* 8. Action Buttons Column */}
