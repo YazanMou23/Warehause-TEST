@@ -6,6 +6,7 @@ import { EmployeeSegmentDto } from './dto/employee-segment.dto';
 import { SetEmployeeAbsenceDto } from './dto/employee-absence.dto';
 import { EmailService } from '../email/email.service';
 import { MessagingService } from '../messaging/messaging.service';
+import { planWhatsAppContext } from '../messaging/plan-templates';
 
 @Injectable()
 export class PlanningService {
@@ -61,6 +62,16 @@ export class PlanningService {
     private readonly emailService: EmailService,
     private readonly messagingService: MessagingService,
   ) {}
+
+  private async syncPlanEmployees(tx: any, planId: string, employeeIds: string[], startTime: Date, endTime: Date) {
+    const ids = [...new Set(employeeIds)];
+    await this.validateNoEmployeeTimeOverlap(tx, ids, startTime, endTime, planId);
+    await tx.planEmployee.deleteMany({ where: { planId, employeeId: { notIn: ids } } });
+    if (!ids.length) return;
+    // Keep response status, note, timestamp and channel on retained assignments.
+    await tx.planEmployee.updateMany({ where: { planId, employeeId: { in: ids } }, data: { startTime, endTime } });
+    await tx.planEmployee.createMany({ data: ids.map(employeeId => ({ planId, employeeId, startTime, endTime })), skipDuplicates: true });
+  }
 
   private normalizeDate(dateStr: string): Date {
     const d = new Date(dateStr);
@@ -227,7 +238,8 @@ export class PlanningService {
   }
 
   private async notifyRemovedEmployees(updatedPlan: any, removedEmployeeIds: string[]) {
-    if (!removedEmployeeIds || removedEmployeeIds.length === 0) return;
+    if (!removedEmployeeIds || removedEmployeeIds.length === 0) return [];
+    const failures: string[] = [];
     const removedEmployees = await this.prisma.user.findMany({
       where: { id: { in: removedEmployeeIds } },
       select: { id: true, name: true, email: true, phone: true },
@@ -265,14 +277,22 @@ export class PlanningService {
       }
 
       if (emp.phone) {
-        const waMessage = `Hallo ${emp.name},\nSie wurden aus dem Schichtplan am 📅 ${formattedDate} in 🏢 ${updatedPlan.warehouseName} (${updatedPlan.hallName}) ausgetragen.`;
-        this.messagingService.sendWhatsAppDirect(emp.phone, waMessage).catch(() => {});
+        const context = planWhatsAppContext(updatedPlan, emp);
+        const result = await this.messagingService.sendShiftPlanNotification({
+          phone: emp.phone, empName: emp.name, planId: updatedPlan.id, employeeId: emp.id,
+          event: 'REMOVED', schedule: context.schedule, dateFormatted: context.dateFormatted,
+        });
+        if (!result.success) failures.push(`${emp.name}: ${result.error || 'WhatsApp nicht gesendet'}`);
+      } else {
+        failures.push(`${emp.name}: Keine Telefonnummer hinterlegt`);
       }
     }
+    return failures;
   }
 
   private async notifyDeletedPlan(plan: any) {
-    if (!plan || !plan.assignedEmployees || plan.assignedEmployees.length === 0) return;
+    if (!plan || !plan.assignedEmployees || plan.assignedEmployees.length === 0) return [];
+    const failures: string[] = [];
     const formattedDate = new Date(plan.date).toLocaleDateString('de-DE');
 
     for (const emp of plan.assignedEmployees) {
@@ -307,10 +327,17 @@ export class PlanningService {
       }
 
       if (emp.phone) {
-        const waMessage = `Hallo ${emp.name},\nDer Schichtplan am 📅 ${formattedDate} in 🏢 ${plan.warehouseName || 'Lager'} (${plan.hallName || 'Halle'}) wurde abgesagt / storniert.`;
-        this.messagingService.sendWhatsAppDirect(emp.phone, waMessage).catch(() => {});
+        const context = planWhatsAppContext(plan, emp);
+        const result = await this.messagingService.sendShiftPlanNotification({
+          phone: emp.phone, empName: emp.name, planId: plan.id, employeeId: emp.id,
+          event: 'CANCELLED', schedule: context.schedule, dateFormatted: context.dateFormatted,
+        });
+        if (!result.success) failures.push(`${emp.name}: ${result.error || 'WhatsApp nicht gesendet'}`);
+      } else {
+        failures.push(`${emp.name}: Keine Telefonnummer hinterlegt`);
       }
     }
+    return failures;
   }
 
   private async validateNoEmployeeTimeOverlap(
@@ -513,9 +540,8 @@ export class PlanningService {
       },
     });
 
-    await this.notifyAssignedEmployees(fullPlan, fullPlan.assignedEmployees, false, actorId);
-
-    return fullPlan;
+    const notificationWarnings = await this.notifyAssignedEmployees(fullPlan, fullPlan.assignedEmployees, false, actorId);
+    return { ...fullPlan, notificationWarnings: notificationWarnings || [] };
   }
 
   private getCalendarWeek(d: Date): number {
@@ -535,8 +561,9 @@ export class PlanningService {
     if (!plan) {
       throw new NotFoundException(`Plan with ID ${planId} not found`);
     }
-    await this.notifyAssignedEmployees(plan, plan.assignedEmployees, true, actorId);
-    return { success: true, message: `Benachrichtigungen für Plan ${planId} erfolgreich erneut gesendet.` };
+    const failures = await this.notifyAssignedEmployees(plan, plan.assignedEmployees, true, actorId);
+    if (failures?.length) throw new BadRequestException(failures.join(' | '));
+    return { success: true, message: 'WhatsApp-Nachrichten vom Anbieter angenommen. Zustellung noch nicht bestätigt.' };
   }
 
   private async notifyAssignedEmployees(
@@ -556,7 +583,8 @@ export class PlanningService {
         uniqueEmployees.push(emp);
       }
     }
-    if (uniqueEmployees.length === 0) return;
+    if (uniqueEmployees.length === 0) return [];
+    const failures: string[] = [];
 
     const planDate = new Date(plan.date);
     const formattedDate = planDate.toLocaleDateString('de-DE');
@@ -576,10 +604,8 @@ export class PlanningService {
     const segments: any[] = await this.prisma.employeePlanSegment
       .findMany({
         where: {
-          OR: [
-            { planId: plan.id },
-            { date: normalizedDate, employeeId: { in: uniqueEmployees.map((e) => e.id) } },
-          ],
+          planId: plan.id,
+          employeeId: { in: uniqueEmployees.map((e) => e.id) },
         },
         orderBy: [{ order: 'asc' }, { startTime: 'asc' }],
       })
@@ -705,43 +731,25 @@ export class PlanningService {
       }
 
       if (targetPhone) {
-        const whName = plan.warehouseName || locationsList[0]?.warehouseName || 'Duisburg';
-        const hName = plan.hallName || locationsList[0]?.hallName || 'Halle';
-        const empTp = empSegments.length > 0 && empSegments[0].treffpunkt
-          ? `${empSegments[0].treffpunkt}${empSegments[0].treffpunktTime ? ` um ${empSegments[0].treffpunktTime} Uhr` : ''}`
-          : `${tpOrt}${tpZeit && tpZeit !== 'Keine Treffzeit angegeben' ? ` um ${tpZeit} Uhr` : ''}`;
-
-        this.messagingService
-          .sendShiftPlanNotification({
-            phone: targetPhone,
-            empName,
-            warehouseName: whName,
-            hallName: hName,
-            treffpunktInfo: empTp,
-            dateFormatted: formattedDate,
-            shiftTime,
-            planId: plan.id,
-            employeeId: employee.id,
-            headerTitle,
-          })
-          .then((res) => {
-            this.prisma.actionLog
-              .create({
-                data: {
-                  userId: actorId || null,
-                  action: res.success ? 'WHATSAPP_NOTIFICATION' : 'WHATSAPP_NOTIFICATION_FAILED',
-                  details: res.success
-                    ? `Schicht-WhatsApp (${res.method || 'API'}) an ${empName} (${targetPhone}) gesendet`
-                    : `Fehler beim WhatsApp-Versand an ${empName} (${targetPhone}): ${res.error || 'Unbekannt'}`,
-                },
-              })
-              .catch(() => {});
-          })
-          .catch((err: any) => {
-            this.logger.error(`WhatsApp error for ${targetPhone}: ${err.message}`);
-          });
+        const context = planWhatsAppContext(plan, { ...employee, ...uInfo }, empSegments);
+        const res = await this.messagingService.sendShiftPlanNotification({
+          phone: targetPhone, empName, planId: plan.id, employeeId: employee.id,
+          event: isUpdate && !(plan.newlyAssignedEmployeeIds || []).includes(employee.id) ? 'UPDATED' : 'ASSIGNED',
+          schedule: context.schedule, treffpunktInfo: context.meeting, dateFormatted: context.dateFormatted,
+        });
+        if (!res.success) failures.push(`${empName}: ${res.error || 'WhatsApp nicht gesendet'}`);
+        await this.prisma.actionLog.create({ data: {
+          userId: actorId || null,
+          action: res.success ? 'WHATSAPP_NOTIFICATION' : 'WHATSAPP_NOTIFICATION_FAILED',
+          details: res.success
+            ? `Schicht-WhatsApp von Anbieter angenommen (${res.method || 'API'}) für ${empName}`
+            : `Fehler beim WhatsApp-Versand an ${empName}: ${res.error || 'Unbekannt'}`,
+        } }).catch(() => {});
+      } else {
+        failures.push(`${empName}: Keine Telefonnummer hinterlegt`);
       }
     }
+    return failures;
   }
 
   async update(id: string, updatePlanDto: UpdatePlanDto, actorId?: string) {
@@ -820,21 +828,7 @@ export class PlanningService {
       // Update employee assignments and check overlaps
       const effectiveEmployees = updatePlanDto.assignedEmployeeIds !== undefined ? updatePlanDto.assignedEmployeeIds : prevEmployeeIds;
 
-      await tx.planEmployee.deleteMany({
-        where: { planId: id },
-      });
-
-      if (effectiveEmployees && effectiveEmployees.length > 0) {
-        await this.validateNoEmployeeTimeOverlap(tx, effectiveEmployees, startTime, endTime, id);
-        await tx.planEmployee.createMany({
-          data: effectiveEmployees.map((empId) => ({
-            planId: id,
-            employeeId: empId,
-            startTime,
-            endTime,
-          })),
-        });
-      }
+      await this.syncPlanEmployees(tx, id, effectiveEmployees || [], startTime, endTime);
 
       // Update container assignments
       if (updatePlanDto.assignedContainerIds !== undefined || updatePlanDto.assignedContainerNumbers !== undefined) {
@@ -924,17 +918,17 @@ export class PlanningService {
 
     const updatedPlan = await this.findOne(id);
     const currentEmployeeIds = updatedPlan.assignedEmployees.map((ae: any) => ae.id);
+    const notificationPlan = { ...updatedPlan, newlyAssignedEmployeeIds: currentEmployeeIds.filter((employeeId: string) => !prevEmployeeIds.includes(employeeId)) };
     const removedEmployeeIds = prevEmployeeIds.filter((id) => !currentEmployeeIds.includes(id));
 
+    const notificationWarnings: string[] = [];
     if (this.isPlanDataChanged(oldFormattedPlan, updatedPlan)) {
-      await this.notifyAssignedEmployees(updatedPlan, updatedPlan.assignedEmployees, true, actorId);
+      notificationWarnings.push(...(await this.notifyAssignedEmployees(notificationPlan, updatedPlan.assignedEmployees, true, actorId) || []));
     }
-
     if (removedEmployeeIds.length > 0) {
-      await this.notifyRemovedEmployees(updatedPlan, removedEmployeeIds);
+      notificationWarnings.push(...await this.notifyRemovedEmployees(oldFormattedPlan, removedEmployeeIds));
     }
-
-    return updatedPlan;
+    return { ...updatedPlan, notificationWarnings };
   }
 
   async findOne(id: string) {
@@ -994,9 +988,8 @@ export class PlanningService {
 
     // Notify assigned employees that the plan has been cancelled/deleted
     const formatted = this.formatPlanOutput(plan);
-    this.notifyDeletedPlan(formatted).catch(() => {});
-
-    return { message: 'Daily plan deactivated successfully' };
+    const notificationWarnings = await this.notifyDeletedPlan(formatted);
+    return { message: 'Daily plan deactivated successfully', notificationWarnings };
   }
 
   async findAll(page = 1, limit = 100, startDateStr?: string, endDateStr?: string, warehouseId?: string) {
@@ -1074,11 +1067,11 @@ export class PlanningService {
     });
 
     // Notify assigned employees for all deleted plans
+    const notificationWarnings: string[] = [];
     for (const p of plans) {
-      this.notifyDeletedPlan(this.formatPlanOutput(p)).catch(() => {});
+      notificationWarnings.push(...await this.notifyDeletedPlan(this.formatPlanOutput(p)));
     }
-
-    return { message: `${result.count} daily plans deactivated successfully` };
+    return { message: `${result.count} daily plans deactivated successfully`, notificationWarnings };
   }
 
   async bulkDuplicate(ids: string[], actorId?: string) {
@@ -1169,6 +1162,7 @@ export class PlanningService {
       where: { id: { in: ids }, deletedAt: null },
     });
 
+    const notificationWarnings: string[] = [];
     let count = 0;
     for (const plan of plans) {
       const oldPlan = await this.findOne(plan.id);
@@ -1185,7 +1179,7 @@ export class PlanningService {
       });
       const updatedPlan = await this.findOne(plan.id);
       if (this.isPlanDataChanged(oldPlan, updatedPlan)) {
-        await this.notifyAssignedEmployees(updatedPlan, updatedPlan.assignedEmployees, true, actorId);
+        notificationWarnings.push(...(await this.notifyAssignedEmployees(updatedPlan, updatedPlan.assignedEmployees, true, actorId) || []));
       }
     }
 
@@ -1197,7 +1191,7 @@ export class PlanningService {
       },
     });
 
-    return { message: `Hall updated for ${count} daily plans successfully` };
+    return { message: `Hall updated for ${count} daily plans successfully`, notificationWarnings };
   }
 
   async bulkChangeShift(ids: string[], shift: string, actorId?: string) {
@@ -1206,6 +1200,7 @@ export class PlanningService {
       include: { assignedEmployees: true },
     });
 
+    const notificationWarnings: string[] = [];
     let count = 0;
     for (const plan of plans) {
       const oldPlan = await this.findOne(plan.id);
@@ -1215,16 +1210,7 @@ export class PlanningService {
       try {
         await this.prisma.$transaction(async (tx) => {
           if (employeeIds.length > 0) {
-            await tx.planEmployee.deleteMany({ where: { planId: plan.id } });
-            await this.validateNoEmployeeTimeOverlap(tx, employeeIds, startTime, endTime, plan.id);
-            await tx.planEmployee.createMany({
-              data: employeeIds.map((empId) => ({
-                planId: plan.id,
-                employeeId: empId,
-                startTime,
-                endTime,
-              })),
-            });
+            await this.syncPlanEmployees(tx, plan.id, employeeIds, startTime, endTime);
           }
           await tx.plan.update({
             where: { id: plan.id },
@@ -1234,7 +1220,7 @@ export class PlanningService {
         });
         const updatedPlan = await this.findOne(plan.id);
         if (this.isPlanDataChanged(oldPlan, updatedPlan)) {
-          await this.notifyAssignedEmployees(updatedPlan, updatedPlan.assignedEmployees, true, actorId);
+          notificationWarnings.push(...(await this.notifyAssignedEmployees(updatedPlan, updatedPlan.assignedEmployees, true, actorId) || []));
         }
       } catch (err) {
         this.logger.warn(`Could not change shift for plan ${plan.id} due to conflict: ${err.message}`);
@@ -1249,7 +1235,7 @@ export class PlanningService {
       },
     });
 
-    return { message: `Shift updated for ${count} daily plans successfully` };
+    return { message: `Shift updated for ${count} daily plans successfully`, notificationWarnings };
   }
 
   async bulkAssignEmployees(ids: string[], employeeIds: string[], actorId?: string) {
@@ -1257,37 +1243,25 @@ export class PlanningService {
       where: { id: { in: ids }, deletedAt: null },
     });
 
+    const notificationWarnings: string[] = [];
     for (const plan of plans) {
       const oldPlan = await this.findOne(plan.id);
       const prevEmployeeIds = (oldPlan.assignedEmployees || []).map((ae: any) => ae.id);
 
       await this.prisma.$transaction(async (tx) => {
-        await tx.planEmployee.deleteMany({
-          where: { planId: plan.id },
-        });
-
-        if (employeeIds && employeeIds.length > 0) {
-          await this.validateNoEmployeeTimeOverlap(tx, employeeIds, plan.startTime, plan.endTime, plan.id);
-          await tx.planEmployee.createMany({
-            data: employeeIds.map((empId) => ({
-              planId: plan.id,
-              employeeId: empId,
-              startTime: plan.startTime,
-              endTime: plan.endTime,
-            })),
-          });
-        }
+        await this.syncPlanEmployees(tx, plan.id, employeeIds || [], plan.startTime, plan.endTime);
       });
 
       const updatedPlan = await this.findOne(plan.id);
       const currentEmployeeIds = (updatedPlan.assignedEmployees || []).map((ae: any) => ae.id);
+      const notificationPlan = { ...updatedPlan, newlyAssignedEmployeeIds: currentEmployeeIds.filter((employeeId: string) => !prevEmployeeIds.includes(employeeId)) };
       const removedEmployeeIds = prevEmployeeIds.filter((id: string) => !currentEmployeeIds.includes(id));
 
       if (this.isPlanDataChanged(oldPlan, updatedPlan)) {
-        await this.notifyAssignedEmployees(updatedPlan, updatedPlan.assignedEmployees, true, actorId);
+        notificationWarnings.push(...(await this.notifyAssignedEmployees(notificationPlan, updatedPlan.assignedEmployees, true, actorId) || []));
       }
       if (removedEmployeeIds.length > 0) {
-        await this.notifyRemovedEmployees(updatedPlan, removedEmployeeIds);
+        notificationWarnings.push(...await this.notifyRemovedEmployees(oldPlan, removedEmployeeIds));
       }
     }
 
@@ -1299,7 +1273,7 @@ export class PlanningService {
       },
     });
 
-    return { message: `Employees assigned to ${plans.length} daily plans successfully` };
+    return { message: `Employees assigned to ${plans.length} daily plans successfully`, notificationWarnings };
   }
 
   // ─── Employee Plan Segments ──────────────────────────────────────────────────
@@ -1727,32 +1701,10 @@ export class PlanningService {
       throw new BadRequestException(`Mitarbeiter ${emp.name} hat keine Telefonnummer hinterlegt.`);
     }
 
-    const loc = assignment.plan.locations?.[0];
-    const segment = assignment.plan.employeeSegments?.[0];
-
-    const whName = loc?.warehouse?.name || 'Duisburg';
-    const hName = loc?.hall?.name || 'Halle';
-    const tpOrt = segment?.treffpunkt || assignment.plan.treffpunkt || emp.treffpunkt || 'Haupttor';
-    const tpZeit = segment?.treffpunktTime || assignment.plan.treffpunktTime || emp.treffpunktTime || '07:45';
-
-    const formattedDate = new Date(assignment.plan.date).toLocaleDateString('de-DE');
-    const shiftTime = assignment.plan.shift || (assignment.startTime && assignment.endTime
-      ? `${new Date(assignment.startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} - ${new Date(assignment.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`
-      : '08:00 - 16:00');
-
-    const empTp = `${tpOrt}${tpZeit && tpZeit !== 'Keine Treffzeit angegeben' ? ` um ${tpZeit} Uhr` : ''}`;
-
+    const context = planWhatsAppContext(assignment.plan, emp);
     const res = await this.messagingService.sendShiftPlanNotification({
-      phone: emp.phone,
-      empName: emp.name,
-      warehouseName: whName,
-      hallName: hName,
-      treffpunktInfo: empTp,
-      dateFormatted: formattedDate,
-      shiftTime,
-      planId,
-      employeeId,
-      headerTitle: 'LogiFlow Schichtplan',
+      phone: emp.phone, empName: emp.name, planId, employeeId, event: 'UPDATED',
+      schedule: context.schedule, treffpunktInfo: context.meeting, dateFormatted: context.dateFormatted,
     });
 
     await this.prisma.actionLog.create({
@@ -1789,23 +1741,6 @@ export class PlanningService {
       };
     }
 
-    const planDate = new Date(plan.date);
-    const formattedDate = planDate.toLocaleDateString('de-DE');
-    const shiftTime = plan.shift || (plan.startTime && plan.endTime
-      ? `${new Date(plan.startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} - ${new Date(plan.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`
-      : '08:00 - 16:00');
-
-    const loc = plan.locations?.[0];
-    const whName = loc?.warehouse?.name || plan.warehouseName || 'Duisburg';
-    const hName = loc?.hall?.name || plan.hallName || 'Halle';
-
-    const segments = plan.employeeSegments || [];
-    const segmentsByEmp = new Map<string, any[]>();
-    for (const seg of segments) {
-      if (!segmentsByEmp.has(seg.employeeId)) segmentsByEmp.set(seg.employeeId, []);
-      segmentsByEmp.get(seg.employeeId)!.push(seg);
-    }
-
     const results: Array<{
       employeeId: string;
       name: string;
@@ -1827,27 +1762,10 @@ export class PlanningService {
         continue;
       }
 
-      const empSegments = segmentsByEmp.get(emp.id) || [];
-      const tpOrt = (empSegments.length > 0 && empSegments[0].treffpunkt)
-        ? empSegments[0].treffpunkt
-        : (plan.treffpunkt || emp.treffpunkt || 'Haupttor');
-      const tpZeit = (empSegments.length > 0 && empSegments[0].treffpunktTime)
-        ? empSegments[0].treffpunktTime
-        : (plan.treffpunktTime || emp.treffpunktTime || '07:45');
-
-      const empTp = `${tpOrt}${tpZeit && tpZeit !== 'Keine Treffzeit angegeben' ? ` um ${tpZeit} Uhr` : ''}`;
-
+      const context = planWhatsAppContext(plan, emp);
       const res = await this.messagingService.sendShiftPlanNotification({
-        phone: emp.phone,
-        empName: emp.name,
-        warehouseName: whName,
-        hallName: hName,
-        treffpunktInfo: empTp,
-        dateFormatted: formattedDate,
-        shiftTime,
-        planId: plan.id,
-        employeeId: emp.id,
-        headerTitle: 'LogiFlow Schichtplan',
+        phone: emp.phone, empName: emp.name, planId: plan.id, employeeId: emp.id, event: 'UPDATED',
+        schedule: context.schedule, treffpunktInfo: context.meeting, dateFormatted: context.dateFormatted,
       });
 
       results.push({
