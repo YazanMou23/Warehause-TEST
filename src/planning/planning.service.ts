@@ -1539,8 +1539,18 @@ export class PlanningService {
       : [];
     const absenceMap = new Map(absences.map((ab) => [`${ab.employeeId}_${ab.date.toISOString().split('T')[0]}`, ab]));
 
-    const formatted = assignments.map((pe) => {
-      const loc = pe.plan.locations?.[0];
+    // Match warehouse and hall on the same location, not just locations[0].
+    const matchingLocations = (locations: any[]) => (locations || []).filter((loc) =>
+      (!query.warehouseId || query.warehouseId === 'ALL' || loc.warehouseId === query.warehouseId) &&
+      (!query.hallId || query.hallId === 'ALL' || loc.hallId === query.hallId),
+    );
+    const hasLocationFilter = (query.warehouseId && query.warehouseId !== 'ALL') || (query.hallId && query.hallId !== 'ALL');
+    const visibleAssignments = hasLocationFilter
+      ? assignments.filter((pe) => matchingLocations(pe.plan.locations).length > 0)
+      : assignments;
+    const formatted = visibleAssignments.map((pe) => {
+      const locations = matchingLocations(pe.plan.locations);
+      const loc = locations[0];
       const dateKey = pe.plan.date.toISOString().split('T')[0];
       const absenceKey = `${pe.employeeId}_${dateKey}`;
       const absence = absenceMap.get(absenceKey);
@@ -1581,9 +1591,9 @@ export class PlanningService {
         formattedDate: new Date(pe.plan.date).toLocaleDateString('de-DE'),
         shiftTime: `${shiftStartStr} - ${shiftEndStr}`,
         warehouseId: loc?.warehouseId || null,
-        warehouseName: loc?.warehouse?.name || 'Duisburg',
+        warehouseName: Array.from(new Set(locations.map((l) => l.warehouse?.name).filter(Boolean))).join(' / ') || 'Duisburg',
         hallId: loc?.hallId || null,
-        hallName: loc?.hall?.name || 'Halle',
+        hallName: Array.from(new Set(locations.map((l) => l.hall?.name).filter(Boolean))).join(' / ') || 'Halle',
         hallColor: loc?.hall?.color || '#2563eb',
         treffpunkt,
         treffpunktTime,
@@ -1595,12 +1605,6 @@ export class PlanningService {
     });
 
     let filtered = formatted;
-    if (query.warehouseId && query.warehouseId !== 'ALL') {
-      filtered = filtered.filter((f) => f.warehouseId === query.warehouseId);
-    }
-    if (query.hallId && query.hallId !== 'ALL') {
-      filtered = filtered.filter((f) => f.hallId === query.hallId);
-    }
     if (query.search) {
       const s = query.search.toLowerCase();
       filtered = filtered.filter(

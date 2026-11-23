@@ -72,6 +72,7 @@ export default function ShiftConfirmationList({
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>("ALL");
+  const [selectedHallId, setSelectedHallId] = useState<string>("ALL");
 
   // Keep selectedDate in sync whenever initialDate prop updates
   useEffect(() => {
@@ -85,6 +86,9 @@ export default function ShiftConfirmationList({
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [records, setRecords] = useState<ConfirmationRecord[]>([]);
   const [warehouses, setWarehouses] = useState<Array<{ id: string; name: string }>>([]);
+
+  const [halls, setHalls] = useState<Array<{ id: string; name: string; warehouseId: string }>>([]);
+  const availableHalls = halls.filter((hall) => selectedWarehouseId === "ALL" || hall.warehouseId === selectedWarehouseId);
 
   // Webhook Help Info Banner Visibility
   const [showWebhookGuide, setShowWebhookGuide] = useState<boolean>(false);
@@ -108,22 +112,42 @@ export default function ShiftConfirmationList({
   // Sending state per employee
   const [sendingWaId, setSendingWaId] = useState<string | null>(null);
 
-  // Fetch warehouses
+  // Both catalog endpoints return paginated { data, meta } responses.
   useEffect(() => {
-    const fetchWarehouses = async () => {
-      const token = localStorage.getItem("accessToken") || localStorage.getItem("token");
-      if (!token) return;
-      try {
-        const res = await fetch(`${API_URL}/warehouse`, {
+    const controller = new AbortController();
+    const token = localStorage.getItem("accessToken") || localStorage.getItem("token");
+    if (!token) return;
+    const fetchPages = async <T,>(endpoint: string): Promise<T[]> => {
+      const rows: T[] = [];
+      let page = 1;
+      let totalPages = 1;
+      do {
+        const res = await fetch(`${API_URL}/${endpoint}?page=${page}&limit=100`, {
           headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
         });
-        if (res.ok) {
-          const data = await res.json();
-          setWarehouses(data);
-        }
-      } catch (err) {}
+        if (!res.ok) throw new Error(`Catalog request failed: ${res.status}`);
+        const json = await res.json();
+        if (Array.isArray(json)) return json;
+        if (!Array.isArray(json.data)) throw new Error("Invalid catalog response");
+        rows.push(...json.data);
+        totalPages = Number(json.meta?.totalPages) || 1;
+        page += 1;
+      } while (page <= totalPages);
+      return rows;
     };
-    fetchWarehouses();
+    Promise.all([
+      fetchPages<{ id: string; name: string }>("warehouse"),
+      fetchPages<{ id: string; name: string; warehouseId: string }>("halls"),
+    ]).then(([warehouseRows, hallRows]) => {
+      if (!controller.signal.aborted) {
+        setWarehouses(warehouseRows);
+        setHalls(hallRows);
+      }
+    }).catch((error) => {
+      if (!controller.signal.aborted) console.error("Error loading location filters:", error);
+    });
+    return () => controller.abort();
   }, []);
 
   // Fetch confirmations
@@ -146,6 +170,9 @@ export default function ShiftConfirmationList({
         });
         if (selectedWarehouseId !== "ALL") {
           queryParams.append("warehouseId", selectedWarehouseId);
+        }
+        if (selectedHallId !== "ALL") {
+          queryParams.append("hallId", selectedHallId);
         }
         if (statusFilter !== "ALL") {
           queryParams.append("status", statusFilter);
@@ -182,7 +209,7 @@ export default function ShiftConfirmationList({
         setRefreshing(false);
       }
     },
-    [selectedDate, selectedWarehouseId, statusFilter, searchTerm]
+    [selectedDate, selectedWarehouseId, selectedHallId, statusFilter, searchTerm]
   );
 
   useEffect(() => {
@@ -514,7 +541,8 @@ export default function ShiftConfirmationList({
           {/* Warehouse Dropdown */}
           <select
             value={selectedWarehouseId}
-            onChange={(e) => setSelectedWarehouseId(e.target.value)}
+            onChange={(e) => { setSelectedWarehouseId(e.target.value); setSelectedHallId("ALL"); }}
+            aria-label={tx("planning847")}
             className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:outline-hidden focus:border-blue-500 transition shadow-2xs"
           >
             <option value="ALL">{tx("planning847")}</option>
@@ -522,6 +550,18 @@ export default function ShiftConfirmationList({
               <option key={w.id} value={w.id}>
                 {w.name}
               </option>
+            ))}
+          </select>
+
+          <select
+            value={selectedHallId}
+            onChange={(e) => setSelectedHallId(e.target.value)}
+            aria-label={tx("planningAllHalls")}
+            className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:outline-hidden focus:border-blue-500 transition shadow-2xs"
+          >
+            <option value="ALL">{tx("planningAllHalls")}</option>
+            {availableHalls.map((hall) => (
+              <option key={hall.id} value={hall.id}>{hall.name}</option>
             ))}
           </select>
 
@@ -671,7 +711,7 @@ export default function ShiftConfirmationList({
                       </div>
                       <div className="mt-1">
                         <span
-                          className="text-[10px] font-bold px-2 py-0.5 rounded-md border text-slate-800"
+                          className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-md border text-slate-800"
                           style={{
                             borderColor: rec.hallColor || "#cbd5e1",
                             backgroundColor: (rec.hallColor || "#64748b") + "15",
