@@ -5,7 +5,10 @@ const { PrismaPg } = require('@prisma/adapter-pg');
 async function main() {
   console.log('Connecting to PostgreSQL database...');
   // Initialize Prisma Client using adapter
-  const connectionString = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_bOWn6teXwE4d@ep-winter-lab-atjrsovz-pooler.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require';
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error('DATABASE_URL environment variable is required. Set it in your environment or a local .env file (gitignored).');
+  }
   const pool = new Pool({ connectionString });
   const adapter = new PrismaPg(pool);
   const prisma = new PrismaClient({ adapter });
