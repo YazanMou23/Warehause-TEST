@@ -6,6 +6,7 @@ import { EmployeeSegmentDto } from './dto/employee-segment.dto';
 import { SetEmployeeAbsenceDto } from './dto/employee-absence.dto';
 import { EmailService } from '../email/email.service';
 import { MessagingService } from '../messaging/messaging.service';
+import { confirmationMessage } from './confirmation-message';
 import { planWhatsAppContext } from '../messaging/plan-templates';
 
 @Injectable()
@@ -1576,6 +1577,7 @@ export class PlanningService {
         treffpunktTime,
         status: effectiveStatus,
         reason: effectiveReason,
+        ...confirmationMessage(pe),
         respondedAt: pe.respondedAt,
         responseChannel: pe.responseChannel,
       };

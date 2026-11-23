@@ -1727,5 +1727,12 @@
   "planWaFailed": "Die Versand-Anfrage ist fehlgeschlagen.",
   "planWaSending": "Wird gesendet …",
   "planWaSend": "WhatsApp senden",
-  "planningAllHalls": "Alle Hallen"
+  "planningAllHalls": "Alle Hallen",
+  "confirmationMessageReceived": "Nachricht eingegangen",
+  "confirmationMessageAwaiting": "Nachricht gewählt, Text steht noch aus",
+  "confirmationMessageEmpty": "Keine Nachricht hinterlegt",
+  "confirmationMessageView": "Nachricht ansehen",
+  "confirmationMessageUnknownTime": "Zeit nicht angegeben",
+  "confirmationMessageUnknownChannel": "Kanal nicht angegeben",
+  "confirmationMessageRecordedTime": "Gespeicherter Rückmeldungszeitpunkt"
 }
