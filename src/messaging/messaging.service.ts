@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit, Optional, UnauthorizedException } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { buildPlanTemplate, PLAN_TEMPLATE_NAMES, PlanTemplateEvent } from './plan-templates';
 import { WorkerInboundLedger } from './worker-inbound-ledger.service';
 import { WorkerMenu, WorkerMenuReply } from './worker-menu';
 import { WorkerAiService } from './worker-ai.service';
@@ -1551,158 +1552,30 @@ export class MessagingService implements OnModuleInit {
     };
   }
 
-  /**
-   * Unified, highly-reliable Shift Plan WhatsApp Notification:
-   *
-   * TIER 1: Meta Template `schichtplan_benachrichtigung` (if Meta credentials present)
-   *   - Approved by Meta, delivered outside the 24-hour window to ANY valid phone number.
-   *   - Clean parameters:
-   *       {{1}} = Employee name
-   *       {{2}} = Einsatzort, Halle, Treffpunkt, Datum, Schicht, Rückmelde-Optionen
-   *
-   * TIER 2: Meta Interactive Buttons (if 24h window active or template not approved)
-   *   - 3 buttons: [✅ Ich bin da], [🤒 Ich bin krank], [💬 Custom Nachricht]
-   *
-   * TIER 3: UltraMsg Direct WhatsApp API (if configured)
-   *   - No 24h window limitation, delivers full formatted multi-line message.
-   *
-   * TIER 4: Manual WhatsApp Web Fallback (`waLink`)
-   *   - Pre-formatted https://wa.me/... URL for 1-click dispatch.
-   */
+  /** Event-specific approved templates only. No silent shortening or semantically different fallback. */
   async sendShiftPlanNotification(options: {
-    phone: string;
-    empName: string;
-    warehouseName: string;
-    hallName: string;
-    treffpunktInfo: string;
-    dateFormatted: string;
-    shiftTime: string;
-    planId: string;
-    employeeId: string;
-    headerTitle?: string;
+    phone: string; empName: string; warehouseName?: string; hallName?: string;
+    treffpunktInfo?: string; dateFormatted: string; shiftTime?: string;
+    planId: string; employeeId: string; headerTitle?: string;
+    event?: PlanTemplateEvent; schedule?: string;
   }): Promise<{ success: boolean; method?: string; error?: string; waLink?: string; data?: any }> {
-    const {
-      phone,
-      empName,
-      warehouseName,
-      hallName,
-      treffpunktInfo,
-      dateFormatted,
-      shiftTime,
-      planId,
-      employeeId,
-      headerTitle,
-    } = options;
-
-    const cleanedPhone = this.formatPhoneNumber(phone);
-
-    // 1. Structure the full multi-line message as requested by user
-    const fullBodyText =
-      `Hallo ${empName}\n` +
-      `Ihr Einsatzort : ${warehouseName}\n` +
-      `Halle : ${hallName}\n` +
-      `Treffpunkt & Treffzeit: ${treffpunktInfo}\n\n` +
-      `📅 Datum: ${dateFormatted} | 🕒 Schicht: ${shiftTime}\n\n` +
-      `Bitte wählen Sie eine der folgenden Optionen:\n` +
-      `1 - ✅ Ich bin da\n` +
-      `2 - 🤒 Ich bin krank\n` +
-      `3 - 💬 Custom Nachricht`;
-
-    const buttons = [
-      { id: `CONFIRM_${planId}_${employeeId}`, title: '✅ Ich bin da' },
-      { id: `SICK_${planId}_${employeeId}`, title: '🤒 Ich bin krank' },
-      { id: `CUSTOM_${planId}_${employeeId}`, title: '💬 Custom Nachricht' },
-    ];
-
-    const waLink = this.generateWhatsAppLink(phone, fullBodyText);
-
-    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-    const ultraInstance = process.env.ULTRAMSG_INSTANCE_ID;
-    const ultraToken = process.env.ULTRAMSG_TOKEN;
-
-    // 2. If UltraMsg is configured without Meta, send full message directly
-    if (ultraInstance && ultraToken && (!phoneNumberId || !accessToken)) {
-      const ultraRes = await this.sendWhatsAppDirect(phone, fullBodyText);
-      return { ...ultraRes, method: 'ULTRAMSG', waLink };
+    const event = options.event || 'ASSIGNED';
+    const template = buildPlanTemplate(event, {
+      name: options.empName, date: options.dateFormatted,
+      schedule: options.schedule || [options.warehouseName, options.hallName, options.shiftTime].filter(Boolean).join(', '),
+      meeting: options.treffpunktInfo,
+    });
+    // Conservative UTF-16 count also covers emoji surrogate pairs. Never trim a plan to fit.
+    if (template.body.length > 1024) {
+      return { success: false, method: 'VALIDATION_FAILED',
+        error: `WhatsApp nicht gesendet: Nachricht hat ${template.body.length} Zeichen (maximal 1024). Bitte Einsatzplan kürzen und erneut senden.` };
     }
-
-    // 3. If Meta Cloud API is configured:
-    if (phoneNumberId && accessToken) {
-      // Clean, single-line shift details for Meta Template (strictly NO newlines)
-      const cleanShiftDetails =
-        `Einsatzort: ${warehouseName} (${hallName}) | Treffpunkt: ${treffpunktInfo} | Datum: ${dateFormatted} (${shiftTime})`
-          .replace(/[\r\n\t]+/g, ' ')
-          .replace(/\s{2,}/g, ' ')
-          .trim()
-          .substring(0, 200);
-
-      const templateButtonPayloads = [
-        `CONFIRM_${planId}_${employeeId}`,
-        `SICK_${planId}_${employeeId}`,
-        `CUSTOM_${planId}_${employeeId}`,
-      ];
-
-      // Strategy 1 (PRIMARY): Approved Meta Template `schichtplan_benachrichtigung`
-      // Guaranteed delivery outside 24-hour window, displays approved quick-reply buttons,
-      // and records directly in Meta Business Manager Vorlagen-Insights.
-      this.logger.log(`Attempting approved Meta template 'schichtplan_benachrichtigung' for +${cleanedPhone}...`);
-      const templateRes = await this.sendWhatsAppTemplate(
-        phone,
-        'schichtplan_benachrichtigung',
-        [empName, cleanShiftDetails],
-        'de',
-        templateButtonPayloads,
-      );
-
-      if (templateRes.success) {
-        this.logger.log(`✓ Meta template 'schichtplan_benachrichtigung' delivered to +${cleanedPhone}`);
-        return { success: true, method: 'META_TEMPLATE', waLink, data: templateRes.data };
-      }
-
-      this.logger.warn(
-        `Meta template delivery rejected for +${cleanedPhone}: ${templateRes.error}. Falling back to interactive buttons...`,
-      );
-
-      // Strategy 2: Interactive Buttons (if 24h conversation window happens to be open)
-      this.logger.log(`Attempting Meta interactive button fallback for +${cleanedPhone}...`);
-      const interactiveRes = await this.sendWhatsAppInteractive(
-        phone,
-        fullBodyText,
-        buttons,
-        headerTitle || 'LogiFlow Schichtplan',
-        'LogiFlow Warehouse',
-      );
-
-      if (interactiveRes.success) {
-        this.logger.log(`✓ Meta interactive buttons delivered as fallback to +${cleanedPhone}`);
-        return { success: true, method: 'META_INTERACTIVE', waLink, data: interactiveRes.data };
-      }
-
-      // Tertiary Strategy: UltraMsg fallback if available
-      if (ultraInstance && ultraToken) {
-        this.logger.log(`Attempting UltraMsg fallback for +${cleanedPhone}...`);
-        const ultraRes = await this.sendWhatsAppDirect(phone, fullBodyText);
-        if (ultraRes.success) {
-          return { ...ultraRes, method: 'ULTRAMSG_FALLBACK', waLink };
-        }
-      }
-
-      return {
-        success: false,
-        method: 'FAILED',
-        error: templateRes.error || interactiveRes.error || 'Meta API rejected message',
-        waLink,
-      };
-    }
-
-    // 4. No credentials configured
-    return {
-      success: false,
-      method: 'NO_CREDENTIALS',
-      error: 'Keine WhatsApp-API Zugangsdaten konfiguriert (Meta / UltraMsg). Bitte wa.me Link nutzen.',
-      waLink,
-    };
+    const payloads = event === 'ASSIGNED' || event === 'UPDATED'
+      ? ['CONFIRM', 'SICK', 'CUSTOM'].map(action => `${action}_${options.planId}_${options.employeeId}`)
+      : undefined;
+    const result = await this.sendWhatsAppTemplate(options.phone, template.name, template.parameters, 'de', payloads);
+    // Manual link uses the same complete approved wording, never only template variables.
+    return { ...result, method: result.success ? 'META_TEMPLATE' : 'FAILED', waLink: this.generateWhatsAppLink(options.phone, template.body) };
   }
 
   /**
@@ -1721,6 +1594,24 @@ export class MessagingService implements OnModuleInit {
     const template =
       templateName || process.env.WHATSAPP_TEMPLATE_NAME || 'schichtplan_benachrichtigung';
     const waLink = this.generateWhatsAppLink(phone, parameters.join(' '));
+    const planTemplate = Object.values(PLAN_TEMPLATE_NAMES).includes(template as any);
+    if (planTemplate) {
+      const event: PlanTemplateEvent = template === PLAN_TEMPLATE_NAMES.CANCELLED ? 'CANCELLED'
+        : template === PLAN_TEMPLATE_NAMES.REMOVED ? 'REMOVED' : parameters[2] === 'Aktualisiert' ? 'UPDATED' : 'ASSIGNED';
+      const expected = event === 'ASSIGNED' || event === 'UPDATED' ? 6 : 3;
+      if (parameters.length !== expected || (expected === 6 && (!buttonPayloads || buttonPayloads.length !== 3 || !['Neu zugewiesen', 'Aktualisiert'].includes(parameters[2]))) || (expected === 3 && buttonPayloads?.length)) {
+        return { success: false, error: 'WhatsApp nicht gesendet: Ungültige Vorlagenparameter oder Rückmelde-Buttons.' };
+      }
+      const rendered = buildPlanTemplate(event, { name: parameters[0], date: parameters[1], schedule: parameters[expected === 6 ? 3 : 2], meeting: parameters[4] });
+      // Hints are deliberately fixed: no private notes may be supplied through this endpoint.
+      if (expected === 6 && parameters[5] !== 'Nicht angegeben') {
+        return { success: false, error: 'WhatsApp nicht gesendet: Private Hinweise sind für diese Vorlage nicht freigegeben.' };
+      }
+      if (rendered.body.length > 1024) {
+        return { success: false, error: `WhatsApp nicht gesendet: Nachricht hat ${rendered.body.length} Zeichen (maximal 1024). Bitte Einsatzplan kürzen und erneut senden.` };
+      }
+    }
+
 
     const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
     const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
@@ -1766,7 +1657,7 @@ export class MessagingService implements OnModuleInit {
               .replace(/[\r\n\t]+/g, ' ')
               .replace(/\s{2,}/g, ' ')
               .trim()
-              .substring(0, 1000),
+              .substring(0, planTemplate ? Number.MAX_SAFE_INTEGER : 1000),
           })),
         });
       }
@@ -1844,7 +1735,7 @@ export class MessagingService implements OnModuleInit {
       }
 
       // Attempt 3: If buttons mismatch (e.g. 132000), retry WITHOUT buttons in case template has no buttons in Meta
-      if (hasButtons && (errorCode === 132000 || errorMsg.includes('parameter') || errorMsg.includes('button'))) {
+      if (!planTemplate && hasButtons && (errorCode === 132000 || errorMsg.includes('parameter') || errorMsg.includes('button'))) {
         this.logger.log(`Retrying template (${template}) without button components...`);
         const noButtonsPayload = buildPayload(languageCode, false);
         const retryNoButtons = await postToMeta(noButtonsPayload);

@@ -832,10 +832,12 @@ function PlanningPageContent() {
             handleCancelEdit();
           }
 
+          const data = await res.json();
+          const warnings = data.notificationWarnings || [];
           showAlert({
             title: tx("planning658"),
-            message: tx("planning659"),
-            type: "success",
+            message: warnings.length ? `${tx("planning659")}\n${warnings.join(' | ')}` : tx("planning659"),
+            type: warnings.length ? "warning" : "success",
           });
         } catch (err: any) {
           showAlert({
@@ -999,8 +1001,8 @@ function PlanningPageContent() {
 
         showAlert({
           title: tx("planning667"),
-          message: planId ? tx("planning668") : tx("planning669"),
-          type: "success",
+          message: [planId ? tx("planning668") : tx("planning669"), ...(data.notificationWarnings || [])].join(' | '),
+          type: data.notificationWarnings?.length ? "warning" : "success",
         });
 
         setTimeout(() => {
