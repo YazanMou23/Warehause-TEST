@@ -101,7 +101,7 @@ export class EmailService {
         const endStr = typeof planDetails.endTime === 'string' ? planDetails.endTime : new Date(planDetails.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
         masterTime = `${startStr} - ${endStr}`;
       } else {
-        masterTime = '08:00 - 14:00 (Standardschicht)';
+        masterTime = 'Nicht angegeben';
       }
     }
 
@@ -400,7 +400,7 @@ export class EmailService {
     
     const employeeName = planDetails.employeeName || 'Mitarbeiter';
     const date = planDetails.date || 'Nicht angegeben';
-    const time = planDetails.time || 'Standardschicht';
+    const time = planDetails.time || 'Nicht angegeben';
     const notes = planDetails.notes || 'Sie wurden aus dieser Schicht ausgetragen. Ihr Dienstplan wurde aktualisiert.';
     
     let warehousesList: string[] = [];
@@ -488,7 +488,7 @@ export class EmailService {
     
     const employeeName = planDetails.employeeName || 'Mitarbeiter';
     const date = planDetails.date || 'Nicht angegeben';
-    const time = planDetails.time || 'Standardschicht';
+    const time = planDetails.time || 'Nicht angegeben';
     const notes = planDetails.notes || 'Dieser Schichtplan wurde von der Betriebsleitung komplett storniert bzw. abgesagt.';
     
     let warehousesList: string[] = [];
