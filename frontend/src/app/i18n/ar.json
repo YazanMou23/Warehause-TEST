@@ -1734,5 +1734,21 @@
   "confirmationMessageView": "عرض الرسالة",
   "confirmationMessageUnknownTime": "الوقت غير محدد",
   "confirmationMessageUnknownChannel": "القناة غير محددة",
-  "confirmationMessageRecordedTime": "وقت الرد المسجل"
+  "confirmationMessageRecordedTime": "وقت الرد المسجل",
+  "printerScanButton": "قراءة من الطابعة",
+  "printerScanHint": "ضع الورقة في الطابعة واضغط قراءة. الاتصال يتم تلقائياً.",
+  "printerScanChecking": "جاري البحث عن اتصال الطابعة...",
+  "printerScanScanning": "الطابعة تقرأ المستند...",
+  "printerScanNotRunning": "برنامج الطابعة LogiFlow غير شغال على هذا الكمبيوتر. الرجاء تثبيته أو تشغيله.",
+  "printerScanDownload": "تحميل البرنامج",
+  "printerScanInstallerSoon": "برنامج التثبيت قيد التجهيز. اسأل المسؤول.",
+  "printerScanBlocked": "برنامج الطابعة يرفض هذا الموقع. الرجاء تحديث البرنامج.",
+  "printerScanNoScanner": "لم يتم العثور على ماسح ضوئي على الواي فاي. يجب أن يكون الكمبيوتر والطابعة على نفس الشبكة.",
+  "printerScanChoose": "اختر الطابعة",
+  "printerScanRetry": "إعادة البحث",
+  "printerScanCancel": "إلغاء",
+  "printerScanFailed": "فشلت القراءة من الطابعة.",
+  "printerScanNoPages": "الطابعة لم ترسل أي صفحة.",
+  "printerScanTitle": "الطابعة (واي فاي)",
+  "printerScanCardTitle": "إدخال عبر الطابعة"
 }

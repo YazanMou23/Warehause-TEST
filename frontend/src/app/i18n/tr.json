@@ -1734,5 +1734,21 @@
   "confirmationMessageView": "Mesajı görüntüle",
   "confirmationMessageUnknownTime": "Saat belirtilmedi",
   "confirmationMessageUnknownChannel": "Kanal belirtilmedi",
-  "confirmationMessageRecordedTime": "Kayıtlı yanıt zamanı"
+  "confirmationMessageRecordedTime": "Kayıtlı yanıt zamanı",
+  "printerScanButton": "Yazıcıdan oku",
+  "printerScanHint": "Belgeyi yazıcıya koyun ve okuyun. Bağlantı otomatik kurulur.",
+  "printerScanChecking": "Yazıcı bağlantısı aranıyor...",
+  "printerScanScanning": "Yazıcı belgeyi okuyor...",
+  "printerScanNotRunning": "LogiFlow yazıcı programı bu bilgisayarda çalışmıyor. Lütfen kurun veya başlatın.",
+  "printerScanDownload": "Programı indir",
+  "printerScanInstallerSoon": "Kurulum programı hazırlanıyor. Lütfen yöneticiye sorun.",
+  "printerScanBlocked": "Yazıcı programı bu siteyi reddediyor. Lütfen programı güncelleyin.",
+  "printerScanNoScanner": "Wi-Fi ağında tarayıcı bulunamadı. Bilgisayar ve yazıcı aynı ağda olmalı.",
+  "printerScanChoose": "Yazıcı seçin",
+  "printerScanRetry": "Tekrar ara",
+  "printerScanCancel": "İptal",
+  "printerScanFailed": "Yazıcıdan okuma başarısız oldu.",
+  "printerScanNoPages": "Yazıcı sayfa göndermedi.",
+  "printerScanTitle": "Yazıcı (Wi-Fi)",
+  "printerScanCardTitle": "Yazıcı ile okut"
 }

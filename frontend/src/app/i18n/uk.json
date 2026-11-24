@@ -1734,5 +1734,21 @@
   "confirmationMessageView": "Переглянути повідомлення",
   "confirmationMessageUnknownTime": "Час не вказано",
   "confirmationMessageUnknownChannel": "Канал не вказано",
-  "confirmationMessageRecordedTime": "Збережений час відповіді"
+  "confirmationMessageRecordedTime": "Збережений час відповіді",
+  "printerScanButton": "Зчитати з принтера",
+  "printerScanHint": "Покладіть документ у принтер і зчитайте. З’єднання встановлюється автоматично.",
+  "printerScanChecking": "Пошук з’єднання з принтером...",
+  "printerScanScanning": "Принтер зчитує документ...",
+  "printerScanNotRunning": "Програма принтера LogiFlow не запущена на цьому ПК. Встановіть або запустіть її.",
+  "printerScanDownload": "Завантажити програму",
+  "printerScanInstallerSoon": "Програма встановлення готується. Запитайте адміністратора.",
+  "printerScanBlocked": "Програма принтера відхиляє цей сайт. Оновіть програму.",
+  "printerScanNoScanner": "Сканер у Wi-Fi не знайдено. ПК і принтер мають бути в одній мережі.",
+  "printerScanChoose": "Виберіть принтер",
+  "printerScanRetry": "Шукати знову",
+  "printerScanCancel": "Скасувати",
+  "printerScanFailed": "Не вдалося зчитати з принтера.",
+  "printerScanNoPages": "Принтер не надіслав сторінок.",
+  "printerScanTitle": "Принтер (Wi-Fi)",
+  "printerScanCardTitle": "Зчитати принтером"
 }
