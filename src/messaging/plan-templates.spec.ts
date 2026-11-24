@@ -251,3 +251,27 @@ describe('approved event-specific plan templates', () => {
     expect(network).not.toHaveBeenCalled();
   });
 });
+
+import { shiftWithHours } from './plan-templates';
+
+describe('shiftWithHours', () => {
+  it('keeps shifts that already carry hours', () => {
+    expect(shiftWithHours('06:00 - 14:00 (Frühschicht)')).toBe('06:00 - 14:00 (Frühschicht)');
+  });
+  it('adds nominal hours to bare legacy names', () => {
+    expect(shiftWithHours('Frühschicht')).toBe('Frühschicht, 06:00 bis 14:00 Uhr');
+    expect(shiftWithHours('Spätschicht')).toBe('Spätschicht, 14:00 bis 22:00 Uhr');
+    expect(shiftWithHours('Nachtschicht')).toBe('Nachtschicht, 22:00 bis 06:00 Uhr');
+  });
+  it('leaves unknown names and empty values alone', () => {
+    expect(shiftWithHours('Sonderschicht')).toBe('Sonderschicht');
+    expect(shiftWithHours(null)).toBeNull();
+  });
+  it('shows hours in the WhatsApp schedule for a bare shift name', () => {
+    const ctx = planWhatsAppContext(
+      { id: 'p', date: '2026-11-25', shift: 'Frühschicht', warehouseName: 'Duisburg', hallName: 'Halle 1' },
+      { id: 'e' },
+    );
+    expect(ctx.schedule).toContain('Frühschicht, 06:00 bis 14:00 Uhr');
+  });
+});

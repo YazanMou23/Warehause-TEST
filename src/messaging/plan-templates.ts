@@ -90,6 +90,20 @@ interface OperationalEmployee {
   treffpunktTime?: string | null;
 }
 
+// Legacy plans store only the shift name ("Frühschicht"); new ones already
+// store "06:00 - 14:00 (Frühschicht)". Add the nominal hours to bare names so
+// the worker always sees the hours, matching getShiftTimeWindow().
+export function shiftWithHours(shift?: string | null): string | null {
+  const text = (shift ?? '').trim();
+  if (!text) return null;
+  if (/\d{1,2}:\d{2}/.test(text)) return text;
+  const lower = text.toLowerCase();
+  if (lower.includes('spät')) return `${text}, 14:00 bis 22:00 Uhr`;
+  if (lower.includes('nacht')) return `${text}, 22:00 bis 06:00 Uhr`;
+  if (lower.includes('früh')) return `${text}, 06:00 bis 14:00 Uhr`;
+  return text;
+}
+
 // Only operational fields are allowed. Never copy plan, location, absence or worker notes.
 export function planWhatsAppContext(
   plan: OperationalPlan,
@@ -115,7 +129,7 @@ export function planWhatsAppContext(
         });
   };
   const planTime =
-    plan.shift ||
+    shiftWithHours(plan.shift) ||
     (plan.startTime && plan.endTime
       ? `${clock(plan.startTime)} bis ${clock(plan.endTime)} Uhr`
       : 'Nicht angegeben');

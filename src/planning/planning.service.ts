@@ -260,7 +260,7 @@ export class PlanningService {
         .catch(() => {});
 
       if (this.planEmailsEnabled && emp.email) {
-        const shiftTime = updatedPlan.shift || (updatedPlan.startTime && updatedPlan.endTime ? `${new Date(updatedPlan.startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} - ${new Date(updatedPlan.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'Standardschicht');
+        const shiftTime = updatedPlan.shift || (updatedPlan.startTime && updatedPlan.endTime ? `${new Date(updatedPlan.startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} - ${new Date(updatedPlan.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'Nicht angegeben');
         const warehousesList = (updatedPlan.locations && updatedPlan.locations.length > 0)
           ? updatedPlan.locations.map((loc: any) => `${loc.warehouseName || 'Lager'} (${loc.hallName || 'Halle'})`)
           : [`${updatedPlan.warehouseName || 'Lager'} (${updatedPlan.hallName || 'Halle'})`];
@@ -311,7 +311,7 @@ export class PlanningService {
         .catch(() => {});
 
       if (this.planEmailsEnabled && emp.email) {
-        const shiftTime = plan.shift || (plan.startTime && plan.endTime ? `${new Date(plan.startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} - ${new Date(plan.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'Standardschicht');
+        const shiftTime = plan.shift || (plan.startTime && plan.endTime ? `${new Date(plan.startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} - ${new Date(plan.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'Nicht angegeben');
         const warehousesList = (plan.locations && plan.locations.length > 0)
           ? plan.locations.map((loc: any) => `${loc.warehouseName || 'Lager'} (${loc.hallName || 'Halle'})`)
           : [`${plan.warehouseName || 'Lager'} (${plan.hallName || 'Halle'})`];
@@ -632,7 +632,7 @@ export class PlanningService {
     // Determine master shift time
     const shiftTime = plan.shift || (plan.startTime && plan.endTime
       ? `${new Date(plan.startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} - ${new Date(plan.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`
-      : '08:00 - 14:00 (Standardschicht)');
+      : 'Nicht angegeben');
 
     // Format locations with hall-specific schedules
     const locationsList = (plan.locations && plan.locations.length > 0)
