@@ -194,9 +194,7 @@ ${text}
   * Unterschriften von Schichtleitern/Kunden/Vorarbeitern sind KEINE Mitarbeiter!
   * Verwende NIEMALS Firmen-, Kunden- oder Einsatzortnamen als employeeName!
 ${candidatesBlock}
-═══════════ DATUMSFORMATE — ALLE AKZEPTIEREN ═══════════
-Eingabe: TT.MM.JJJJ · TT.MM.JJ · TT/MM/JJJJ · TT/MM/JJ · TT.MM
-Ausgabe IMMER: YYYY-MM-DD (z.B. 16.07.2026 → 2026-07-16)
+${this.buildDateContext()}
 
 ═══════════ ZEITFORMATE — ALLE AKZEPTIEREN ═══════════
 Eingabe: HH:MM · HH.MM · HHMM · HHhMM · HH h MM · H:MM
@@ -267,10 +265,12 @@ Ausgabe IMMER: HH:MM (24h-Format, zweistellig, z.B. 08:00, 16:30)
     const employeeName = this.cleanEmployeeName(parsed.employeeName);
     const entries = Array.isArray(parsed.entries) ? parsed.entries : [];
     const sanitizedEntries: OcrTimesheetEntry[] = [];
+    const yearCorrections: string[] = [];
 
     for (const entry of entries) {
-      const date = this.normalizeDate(entry.date);
-      if (!date) continue;
+      const rawDate = this.normalizeDate(entry.date);
+      if (!rawDate) continue;
+      const date = this.correctImplausibleYear(rawDate, yearCorrections);
       const startTime = this.normalizeTime(entry.startTime);
       const endTime   = this.normalizeTime(entry.endTime);
       if (!startTime || !endTime) continue;
@@ -286,9 +286,10 @@ Ausgabe IMMER: HH:MM (24h-Format, zweistellig, z.B. 08:00, 16:30)
     }
 
     let weekStartDate = this.normalizeDate(parsed.weekStartDate) ?? undefined;
+    if (weekStartDate) weekStartDate = this.correctImplausibleYear(weekStartDate, yearCorrections);
     if (!weekStartDate) weekStartDate = this.deriveWeekStart(sanitizedEntries);
 
-    return { employeeName, weekStartDate, entries: sanitizedEntries };
+    return this.withYearWarning({ employeeName, weekStartDate, entries: sanitizedEntries }, yearCorrections);
   }
 
   // ─── Vision API call ──────────────────────────────────────────────────────
@@ -325,9 +326,7 @@ WENN keine Tabelle, kein Text oder ein leeres Bild übergeben wird, antworte imm
   * Unterschriften von Schichtleitern/Kunden/Vorarbeitern sind KEINE Mitarbeiter!
   * Verwende NIEMALS Firmen-, Kunden- oder Einsatzortnamen als employeeName!
 ${candidatesBlock}
-═══════════ DATUMSFORMATE — ALLE AKZEPTIEREN ═══════════
-Eingabe: TT.MM.JJJJ · TT.MM.JJ · TT/MM/JJJJ · TT/MM/JJ · TT.MM
-Ausgabe IMMER: YYYY-MM-DD (z.B. 16.07.2026 → 2026-07-16)
+${this.buildDateContext()}
 
 ═══════════ ZEITFORMATE — ALLE AKZEPTIEREN ═══════════
 Eingabe: HH:MM · HH.MM · HHMM · HHhMM · HH h MM · H:MM
@@ -415,14 +414,16 @@ Ausgabe IMMER: HH:MM (24h-Format, zweistellig, z.B. 08:00, 16:30)
     const entries      = Array.isArray(parsed.entries) ? parsed.entries : [];
 
     const sanitizedEntries: OcrTimesheetEntry[] = [];
+    const yearCorrections: string[] = [];
 
     for (const entry of entries) {
-      // 1. Normalize date (handles DD.MM.YY etc.)
-      const date = this.normalizeDate(entry.date);
-      if (!date) {
+      // 1. Normalize date (handles DD.MM.YY etc.) and fix an implausible year
+      const rawDate = this.normalizeDate(entry.date);
+      if (!rawDate) {
         this.logger.warn(`Ungültiges Datum übersprungen: "${entry.date}"`);
         continue;
       }
+      const date = this.correctImplausibleYear(rawDate, yearCorrections);
 
       // 2. Normalize times (handles 17.30, 1730, 7h30 etc.)
       const startTime = this.normalizeTime(entry.startTime);
@@ -458,11 +459,84 @@ Ausgabe IMMER: HH:MM (24h-Format, zweistellig, z.B. 08:00, 16:30)
 
     // Derive weekStartDate
     let weekStartDate: string | undefined = this.normalizeDate(parsed.weekStartDate) ?? undefined;
+    if (weekStartDate) {
+      weekStartDate = this.correctImplausibleYear(weekStartDate, yearCorrections);
+    }
     if (!weekStartDate) {
       weekStartDate = this.deriveWeekStart(sanitizedEntries);
     }
 
-    return { employeeName, weekStartDate, entries: sanitizedEntries };
+    return this.withYearWarning({ employeeName, weekStartDate, entries: sanitizedEntries }, yearCorrections);
+  }
+
+  // ─── Current date and year plausibility ───────────────────────────────────
+
+  /** Today as YYYY-MM-DD in the company time zone (Europe/Berlin). */
+  todayIso(now: Date = new Date()): string {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Berlin',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now);
+  }
+
+  /** Date rules for the extraction prompt. The model has no clock, so it gets today's date. */
+  buildDateContext(now: Date = new Date()): string {
+    const today = this.todayIso(now);
+    const [year, month, day] = today.split('-');
+    const prev = Number(year) - 1;
+    return `═══════════ DATUMSFORMATE — ALLE AKZEPTIEREN ═══════════
+Heutiges Datum: ${day}.${month}.${year} (${today}). Das aktuelle Jahr ist ${year}.
+Eingabe: TT.MM.JJJJ · TT.MM.JJ · TT/MM/JJJJ · TT/MM/JJ · TT.MM
+Ausgabe IMMER: YYYY-MM-DD (z.B. 16.07.${year} → ${year}-07-16)
+- Steht auf dem Stundenzettel KEIN Jahr oder ist es unleserlich, verwende das aktuelle Jahr ${year}. Liegt das Datum dadurch mehr als einen Monat in der Zukunft, verwende ${prev}.
+- Stundenzettel sind in der Regel höchstens wenige Wochen alt. Erfinde kein älteres Jahr, nur weil die Handschrift unklar ist.
+- Eine zweistellige Jahreszahl "26" bedeutet 2026.
+- Alle Tage einer Woche haben dasselbe Jahr, außer die Woche geht über den Jahreswechsel.`;
+  }
+
+  /**
+   * Fix a year the model could not know. A date counts as plausible when it lies
+   * within [today - 190 days, today + 31 days]. If it does not, the same day and
+   * month in a neighbouring year is used when that falls in the window. Anything
+   * else is left unchanged. Corrections are recorded so the reviewer sees them.
+   */
+  correctImplausibleYear(iso: string, corrections: string[] = [], now: Date = new Date()): string {
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return iso;
+    const today = new Date(`${this.todayIso(now)}T00:00:00Z`).getTime();
+    const DAY = 86400000;
+    const inWindow = (t: number) => t >= today - 190 * DAY && t <= today + 31 * DAY;
+    const at = (year: number) => {
+      const t = Date.UTC(year, Number(m[2]) - 1, Number(m[3]));
+      const d = new Date(t);
+      // Reject invalid roll-overs such as 29.02. in a non-leap year.
+      return d.getUTCMonth() === Number(m[2]) - 1 && d.getUTCDate() === Number(m[3]) ? t : null;
+    };
+    const original = at(Number(m[1]));
+    if (original !== null && inWindow(original)) return iso;
+    const currentYear = Number(this.todayIso(now).slice(0, 4));
+    for (const year of [currentYear, currentYear - 1, currentYear + 1]) {
+      if (year === Number(m[1])) continue;
+      const t = at(year);
+      if (t !== null && inWindow(t)) {
+        const fixed = `${year}-${m[2]}-${m[3]}`;
+        corrections.push(`${iso} → ${fixed}`);
+        return fixed;
+      }
+    }
+    return iso;
+  }
+
+  private withYearWarning(result: OcrTimesheetResult, corrections: string[]): OcrTimesheetResult {
+    if (corrections.length === 0) return result;
+    const unique = Array.from(new Set(corrections));
+    this.logger.warn(`Jahr korrigiert: ${unique.join(', ')}`);
+    return {
+      ...result,
+      warning: `Das erkannte Jahr war unplausibel und wurde auf das aktuelle Jahr korrigiert (${unique.slice(0, 3).join(', ')}${unique.length > 3 ? ', …' : ''}). Bitte Datum prüfen.`,
+    };
   }
 
   // ─── Normalization helpers ────────────────────────────────────────────────
@@ -552,7 +626,7 @@ Ausgabe IMMER: HH:MM (24h-Format, zweistellig, z.B. 08:00, 16:30)
     if (noYear) {
       const day   = noYear[1].padStart(2, '0');
       const month = noYear[2].padStart(2, '0');
-      const year  = new Date().getUTCFullYear();
+      const year  = this.todayIso().slice(0, 4);
       const iso   = `${year}-${month}-${day}`;
       const d = new Date(iso);
       return isNaN(d.getTime()) ? null : iso;
