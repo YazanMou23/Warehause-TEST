@@ -1753,5 +1753,9 @@
   "printerScanCardTitle": "Mit Drucker einlesen",
   "printerScanConnectorOk": "Connector auf diesem Gerät gefunden",
   "printerScanLegacy": "Ein altes Test-Programm (Simulator) läuft auf diesem PC. Bitte beenden und das neue LogiFlow Connector installieren.",
-  "printerScanSimulator": "Test-Simulator erkannt, kein echter Scan. Die Seiten wurden verworfen. Bitte das alte Programm beenden."
+  "printerScanSimulator": "Test-Simulator erkannt, kein echter Scan. Die Seiten wurden verworfen. Bitte das alte Programm beenden.",
+  "printerScanSource": "Quelle",
+  "printerScanSourceAuto": "Automatisch",
+  "printerScanSourceAdf": "Einzug (ADF)",
+  "printerScanSourceFlatbed": "Flachbett"
 }

@@ -1753,5 +1753,9 @@
   "printerScanCardTitle": "Yazıcı ile okut",
   "printerScanConnectorOk": "Connector bu cihazda bulundu",
   "printerScanLegacy": "Bu bilgisayarda eski bir test programı (simülatör) çalışıyor. Lütfen kapatın ve yeni LogiFlow Connector'ı kurun.",
-  "printerScanSimulator": "Test simülatörü algılandı, gerçek tarama değil. Sayfalar atıldı. Lütfen eski programı kapatın."
+  "printerScanSimulator": "Test simülatörü algılandı, gerçek tarama değil. Sayfalar atıldı. Lütfen eski programı kapatın.",
+  "printerScanSource": "Kaynak",
+  "printerScanSourceAuto": "Otomatik",
+  "printerScanSourceAdf": "Besleyici (ADF)",
+  "printerScanSourceFlatbed": "Cam yüzey"
 }

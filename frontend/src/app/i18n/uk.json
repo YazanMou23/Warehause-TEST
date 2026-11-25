@@ -1753,5 +1753,9 @@
   "printerScanCardTitle": "Зчитати принтером",
   "printerScanConnectorOk": "Connector знайдено на цьому пристрої",
   "printerScanLegacy": "На цьому ПК працює стара тестова програма (симулятор). Закрийте її та встановіть новий LogiFlow Connector.",
-  "printerScanSimulator": "Виявлено тестовий симулятор, не справжнє сканування. Сторінки відхилено. Закрийте стару програму."
+  "printerScanSimulator": "Виявлено тестовий симулятор, не справжнє сканування. Сторінки відхилено. Закрийте стару програму.",
+  "printerScanSource": "Джерело",
+  "printerScanSourceAuto": "Авто",
+  "printerScanSourceAdf": "Лоток (ADF)",
+  "printerScanSourceFlatbed": "Планшет"
 }
