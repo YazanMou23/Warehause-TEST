@@ -35,6 +35,7 @@ import {
   Edit,
   Plus,
   Camera,
+  Printer,
   Images,
   ChevronRight,
   SkipForward,
@@ -46,6 +47,7 @@ import { API_URL } from '../../../config/api';
 import CustomAlertModal, { CustomAlertOptions } from '../../components/CustomAlertModal';
 import { useDialog } from '../../components/DialogProvider';
 import WorkHoursVisibilityToggle from '../../components/WorkHoursVisibilityToggle';
+import PrinterScanButton from '../../components/PrinterScanButton';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -552,7 +554,7 @@ function UploadZone({
       className="flex flex-col gap-6 items-center w-full"
     >
       {/* 2-Column Action Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-5xl">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-6xl">
         
         {/* 1. File Upload Dropzone Card */}
         <div
@@ -661,6 +663,25 @@ function UploadZone({
               e.target.value = '';
             }}
           />
+        </div>
+
+        {/* 3. Printer scan: connects to the Windows connector automatically */}
+        <div className="relative rounded-3xl border-2 border-dashed border-blue-300 bg-blue-50/40 p-6 flex flex-col justify-between items-center text-center shadow-sm">
+          <div className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 text-blue-900 text-xs font-bold border border-blue-300 shadow-xs">
+            <Printer size={12} className="text-blue-800" />
+            <span> {t("printerScanTitle")} </span>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-blue-100 text-blue-800 border-2 border-blue-300 mt-8 mb-4 shadow-xs">
+            <Printer size={44} className="text-blue-800" />
+          </div>
+
+          <div>
+            <h3 className="text-slate-900 font-bold text-lg mb-1"> {t("printerScanCardTitle")} </h3>
+            <p className="text-slate-700 text-xs font-medium leading-relaxed max-w-xs mb-4"> {t("printerScanHint")} </p>
+          </div>
+
+          <PrinterScanButton output="images" onFiles={onFilesSelect} disabled={isLoading} />
         </div>
 
       </div>

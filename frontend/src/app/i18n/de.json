@@ -1734,5 +1734,21 @@
   "confirmationMessageView": "Nachricht ansehen",
   "confirmationMessageUnknownTime": "Zeit nicht angegeben",
   "confirmationMessageUnknownChannel": "Kanal nicht angegeben",
-  "confirmationMessageRecordedTime": "Gespeicherter Rückmeldungszeitpunkt"
+  "confirmationMessageRecordedTime": "Gespeicherter Rückmeldungszeitpunkt",
+  "printerScanButton": "Vom Drucker lesen",
+  "printerScanHint": "Dokument im Drucker einlegen und lesen. Die Verbindung erfolgt automatisch.",
+  "printerScanChecking": "Drucker-Verbindung wird gesucht...",
+  "printerScanScanning": "Der Drucker liest das Dokument...",
+  "printerScanNotRunning": "Das LogiFlow Drucker-Programm läuft nicht auf diesem PC. Bitte installieren oder starten.",
+  "printerScanDownload": "Programm herunterladen",
+  "printerScanInstallerSoon": "Das Installationsprogramm wird bereitgestellt. Bitte Administrator fragen.",
+  "printerScanBlocked": "Das Drucker-Programm lehnt diese Webseite ab. Bitte das Programm aktualisieren.",
+  "printerScanNoScanner": "Kein Scanner im WLAN gefunden. PC und Drucker müssen im selben WLAN sein.",
+  "printerScanChoose": "Drucker wählen",
+  "printerScanRetry": "Erneut suchen",
+  "printerScanCancel": "Abbrechen",
+  "printerScanFailed": "Das Lesen vom Drucker ist fehlgeschlagen.",
+  "printerScanNoPages": "Der Drucker hat keine Seiten geliefert.",
+  "printerScanTitle": "Drucker (WLAN)",
+  "printerScanCardTitle": "Mit Drucker einlesen"
 }

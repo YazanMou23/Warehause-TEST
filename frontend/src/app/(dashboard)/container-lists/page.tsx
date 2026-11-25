@@ -1,5 +1,6 @@
 "use client";
 import { useTranslation } from "../../i18n/LanguageContext";
+import PrinterScanButton from "../../components/PrinterScanButton";
 
 import React, { useState, useEffect, useMemo } from "react";
 import {
@@ -1017,30 +1018,48 @@ export default function ContainerListsPage() {
                   <>
                     <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-2">
                        {t("ui605")} </label>
-                    <div className="flex flex-col sm:flex-row items-center gap-3">
-                      <input
-                        type="file"
-                        accept="image/*,application/pdf,text/csv,.csv"
-                        onChange={handleFileChange}
-                        className="block w-full text-sm text-gray-600 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/40 dark:file:text-blue-300 cursor-pointer"
-                      />
-                      <button
-                        onClick={handleExtract}
-                        disabled={!selectedFile || isExtracting}
-                        className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-sm flex items-center justify-center gap-2 whitespace-nowrap shadow-sm shadow-blue-500/20 transition-all"
-                      >
-                        {isExtracting ? (
-                          <>
-                            <RotateCw className="w-4 h-4 animate-spin" />
-                            <span> {t("timesheet1131")} </span>
-                          </>
-                        ) : (
-                          <>
-                            <FileText className="w-4 h-4" />
-                            <span> {t("inventory1435")} </span>
-                          </>
-                        )}
-                      </button>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3 flex flex-col gap-2 justify-center">
+                        <input
+                          type="file"
+                          accept="image/*,application/pdf,text/csv,.csv"
+                          onChange={handleFileChange}
+                          className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/40 dark:file:text-blue-300 cursor-pointer"
+                        />
+                      </div>
+                      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3 flex flex-col gap-2 justify-center">
+                        <PrinterScanButton
+                          output="pdf"
+                          variant="inline"
+                          disabled={isExtracting}
+                          onFiles={(files) => {
+                            if (files[0]) {
+                              setSelectedFile(files[0]);
+                              setSuccessMessage(null);
+                              setErrorMessage(null);
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                    <button
+                      onClick={handleExtract}
+                      disabled={!selectedFile || isExtracting}
+                      className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-sm flex items-center justify-center gap-2 whitespace-nowrap shadow-sm shadow-blue-500/20 transition-all"
+                    >
+                      {isExtracting ? (
+                        <>
+                          <RotateCw className="w-4 h-4 animate-spin" />
+                          <span> {t("timesheet1131")} </span>
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="w-4 h-4" />
+                          <span> {t("inventory1435")} </span>
+                        </>
+                      )}
+                    </button>
                     </div>
                   </>
                 )}
