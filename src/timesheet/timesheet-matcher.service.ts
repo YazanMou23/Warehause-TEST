@@ -42,7 +42,7 @@ export class TimesheetMatcherService {
       return { found: false, confidence: 'none', score: 0 };
     }
 
-    let best: { id: string; name: string; score: number } | null = null;
+    let best: { id: string; name: string; score: number; strict: boolean } | null = null;
 
     for (const emp of employees) {
       const empNorm   = this.normalize(emp.name);
@@ -80,10 +80,11 @@ export class TimesheetMatcherService {
         }
       }
 
-      const score = Math.max(s1, s2, s3, s4, s5);
+      const strict = this.isStrictNameMatch(ocrTokens, empTokens);
+      const score = strict ? 100 : Math.min(84, Math.max(s1, s2, s3, s4, s5));
 
       if (!best || score > best.score) {
-        best = { id: emp.id, name: emp.name, score };
+        best = { id: emp.id, name: emp.name, score, strict };
       }
     }
 
@@ -91,7 +92,9 @@ export class TimesheetMatcherService {
       return { found: false, confidence: 'none', score: best?.score ?? 0 };
     }
 
-    if (best.score >= 85) {
+    // Only a full-name match (same words, any order, umlaut/case-insensitive) is
+    // trusted automatically. Everything else is only a suggestion for the user.
+    if (best.strict) {
       return {
         found: true,
         confidence: 'exact',
@@ -112,6 +115,14 @@ export class TimesheetMatcherService {
     }
 
     return { found: false, confidence: 'none', score: best.score };
+  }
+
+  /** Same words in any order, e.g. "Müller Max" == "Max Müller". */
+  isStrictNameMatch(a: string[], b: string[]): boolean {
+    if (!a.length || a.length !== b.length) return false;
+    const x = [...a].sort().join(' ');
+    const y = [...b].sort().join(' ');
+    return x === y;
   }
 
   // ─── Normalization ────────────────────────────────────────────────────────
