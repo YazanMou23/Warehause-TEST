@@ -1750,5 +1750,8 @@
   "printerScanFailed": "Не вдалося зчитати з принтера.",
   "printerScanNoPages": "Принтер не надіслав сторінок.",
   "printerScanTitle": "Принтер (Wi-Fi)",
-  "printerScanCardTitle": "Зчитати принтером"
+  "printerScanCardTitle": "Зчитати принтером",
+  "printerScanConnectorOk": "Connector знайдено на цьому пристрої",
+  "printerScanLegacy": "На цьому ПК працює стара тестова програма (симулятор). Закрийте її та встановіть новий LogiFlow Connector.",
+  "printerScanSimulator": "Виявлено тестовий симулятор, не справжнє сканування. Сторінки відхилено. Закрийте стару програму."
 }
