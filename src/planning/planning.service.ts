@@ -1,3 +1,4 @@
+import { rueckmeldungShiftTime } from './rueckmeldung-time';
 import { Injectable, NotFoundException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
@@ -1552,12 +1553,14 @@ export class PlanningService {
         }
       }
 
-      const shiftStartStr = pe.startTime
-        ? new Date(pe.startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
-        : '08:00';
-      const shiftEndStr = pe.endTime
-        ? new Date(pe.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
-        : '16:00';
+      const shiftTimeText = rueckmeldungShiftTime({
+        segments: (pe.plan.employeeSegments || []).filter(
+          (sg) => sg.employeeId === pe.employeeId && (!sg.planId || sg.planId === pe.planId),
+        ),
+        locations,
+        startTime: pe.startTime,
+        endTime: pe.endTime,
+      });
 
       return {
         planId: pe.planId,
@@ -1567,7 +1570,7 @@ export class PlanningService {
         employeePhoto: pe.employee.profilePhoto,
         date: pe.plan.date,
         formattedDate: new Date(pe.plan.date).toLocaleDateString('de-DE'),
-        shiftTime: `${shiftStartStr} - ${shiftEndStr}`,
+        shiftTime: shiftTimeText,
         warehouseId: loc?.warehouseId || null,
         warehouseName: Array.from(new Set(locations.map((l) => l.warehouse?.name).filter(Boolean))).join(' / ') || 'Duisburg',
         hallId: loc?.hallId || null,
