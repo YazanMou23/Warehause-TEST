@@ -72,7 +72,16 @@ pub async fn scan_wia<F: Fn(&str)>(
     let mut error: Option<String> = None;
     let page_count = opts.page_count.unwrap_or(0);
 
-    while let Ok(Some(line)) = lines.next_line().await {
+    loop {
+        // A page transfer must not block forever (e.g. a feeder that never answers).
+        let line = match tokio::time::timeout(std::time::Duration::from_secs(120), lines.next_line()).await {
+            Ok(Ok(Some(l))) => l,
+            Ok(_) => break,
+            Err(_) => {
+                error = Some("Zeitüberschreitung beim Scannen. Bitte Scanner prüfen und erneut versuchen.".to_string());
+                break;
+            }
+        };
         // Allow cancellation between lines.
         if let Some(c) = cancel {
             if c.load(Ordering::Relaxed) {

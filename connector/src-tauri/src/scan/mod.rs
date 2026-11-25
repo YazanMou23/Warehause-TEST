@@ -46,8 +46,12 @@ impl ScanOptions {
         let src = self.source();
         (src == "adf" || self.input_source.as_deref() == Some("Feeder")
             || self.input_source.as_deref() == Some("FeederDuplex"))
-            && self.multi_page.unwrap_or(true)
-            && self.batch_scan.unwrap_or(true)
+            && self.batch_flag()
+    }
+
+    /// Multi-page / batch flags only (the caller decides whether the feeder is in use).
+    pub fn batch_flag(&self) -> bool {
+        self.multi_page.unwrap_or(true) && self.batch_scan.unwrap_or(true)
     }
 }
 

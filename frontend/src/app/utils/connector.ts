@@ -79,18 +79,25 @@ export interface ScanProgress {
   (message: string): void;
 }
 
+export type ScanSource = "auto" | "adf" | "flatbed";
+
+export function normalizeScanSource(v: string | null | undefined): ScanSource {
+  return v === "adf" || v === "flatbed" ? v : "auto";
+}
+
 /** Start a scan on the connector and wait for the pages (base64). */
 export async function scanPages(
   deviceId: string,
   onProgress?: ScanProgress,
   isCancelled?: () => boolean,
+  source: ScanSource = "auto",
 ): Promise<JobPage[]> {
   const start = await call(
     "/scan/job",
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ deviceId, source: "auto", format: "jpeg", dpi: 200, colorMode: "Color" }),
+      body: JSON.stringify({ deviceId, source, format: "jpeg", dpi: 200, colorMode: "Color" }),
     },
     10000,
   );

@@ -1753,5 +1753,9 @@
   "printerScanCardTitle": "إدخال عبر الطابعة",
   "printerScanConnectorOk": "تم العثور على الـConnector على هذا الجهاز",
   "printerScanLegacy": "برنامج اختبار قديم (محاكي) شغّال على هذا الكمبيوتر. أوقفه وثبّت LogiFlow Connector الجديد.",
-  "printerScanSimulator": "تم اكتشاف المحاكي (Simulator)، ليس مسحاً حقيقياً. تم تجاهل الصفحات. أوقف البرنامج القديم."
+  "printerScanSimulator": "تم اكتشاف المحاكي (Simulator)، ليس مسحاً حقيقياً. تم تجاهل الصفحات. أوقف البرنامج القديم.",
+  "printerScanSource": "المصدر",
+  "printerScanSourceAuto": "تلقائي",
+  "printerScanSourceAdf": "التغذية التلقائية (ADF)",
+  "printerScanSourceFlatbed": "الزجاج"
 }

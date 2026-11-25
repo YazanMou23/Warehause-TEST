@@ -14,6 +14,8 @@ import {
   probeConnector,
   rememberScannerId,
   scanPages,
+  normalizeScanSource,
+  type ScanSource,
   type ConnectorScanner,
 } from "../utils/connector";
 
@@ -36,6 +38,7 @@ export default function PrinterScanButton({ output, onFiles, disabled, variant =
   const [detail, setDetail] = useState("");
   const [conn, setConn] = useState<Conn>("checking");
   const [version, setVersion] = useState("");
+  const [source, setSource] = useState<ScanSource>("auto");
   const cancelled = useRef(false);
   const scanningRef = useRef(false);
 
@@ -46,6 +49,19 @@ export default function PrinterScanButton({ output, onFiles, disabled, variant =
       setConn(probe.legacy ? "legacy" : "ready");
     } else setConn(probe.state);
   }, []);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      try { setSource(normalizeScanSource(window.localStorage.getItem("printerScanSource"))); } catch { /* ignore */ }
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, []);
+
+  const changeSource = (v: string) => {
+    const next = normalizeScanSource(v);
+    setSource(next);
+    try { window.localStorage.setItem("printerScanSource", next); } catch { /* ignore */ }
+  };
 
   // Check on page load, when the tab regains focus, and every 10 s while idle.
   useEffect(() => {
@@ -64,7 +80,7 @@ export default function PrinterScanButton({ output, onFiles, disabled, variant =
       cancelled.current = false;
       try {
         rememberScannerId(scanner.id);
-        const pages = await scanPages(scanner.id, setDetail, () => cancelled.current);
+        const pages = await scanPages(scanner.id, setDetail, () => cancelled.current, source);
         if (!pages.length) throw new ConnectorError("scan_failed", t("printerScanNoPages"));
         const files = output === "pdf" ? [await pagesToPdfFile(pages)] : await pagesToImageFiles(pages);
         setPhase("idle");
@@ -86,7 +102,7 @@ export default function PrinterScanButton({ output, onFiles, disabled, variant =
         scanningRef.current = false;
       }
     },
-    [onFiles, output, t],
+    [onFiles, output, t, source],
   );
 
   const start = useCallback(
@@ -143,6 +159,21 @@ export default function PrinterScanButton({ output, onFiles, disabled, variant =
         <p className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700" data-testid="connector-status">
           <CheckCircle2 size={12} /> {t("printerScanConnectorOk")}{version ? ` (v${version})` : ""}
         </p>
+      )}
+      {connReady && !busy && (
+        <label className="flex items-center gap-2 text-[11px] font-semibold text-slate-600">
+          <span>{t("printerScanSource")}</span>
+          <select
+            value={source}
+            onChange={(e) => changeSource(e.target.value)}
+            className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700"
+            data-testid="scan-source"
+          >
+            <option value="auto">{t("printerScanSourceAuto")}</option>
+            <option value="adf">{t("printerScanSourceAdf")}</option>
+            <option value="flatbed">{t("printerScanSourceFlatbed")}</option>
+          </select>
+        </label>
       )}
       {conn === "checking" && <p className="text-[11px] text-slate-600 font-medium">{t("printerScanChecking")}</p>}
       {phase === "scanning" && detail && <p className="text-xs text-slate-600 font-medium" dir="auto">{detail}</p>}
