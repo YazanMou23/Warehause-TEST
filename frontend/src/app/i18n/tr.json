@@ -1750,5 +1750,8 @@
   "printerScanFailed": "Yazıcıdan okuma başarısız oldu.",
   "printerScanNoPages": "Yazıcı sayfa göndermedi.",
   "printerScanTitle": "Yazıcı (Wi-Fi)",
-  "printerScanCardTitle": "Yazıcı ile okut"
+  "printerScanCardTitle": "Yazıcı ile okut",
+  "printerScanConnectorOk": "Connector bu cihazda bulundu",
+  "printerScanLegacy": "Bu bilgisayarda eski bir test programı (simülatör) çalışıyor. Lütfen kapatın ve yeni LogiFlow Connector'ı kurun.",
+  "printerScanSimulator": "Test simülatörü algılandı, gerçek tarama değil. Sayfalar atıldı. Lütfen eski programı kapatın."
 }

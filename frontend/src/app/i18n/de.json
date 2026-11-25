@@ -1750,5 +1750,8 @@
   "printerScanFailed": "Das Lesen vom Drucker ist fehlgeschlagen.",
   "printerScanNoPages": "Der Drucker hat keine Seiten geliefert.",
   "printerScanTitle": "Drucker (WLAN)",
-  "printerScanCardTitle": "Mit Drucker einlesen"
+  "printerScanCardTitle": "Mit Drucker einlesen",
+  "printerScanConnectorOk": "Connector auf diesem Gerät gefunden",
+  "printerScanLegacy": "Ein altes Test-Programm (Simulator) läuft auf diesem PC. Bitte beenden und das neue LogiFlow Connector installieren.",
+  "printerScanSimulator": "Test-Simulator erkannt, kein echter Scan. Die Seiten wurden verworfen. Bitte das alte Programm beenden."
 }

@@ -10,12 +10,12 @@ export const CONNECTOR_DOWNLOAD_URL = process.env.NEXT_PUBLIC_CONNECTOR_DOWNLOAD
 const LAST_PRINTER_KEY = "warehause.lastScannerId";
 
 export type ConnectorProbe =
-  | { state: "ready"; version: string }
+  | { state: "ready"; version: string; legacy: boolean }
   | { state: "not_running" }
   | { state: "blocked" };
 
 export class ConnectorError extends Error {
-  constructor(public code: "not_running" | "blocked" | "no_scanner" | "scan_failed" | "cancelled", message?: string) {
+  constructor(public code: "not_running" | "blocked" | "no_scanner" | "scan_failed" | "cancelled" | "simulator", message?: string) {
     super(message || code);
   }
 }
@@ -34,7 +34,10 @@ export async function probeConnector(): Promise<ConnectorProbe> {
     if (res.status === 403) return { state: "blocked" };
     if (!res.ok) return { state: "not_running" };
     const data = await res.json();
-    return { state: "ready", version: String(data?.version || "") };
+    // The old Node test connector (windows-connector/) answers on the same port and
+    // produces fake simulator scans. Treat it as "not usable".
+    const legacy = String(data?.connectorId || "") === "logiflow-windows-connector";
+    return { state: "ready", version: String(data?.version || ""), legacy };
   } catch {
     return { state: "not_running" };
   }
@@ -106,6 +109,11 @@ export async function scanPages(
     await new Promise((r) => setTimeout(r, 1000));
     const res = await call(`/scan/${jobId}/status`, undefined, 5000);
     const st = await res.json().catch(() => ({}));
+    // Never hand simulator pages to the app: they are fake test images.
+    if (/simulator/i.test(String(st.message || "")) || /simulator/i.test(String(st.backend || st.backendType || ""))) {
+      await call(`/scan/${jobId}/cancel`, { method: "POST" }, 4000).catch(() => undefined);
+      throw new ConnectorError("simulator");
+    }
     if (st.message) onProgress?.(String(st.message));
     if (st.status === "COMPLETED") return (st.pages || []) as JobPage[];
     if (st.status === "FAILED") throw new ConnectorError("scan_failed", st.error || st.message);
