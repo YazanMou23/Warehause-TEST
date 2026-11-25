@@ -120,7 +120,10 @@ export class TimesheetService {
 
     // 5. Store timesheet in PENDING_REVIEW state (scoped to upload job/page
     //    when provided, so the page can never be inserted twice)
-    const resolvedEmployeeName = (matchResult.found && matchResult.matchedName)
+    // Only an exact match is assigned automatically. A near match is returned as a
+    // suggestion; the scanned name stays as written.
+    const autoAssigned = matchResult.found && matchResult.confidence === 'exact';
+    const resolvedEmployeeName = (autoAssigned && matchResult.matchedName)
       ? matchResult.matchedName
       : (ocrResult.employeeName || 'Unbekannter Mitarbeiter');
 
@@ -129,7 +132,7 @@ export class TimesheetService {
       timesheet = await this.prisma.timesheet.create({
         data: {
           employeeName: resolvedEmployeeName,
-          employeeId: matchResult.found ? matchResult.employeeId ?? null : null,
+          employeeId: autoAssigned ? matchResult.employeeId ?? null : null,
           weekStartDate,
           status: TimesheetStatus.PENDING_REVIEW,
           createdById: creatorId,
@@ -186,10 +189,11 @@ export class TimesheetService {
     return {
       ...timesheet,
       employeeMatch: {
-        found: matchResult.found,
+        found: autoAssigned,
         confidence: matchResult.confidence,
         matchedName: matchResult.matchedName,
-        isNewEmployee: !matchResult.found,
+        suggestedEmployeeId: autoAssigned ? undefined : matchResult.employeeId,
+        isNewEmployee: !autoAssigned,
       },
       ocrWarning: ocrResult.warning,
       sandbox: ocrResult.sandbox ?? false,

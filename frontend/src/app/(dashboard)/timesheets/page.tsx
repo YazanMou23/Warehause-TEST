@@ -1081,7 +1081,7 @@ function ReviewView({
     } else {
       if (dbEmployees.length > 0 && scanResult.employeeName) {
         const match = findBestEmployeeMatch(scanResult.employeeName, dbEmployees);
-        if (match && match.score >= 80) {
+        if (match && match.score >= 98) {
           setEmployeeId(match.emp.id);
           setShowEmployeeSelector(false);
           setMatchConfidence(match.score >= 95 ? 'exact' : 'fuzzy');
@@ -1219,7 +1219,7 @@ function ReviewView({
     }
     if (employeeName && !createNew) {
       const match = findBestEmployeeMatch(employeeName, dbEmployees);
-      if (match && match.score >= 80) {
+      if (match && match.score >= 98) {
         setEmployeeId(match.emp.id);
         setShowEmployeeSelector(false);
         setMatchConfidence(match.score >= 95 ? 'exact' : 'fuzzy');
@@ -1231,7 +1231,7 @@ function ReviewView({
     setEmployeeName(newName);
     if (!createNew && dbEmployees.length > 0) {
       const match = findBestEmployeeMatch(newName, dbEmployees);
-      if (match && match.score >= 80) {
+      if (match && match.score >= 98) {
         setEmployeeId(match.emp.id);
         setShowEmployeeSelector(false);
         setMatchConfidence(match.score >= 95 ? 'exact' : 'fuzzy');
