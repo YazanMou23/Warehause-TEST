@@ -85,31 +85,60 @@ pub async fn escl_scan(ip: &str, port: u16, opts: &ScanOptions) -> Result<Vec<Sc
     let mut timed_out = false;
 
     'pages: loop {
-        // After the first page, a feeder that is empty may answer 404, 503 or hang on
-        // the next request. Use a short budget so the job ends instead of hanging.
+        // First page: wait for the scanner to warm up. Later pages: the ADF needs several
+        // seconds to feed the next sheet, so busy answers must not end the job. Instead ask
+        // the scanner whether it is still working and end only when it is idle or says 404.
         let first = pages.is_empty();
-        let max_attempts = if first { 25 } else { 2 };
-        let req_timeout = Duration::from_secs(if first { 25 } else { 8 });
+        let max_attempts = if first { 25 } else { u32::MAX };
+        let req_timeout = Duration::from_secs(if first { 25 } else { 15 });
         let mut page_bytes: Option<Vec<u8>> = None;
-        let mut attempts = 0;
+        let mut attempts: u32 = 0;
+        let mut idle_reads: u32 = 0;
+        let mut status_failures: u32 = 0;
+        let wait_started = Instant::now();
 
         while attempts < max_attempts && page_bytes.is_none() {
             if Instant::now() > deadline { timed_out = true; break 'pages; }
             attempts += 1;
+            let mut not_ready = false;
             match client.get(&doc_url).timeout(req_timeout).send().await {
                 Ok(r) => {
                     let status = r.status().as_u16();
                     if status == 200 {
                         let bytes = r.bytes().await.map_err(|e| e.to_string())?;
                         if bytes.len() > 100 { page_bytes = Some(bytes.to_vec()); }
-                        else { tokio::time::sleep(Duration::from_millis(1200)).await; }
-                    } else if status == 404 {
+                        else { not_ready = true; }
+                    } else if status == 404 || status == 410 {
                         break 'pages;
                     } else {
-                        tokio::time::sleep(Duration::from_millis(1200)).await;
+                        not_ready = true;
                     }
                 }
-                Err(_) => { tokio::time::sleep(Duration::from_millis(1200)).await; }
+                Err(_) => { not_ready = true; }
+            }
+            if not_ready {
+                if !first {
+                    let status_url = format!("{}/eSCL/ScannerStatus", base_url);
+                    let busy = match client.get(&status_url).timeout(Duration::from_secs(5)).send().await {
+                        Ok(r) if r.status().is_success() => r.text().await.ok().and_then(|t| scanner_busy(&t)),
+                        _ => None,
+                    };
+                    match busy {
+                        Some(true) => { idle_reads = 0; status_failures = 0; }
+                        Some(false) => {
+                            idle_reads += 1;
+                            if idle_reads >= 2 { break 'pages; }
+                        }
+                        None => {
+                            // Status not supported: fall back to a fixed grace period.
+                            status_failures += 1;
+                            if status_failures >= 10 || wait_started.elapsed() > Duration::from_secs(20) {
+                                break 'pages;
+                            }
+                        }
+                    }
+                }
+                tokio::time::sleep(Duration::from_millis(1200)).await;
             }
         }
 
@@ -141,6 +170,28 @@ pub async fn escl_scan(ip: &str, port: u16, opts: &ScanOptions) -> Result<Vec<Sc
         });
     }
     Ok(pages)
+}
+
+/// Reads the eSCL ScannerStatus XML. Some(true) = still working, Some(false) = idle or
+/// stopped, None = unknown.
+fn scanner_busy(xml: &str) -> Option<bool> {
+    let lower = xml.to_lowercase();
+    let mut from = 0;
+    while let Some(i) = lower[from..].find("state>") {
+        let at = from + i;
+        let prefix_ok = at > 0 && matches!(lower.as_bytes()[at - 1], b':' | b'<');
+        let after = &lower[at + 6..];
+        if prefix_ok {
+            let val = after.split('<').next().unwrap_or("").trim();
+            return match val {
+                "processing" => Some(true),
+                "idle" | "stopped" | "testing" | "down" => Some(false),
+                _ => None,
+            };
+        }
+        from = at + 6;
+    }
+    None
 }
 
 async fn post_job(
@@ -217,5 +268,14 @@ mod tests {
         assert!(caps_has_feeder("<scan:Adf><scan:AdfSimplexInputCaps/></scan:Adf>"));
         assert!(caps_has_feeder("<pwg:InputSource>Feeder</pwg:InputSource>"));
         assert!(!caps_has_feeder("<scan:Platen><scan:PlatenInputCaps/></scan:Platen>"));
+    }
+
+    #[test]
+    fn scanner_busy_parses_state() {
+        assert_eq!(scanner_busy("<scan:ScannerStatus><pwg:State>Processing</pwg:State></scan:ScannerStatus>"), Some(true));
+        assert_eq!(scanner_busy("<scan:ScannerStatus><pwg:State>Idle</pwg:State></scan:ScannerStatus>"), Some(false));
+        assert_eq!(scanner_busy("<ScannerStatus><State>Idle</State></ScannerStatus>"), Some(false));
+        assert_eq!(scanner_busy("<scan:Jobs><scan:JobInfo><pwg:JobState>Processing</pwg:JobState></scan:JobInfo></scan:Jobs>"), None);
+        assert_eq!(scanner_busy("garbage"), None);
     }
 }
