@@ -32,9 +32,14 @@ jobs:
         shell: pwsh
         run: |
           # Locate the Roslyn compiler shipped with Visual Studio Build Tools.
-          $csc = Get-ChildItem "C:\Program Files*\Microsoft Visual Studio\2022\*\MSBuild\Current\Bin\Roslyn\csc.exe" -ErrorAction SilentlyContinue |
+          $csc = Get-ChildItem "C:\Program Files*\Microsoft Visual Studio\*\*\MSBuild\*\Bin\Roslyn\csc.exe" -ErrorAction SilentlyContinue |
                  Select-Object -First 1 -ExpandProperty FullName
-          if (-not $csc) { throw "csc.exe not found" }
+          if (-not $csc) {
+            $csc = Get-ChildItem "C:\Program Files*\Microsoft Visual Studio" -Recurse -Filter csc.exe -ErrorAction SilentlyContinue |
+                   Where-Object { $_.FullName -like "*Roslyn*" } | Select-Object -First 1 -ExpandProperty FullName
+          }
+          if (-not $csc) { $csc = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" }
+          Write-Host "Using csc: $csc"
           $refdir = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319"
           $target = "src-tauri\resources\ScannerBridge.cs"
           $outdir = "src-tauri\resources\bridge-out"
