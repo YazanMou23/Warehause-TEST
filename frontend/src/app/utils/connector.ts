@@ -81,6 +81,12 @@ export interface ScanProgress {
 
 export type ScanSource = "auto" | "adf" | "flatbed";
 
+export type ScanConnection = "auto" | "escl" | "wia";
+
+export function normalizeScanConnection(v: string | null | undefined): ScanConnection {
+  return v === "escl" || v === "wia" ? v : "auto";
+}
+
 export function normalizeScanSource(v: string | null | undefined): ScanSource {
   return v === "adf" || v === "flatbed" ? v : "auto";
 }
@@ -91,13 +97,14 @@ export async function scanPages(
   onProgress?: ScanProgress,
   isCancelled?: () => boolean,
   source: ScanSource = "auto",
+  connection: ScanConnection = "auto",
 ): Promise<JobPage[]> {
   const start = await call(
     "/scan/job",
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ deviceId, source, format: "jpeg", dpi: 200, colorMode: "Color" }),
+      body: JSON.stringify({ deviceId, source, connection, format: "jpeg", dpi: 200, colorMode: "Color" }),
     },
     10000,
   );

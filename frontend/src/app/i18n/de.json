@@ -1757,5 +1757,9 @@
   "printerScanSource": "Quelle",
   "printerScanSourceAuto": "Automatisch",
   "printerScanSourceAdf": "Einzug (ADF)",
-  "printerScanSourceFlatbed": "Flachbett"
+  "printerScanSourceFlatbed": "Flachbett",
+  "printerScanConnection": "Verbindung",
+  "printerScanConnectionAuto": "Automatisch",
+  "printerScanConnectionEscl": "WLAN (eSCL)",
+  "printerScanConnectionWia": "Windows (WIA)"
 }

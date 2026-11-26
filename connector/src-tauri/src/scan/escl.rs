@@ -95,6 +95,7 @@ pub async fn escl_scan(ip: &str, port: u16, opts: &ScanOptions) -> Result<Vec<Sc
         let mut attempts: u32 = 0;
         let mut idle_reads: u32 = 0;
         let mut status_failures: u32 = 0;
+        let mut not_found: u32 = 0;
         let wait_started = Instant::now();
 
         while attempts < max_attempts && page_bytes.is_none() {
@@ -109,7 +110,20 @@ pub async fn escl_scan(ip: &str, port: u16, opts: &ScanOptions) -> Result<Vec<Sc
                         if bytes.len() > 100 { page_bytes = Some(bytes.to_vec()); }
                         else { not_ready = true; }
                     } else if status == 404 || status == 410 {
-                        break 'pages;
+                        // Some feeders answer 404 briefly between sheets. Only end the job after
+                        // several 404s in a row (and always for the first page).
+                        not_found += 1;
+                        log::info!("eSCL NextDocument for page {} -> HTTP {} (try {})", pages.len() + 1, status, not_found);
+                        if not_found == 1 {
+                            if let Ok(r) = client.get(format!("{}/eSCL/ScannerStatus", base_url)).timeout(Duration::from_secs(5)).send().await {
+                                if let Ok(t) = r.text().await {
+                                    let one: String = t.split_whitespace().collect::<Vec<_>>().join(" ");
+                                    log::info!("eSCL ScannerStatus: {}", one.chars().take(600).collect::<String>());
+                                }
+                            }
+                        }
+                        if first || not_found >= 6 { break 'pages; }
+                        not_ready = true;
                     } else {
                         not_ready = true;
                     }
@@ -127,7 +141,7 @@ pub async fn escl_scan(ip: &str, port: u16, opts: &ScanOptions) -> Result<Vec<Sc
                         Some(true) => { idle_reads = 0; status_failures = 0; }
                         Some(false) => {
                             idle_reads += 1;
-                            if idle_reads >= 2 { break 'pages; }
+                            if idle_reads >= 2 && not_found == 0 { break 'pages; }
                         }
                         None => {
                             // Status not supported: fall back to a fixed grace period.

@@ -42,8 +42,12 @@ pub async fn run_discovery() -> Vec<DiscoveredDevice> {
     }
 
     // 3. eSCL probe all candidates
+    // Addresses already known from Windows (printer ports) are candidates too.
+    for d in &devices {
+        if let Some(ip) = &d.ip { ip_set.insert(ip.clone()); }
+    }
     let ip_list: Vec<String> = ip_set.into_iter().collect();
-    log::info!("eSCL probing {} candidate IPs...", ip_list.len());
+    log::info!("eSCL probing {} candidate IPs: {}", ip_list.len(), ip_list.join(", "));
 
     const CHUNK: usize = 25;
     for chunk in ip_list.chunks(CHUNK) {
