@@ -23,9 +23,31 @@ use discovery::types::DiscoveredDevice;
 pub type SharedConfig  = Arc<RwLock<ConnectorConfig>>;
 pub type DeviceCache   = Arc<RwLock<Vec<DiscoveredDevice>>>;
 
+/// Log to stderr and, when possible, to a file the user can send for support:
+/// %LOCALAPPDATA%\\LogiFlow Connector\\connector.log (or the temp dir).
+fn init_logging() {
+    let mut builder = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"));
+    let dir = std::env::var_os("LOCALAPPDATA")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir)
+        .join("LogiFlow Connector");
+    if std::fs::create_dir_all(&dir).is_ok() {
+        let path = dir.join("connector.log");
+        // Keep the file small: start fresh when it is over 1 MB.
+        if std::fs::metadata(&path).map(|m| m.len() > 1_000_000).unwrap_or(false) {
+            let _ = std::fs::remove_file(&path);
+        }
+        if let Ok(f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+            builder.target(env_logger::Target::Pipe(Box::new(f)));
+        }
+    }
+    builder.format_timestamp_secs();
+    let _ = builder.try_init();
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    env_logger::init();
+    init_logging();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
