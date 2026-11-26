@@ -1757,5 +1757,9 @@
   "printerScanSource": "Kaynak",
   "printerScanSourceAuto": "Otomatik",
   "printerScanSourceAdf": "Besleyici (ADF)",
-  "printerScanSourceFlatbed": "Cam yüzey"
+  "printerScanSourceFlatbed": "Cam yüzey",
+  "printerScanConnection": "Bağlantı",
+  "printerScanConnectionAuto": "Otomatik",
+  "printerScanConnectionEscl": "WLAN (eSCL)",
+  "printerScanConnectionWia": "Windows (WIA)"
 }

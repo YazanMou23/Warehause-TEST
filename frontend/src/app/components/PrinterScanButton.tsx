@@ -15,6 +15,8 @@ import {
   rememberScannerId,
   scanPages,
   normalizeScanSource,
+  normalizeScanConnection,
+  type ScanConnection,
   type ScanSource,
   type ConnectorScanner,
 } from "../utils/connector";
@@ -39,6 +41,7 @@ export default function PrinterScanButton({ output, onFiles, disabled, variant =
   const [conn, setConn] = useState<Conn>("checking");
   const [version, setVersion] = useState("");
   const [source, setSource] = useState<ScanSource>("auto");
+  const [connection, setConnection] = useState<ScanConnection>("auto");
   const cancelled = useRef(false);
   const scanningRef = useRef(false);
 
@@ -53,9 +56,16 @@ export default function PrinterScanButton({ output, onFiles, disabled, variant =
   useEffect(() => {
     const id = window.setTimeout(() => {
       try { setSource(normalizeScanSource(window.localStorage.getItem("printerScanSource"))); } catch { /* ignore */ }
+      try { setConnection(normalizeScanConnection(window.localStorage.getItem("printerScanConnection"))); } catch { /* ignore */ }
     }, 0);
     return () => window.clearTimeout(id);
   }, []);
+
+  const changeConnection = (v: string) => {
+    const next = normalizeScanConnection(v);
+    setConnection(next);
+    try { window.localStorage.setItem("printerScanConnection", next); } catch { /* ignore */ }
+  };
 
   const changeSource = (v: string) => {
     const next = normalizeScanSource(v);
@@ -80,7 +90,7 @@ export default function PrinterScanButton({ output, onFiles, disabled, variant =
       cancelled.current = false;
       try {
         rememberScannerId(scanner.id);
-        const pages = await scanPages(scanner.id, setDetail, () => cancelled.current, source);
+        const pages = await scanPages(scanner.id, setDetail, () => cancelled.current, source, connection);
         if (!pages.length) throw new ConnectorError("scan_failed", t("printerScanNoPages"));
         const files = output === "pdf" ? [await pagesToPdfFile(pages)] : await pagesToImageFiles(pages);
         setPhase("idle");
@@ -102,7 +112,7 @@ export default function PrinterScanButton({ output, onFiles, disabled, variant =
         scanningRef.current = false;
       }
     },
-    [onFiles, output, t, source],
+    [onFiles, output, t, source, connection],
   );
 
   const start = useCallback(
@@ -172,6 +182,21 @@ export default function PrinterScanButton({ output, onFiles, disabled, variant =
             <option value="auto">{t("printerScanSourceAuto")}</option>
             <option value="adf">{t("printerScanSourceAdf")}</option>
             <option value="flatbed">{t("printerScanSourceFlatbed")}</option>
+          </select>
+        </label>
+      )}
+      {connReady && !busy && (
+        <label className="flex items-center gap-2 text-[11px] font-semibold text-slate-600">
+          <span>{t("printerScanConnection")}</span>
+          <select
+            value={connection}
+            onChange={(e) => changeConnection(e.target.value)}
+            className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700"
+            data-testid="scan-connection"
+          >
+            <option value="auto">{t("printerScanConnectionAuto")}</option>
+            <option value="escl">{t("printerScanConnectionEscl")}</option>
+            <option value="wia">{t("printerScanConnectionWia")}</option>
           </select>
         </label>
       )}

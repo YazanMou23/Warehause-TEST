@@ -80,7 +80,7 @@ pub async fn scan_wia<F: Fn(&str)>(
             log::warn!("WIA bridge ended without a page, retrying once");
         } else {
             log::warn!("WIA bridge ended after {} page(s) without finishing, continuing with page {}", pages.len(), next_page);
-            sink(&format!("Scanner neu verbunden, weiter mit Seite {} ...", next_page));
+            sink(&format!("Scanner neu verbunden, suche weitere Seiten (ab Seite {}) ...", next_page));
         }
         tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
     }

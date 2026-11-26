@@ -18,6 +18,7 @@ pub struct ScanOptions {
     pub color_mode:     Option<String>,  // "Color" | "Grayscale" | "BlackAndWhite"
     pub input_source:   Option<String>,  // "Platen" | "Feeder" | "FeederDuplex" | "auto"
     pub source:         Option<String>,  // "auto" | "adf" | "flatbed"
+    pub connection:     Option<String>,  // "auto" | "escl" | "wia"
     pub format:         Option<String>,  // "jpeg" | "png"
     pub batch_scan:     Option<bool>,
     pub duplex:         Option<bool>,
@@ -68,6 +69,8 @@ pub enum BackendTarget {
     Simulator,
     Wia { device_id: String },
     Escal { ip: String, port: u16 },
+    /// Network (eSCL) first; if that fails without any page, fall back to the Windows driver (WIA).
+    EsclThenWia { ip: String, port: u16, wia_device_id: String },
 }
 
 /// Resolve which backend/runtime should service a scan request.
@@ -83,13 +86,14 @@ pub fn resolve_backend(opts: &ScanOptions, cache: &DeviceCache) -> Result<Backen
         Vec::new()
     };
 
+    let conn = opts.connection.clone().unwrap_or_else(|| "auto".to_string()).to_lowercase();
     let ip = opts.scanner_ip.clone().unwrap_or_default();
     let device_id = opts.device_id.clone().unwrap_or_default();
 
     // 1. Explicit device id
     if !device_id.is_empty() {
         if let Some(d) = devices.iter().find(|d| d.id == device_id) {
-            return target_from_device(d);
+            return target_from_device(d, &conn);
         }
         // Device not cached but id looks like a WIA/USB device -> WIA
         if device_id.starts_with("WIA_") || device_id.starts_with("USB_")
@@ -140,7 +144,7 @@ pub fn resolve_backend(opts: &ScanOptions, cache: &DeviceCache) -> Result<Backen
             d.name.to_lowercase().contains(&ip_low) || d.model.to_lowercase().contains(&ip_low)
         })
     }) {
-        return target_from_device(d);
+        return target_from_device(d, &conn);
     }
 
     // 5. Unknown IP — try eSCL (most network scanners), but if no port data
@@ -152,16 +156,49 @@ pub fn resolve_backend(opts: &ScanOptions, cache: &DeviceCache) -> Result<Backen
 }
 
 /// Choose the concrete backend for a discovered device.
-fn target_from_device(d: &DiscoveredDevice) -> Result<BackendTarget, String> {
+fn target_from_device(d: &DiscoveredDevice, conn: &str) -> Result<BackendTarget, String> {
+    let has_escl = d.backends.iter().any(|b| b == "ESCL");
+    let has_wia = d.backends.iter().any(|b| b == "WIA") && d.status != "network_only";
+    let port = d.port.unwrap_or(80);
+
+    // Explicit choice from the app ("WLAN (eSCL)" / "Windows (WIA)").
+    if conn == "escl" {
+        if let Some(ip) = &d.ip {
+            log::info!("Scan connection forced to eSCL for '{}' at {}:{}", d.display_name, ip, port);
+            return Ok(BackendTarget::Escal { ip: ip.clone(), port });
+        }
+        return Err(format!(
+            "Scanner '{}' hat keine Netzwerkadresse für WLAN (eSCL). Bitte Drucker neu suchen oder Verbindung auf Windows (WIA) stellen.",
+            d.display_name
+        ));
+    }
+    if conn == "wia" && has_wia {
+        log::info!("Scan connection forced to WIA for '{}'", d.display_name);
+        return Ok(BackendTarget::Wia { device_id: wia_device_id(d) });
+    }
+
+    // Auto: devices that offer eSCL with a known address use it first (the Windows driver of
+    // some network scanners fails after the first sheet of a feeder job); WIA is the fallback.
+    if conn != "wia" && has_escl {
+        if let Some(ip) = &d.ip {
+            if has_wia {
+                log::info!("Scan connection auto for '{}': eSCL {}:{} first, WIA fallback", d.display_name, ip, port);
+                return Ok(BackendTarget::EsclThenWia { ip: ip.clone(), port, wia_device_id: wia_device_id(d) });
+            }
+            log::info!("Scan connection auto for '{}': eSCL {}:{}", d.display_name, ip, port);
+            return Ok(BackendTarget::Escal { ip: ip.clone(), port });
+        }
+    }
+
     // Respect an explicit backend preference if the caller supplied one via ip
     // heuristics; otherwise use the device's declared backends in priority order.
     if !d.backends.is_empty() {
         // Prefer WIA if the device is actually WIA-scanable (avoids the Canon
         // case where a network IP-backed device must still go through WIA).
-        if d.backends.iter().any(|b| b == "WIA") && d.status != "network_only" {
+        if has_wia {
             return Ok(BackendTarget::Wia { device_id: wia_device_id(d) });
         }
-        if d.backends.iter().any(|b| b == "ESCL") {
+        if has_escl {
             if let Some(ip) = &d.ip {
                 return Ok(BackendTarget::Escal { ip: ip.clone(), port: d.port.unwrap_or(80) });
             }
@@ -212,5 +249,19 @@ pub async fn scan_with_target<F: Fn(&str)>(
         #[cfg(not(target_os = "windows"))]
         BackendTarget::Wia { .. } => Err("WIA-Scan ist nur unter Windows verfügbar.".into()),
         BackendTarget::Escal { ip, port } => escl::escl_scan(&ip, port, &opts).await,
+        BackendTarget::EsclThenWia { ip, port, wia_device_id } => {
+            match escl::escl_scan(&ip, port, &opts).await {
+                Ok(pages) => Ok(pages),
+                Err(e) => {
+                    let cancelled = cancel.as_ref().map(|c| c.load(std::sync::atomic::Ordering::Relaxed)).unwrap_or(false);
+                    if cancelled { return Err(e); }
+                    log::warn!("eSCL scan failed ({}), falling back to WIA", e);
+                    #[cfg(target_os = "windows")]
+                    { wia::scan_wia(&wia_device_id, &opts, sink, cancel).await }
+                    #[cfg(not(target_os = "windows"))]
+                    { let _ = wia_device_id; Err(e) }
+                }
+            }
+        }
     }
 }

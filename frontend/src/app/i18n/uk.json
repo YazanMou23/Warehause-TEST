@@ -1757,5 +1757,9 @@
   "printerScanSource": "Джерело",
   "printerScanSourceAuto": "Авто",
   "printerScanSourceAdf": "Лоток (ADF)",
-  "printerScanSourceFlatbed": "Планшет"
+  "printerScanSourceFlatbed": "Планшет",
+  "printerScanConnection": "З'єднання",
+  "printerScanConnectionAuto": "Авто",
+  "printerScanConnectionEscl": "WLAN (eSCL)",
+  "printerScanConnectionWia": "Windows (WIA)"
 }

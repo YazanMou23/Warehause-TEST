@@ -1757,5 +1757,9 @@
   "printerScanSource": "المصدر",
   "printerScanSourceAuto": "تلقائي",
   "printerScanSourceAdf": "التغذية التلقائية (ADF)",
-  "printerScanSourceFlatbed": "الزجاج"
+  "printerScanSourceFlatbed": "الزجاج",
+  "printerScanConnection": "الاتصال",
+  "printerScanConnectionAuto": "تلقائي",
+  "printerScanConnectionEscl": "شبكة WLAN (eSCL)",
+  "printerScanConnectionWia": "ويندوز (WIA)"
 }
