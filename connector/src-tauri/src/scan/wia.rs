@@ -120,6 +120,11 @@ pub async fn scan_wia<F: Fn(&str)>(
                         sink(m);
                     }
                 }
+                "log" => {
+                    if let Some(m) = val.get("message").and_then(|m| m.as_str()) {
+                        log::info!("WIA bridge: {}", m);
+                    }
+                }
                 "error" => {
                     error = Some(val.get("message").and_then(|m| m.as_str()).unwrap_or("WIA-Fehler").to_string());
                     break;
