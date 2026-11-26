@@ -41,7 +41,7 @@ export default function DatenloeschungPage() {
                 <span className="font-bold text-slate-900 text-sm leading-tight block">
                   LogiFlow
                 </span>
-                <span className="text-[10px] text-slate-500 block">MDL Datenverwaltung</span>
+                <span className="text-[10px] text-slate-500 block">Datenverwaltung</span>
               </div>
             </div>
           </div>
@@ -102,24 +102,17 @@ export default function DatenloeschungPage() {
             {/* Direct Contact for Deletion */}
             <div className="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-xl">
               <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                {lang === "de" ? "Verantwortliche Kontaktstelle für Datenlöschung:" : "Direct Contact for Erasure Requests:"}
+                {lang === "de" ? "Kontaktstelle für Datenlöschung (Anbieter der Plattform; Anfragen werden an den verantwortlichen Kunden weitergeleitet):" : "Contact for erasure requests (platform provider; requests are forwarded to the responsible customer):"}
               </div>
               <div className="flex flex-col sm:flex-row sm:items-center gap-3 text-sm">
                 <div className="flex items-center gap-2 font-bold text-slate-900">
                   <Building2 className="w-4 h-4 text-slate-500" />
-                  MDL
-                </div>
-                <div className="hidden sm:block text-slate-300">•</div>
-                <div className="flex items-center gap-2">
-                  <Phone className="w-4 h-4 text-blue-600" />
-                  <a href="tel:017663477268" className="text-blue-600 hover:underline font-semibold">
-                    017663477268 (+49 176 63477268)
-                  </a>
+                  Yazan Moussa
                 </div>
                 <div className="hidden sm:block text-slate-300">•</div>
                 <div className="flex items-center gap-2 text-slate-600">
                   <Mail className="w-4 h-4 text-slate-500" />
-                  <span>datenschutz@mdl-lager.de</span>
+                  <span>info@yazan-tech.com</span>
                 </div>
               </div>
             </div>
@@ -146,22 +139,14 @@ export default function DatenloeschungPage() {
                   <p className="text-sm text-slate-600 leading-relaxed">
                     {lang === "de" ? (
                       <>
-                        Senden Sie uns eine formlose Anfrage per Telefon unter{" "}
-                        <a href="tel:017663477268" className="text-blue-600 hover:underline font-semibold">
-                          017663477268
-                        </a>{" "}
-                        oder per E-Mail an <strong>datenschutz@mdl-lager.de</strong> mit dem
+                        Senden Sie uns eine formlose Anfrage per E-Mail an <strong>info@yazan-tech.com</strong> mit dem
                         Betreff <em>„Antrag auf Datenlöschung / Meta App Data Deletion“</em>.
                         Geben Sie bitte Ihre registrierte Mobiltelefonnummer bzw. Ihren
                         Mitarbeiternamen an.
                       </>
                     ) : (
                       <>
-                        Contact us by phone at{" "}
-                        <a href="tel:017663477268" className="text-blue-600 hover:underline font-semibold">
-                          +49 176 63477268
-                        </a>{" "}
-                        or by email to <strong>datenschutz@mdl-lager.de</strong> with the subject{" "}
+                        Contact us by email at <strong>info@yazan-tech.com</strong> with the subject{" "}
                         <em>&quot;Meta App Data Deletion Request&quot;</em>. Please provide your
                         registered mobile phone number or username.
                       </>
@@ -243,8 +228,8 @@ export default function DatenloeschungPage() {
               </div>
               <p className="leading-relaxed">
                 {lang === "de"
-                  ? "Falls Sie eine App über Ihr Facebook-Konto autorisiert haben, können Sie den Zugriff auch direkt in Ihrem Meta-Konto widerrufen: Gehen Sie zu Facebook Einstellungen & Privatsphäre > Einstellungen > Apps und Websites > LogiFlow / MDL auswählen und auf „Entfernen“ klicken."
-                  : "If you connected an app via your Facebook profile, you can also revoke authorization via Meta account settings: Go to Facebook Settings & Privacy > Settings > Apps and Websites > Select LogiFlow / MDL and click 'Remove'."}
+                  ? "Falls Sie eine App über Ihr Facebook-Konto autorisiert haben, können Sie den Zugriff auch direkt in Ihrem Meta-Konto widerrufen: Gehen Sie zu Facebook Einstellungen & Privatsphäre > Einstellungen > Apps und Websites > LogiFlow auswählen und auf „Entfernen“ klicken."
+                  : "If you connected an app via your Facebook profile, you can also revoke authorization via Meta account settings: Go to Facebook Settings & Privacy > Settings > Apps and Websites > Select LogiFlow and click 'Remove'."}
               </p>
             </div>
 
@@ -271,7 +256,7 @@ export default function DatenloeschungPage() {
 
       {/* Footer */}
       <footer className="border-t border-slate-200 bg-white py-4 px-4 text-center text-xs text-slate-500">
-        © {new Date().getFullYear()} MDL · LogiFlow Warehouse Management System
+        © {new Date().getFullYear()} Yazan Moussa · LogiFlow Warehouse Management System
       </footer>
     </div>
   );

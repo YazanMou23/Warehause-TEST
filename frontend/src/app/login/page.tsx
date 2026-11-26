@@ -282,6 +282,13 @@ export default function LoginPage() {
                 </Link>
                 <span>•</span>
                 <Link
+                  href="/impressum"
+                  className="hover:text-[#1d4ed8] underline transition-colors"
+                >
+                  Impressum
+                </Link>
+                <span>•</span>
+                <Link
                   href="/datenloeschung"
                   className="hover:text-[#1d4ed8] underline transition-colors"
                 >
