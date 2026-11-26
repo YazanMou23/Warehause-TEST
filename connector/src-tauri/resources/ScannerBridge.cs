@@ -325,13 +325,13 @@ namespace LogiFlow.ScannerBridge
 
                 Directory.CreateDirectory(outputDir);
                 var scannedFiles = new List<string>();
-                int pageIndex = 0;
+                int pageIndex = (int)cmd.GetLong("pageStart", 1) - 1;
                 bool lastWasFront = true;
 
                 string stopReason = "";
                 int emptyRetries = 0;
                 int transientRetries = 0;
-                Log("scan start: useAdf=" + useAdf + " feederSelected=" + feederSelected + " duplex=" + duplex + " dpi=" + dpi);
+                Log("scan start: pageStart=" + (pageIndex + 1) + " useAdf=" + useAdf + " feederSelected=" + feederSelected + " duplex=" + duplex + " dpi=" + dpi);
 
                 while (true)
                 {

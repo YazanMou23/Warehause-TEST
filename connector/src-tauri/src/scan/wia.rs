@@ -30,20 +30,97 @@ pub async fn scan_wia<F: Fn(&str)>(
     let dpi    = opts.dpi.unwrap_or(300);
     let color  = opts.color_mode.as_deref().unwrap_or("Grayscale").to_string();
     let duplex = opts.duplex();
-
-    // Build the bridge scan command.
-    let payload = serde_json::json!({
-        "cmd": "scan",
-        "deviceId": resolved_id,
-        "source": source,
-        "duplex": duplex,
-        "dpi": dpi,
-        "colorMode": color,
-        "outputDir": out_dir.to_string_lossy(),
-        "jobKey": "sync"
-    });
+    let page_limit = opts.page_count.unwrap_or(0) as usize;
 
     log::info!("WIA scan via bridge: source={} dpi={} color={} duplex={}", source, dpi, color, duplex);
+
+    let mut pages: Vec<ScannedPage> = Vec::new();
+    let mut next_page: u32 = 1;
+    let mut stalled_runs = 0;
+    let mut error: Option<String> = None;
+    const MAX_PAGES: usize = 40;
+
+    // The Windows driver of some scanners ends the bridge process in the middle of a feeder job.
+    // When that happens after at least one page, start a new bridge process (fresh WIA
+    // connection) and continue with the next sheet until the feeder is empty.
+    loop {
+        let payload = serde_json::json!({
+            "cmd": "scan",
+            "deviceId": resolved_id,
+            "source": source,
+            "duplex": duplex,
+            "dpi": dpi,
+            "colorMode": color,
+            "outputDir": out_dir.to_string_lossy(),
+            "jobKey": "sync",
+            "pageStart": next_page
+        });
+        let remaining = if page_limit > 0 { page_limit.saturating_sub(pages.len()) } else { 0 };
+        let run = run_bridge(&payload, remaining, sink, cancel).await?;
+        let gained = run.pages.len();
+        if let Some(max) = run.pages.iter().map(|p| p.page_number).max() {
+            next_page = max + 1;
+        }
+        pages.extend(run.pages);
+
+        if let Some(e) = run.error {
+            if pages.is_empty() { error = Some(e); } else { log::info!("WIA bridge reported after {} page(s): {}", pages.len(), e); }
+            break;
+        }
+        if run.finished { break; }
+        if cancelled_msg(cancel).is_some() { break; }
+        if page_limit > 0 && pages.len() >= page_limit { break; }
+        if pages.len() >= MAX_PAGES { break; }
+
+        // The bridge ended without its final "ok": it crashed or was cut off.
+        if gained == 0 { stalled_runs += 1; } else { stalled_runs = 0; }
+        if stalled_runs >= 2 { log::warn!("WIA bridge ended twice without a new page, stopping"); break; }
+        if pages.is_empty() && stalled_runs >= 1 && gained == 0 && next_page == 1 {
+            // first run produced nothing and ended abnormally: one more try only
+            log::warn!("WIA bridge ended without a page, retrying once");
+        } else {
+            log::warn!("WIA bridge ended after {} page(s) without finishing, continuing with page {}", pages.len(), next_page);
+            sink(&format!("Scanner neu verbunden, weiter mit Seite {} ...", next_page));
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+    }
+
+    // Cleanup temp dir (only files, best-effort).
+    let _ = std::fs::remove_dir_all(&out_dir);
+
+    if let Some(e) = error {
+        return Err(e);
+    }
+
+    if pages.is_empty() {
+        // If the child finished with no pages output, surface a helpful error.
+        return Err(cancelled_msg(cancel).unwrap_or_else(|| {
+            if source == "adf" {
+                "Keine Seiten erfasst. Bitte Dokumente in den automatischen Einzug (ADF) legen.".to_string()
+            } else {
+                "Keine Seite erfasst. Bitte Dokument auf das Flachbettglas legen oder den Scanner prüfen.".to_string()
+            }
+        }));
+    }
+
+    log::info!("WIA scan complete: {} page(s)", pages.len());
+    Ok(pages)
+}
+
+struct BridgeRun {
+    pages: Vec<ScannedPage>,
+    error: Option<String>,
+    /// True when the bridge sent its final "ok" (normal end of the job).
+    finished: bool,
+}
+
+async fn run_bridge<F: Fn(&str)>(
+    payload: &serde_json::Value,
+    page_limit: usize,
+    sink: &F,
+    cancel: &Option<Arc<AtomicBool>>,
+) -> Result<BridgeRun, String> {
+    use tokio::io::{AsyncBufReadExt, AsyncReadExt};
 
     let mut child = tokio::process::Command::new(bridge::bridge_path().ok_or_else(|| {
         "WIA ScannerBridge.exe nicht gefunden. Bitte Connector neu installieren.".to_string()
@@ -56,6 +133,7 @@ pub async fn scan_wia<F: Fn(&str)>(
 
     let mut stdin = child.stdin.take().ok_or("no stdin")?;
     let stdout = child.stdout.take().ok_or("no stdout")?;
+    let mut stderr = child.stderr.take();
 
     // Write the command.
     {
@@ -66,11 +144,10 @@ pub async fn scan_wia<F: Fn(&str)>(
     }
 
     // Read output lines until the job finishes (terminal `ok` / `event:error`).
-    use tokio::io::AsyncBufReadExt;
     let mut lines = tokio::io::BufReader::new(stdout).lines();
     let mut pages: Vec<ScannedPage> = Vec::new();
     let mut error: Option<String> = None;
-    let page_count = opts.page_count.unwrap_or(0);
+    let mut finished = false;
 
     loop {
         // A page transfer must not block forever (e.g. a feeder that never answers).
@@ -107,10 +184,9 @@ pub async fn scan_wia<F: Fn(&str)>(
                                 mime_type:   "image/jpeg".into(),
                                 base64_data: B64.encode(&b),
                             });
-                            // Edge: bridge jpg extension; if user wants png we keep jpeg.
                         }
                         // Bail if we already have the requested number of pages.
-                        if page_count > 0 && (pages.len() as u32) >= page_count {
+                        if page_limit > 0 && pages.len() >= page_limit {
                             break;
                         }
                     }
@@ -132,8 +208,23 @@ pub async fn scan_wia<F: Fn(&str)>(
                 _ => {}
             }
         } else if val.get("ok").is_some() {
+            finished = true;
             break;
         }
+    }
+
+    // Did the bridge exit by itself? Log how (a crash leaves no other trace).
+    match child.try_wait() {
+        Ok(Some(status)) if !finished && error.is_none() => {
+            log::warn!("WIA bridge exited on its own without finishing: {}", status);
+            if let Some(mut err) = stderr.take() {
+                let mut buf = String::new();
+                let _ = tokio::time::timeout(std::time::Duration::from_secs(1), err.read_to_string(&mut buf)).await;
+                let tail: String = buf.chars().rev().take(500).collect::<Vec<_>>().into_iter().rev().collect();
+                if !tail.trim().is_empty() { log::warn!("WIA bridge stderr: {}", tail.trim()); }
+            }
+        }
+        _ => {}
     }
 
     // Ensure the child is cleaned up.
@@ -141,26 +232,7 @@ pub async fn scan_wia<F: Fn(&str)>(
     let _ = child.kill().await;
     let _ = child.wait().await;
 
-    // Cleanup temp dir (only files, best-effort).
-    let _ = std::fs::remove_dir_all(&out_dir);
-
-    if let Some(e) = error {
-        return Err(e);
-    }
-
-    if pages.is_empty() {
-        // If the child finished with no pages output, surface a helpful error.
-        return Err(cancelled_msg(cancel).unwrap_or_else(|| {
-            if source == "adf" {
-                "Keine Seiten erfasst. Bitte Dokumente in den automatischen Einzug (ADF) legen.".to_string()
-            } else {
-                "Keine Seite erfasst. Bitte Dokument auf das Flachbettglas legen oder den Scanner prüfen.".to_string()
-            }
-        }));
-    }
-
-    log::info!("WIA scan complete: {} page(s)", pages.len());
-    Ok(pages)
+    Ok(BridgeRun { pages, error, finished })
 }
 
 fn cancelled_msg(cancel: &Option<Arc<AtomicBool>>) -> Option<String> {
