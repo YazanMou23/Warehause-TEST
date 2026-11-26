@@ -11,7 +11,8 @@ pub async fn probe_escl_device(
 ) -> Option<DiscoveredDevice> {
     for &port in ESCL_PORTS {
         // TCP reachability check
-        if !tcp_reachable(ip, port).await { continue; }
+        // Printers in sleep mode can miss the first connect, so try twice.
+        if !tcp_reachable(ip, port).await && !tcp_reachable(ip, port).await { continue; }
 
         let is_https = port == 443 || port == 8443;
         let proto    = if is_https { "https" } else { "http" };
@@ -79,7 +80,7 @@ async fn tcp_reachable(ip: &str, port: u16) -> bool {
     use tokio::time::timeout;
     let addr = format!("{}:{}", ip, port);
     timeout(
-        std::time::Duration::from_millis(1200),
+        std::time::Duration::from_millis(2000),
         TcpStream::connect(&addr),
     ).await.map(|r| r.is_ok()).unwrap_or(false)
 }
