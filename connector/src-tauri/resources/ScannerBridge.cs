@@ -328,25 +328,48 @@ namespace LogiFlow.ScannerBridge
                 int pageIndex = 0;
                 bool lastWasFront = true;
 
+                string stopReason = "";
+                int emptyRetries = 0;
+                int transientRetries = 0;
+                Log("scan start: useAdf=" + useAdf + " feederSelected=" + feederSelected + " duplex=" + duplex + " dpi=" + dpi);
+
                 while (true)
                 {
-                    if (IsCancelled(jobKey)) { break; }
+                    if (IsCancelled(jobKey)) { stopReason = "cancelled"; break; }
                     pageIndex++;
                     string outFile = Path.Combine(outputDir, string.Format("page_{0:D3}.jpg", pageIndex));
+
+                    if (feederSelected && pageIndex > 1)
+                    {
+                        // Some drivers reset the document handling after each sheet: set it again
+                        // and give the feeder a moment to pick up the next sheet.
+                        try { SetProp(device.Properties, 3088, 1); } catch { }
+                        if (!duplex) { try { SetProp(device.Properties, 3096, 1); } catch { } }
+                        for (int w = 0; w < 16; w++)
+                        {
+                            long st = PropLong(device.Properties, 3087, 1); // FEED_READY = 0x01
+                            if ((st & 1) != 0) break;
+                            Thread.Sleep(500);
+                        }
+                    }
 
                     try
                     {
                         Print(new { @event = "progress", message = "Scanne Seite " + pageIndex + " ..." });
+                        Log("transfer page " + pageIndex);
 
                         dynamic img = item.Transfer();
                         if (img != null)
                         {
                             img.SaveFile(outFile);
-                            if (!File.Exists(outFile)) break;
+                            if (!File.Exists(outFile)) { stopReason = "page file missing"; break; }
                             scannedFiles.Add(outFile);
+                            emptyRetries = 0;
+                            transientRetries = 0;
+                            Log("page " + pageIndex + " saved");
                             Print(new { @event = "page", page = pageIndex, file = outFile });
 
-                            if (!useAdf) break; // Flatbed: single page
+                            if (!useAdf) { stopReason = "flatbed single page"; break; }
                             // Manual duplex: for duplex a second transfer of the back side.
                             if (duplex && feederSelected && lastWasFront)
                             {
@@ -365,37 +388,61 @@ namespace LogiFlow.ScannerBridge
                                         }
                                     }
                                 }
-                                catch { }
+                                catch (Exception bex) { Log("duplex back side failed: " + bex.Message); }
                                 lastWasFront = true;
                             }
-                            // If WIA is configured to auto-duplex (one transfer returns front+back combined),
-                            // WIA_DPS_PAGES may already be 2; keep the loop but guard with small pause.
-                            Thread.Sleep(250);
+                            Thread.Sleep(500);
                         }
-                        else break;
+                        else { stopReason = "transfer returned no image"; break; }
                     }
                     catch (COMException ex)
                     {
-                        // WIA_ERROR_PAPER_EMPTY (0x80210003) or WIA_ERROR_OFFLINE (0x80210001)
-                        if (ex.ErrorCode == unchecked((int)0x80210003) || ex.ErrorCode == unchecked((int)0x80210001))
+                        int code = ex.ErrorCode;
+                        Log("transfer page " + pageIndex + " failed: 0x" + code.ToString("X8") + " " + ex.Message);
+                        if (code == unchecked((int)0x80210003)) // PAPER_EMPTY
                         {
-                            if (pageIndex == 1 && scannedFiles.Count == 0 && !useAdf && flatbedItem != null)
+                            // After a real page an empty feeder is the normal end. Ask once more
+                            // after a short wait: some drivers report "empty" while the next sheet is still being pulled.
+                            if (scannedFiles.Count > 0 && emptyRetries < 1)
                             {
-                                // Fallback for auto mode when ADF chosen but empty -> don't loop; caller decides.
+                                emptyRetries++;
+                                pageIndex--;
+                                Thread.Sleep(2000);
+                                continue;
                             }
-                            break; // normal end of ADF feeder
+                            stopReason = "feeder empty";
+                            break;
                         }
-                        if (scannedFiles.Count > 0) break; // ended after pages
-                        throw new Exception("WIA Fehler: " + ex.Message);
+                        bool transient = code == unchecked((int)0x80210006) // BUSY
+                            || code == unchecked((int)0x80210007)           // WARMING_UP
+                            || code == unchecked((int)0x80210009)           // ITEM_LOCKED
+                            || code == unchecked((int)0x8021000A)           // DEVICE_COMMUNICATION
+                            || code == unchecked((int)0x80210001)           // GENERAL_ERROR
+                            || code == unchecked((int)0x80210005);          // OFFLINE
+                        if (scannedFiles.Count > 0 && transient && transientRetries < 5)
+                        {
+                            transientRetries++;
+                            pageIndex--;
+                            Thread.Sleep(1500);
+                            continue;
+                        }
+                        if (scannedFiles.Count > 0)
+                        {
+                            stopReason = "error 0x" + code.ToString("X8");
+                            break; // keep the pages already scanned
+                        }
+                        throw new Exception("WIA Fehler (0x" + code.ToString("X8") + "): " + ex.Message);
                     }
-                    catch (Exception)
+                    catch (Exception ex)
                     {
-                        if (scannedFiles.Count > 0) break;
+                        Log("transfer page " + pageIndex + " exception: " + ex.Message);
+                        if (scannedFiles.Count > 0) { stopReason = "exception: " + ex.Message; break; }
                         throw;
                     }
 
-                    if (!feederSelected) break;
+                    if (!feederSelected) { stopReason = "feeder not selected"; break; }
                 }
+                Log("scan end: " + scannedFiles.Count + " file(s), reason=" + stopReason);
 
                 if (scannedFiles.Count == 0)
                 {
@@ -410,6 +457,12 @@ namespace LogiFlow.ScannerBridge
             {
                 PrintError(ex.Message);
             }
+        }
+
+        // Diagnostic line, forwarded to the connector log by the Rust side.
+        static void Log(string msg)
+        {
+            try { Print(new { @event = "log", message = msg }); } catch { }
         }
 
         static bool IsCancelled(string jobKey) { return false; /* cancellation handled by process kill in caller */ }
