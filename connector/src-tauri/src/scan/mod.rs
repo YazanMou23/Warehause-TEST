@@ -179,8 +179,11 @@ fn target_from_device(d: &DiscoveredDevice, conn: &str) -> Result<BackendTarget,
 
     // Auto: devices that offer eSCL with a known address use it first (the Windows driver of
     // some network scanners fails after the first sheet of a feeder job); WIA is the fallback.
-    if conn != "wia" && has_escl {
+    // A device that only has a network address from the Windows port (e.g. Brother via WSD/spooler)
+    // is also tried over eSCL on the standard port; WIA stays the fallback.
+    if conn != "wia" && (has_escl || (has_wia && d.ip.is_some())) {
         if let Some(ip) = &d.ip {
+            let port = if has_escl && matches!(port, 80 | 443 | 8080) { port } else { 80 };
             if has_wia {
                 log::info!("Scan connection auto for '{}': eSCL {}:{} first, WIA fallback", d.display_name, ip, port);
                 return Ok(BackendTarget::EsclThenWia { ip: ip.clone(), port, wia_device_id: wia_device_id(d) });
