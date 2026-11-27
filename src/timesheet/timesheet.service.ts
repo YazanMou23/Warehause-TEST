@@ -15,6 +15,7 @@ import { UpdateTimesheetEntryDto } from './dto/update-timesheet-entry.dto';
 import { TimesheetStatus, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
+import { findHoursConflicts, formatBlockMessage, HoursConflict } from './hours-duplicates';
 
 @Injectable()
 export class TimesheetService {
@@ -407,6 +408,36 @@ export class TimesheetService {
         },
       });
 
+      // Duplicate protection: hours the employee already has on the same dates must not be registered again.
+      const duplicateWarnings: HoursConflict[] = [];
+      if (attendanceToCreate.length) {
+        const times = attendanceToCreate.map((a: any) => new Date(a.date).getTime());
+        const from = new Date(Math.min(...times));
+        from.setUTCHours(0, 0, 0, 0);
+        const to = new Date(Math.max(...times));
+        to.setUTCHours(0, 0, 0, 0);
+        to.setUTCDate(to.getUTCDate() + 1);
+        const existingHours = await tx.attendance.findMany({
+          where: { employeeId, date: { gte: from, lt: to }, NOT: { timesheetId: id } },
+          select: { date: true, clockIn: true, clockOut: true, totalHours: true, source: true },
+        });
+        const blocks: HoursConflict[] = [];
+        for (const att of attendanceToCreate as any[]) {
+          for (const c of findHoursConflicts(att, existingHours)) {
+            (c.kind === 'BLOCK' ? blocks : duplicateWarnings).push(c);
+          }
+        }
+        if (blocks.length) {
+          throw new ConflictException({
+            statusCode: 409,
+            error: 'Conflict',
+            code: 'HOURS_ALREADY_REGISTERED',
+            message: formatBlockMessage(blocks),
+            conflicts: blocks,
+          });
+        }
+      }
+
       // Create attendance records
       for (const att of attendanceToCreate) {
         await this.hours.create({ data: att }, tx);
@@ -421,7 +452,8 @@ export class TimesheetService {
         },
       });
 
-      return this.hours.projectTimesheet(confirmed,tx);
+      const projectedConfirmed = await this.hours.projectTimesheet(confirmed,tx);
+      return duplicateWarnings.length ? { ...projectedConfirmed, duplicateWarnings } : projectedConfirmed;
     });
 
 
