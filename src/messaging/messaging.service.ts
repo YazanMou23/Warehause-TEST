@@ -4,6 +4,7 @@ import { buildPlanTemplate, PLAN_TEMPLATE_NAMES, PlanTemplateEvent } from './pla
 import { WorkerInboundLedger } from './worker-inbound-ledger.service';
 import { WorkerMenu, WorkerMenuReply } from './worker-menu';
 import { WorkerAiService } from './worker-ai.service';
+import { WorkerPinService } from './worker-pin.service';
 import { workerReply } from './worker-replies';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupportedLanguage, WhatsappSelfServiceService } from './whatsapp-self-service.service';
@@ -21,6 +22,7 @@ export class MessagingService implements OnModuleInit {
     @Optional() private readonly selfService?: WhatsappSelfServiceService,
     @Optional() private readonly workerAi?: WorkerAiService,
     @Optional() private readonly inboundLedger?: WorkerInboundLedger,
+    @Optional() private readonly workerPin?: WorkerPinService,
   ) {}
 
   private menu?: WorkerMenu;
@@ -635,6 +637,37 @@ export class MessagingService implements OnModuleInit {
     return ['nein', 'لا', 'ні', 'hayır', 'hayir'].includes(text.trim().toLowerCase());
   }
 
+  private pinReply(kind: 'ask' | 'wrong' | 'locked' | 'ok', language?: SupportedLanguage): string {
+    const lang = language ?? 'de';
+    const replies: Record<string, Record<SupportedLanguage, string>> = {
+      ask: {
+        de: '🔒 Zum Schutz deiner Daten: Bitte sende deine 6-stellige WhatsApp-PIN, die du persönlich von deiner Schichtleitung erhalten hast. Deine Frage wird danach beantwortet.',
+        ar: '🔒 لحماية بياناتك: أرسل رمز PIN المكوّن من 6 أرقام الذي استلمته شخصيا من مسؤول الشفت. سيتم الرد على سؤالك بعدها.',
+        tr: '🔒 Verilerinizi korumak için: Vardiya sorumlunuzdan şahsen aldığınız 6 haneli WhatsApp PIN kodunu gönderin. Sorunuz daha sonra yanıtlanacaktır.',
+        uk: '🔒 Для захисту ваших даних: надішліть 6-значний PIN-код WhatsApp, який ви особисто отримали від керівника зміни. Після цього ми відповімо на ваше запитання.',
+      },
+      wrong: {
+        de: '❌ Diese PIN ist nicht korrekt. Bitte versuche es erneut.',
+        ar: '❌ الرمز غير صحيح. حاول مرة أخرى.',
+        tr: '❌ Bu PIN yanlış. Lütfen tekrar deneyin.',
+        uk: '❌ Невірний PIN-код. Спробуйте ще раз.',
+      },
+      locked: {
+        de: '🔒 Zu viele falsche PIN-Versuche heute. Bitte versuche es morgen erneut oder wende dich an deine Schichtleitung.',
+        ar: '🔒 محاولات خاطئة كثيرة اليوم. حاول غدا أو راجع مسؤول الشفت.',
+        tr: '🔒 Bugün çok fazla yanlış PIN denemesi. Lütfen yarın tekrar deneyin veya vardiya sorumlunuza başvurun.',
+        uk: '🔒 Забагато невдалих спроб PIN сьогодні. Спробуйте завтра або зверніться до керівника зміни.',
+      },
+      ok: {
+        de: '✅ Danke, deine Identität ist bestätigt (24 Stunden).',
+        ar: '✅ شكرا، تم تأكيد هويتك (24 ساعة).',
+        tr: '✅ Teşekkürler, kimliğiniz doğrulandı (24 saat).',
+        uk: '✅ Дякуємо, вашу особу підтверджено (24 години).',
+      },
+    };
+    return replies[kind][lang] ?? replies[kind].de;
+  }
+
   private refusalClarification(text: string, chosenLanguage?: SupportedLanguage): string {
     const language = chosenLanguage ?? this.selfService?.detectLanguage(text) ?? 'de';
     if (language === 'ar') return '❓ ما سبب عدم الحضور؟\n🤒 للمرض: اختر زر المرض.\n💬 لسبب آخر: اختر رسالة واكتب السبب.\nℹ️ لم يتم تسجيل مرض.';
@@ -845,6 +878,49 @@ export class MessagingService implements OnModuleInit {
 
       const languageText = msg.text?.body || msg.interactive?.list_reply?.title || msg.interactive?.button_reply?.title || msg.button?.text || '';
       const replyLanguage = this.selfService?.replyLanguage(resolvedSender.id, languageText) ?? 'de';
+
+      // ─── Worker PIN gate (owner decision 2026-11-28) ───
+      // Shift CONFIRM/SICK/CUSTOM buttons stay open without a PIN. Every other
+      // inbound interaction (text questions, menus, notes, language, courtesy)
+      // requires a verified session for workers who have a PIN. Unverified text
+      // is held and processed right after a successful PIN; unverified menu taps
+      // are refused with the PIN request and can be repeated afterwards.
+      const pinMenuId = msg.interactive?.list_reply?.id || msg.interactive?.button_reply?.id;
+      const pinMenuInteraction = msg.type === 'interactive' && (msg.interactive?.list_reply || String(pinMenuId || '').startsWith('MENU_'));
+      const pinTextMessage = msg.type === 'text' && Boolean(msg.text?.body);
+      if (
+        this.workerPin &&
+        (pinTextMessage || pinMenuInteraction) &&
+        (await this.workerPin.hasPin(resolvedSender.id)) &&
+        !this.workerPin.isVerified(resolvedSender.id)
+      ) {
+        const attempt = pinTextMessage ? String(msg.text.body).trim() : '';
+        if (WorkerPinService.PIN_REGEX.test(attempt)) {
+          // Never log the attempt value; it is a secret.
+          const verdict = await this.workerPin.tryVerify(resolvedSender.id, attempt);
+          if (verdict === 'locked') {
+            await this.sendWhatsAppDirect(cleanFrom, this.pinReply('locked', replyLanguage)).catch(() => {});
+            return;
+          }
+          if (verdict === 'wrong') {
+            await this.sendWhatsAppDirect(cleanFrom, this.pinReply('wrong', replyLanguage)).catch(() => {});
+            return;
+          }
+          await this.sendWhatsAppDirect(cleanFrom, this.pinReply('ok', replyLanguage)).catch(() => {});
+          const heldText = this.workerPin.takeHeldText(resolvedSender.id);
+          if (!heldText) return;
+          if (msg.type === 'text' && msg.text?.body) {
+            // Process the question that was held while asking for the PIN.
+            msg.text.body = heldText;
+          } else {
+            return;
+          }
+        } else {
+          if (pinTextMessage) this.workerPin.holdText(resolvedSender.id, String(msg.text.body).trim());
+          await this.sendWhatsAppDirect(cleanFrom, this.pinReply('ask', replyLanguage)).catch(() => {});
+          return;
+        }
+      }
 
       // Menu IDs and list replies never enter assignment-decision routing.
       const menuId = msg.interactive?.list_reply?.id || msg.interactive?.button_reply?.id;

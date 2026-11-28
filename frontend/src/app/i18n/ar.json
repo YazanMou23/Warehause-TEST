@@ -1757,5 +1757,13 @@
   "printerScanSource": "المصدر",
   "printerScanSourceAuto": "تلقائي",
   "printerScanSourceAdf": "التغذية التلقائية (ADF)",
-  "printerScanSourceFlatbed": "الزجاج"
+  "printerScanSourceFlatbed": "الزجاج",
+  "whatsappPinTitle": "رمز واتساب",
+  "whatsappPinGenerate": "توليد الرمز",
+  "whatsappPinRegenerate": "توليد رمز جديد",
+  "whatsappPinRegenerateInfo": "يوجد رمز حالي لهذا العامل. الرمز الجديد يلغي القديم فورا.",
+  "whatsappPinOnceInfo": "هذا الرمز يظهر مرة واحدة فقط ولا يمكن عرضه لاحقا. سلّمه للعامل شخصيا.",
+  "whatsappPinClose": "إغلاق",
+  "whatsappPinError": "تعذر توليد الرمز.",
+  "whatsappPinActive": "الرمز مفعّل"
 }

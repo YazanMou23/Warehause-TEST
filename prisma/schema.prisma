@@ -86,6 +86,11 @@ model User {
   isChatBlocked       Boolean              @default(false)
   hideWorkHours       Boolean              @default(false)
 
+  // WhatsApp worker verification (PIN). Hash only, never the PIN itself.
+  whatsappPinHash           String?
+  whatsappPinFailedAttempts Int                @default(0)
+  whatsappPinFailedDay      String?
+
   // Custom relations
   notifications      Notification[]
   createdContainers  Container[]           @relation("ContainerCreatedBy")

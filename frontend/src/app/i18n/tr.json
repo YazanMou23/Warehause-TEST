@@ -1757,5 +1757,13 @@
   "printerScanSource": "Kaynak",
   "printerScanSourceAuto": "Otomatik",
   "printerScanSourceAdf": "Besleyici (ADF)",
-  "printerScanSourceFlatbed": "Cam yüzey"
+  "printerScanSourceFlatbed": "Cam yüzey",
+  "whatsappPinTitle": "WhatsApp PIN'i",
+  "whatsappPinGenerate": "PIN oluştur",
+  "whatsappPinRegenerate": "Yeni PIN oluştur",
+  "whatsappPinRegenerateInfo": "Bu çalışan için zaten bir PIN var. Yeni PIN, eskisini anında geçersiz kılar.",
+  "whatsappPinOnceInfo": "Bu PIN yalnızca bir kez gösterilir ve daha sonra tekrar görüntülenemez. Lütfen çalışana şahsen iletin.",
+  "whatsappPinClose": "Kapat",
+  "whatsappPinError": "PIN oluşturulamadı.",
+  "whatsappPinActive": "PIN aktif"
 }

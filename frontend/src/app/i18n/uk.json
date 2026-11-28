@@ -1757,5 +1757,13 @@
   "printerScanSource": "Джерело",
   "printerScanSourceAuto": "Авто",
   "printerScanSourceAdf": "Лоток (ADF)",
-  "printerScanSourceFlatbed": "Планшет"
+  "printerScanSourceFlatbed": "Планшет",
+  "whatsappPinTitle": "PIN-код WhatsApp",
+  "whatsappPinGenerate": "Створити PIN",
+  "whatsappPinRegenerate": "Створити новий PIN",
+  "whatsappPinRegenerateInfo": "Для цього працівника вже існує PIN. Новий PIN одразу скасовує старий.",
+  "whatsappPinOnceInfo": "Цей PIN показується лише один раз і пізніше його не можна переглянути. Передайте працівникові особисто.",
+  "whatsappPinClose": "Закрити",
+  "whatsappPinError": "Не вдалося створити PIN.",
+  "whatsappPinActive": "PIN активний"
 }

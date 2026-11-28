@@ -27,6 +27,7 @@ import {
   Eye,
   EyeOff,
   ShieldAlert,
+  KeyRound,
 } from "lucide-react";
 import { useTranslation } from "../../i18n/LanguageContext";
 import CustomAlertModal, { CustomAlertOptions } from "../../components/CustomAlertModal";
@@ -50,6 +51,7 @@ interface Employee {
   employmentStart?: string;
   employmentEnd?: string | null;
   hideWorkHours?: boolean;
+  hasWhatsappPin?: boolean;
 }
 
 const getFirstName = (fullName: string) => {
@@ -194,6 +196,13 @@ export default function EmployeesPage() {
 
   // WhatsApp Modal State
   const [whatsAppModalOpen, setWhatsAppModalOpen] = useState(false);
+
+  // WhatsApp PIN Modal State (owner decision 2026-11-28: PIN shown once, handed over in person)
+  const [pinModalOpen, setPinModalOpen] = useState(false);
+  const [pinTargetEmp, setPinTargetEmp] = useState<Employee | null>(null);
+  const [pinValue, setPinValue] = useState("");
+  const [pinLoading, setPinLoading] = useState(false);
+  const [pinError, setPinError] = useState("");
   const [whatsAppTargetEmp, setWhatsAppTargetEmp] = useState<Employee | null>(null);
 
   // Excel Import State
@@ -714,6 +723,42 @@ export default function EmployeesPage() {
   const openWhatsAppModal = (emp: Employee) => {
     setWhatsAppTargetEmp(emp);
     setWhatsAppModalOpen(true);
+  };
+
+  const openPinModal = (emp: Employee) => {
+    setPinTargetEmp(emp);
+    setPinValue("");
+    setPinError("");
+    setPinModalOpen(true);
+    if (!emp.hasWhatsappPin) {
+      void handleGeneratePin(emp);
+    }
+  };
+
+  const handleGeneratePin = async (emp: Employee) => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) return;
+    setPinLoading(true);
+    setPinError("");
+    setPinValue("");
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/employees/${emp.id}/whatsapp-pin`,
+        { method: "POST", headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.pin) {
+        setPinValue(String(data.pin));
+        setEmployees((prev) => prev.map((e) => (e.id === emp.id ? { ...e, hasWhatsappPin: true } : e)));
+        setPinTargetEmp((prev) => (prev && prev.id === emp.id ? { ...prev, hasWhatsappPin: true } : prev));
+      } else {
+        setPinError((Array.isArray(data.message) ? data.message.join(", ") : data.message) || t("whatsappPinError"));
+      }
+    } catch {
+      setPinError(t("whatsappPinError"));
+    } finally {
+      setPinLoading(false);
+    }
   };
 
   const openEmailModal = (emp: Employee) => {
@@ -1341,6 +1386,17 @@ export default function EmployeesPage() {
                             >
                               SMS
                             </a>
+                            {canManage && (
+                              <button
+                                type="button"
+                                onClick={() => openPinModal(emp)}
+                                title={emp.hasWhatsappPin ? t("whatsappPinActive") : t("whatsappPinGenerate")}
+                                className="badge-premium badge-neutral hover:bg-slate-200 font-bold transition-all cursor-pointer flex items-center gap-1"
+                              >
+                                <KeyRound className="w-3 h-3" />
+                                <span>PIN{emp.hasWhatsappPin ? " ✓" : ""}</span>
+                              </button>
+                            )}
                           </>
                         ) : (
                           <span className="text-slate-600 italic text-xs"> {t("staff931")} </span>
@@ -2081,6 +2137,71 @@ export default function EmployeesPage() {
       )}
 
       {/* Email Compose Modal */}
+      {pinModalOpen && pinTargetEmp && (
+        <div className="responsive-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fadeIn">
+          <div className="responsive-form-panel bg-white border border-slate-100 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-scaleIn">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+              <div>
+                <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-blue-600" />
+                  {t("whatsappPinTitle")}
+                </h4>
+                <p className="text-[10px] text-slate-600 font-semibold mt-0.5">{pinTargetEmp.name}</p>
+              </div>
+              <button
+                aria-label={t("close")} onClick={() => setPinModalOpen(false)}
+                className="text-slate-600 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="responsive-form-body p-6 space-y-4">
+              {pinError && (
+                <div className="p-3 bg-red-50 border border-red-100 text-red-700 rounded-lg flex items-start gap-2 text-xs">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{pinError}</span>
+                </div>
+              )}
+              {pinValue ? (
+                <>
+                  <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-lg text-center">
+                    <div className="text-3xl font-mono font-bold tracking-[0.3em] text-slate-800" dir="ltr">{pinValue}</div>
+                  </div>
+                  <p className="text-xs text-slate-600 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+                    <span>{t("whatsappPinOnceInfo")}</span>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setPinModalOpen(false)}
+                    className="btn-primary w-full py-2 text-xs"
+                  >
+                    {t("whatsappPinClose")}
+                  </button>
+                </>
+              ) : (
+                <>
+                  {pinTargetEmp.hasWhatsappPin && (
+                    <p className="text-xs text-slate-600 flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+                      <span>{t("whatsappPinRegenerateInfo")}</span>
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    disabled={pinLoading}
+                    onClick={() => void handleGeneratePin(pinTargetEmp)}
+                    className="btn-primary w-full py-2 text-xs disabled:opacity-50"
+                  >
+                    {pinLoading ? "..." : pinTargetEmp.hasWhatsappPin ? t("whatsappPinRegenerate") : t("whatsappPinGenerate")}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {emailModalOpen && emailTargetEmp && (
         <div className="responsive-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fadeIn">
           <div className="responsive-form-panel bg-white border border-slate-100 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-scaleIn">

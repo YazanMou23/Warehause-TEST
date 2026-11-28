@@ -6,6 +6,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { EmailService } from '../email/email.service';
 import { Role, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { randomInt } from 'crypto';
 import * as ExcelJS from 'exceljs';
 import { SettingsService } from '../settings/settings.service';
 
@@ -150,12 +151,14 @@ export class UsersService {
           hideWorkHours: true,
           createdAt: true,
           updatedAt: true,
+          whatsappPinHash: true,
         },
       }),
     ]);
 
     return {
-      data,
+      // The hash itself must never leave the server; expose only whether a PIN exists.
+      data: data.map(({ whatsappPinHash, ...user }) => ({ ...user, hasWhatsappPin: Boolean(whatsappPinHash) })),
       meta: {
         total,
         page,
@@ -163,6 +166,30 @@ export class UsersService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  /**
+   * Generates a new random 6-digit WhatsApp PIN for an employee (owner decision
+   * 2026-11-28). Only the bcrypt hash is stored; the plaintext PIN is returned
+   * exactly once so the manager can hand it to the worker in person. Regenerating
+   * replaces the old PIN immediately and clears the failed-attempt counter.
+   */
+  async generateWhatsappPin(id: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true, role: true, isActive: true },
+    });
+    if (!user) throw new NotFoundException('Employee not found');
+    if (user.role !== Role.EMPLOYEE) {
+      throw new BadRequestException('WhatsApp PIN is only available for employees');
+    }
+    const pin = randomInt(0, 1_000_000).toString().padStart(6, '0');
+    const whatsappPinHash = await bcrypt.hash(pin, 10);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { whatsappPinHash, whatsappPinFailedAttempts: 0, whatsappPinFailedDay: null },
+    });
+    return { pin };
   }
 
   async findOne(id: string, actorRole?: Role) {
