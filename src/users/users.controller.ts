@@ -93,6 +93,12 @@ export class UsersController {
     return this.usersService.bulkAssignRole(ids, role, currentUser.id);
   }
 
+  @Post(':id/whatsapp-pin')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  generateWhatsappPin(@Param('id') id: string) {
+    return this.usersService.generateWhatsappPin(id);
+  }
+
   @Get('excel-template')
   @Roles(Role.MANAGER, Role.ADMIN)
   async downloadExcelTemplate(@Res() res: any) {

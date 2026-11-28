@@ -1757,5 +1757,13 @@
   "printerScanSource": "Quelle",
   "printerScanSourceAuto": "Automatisch",
   "printerScanSourceAdf": "Einzug (ADF)",
-  "printerScanSourceFlatbed": "Flachbett"
+  "printerScanSourceFlatbed": "Flachbett",
+  "whatsappPinTitle": "WhatsApp-PIN",
+  "whatsappPinGenerate": "PIN erzeugen",
+  "whatsappPinRegenerate": "Neue PIN erzeugen",
+  "whatsappPinRegenerateInfo": "Für diesen Mitarbeiter existiert bereits eine PIN. Eine neue PIN macht die alte sofort ungültig.",
+  "whatsappPinOnceInfo": "Diese PIN wird nur einmal angezeigt und kann später nicht wieder eingesehen werden. Bitte persönlich an den Mitarbeiter weitergeben.",
+  "whatsappPinClose": "Schließen",
+  "whatsappPinError": "PIN konnte nicht erzeugt werden.",
+  "whatsappPinActive": "PIN aktiv"
 }
